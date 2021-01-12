@@ -20,30 +20,25 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       c.nextSibling(); // go to arglist
       c.firstChild(); // go into arglist
 
+      let args = traverseArguments(c, s);
 
-      c.nextSibling(); // find single argument in arglist
-      const arg1 = traverseExpr(c, s);
       var expr : Expr;
       if (callName === "print" || callName === "abs") {
         expr = {
           tag: "builtin1",
           name: callName,
-          arg: arg1
+          arg: args[0]
         };
       } else if (callName === "max" || callName === "min" || callName === "pow") {
-        c.nextSibling(); // skip first arg
-        c.nextSibling(); // skip comma
-        const arg2 = traverseExpr(c, s);
         expr = {
-
           tag: "builtin2",
           name: callName,
-          left: arg1,
-          right: arg2
+          left: args[0],
+          right: args[1]
         }
       }
       else {
-        return { tag: "call", name: callName, arguments: [arg1]};
+        return { tag: "call", name: callName, arguments: args};
       }
       c.parent(); // pop arglist
       c.parent(); // pop CallExpression
@@ -79,6 +74,19 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
     default:
       throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
   }
+}
+
+export function traverseArguments(c : TreeCursor, s : string) : Array<Expr> {
+  c.firstChild();  // Focuses on open paren
+  const args = [];
+  do {
+    c.nextSibling(); // Focuses on a VariableName
+    let expr = traverseExpr(c, s);
+    args.push(expr);
+    c.nextSibling(); // Focuses on either "," or ")"
+  } while(c.type.name !== ")");
+  c.parent();       // Pop to ArgList
+  return args;
 }
 
 export function traverseStmt(c : TreeCursor, s : string) : Stmt {
@@ -129,10 +137,15 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
 
 export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter> {
   c.firstChild();  // Focuses on open paren
-  c.nextSibling(); // Focuses on a VariableName
-  let name = s.substring(c.from, c.to);
-  c.parent();      // Pop to ParamList
-  return [{ name }]
+  const parameters = [];
+  do {
+    c.nextSibling(); // Focuses on a VariableName
+    let name = s.substring(c.from, c.to);
+    parameters.push({name});
+    c.nextSibling(); // Focuses on either "," or ")"
+  } while(c.type.name !== ")");
+  c.parent();       // Pop to ParamList
+  return parameters;
 }
 
 export function traverse(c : TreeCursor, s : string) : Array<Stmt> {

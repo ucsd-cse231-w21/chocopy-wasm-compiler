@@ -97,4 +97,14 @@ describe('run', () => {
     const result = await run('def f(x): return x + 1\nf(5)', config);
     expect(result).to.equal(6);
   })
+
+  it('multi-arg', async() => {
+    const result = await run('def f(x, y, z): return x - y - z\nf(9, 3, 1)', config);
+    expect(result).to.equal(5);
+  })
+
+  it('multi-arg-again', async() => {
+    const result = await run('def f(x, y, z): return x * y - z\nf(9, 3, 1)', config);
+    expect(result).to.equal(26);
+  })
 });

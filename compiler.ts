@@ -47,7 +47,7 @@ function codeGen(stmt: Stmt) : Array<string> {
       var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
       var stmts = stmt.body.map(codeGen).flat();
       var stmtsBody = stmts.join("\n");
-      return [`(func $${stmt.name} ${params} (result i32) (local $$last i32) ${stmtsBody})`];
+      return [`(func $${stmt.name} ${params} (result i32) (local $$last i32) ${stmtsBody} (i32.const 0) (return))`];
     case "return":
       var valStmts = codeGenExpr(stmt.value);
       valStmts.push("return");
@@ -79,7 +79,7 @@ function codeGenExpr(expr : Expr) : Array<string> {
       const rhsStmts = codeGenExpr(expr.right);
       return [...lhsStmts, ...rhsStmts, codeGenOp(expr.op)]
     case "call":
-      var valStmts = codeGenExpr(expr.arguments[0]);
+      var valStmts = expr.arguments.map(codeGenExpr).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
   }

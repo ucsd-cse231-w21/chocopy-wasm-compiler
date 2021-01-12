@@ -4,6 +4,7 @@
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
 import wabt from 'wabt';
+import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
 
@@ -45,6 +46,7 @@ export async function run(source : string, config: any) : Promise<number> {
       ${returnExpr}
     )
   )`;
+  console.log(wasmSource);
   const myModule = wabtInterface.parseWat("test.wat", wasmSource);
   var asBinary = myModule.toBinary({});
   var wasmModule = await WebAssembly.instantiate(asBinary.buffer, importObject);
