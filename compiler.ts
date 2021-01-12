@@ -34,7 +34,7 @@ export function makeLocals(locals: Set<string>) : Array<string> {
 export function compile(source: string) : CompileResult {
   const ast = parse(source);
   const definedVars = getLocals(ast);
-  definedVars.add("$$last");
+  definedVars.add("$last");
   const localDefines = makeLocals(definedVars);
   const funs : Array<string> = [];
   ast.forEach((stmt, i) => {
@@ -55,14 +55,15 @@ function codeGen(stmt: Stmt) : Array<string> {
   switch(stmt.tag) {
     case "fun":
       const definedVars = getLocals(stmt.body);
-      definedVars.add("$$last");
+      definedVars.add("$last");
+      stmt.parameters.forEach(p => definedVars.delete(p.name));
       const localDefines = makeLocals(definedVars);
       const locals = localDefines.join("\n");
       var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
       var stmts = stmt.body.map(codeGen).flat();
       var stmtsBody = stmts.join("\n");
-      return [`(func $${stmt.name} ${params} (result i32) (local $$last i32)
-        ${localDefines}
+      return [`(func $${stmt.name} ${params} (result i32)
+        ${locals}
         ${stmtsBody}
         (i32.const 0)
         (return))`];

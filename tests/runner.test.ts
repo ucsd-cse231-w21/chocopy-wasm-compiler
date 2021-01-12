@@ -116,4 +116,13 @@ def f(x, y, z):
 f(9, 3, 1)`, config);
     expect(result).to.equal(26);
   })
+
+  it('multi-arg-local-var', async() => {
+    const result = await run(`
+def f(x, y, z):
+  m = y * x
+  return m - z
+f(9, 3, 1)`, config);
+    expect(result).to.equal(26);
+  })
 });

@@ -158,7 +158,6 @@ export function traverse(c : TreeCursor, s : string) : Array<Stmt> {
       do {
         stmts.push(traverseStmt(c, s));
       } while(c.nextSibling())
-      console.log("traversed " + stmts.length + " statements ", stmts, "stopped at " , c.node);
       return stmts;
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
