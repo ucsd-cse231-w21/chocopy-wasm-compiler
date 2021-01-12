@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/node": "^14.14.20",
     "lezer-python": "^0.13.1",
     "lezer-tree": "^0.13.0",
     "mochawesome": "^6.2.1",
