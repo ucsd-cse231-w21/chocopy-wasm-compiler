@@ -10,9 +10,8 @@ type CompileResult = {
   mainSource: string,
 };
 
-export function compile(source: string) : CompileResult {
-  const ast = parse(source);
-  const definedVars = new Set();
+export function getLocals(ast : Array<Stmt>) : Set<string> {
+  const definedVars : Set<string> = new Set();
   ast.forEach(s => {
     switch(s.tag) {
       case "define":
@@ -20,12 +19,23 @@ export function compile(source: string) : CompileResult {
         break;
     }
   }); 
-  const scratchVar : string = `(local $$last i32)`;
-  const localDefines = [scratchVar];
-  definedVars.forEach(v => {
-    localDefines.push(`(local $${v} i32)`);
-  })
+  return definedVars;
+}
 
+export function makeLocals(locals: Set<string>) : Array<string> {
+  const localDefines : Array<string> = [];
+  locals.forEach(v => {
+    localDefines.push(`(local $${v} i32)`);
+  });
+  return localDefines;
+
+}
+
+export function compile(source: string) : CompileResult {
+  const ast = parse(source);
+  const definedVars = getLocals(ast);
+  definedVars.add("$$last");
+  const localDefines = makeLocals(definedVars);
   const funs : Array<string> = [];
   ast.forEach((stmt, i) => {
     if(stmt.tag === "fun") { funs.push(codeGen(stmt).join("\n")); }
@@ -44,10 +54,18 @@ export function compile(source: string) : CompileResult {
 function codeGen(stmt: Stmt) : Array<string> {
   switch(stmt.tag) {
     case "fun":
+      const definedVars = getLocals(stmt.body);
+      definedVars.add("$$last");
+      const localDefines = makeLocals(definedVars);
+      const locals = localDefines.join("\n");
       var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
       var stmts = stmt.body.map(codeGen).flat();
       var stmtsBody = stmts.join("\n");
-      return [`(func $${stmt.name} ${params} (result i32) (local $$last i32) ${stmtsBody} (i32.const 0) (return))`];
+      return [`(func $${stmt.name} ${params} (result i32) (local $$last i32)
+        ${localDefines}
+        ${stmtsBody}
+        (i32.const 0)
+        (return))`];
     case "return":
       var valStmts = codeGenExpr(stmt.value);
       valStmts.push("return");
