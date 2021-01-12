@@ -38,7 +38,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         }
       }
       else {
-        return { tag: "call", name: callName, arguments: args};
+        expr = { tag: "call", name: callName, arguments: args};
       }
       c.parent(); // pop arglist
       c.parent(); // pop CallExpression
@@ -126,7 +126,9 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       while(c.nextSibling()) {
         body.push(traverseStmt(c, s));
       }
+      console.log("Before pop to body: ", c.type.name);
       c.parent();      // Pop to Body
+      console.log("Before pop to def: ", c.type.name);
       c.parent();      // Pop to FunctionDefinition
       return {
         tag: "fun",
