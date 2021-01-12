@@ -6,7 +6,8 @@ import { parse } from "./parser";
 type LocalEnv = Map<string, boolean>;
 
 type CompileResult = {
-  wasmSource: string,
+  functions: string,
+  mainSource: string,
 };
 
 export function compile(source: string) : CompileResult {
@@ -24,17 +25,33 @@ export function compile(source: string) : CompileResult {
   definedVars.forEach(v => {
     localDefines.push(`(local $${v} i32)`);
   })
+
+  const funs : Array<string> = [];
+  ast.forEach((stmt, i) => {
+    if(stmt.tag === "fun") { funs.push(codeGen(stmt).join("\n")); }
+  });
+  const allFuns = funs.join("\n\n");
+  const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   
-  const commandGroups = ast.map((stmt) => codeGen(stmt));
+  const commandGroups = stmts.map((stmt) => codeGen(stmt));
   const commands = localDefines.concat([].concat.apply([], commandGroups));
-  console.log("Generated: ", commands.join("\n"));
   return {
-    wasmSource: commands.join("\n"),
+    functions: allFuns,
+    mainSource: commands.join("\n"),
   };
 }
 
 function codeGen(stmt: Stmt) : Array<string> {
   switch(stmt.tag) {
+    case "fun":
+      var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
+      var stmts = stmt.body.map(codeGen).flat();
+      var stmtsBody = stmts.join("\n");
+      return [`(func $${stmt.name} ${params} (result i32) (local $$last i32) ${stmtsBody})`];
+    case "return":
+      var valStmts = codeGenExpr(stmt.value);
+      valStmts.push("return");
+      return valStmts;
     case "define":
       var valStmts = codeGenExpr(stmt.value);
       return valStmts.concat([`(local.set $${stmt.name})`]);
@@ -61,6 +78,10 @@ function codeGenExpr(expr : Expr) : Array<string> {
       const lhsStmts = codeGenExpr(expr.left);
       const rhsStmts = codeGenExpr(expr.right);
       return [...lhsStmts, ...rhsStmts, codeGenOp(expr.op)]
+    case "call":
+      var valStmts = codeGenExpr(expr.arguments[0]);
+      valStmts.push(`(call $${expr.name})`);
+      return valStmts;
   }
 }
 

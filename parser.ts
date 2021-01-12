@@ -1,6 +1,6 @@
 import {parser} from "lezer-python";
 import {TreeCursor} from "lezer-tree";
-import {Expr, Stmt, Op} from "./ast";
+import {Expr, Stmt, Op, Parameter} from "./ast";
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr {
   switch(c.type.name) {
@@ -42,6 +42,9 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
           right: arg2
         }
       }
+      else {
+        return { tag: "call", name: callName, arguments: [arg1]};
+      }
       c.parent(); // pop arglist
       c.parent(); // pop CallExpression
       return expr;
@@ -80,12 +83,18 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
 export function traverseStmt(c : TreeCursor, s : string) : Stmt {
   switch(c.node.type.name) {
+    case "ReturnStatement":
+      c.firstChild();  // Focus return keyword
+      c.nextSibling(); // Focus expression
+      var value = traverseExpr(c, s);
+      c.parent();
+      return { tag: "return", value };
     case "AssignStatement":
       c.firstChild(); // go to name
-      const name = s.substring(c.from, c.to);
+      var name = s.substring(c.from, c.to);
       c.nextSibling(); // go to equals
       c.nextSibling(); // go to value
-      const value = traverseExpr(c, s);
+      var value = traverseExpr(c, s);
       c.parent();
       return {
         tag: "define",
@@ -97,9 +106,33 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       const expr = traverseExpr(c, s);
       c.parent(); // pop going into stmt
       return { tag: "expr", expr: expr }
+    case "FunctionDefinition":
+      c.firstChild();  // Focus on def
+      c.nextSibling(); // Focus on name of function
+      var name = s.substring(c.from, c.to);
+      c.nextSibling(); // Focus on ParamList
+      var parameters = traverseParameters(c, s)
+      c.nextSibling(); // Focus on Body
+      c.firstChild();  // Focus on :
+      c.nextSibling(); // Focus on single statement (for now)
+      var body = [traverseStmt(c, s)];
+      c.parent();      // Pop to Body
+      c.parent();      // Pop to FunctionDefinition
+      return {
+        tag: "fun",
+        name, parameters, body
+      }
     default:
       throw new Error("Could not parse stmt at " + c.node.from + " " + c.node.to + ": " + s.substring(c.from, c.to));
   }
+}
+
+export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter> {
+  c.firstChild();  // Focuses on open paren
+  c.nextSibling(); // Focuses on a VariableName
+  let name = s.substring(c.from, c.to);
+  c.parent();      // Pop to ParamList
+  return [{ name }]
 }
 
 export function traverse(c : TreeCursor, s : string) : Array<Stmt> {

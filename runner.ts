@@ -39,8 +39,9 @@ export async function run(source : string, config: any) : Promise<number> {
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    ${compiled.functions}
     (func (export "exported_func") ${returnType}
-      ${compiled.wasmSource}
+      ${compiled.mainSource}
       ${returnExpr}
     )
   )`;

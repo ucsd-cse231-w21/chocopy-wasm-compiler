@@ -92,4 +92,9 @@ describe('run', () => {
     const result = await run('pow(2, 0 - 1)', config);
     expect(result).to.equal(0);
   })
+
+  it('simpledef', async() => {
+    const result = await run('def f(x): return x + 1\nf(5)', config);
+    expect(result).to.equal(6);
+  })
 });
