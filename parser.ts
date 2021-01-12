@@ -122,8 +122,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       var parameters = traverseParameters(c, s)
       c.nextSibling(); // Focus on Body
       c.firstChild();  // Focus on :
-      c.nextSibling(); // Focus on single statement (for now)
-      var body = [traverseStmt(c, s)];
+      var body = [];
+      while(c.nextSibling()) {
+        body.push(traverseStmt(c, s));
+      }
       c.parent();      // Pop to Body
       c.parent();      // Pop to FunctionDefinition
       return {

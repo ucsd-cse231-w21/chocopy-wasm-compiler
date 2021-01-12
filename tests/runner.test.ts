@@ -107,4 +107,13 @@ describe('run', () => {
     const result = await run('def f(x, y, z): return x * y - z\nf(9, 3, 1)', config);
     expect(result).to.equal(26);
   })
+
+  it('multi-arg-update', async() => {
+    const result = await run(`
+def f(x, y, z):
+  x = y * x
+  return x - z
+f(9, 3, 1)`, config);
+    expect(result).to.equal(26);
+  })
 });
