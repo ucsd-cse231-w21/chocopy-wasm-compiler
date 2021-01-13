@@ -34,96 +34,69 @@ beforeEach(function () {
 describe('run', () => {
   const config : Config = { importObject, env: emptyEnv };
 
-  it('add', async() => {
-    const [result, env] = await run("2 + 3", config);
-    expect(result).to.equal(2 + 3);
-  })
+  function assert(name: string, source: string, result: number) {
+    it(name, async() => {
+      const [result, env] = await run(source, config);
+      expect(result).to.equal(result);
+    })  
+  }
 
-  it('add3', async() => {
-    const [result, env] = await run("2 + 3 + 4", config);
-    expect(result).to.equal(2 + 3 + 4);
-  })
+  function assertError(name: string, source: string) {
+    it(name, async() => {
+      try{
+        const [result, env] = await run(source, config);
+      } catch (err) {
+        expect(err).to.be.an('Error');
+      }
+    })  
+  }
 
-  it('addoverflow', async() => {
-    const [result, env] = await run("4294967295 + 1", config);
-    expect(result).to.equal(0);
-  })
+  assert('add', "2 + 3", 2 + 3);
 
-  it('sub', async() => {
-    const [result, env] = await run("1 - 2", config);
-    expect(result).to.equal(1 - 2);
-  })
+  assert('add3', "2 + 3 + 4", 2 + 3 + 4);
 
-  it('subunderflow', async() => {
-    const [result, env] = await run("0 - 4294967295 - 1", config);
-    expect(result).to.equal(0);
-  })
+  assert('addoverflow', "4294967295 + 1",0);
 
-  it('mul', async() => {
-    const [result, env] = await run("2 * 3 * 4", config);
-    expect(result).to.equal(2 * 3 * 4);
-  })
+  assert('sub', "1 - 2", 1 - 2);
 
-  it('multhenplus', async() => {
-    const [result, env] = await run("2 + 3 * 4", config);
-    expect(result).to.equal(2 + 3 * 4);
-  })
+  assert('subunderflow', "0 - 4294967295 - 1", 0);
 
-  it('abs', async() => {
-    const [result, env] = await run("abs(0 - 5)", config);
-    expect(result).to.equal(Math.abs(0 - 5));
-  })
+  assert('mul', "2 * 3 * 4", 2 * 3 * 4);
 
-  it('min', async() => {
-    const [result, env] = await run('min(2, 3)', config);
-    expect(result).to.equal(Math.min(2,3));
-  })
+  assert('multhenplus', "2 + 3 * 4", 2 + 3 * 4);
 
-  it('max', async() => {
-    const [result, env] = await run('max(2, 3)', config);
-    expect(result).to.equal(Math.max(2,3));
-  })
+  assert('abs', "abs(0 - 5)", Math.abs(0 - 5));
 
-  it('pow', async() => {
-    const [result, env] = await run('pow(2, 3)', config);
-    expect(result).to.equal(Math.pow(2,3));
-  })
+  assert('min', 'min(2, 3)', Math.min(2,3));
 
-  it('pownegative', async() => {
-    const [result, env] = await run('pow(2, 0 - 1)', config);
-    expect(result).to.equal(0);
-  })
+  assert('max', 'max(2, 3)', Math.max(2,3));
 
-  it('simpledef', async() => {
-    const [result, env] = await run('def f(x): return x + 1\nf(5)', config);
-    expect(result).to.equal(6);
-  })
+  assert('pow', 'pow(2, 3)', Math.pow(2,3));
 
-  it('multi-arg', async() => {
-    const [result, env] = await run('def f(x, y, z): return x - y - z\nf(9, 3, 1)', config);
-    expect(result).to.equal(5);
-  })
+  assert('pownegative', 'pow(2, 0 - 1)', 0);
 
-  it('multi-arg-again', async() => {
-    const [result, env] = await run('def f(x, y, z): return x * y - z\nf(9, 3, 1)', config);
-    expect(result).to.equal(26);
-  })
+  assert('simpledef', 'def f(x): return x + 1\nf(5)', 6);
 
-  it('multi-arg-update', async() => {
-    const [result, env] = await run(`
+  assert('multi-arg', 'def f(x, y, z): return x - y - z\nf(9, 3, 1)', 5);
+
+  assert('multi-arg-again', 'def f(x, y, z): return x * y - z\nf(9, 3, 1)', 26);
+
+  assert('multi-arg-update', `
 def f(x, y, z):
   x = y * x
   return x - z
-f(9, 3, 1)`, config);
-    expect(result).to.equal(26);
-  })
+f(9, 3, 1)`, 26);
 
-  it('multi-arg-local-var', async() => {
-    const [result, env] = await run(`
+  assert('multi-arg-local-var', `
 def f(x, y, z):
   m = y * x
   return m - z
-f(9, 3, 1)`, config);
-    expect(result).to.equal(26);
-  })
+f(9, 3, 1)`, 26);
+
+  assertError('localnotglobal', `
+def f():
+  return 0
+  
+f()`);
+
 });
