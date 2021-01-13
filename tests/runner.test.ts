@@ -56,15 +56,15 @@ describe('run', () => {
 
   assert('add3', "2 + 3 + 4", 2 + 3 + 4);
 
-  assert('addoverflow', "4294967295 + 1",0);
+  assert('add-overflow', "4294967295 + 1",0);
 
   assert('sub', "1 - 2", 1 - 2);
 
-  assert('subunderflow', "0 - 4294967295 - 1", 0);
+  assert('sub-underflow', "0 - 4294967295 - 1", 0);
 
   assert('mul', "2 * 3 * 4", 2 * 3 * 4);
 
-  assert('multhenplus', "2 + 3 * 4", 2 + 3 * 4);
+  assert('mul-then-plus', "2 + 3 * 4", 2 + 3 * 4);
 
   assert('abs', "abs(0 - 5)", Math.abs(0 - 5));
 
@@ -74,9 +74,9 @@ describe('run', () => {
 
   assert('pow', 'pow(2, 3)', Math.pow(2,3));
 
-  assert('pownegative', 'pow(2, 0 - 1)', 0);
+  assert('pow-negative', 'pow(2, 0 - 1)', 0);
 
-  assert('simpledef', 'def f(x): return x + 1\nf(5)', 6);
+  assert('simple-def', 'def f(x): return x + 1\nf(5)', 6);
 
   assert('multi-arg', 'def f(x, y, z): return x - y - z\nf(9, 3, 1)', 5);
 
@@ -94,11 +94,13 @@ def f(x, y, z):
   return m - z
 f(9, 3, 1)`, 26);
 
-  assertError('localnotglobal', `
-def f():
-  return 0
+  assert('global-local-same-name', `
+x = 1
+def f(y):
+  x = 2
+  return x
   
-f()`);
+f(0)`, 2);
 
   assert("true", "True", true);
 
@@ -110,7 +112,11 @@ f()`);
 
   assert("false and false", "False and False", false);
 
-  
+  assert("iftrue", `
+if True:
+  5
+else:
+  3`, 5);
 
   // assertError("plustrue", "True + 1");
 

@@ -146,6 +146,36 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
         tag: "fun",
         name, parameters, body
       }
+    case "IfStatement":
+      c.firstChild(); // Focus on if
+      c.nextSibling(); // Focus on cond
+      const cond = traverseExpr(c, s);
+      console.log("Cond:", cond);
+      c.nextSibling(); // Focus on : thn
+      c.firstChild(); // Focus on :
+      var thn = [];
+      while(c.nextSibling()) {  // Focus on thn stmts
+        thn.push(traverseStmt(c,s));
+      }
+      console.log("Thn:", thn);
+      c.parent();
+      
+      c.nextSibling(); // Focus on else
+      c.nextSibling(); // Focus on : els
+      c.firstChild(); // Focus on :
+      var els = [];
+      while(c.nextSibling()) { // Focus on els stmts
+        els.push(traverseStmt(c, s));
+      }
+      console.log("Els:", els);
+      c.parent();
+      c.parent();
+      return {
+        tag: "if",
+        cond: cond,
+        thn: thn,
+        els: els
+      }
     default:
       throw new Error("Could not parse stmt at " + c.node.from + " " + c.node.to + ": " + s.substring(c.from, c.to));
   }

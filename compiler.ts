@@ -101,6 +101,7 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
       var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
       var stmts = stmt.body.map((innerStmt) => codeGen(innerStmt, env)).flat();
       var stmtsBody = stmts.join("\n");
+      env.locals.clear();
       return [`(func $${stmt.name} ${params} (result i32)
         ${locals}
         ${stmtsBody}
@@ -108,6 +109,7 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
         (return))`];
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
+      env.locals.clear();
       valStmts.push("return");
       return valStmts;
     case "define":
@@ -121,6 +123,11 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
       return exprStmts.concat([`(local.set $$last)`]);
+    case "if":
+      var condExpr = codeGenExpr(stmt.cond, env);
+      var thnStmts = stmt.thn.map((innerStmt) => codeGen(innerStmt, env)).flat();
+      var elsStmts = stmt.els.map((innerStmt) => codeGen(innerStmt, env)).flat();
+      return [`(if ${condExpr} (then ${thnStmts.join("\n")}) (else ${elsStmts.join("\n")}))`]
   }
 }
 
