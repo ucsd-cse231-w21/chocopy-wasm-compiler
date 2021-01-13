@@ -9,6 +9,12 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         tag: "num",
         value: Number(s.substring(c.from, c.to))
       }
+    case "Boolean":
+      // TODO: add assert to be in [True, False]
+      return {
+        tag: "bool",
+        value: s.substring(c.from, c.to) === "True"
+      }
     case "VariableName":
       return {
         tag: "id",
@@ -58,6 +64,12 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
           break;
         case "*":
           op = Op.Mul;
+          break;
+        case "and":
+          op = Op.And;
+          break;
+        case "or":
+          op = Op.Or;
           break;
         default:
           throw new Error("Could not parse op at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to))

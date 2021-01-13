@@ -113,7 +113,7 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
     case "define":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]);
+        return valStmts.concat([`(local.set $${stmt.name})`]); 
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
         return locationToStore.concat(valStmts).concat([`(i32.store)`]);
@@ -135,6 +135,8 @@ function codeGenExpr(expr : Expr, env: GlobalEnv) : Array<string> {
       return [...leftStmts, ...rightStmts, `(call $${expr.name})`]
     case "num":
       return ["(i32.const " + expr.value + ")"];
+    case "bool":
+      return [`(i32.const ${Number(expr.value)})`];
     case "id":
       if (env.locals.has(expr.name)) {
         return [`(local.get $${expr.name})`];
@@ -160,5 +162,9 @@ function codeGenOp(op : Op) : string {
       return "(i32.sub)"
     case Op.Mul:
       return "(i32.mul)"
+    case Op.And:
+      return "(i32.and)"
+    case Op.Or:
+      return "(i32.or)"
   }
 }

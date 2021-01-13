@@ -34,7 +34,7 @@ beforeEach(function () {
 describe('run', () => {
   const config : Config = { importObject, env: emptyEnv };
 
-  function assert(name: string, source: string, result: number) {
+  function assert(name: string, source: string, result: any) {
     it(name, async() => {
       const [result, env] = await run(source, config);
       expect(result).to.equal(result);
@@ -45,6 +45,7 @@ describe('run', () => {
     it(name, async() => {
       try{
         const [result, env] = await run(source, config);
+        expect(result).to.be.an('Error');
       } catch (err) {
         expect(err).to.be.an('Error');
       }
@@ -98,5 +99,19 @@ def f():
   return 0
   
 f()`);
+
+  assert("true", "True", true);
+
+  assert("false", "False", false);
+
+  assert("true and false", "True and False", false);
+
+  assert("true and true", "True and True", true);
+
+  assert("false and false", "False and False", false);
+
+  
+
+  // assertError("plustrue", "True + 1");
 
 });

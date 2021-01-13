@@ -9,10 +9,11 @@ export type Stmt =
 
 export type Expr =
     { tag: "num", value: number }
+  | { tag: "bool", value: boolean }
   | { tag: "id", name: string }
   | { tag: "op", op: Op, left: Expr, right: Expr}
   | { tag: "builtin1", name: string, arg: Expr }
   | { tag: "builtin2", name: string, left: Expr, right: Expr}
   | { tag: "call", name: string, arguments: Array<Expr> } 
 
-export enum Op { Plus, Minus, Mul};
+export enum Op { Plus, Minus, Mul, And, Or};
