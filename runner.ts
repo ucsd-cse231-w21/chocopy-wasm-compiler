@@ -8,6 +8,11 @@ import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
 
+export type Config = {
+  importObject: any;
+  env: compiler.GlobalEnv
+}
+
 // NOTE(joe): This is a hack to get the CLI Repl to run. WABT registers a global
 // uncaught exn handler, and this is not allowed when running the REPL
 // (https://nodejs.org/api/repl.html#repl_global_uncaught_exceptions). No reason
@@ -22,7 +27,7 @@ if(typeof process !== "undefined") {
   };
 }
 
-export async function run(source : string, config: any) : Promise<[any, compiler.GlobalEnv]> {
+export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv]> {
   const wabtInterface = await wabt();
   const parsed = parse(source);
   var returnType = "";

@@ -1,4 +1,4 @@
-import { run } from '../runner';
+import { Config, run } from '../runner';
 import { expect } from 'chai';
 import { emptyEnv } from '../compiler';
 import 'mocha';
@@ -32,7 +32,7 @@ beforeEach(function () {
 // You should write enough end-to-end tests until you are confident the compiler
 // runs as expected. 
 describe('run', () => {
-  const config = { importObject, env: emptyEnv };
+  const config : Config = { importObject, env: emptyEnv };
 
   it('add', async() => {
     const [result, env] = await run("2 + 3", config);

@@ -10,7 +10,7 @@ export type GlobalEnv = {
   offset: number;
 }
 
-export const emptyEnv = { globals: new Map(), locals: new Set(), offset: 0 };
+export const emptyEnv : GlobalEnv = { globals: new Map(), locals: new Set(), offset: 0 };
 
 export function augmentEnv(env: GlobalEnv, stmts: Array<Stmt>) : GlobalEnv {
   const newEnv = new Map(env.globals);
@@ -64,8 +64,6 @@ export function compile(source: string, env: GlobalEnv) : CompileResult {
   const definedVars : Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
   definedVars.forEach(env.locals.add, env.locals);
-  // console.log("Locals: ", definedVars);
-  // console.log("Globals:", env.globals)
   const localDefines = makeLocals(definedVars);
   const funs : Array<string> = [];
   ast.forEach((stmt, i) => {
@@ -117,7 +115,6 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
       if (env.locals.has(stmt.name)) {
         return valStmts.concat([`(local.set $${stmt.name})`]);
       } else {
-        console.log("GlobalSet Env:", env);
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
         return locationToStore.concat(valStmts).concat([`(i32.store)`]);
       }
@@ -142,7 +139,6 @@ function codeGenExpr(expr : Expr, env: GlobalEnv) : Array<string> {
       if (env.locals.has(expr.name)) {
         return [`(local.get $${expr.name})`];
       } else {
-        console.log("GlobalRead Env:", env);
         return [`(i32.const ${envLookup(env, expr.name)})`, `(i32.load)`]
       }
     case "op":
