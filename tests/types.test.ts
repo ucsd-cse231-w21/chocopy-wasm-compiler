@@ -42,4 +42,31 @@ describe('tc', () => {
   assertFail("mulBoolRight", "1 * True");
   assertFail("mulBoolLeft", "False * 2");
   assertFail("mulBoolBoth", "False * True");
+
+  assert("sub", "1 - 2", NUM);
+  assertFail("subBoolRight", "1 - True");
+  assertFail("subBoolLeft", "False - 2");
+  assertFail("subBoolBoth", "False - True");
+
+  assert("vars-then-plus", `
+  x = 10
+  y = 12
+  x + y`, NUM);
+
+  assert("vars-ending-in-defn", `
+  x = 10
+  y = 12
+  y
+  x = y + x`, NONE);
+
+  assertFail("vars-ending-in-error", `
+  x = True
+  y = 12
+  y + x`);
+
+  assertFail("bad-assignment", `
+  x = True
+  y = 12
+  y
+  y = True`);
 });
