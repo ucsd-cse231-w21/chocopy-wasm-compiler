@@ -1,6 +1,6 @@
 const python = require('lezer-python');
 
-const input = "if True: 5 else 3";
+const input = "def f(x: int, y: bool) -> int:\n  return x + y\nf(4, 5)";
 
 const tree = python.parser.parse(input);
 

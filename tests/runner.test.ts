@@ -1,4 +1,4 @@
-import { Config, run } from '../runner';
+import { Config, defaultTypeEnv, run } from '../runner';
 import { expect } from 'chai';
 import { emptyEnv } from '../compiler';
 import 'mocha';
@@ -32,7 +32,7 @@ beforeEach(function () {
 // You should write enough end-to-end tests until you are confident the compiler
 // runs as expected. 
 describe('run', () => {
-  const config : Config = { importObject, env: emptyEnv };
+  const config : Config = { importObject, env: emptyEnv, typeEnv: defaultTypeEnv };
 
   function assert(name: string, source: string, result: any) {
     it(name, async() => {
@@ -76,27 +76,27 @@ describe('run', () => {
 
   assert('pow-negative', 'pow(2, 0 - 1)', 0);
 
-  assert('simple-def', 'def f(x): return x + 1\nf(5)', 6);
+  assert('simple-def', 'def f(x: int) -> int: return x + 1\nf(5)', 6);
 
-  assert('multi-arg', 'def f(x, y, z): return x - y - z\nf(9, 3, 1)', 5);
+  assert('multi-arg', 'def f(x: int, y: int, z: int) -> int: return x - y - z\nf(9, 3, 1)', 5);
 
-  assert('multi-arg-again', 'def f(x, y, z): return x * y - z\nf(9, 3, 1)', 26);
+  assert('multi-arg-again', 'def f(x: int, y: int, z: int) -> int: return x * y - z\nf(9, 3, 1)', 26);
 
   assert('multi-arg-update', `
-def f(x, y, z):
+def f(x: int, y: int, z: int) -> int:
   x = y * x
   return x - z
 f(9, 3, 1)`, 26);
 
   assert('multi-arg-local-var', `
-def f(x, y, z):
+def f(x: int, y: int, z: int) -> int:
   m = y * x
   return m - z
 f(9, 3, 1)`, 26);
 
   assert('global-local-same-name', `
 x = 1
-def f(y):
+def f(y : int) -> int:
   x = 2
   return x
   

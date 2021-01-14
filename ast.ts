@@ -1,9 +1,20 @@
 
-export type Parameter = { name: string }
+export type Type =
+    { tag: "num" }
+  | { tag: "bool" }
+  | { tag: "none" }
+  | { tag: "object" }
+
+export const NUM : {tag: "num"} = {tag: "num"};
+export const BOOL : {tag: "bool"} = {tag: "bool"};
+export const NONE : {tag: "none"} = {tag: "none"};
+export const OBJ : {tag: "object"} = {tag: "object"};
+
+export type Parameter = { name: string, type: Type }
 
 export type Stmt =
   | { tag: "define", name: string, value: Expr }
-  | { tag: "fun", name: string, parameters: Array<Parameter>, body: Array<Stmt> }
+  | { tag: "fun", name: string, parameters: Array<Parameter>, ret: Type, body: Array<Stmt> }
   | { tag: "return", value: Expr }
   | { tag: "expr", expr: Expr }
   | { tag: "if", cond: Expr, thn: Array<Stmt>, els: Array<Stmt> }

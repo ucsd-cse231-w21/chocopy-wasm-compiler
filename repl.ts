@@ -1,5 +1,6 @@
 import {run, Config} from "./runner";
 import {emptyEnv, GlobalEnv} from "./compiler";
+import { GlobalTypeEnv } from "./type-check";
 
 interface REPL {
   run(source : string) : Promise<any>;
@@ -7,6 +8,7 @@ interface REPL {
 
 export class BasicREPL {
   currentEnv: GlobalEnv
+  currentTypeEnv: GlobalTypeEnv
   importObject: any
   memory: any
   constructor(importObject : any) {
@@ -23,9 +25,10 @@ export class BasicREPL {
   }
   async run(source : string) : Promise<any> {
     // this.importObject.updateNameMap(this.currentEnv); // is this the right place for updating the object's env?
-    const config : Config = {importObject: this.importObject, env: this.currentEnv};
-    const [result, newEnv] = await run(source, config);
+    const config : Config = {importObject: this.importObject, env: this.currentEnv, typeEnv: this.currentTypeEnv};
+    const [result, newEnv, newTypeEnv] = await run(source, config);
     this.currentEnv = newEnv;
+    this.currentTypeEnv = newTypeEnv;
     return result;
   }
 }

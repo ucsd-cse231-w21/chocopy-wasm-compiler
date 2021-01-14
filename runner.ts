@@ -3,14 +3,30 @@
 // - https://github.com/AssemblyScript/wabt.js/
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
+import { checkServerIdentity } from 'tls';
 import wabt from 'wabt';
 import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
+import {GlobalTypeEnv} from  './type-check';
+import {NUM, BOOL, NONE, OBJ} from './ast';
 
 export type Config = {
   importObject: any;
-  env: compiler.GlobalEnv
+  env: compiler.GlobalEnv,
+  typeEnv: GlobalTypeEnv
+}
+
+const defaultGlobalFunctions = new Map();
+defaultGlobalFunctions.set("abs", [[NUM], NUM]);
+defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("print", [[OBJ], NUM]);
+
+export const defaultTypeEnv = {
+  globals: new Map(),
+  functions: defaultGlobalFunctions
 }
 
 // NOTE(joe): This is a hack to get the CLI Repl to run. WABT registers a global
@@ -27,7 +43,7 @@ if(typeof process !== "undefined") {
   };
 }
 
-export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv]> {
+export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv, GlobalTypeEnv]> {
   const wabtInterface = await wabt();
   const parsed = parse(source);
   var returnType = "";
@@ -61,5 +77,5 @@ export async function run(source : string, config: Config) : Promise<[any, compi
   var asBinary = myModule.toBinary({});
   var wasmModule = await WebAssembly.instantiate(asBinary.buffer, importObject);
   const result = (wasmModule.instance.exports.exported_func as any)();
-  return [result, compiled.newEnv];
+  return [result, compiled.newEnv, defaultTypeEnv]; // TODO update
 }

@@ -1,6 +1,6 @@
 import {parser} from "lezer-python";
-import {TreeCursor} from "lezer-tree";
-import {Expr, Stmt, Op, Parameter} from "./ast";
+import {Tree, TreeCursor} from "lezer-tree";
+import {Expr, Stmt, Op, Parameter, NUM, BOOL, NONE, OBJ, Type} from "./ast";
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr {
   switch(c.type.name) {
@@ -96,6 +96,7 @@ export function traverseArguments(c : TreeCursor, s : string) : Array<Expr> {
     let expr = traverseExpr(c, s);
     args.push(expr);
     c.nextSibling(); // Focuses on either "," or ")"
+
   } while(c.type.name !== ")");
   c.parent();       // Pop to ArgList
   return args;
@@ -132,7 +133,13 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       var name = s.substring(c.from, c.to);
       c.nextSibling(); // Focus on ParamList
       var parameters = traverseParameters(c, s)
-      c.nextSibling(); // Focus on Body
+      c.nextSibling(); // Focus on Body or TypeDef
+      let ret : Type = NONE;
+      if(c.type.name === "TypeDef") {
+        c.firstChild();
+        ret = traverseType(c, s);
+        c.parent();
+      }
       c.firstChild();  // Focus on :
       var body = [];
       while(c.nextSibling()) {
@@ -144,7 +151,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       c.parent();      // Pop to FunctionDefinition
       return {
         tag: "fun",
-        name, parameters, body
+        name, parameters, body, ret
       }
     case "IfStatement":
       c.firstChild(); // Focus on if
@@ -181,14 +188,32 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
   }
 }
 
+export function traverseType(c : TreeCursor, s : string) : Type {
+  // For now, always a VariableName
+  let name = s.substring(c.from, c.to);
+  switch(name) {
+    case "int": return NUM;
+    case "bool": return BOOL;
+    case "object": return OBJ;
+  }
+}
+
 export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter> {
   c.firstChild();  // Focuses on open paren
   const parameters = [];
   do {
     c.nextSibling(); // Focuses on a VariableName
+    console.log(c.type.name);
     let name = s.substring(c.from, c.to);
-    parameters.push({name});
-    c.nextSibling(); // Focuses on either "," or ")"
+    c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
+    let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
+    if(nextTagName !== "TypeDef") { throw new Error("Missed type annotation for parameter " + name)};
+    c.firstChild();  // Enter TypeDef
+    c.nextSibling(); // Focuses on type itself
+    let typ = traverseType(c, s);
+    c.parent();
+    c.nextSibling(); // Move on to comma or ")"
+    parameters.push({name, type: typ});
   } while(c.type.name !== ")");
   c.parent();       // Pop to ParamList
   return parameters;
