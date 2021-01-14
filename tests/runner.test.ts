@@ -36,7 +36,7 @@ describe('run', () => {
 
   function assert(name: string, source: string, result: any) {
     it(name, async() => {
-      const [result, env] = await run(source, config);
+      const [result, env, tenv] = await run(source, config);
       expect(result).to.equal(result);
     })  
   }
