@@ -1,4 +1,4 @@
-import { Config, defaultTypeEnv, run } from '../runner';
+import { Config, defaultTypeEnv, run, runWat } from '../runner';
 import { expect } from 'chai';
 import { emptyEnv } from '../compiler';
 import 'mocha';
@@ -51,6 +51,15 @@ describe('run', () => {
       }
     })  
   }
+
+  function runWasm(name : string, source : string, expected : any) {
+    it(name, async() => {
+      const result = await runWat(source, {});
+      expect(result).to.equal(expected);
+    });
+  }
+
+  runWasm('i64 return value', '(module (func (export "exported_func") (result i64) (i64.const 234)))', BigInt(234));
 
   assert('add', "2 + 3", 2 + 3);
 
