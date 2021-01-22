@@ -1,8 +1,8 @@
 import {parser} from "lezer-python";
 import {Tree, TreeCursor} from "lezer-tree";
-import {Expr, Stmt, Op, Parameter, NUM, BOOL, NONE, OBJ, Type} from "./ast";
+import {Program, Expr, Stmt, Op, Parameter, NUM, BOOL, NONE, OBJ, Type, FunDef, VarInit, Literal} from "./ast";
 
-export function traverseExpr(c : TreeCursor, s : string) : Expr {
+export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   switch(c.type.name) {
     case "Number":
       return {
@@ -10,10 +10,27 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         value: Number(s.substring(c.from, c.to))
       }
     case "Boolean":
-      // TODO: add assert to be in [True, False]
       return {
         tag: "bool",
         value: s.substring(c.from, c.to) === "True"
+      }
+    default:
+      throw new Error("Not literal")
+  }
+}
+
+export function traverseExpr(c : TreeCursor, s : string) : Expr {
+  switch(c.type.name) {
+    case "Number":
+      return { 
+        tag: "literal", 
+        value: traverseLiteral(c, s)
+      }
+    case "Boolean":
+      // TODO: add assert to be in [True, False]
+      return {
+        tag: "literal",
+        value: traverseLiteral(c, s)
       }
     case "VariableName":
       return {
@@ -118,7 +135,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       var value = traverseExpr(c, s);
       c.parent();
       return {
-        tag: "define",
+        tag: "assign",
         name: name,
         value: value
       }
@@ -127,32 +144,32 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       const expr = traverseExpr(c, s);
       c.parent(); // pop going into stmt
       return { tag: "expr", expr: expr }
-    case "FunctionDefinition":
-      c.firstChild();  // Focus on def
-      c.nextSibling(); // Focus on name of function
-      var name = s.substring(c.from, c.to);
-      c.nextSibling(); // Focus on ParamList
-      var parameters = traverseParameters(c, s)
-      c.nextSibling(); // Focus on Body or TypeDef
-      let ret : Type = NONE;
-      if(c.type.name === "TypeDef") {
-        c.firstChild();
-        ret = traverseType(c, s);
-        c.parent();
-      }
-      c.firstChild();  // Focus on :
-      var body = [];
-      while(c.nextSibling()) {
-        body.push(traverseStmt(c, s));
-      }
-      // console.log("Before pop to body: ", c.type.name);
-      c.parent();      // Pop to Body
-      // console.log("Before pop to def: ", c.type.name);
-      c.parent();      // Pop to FunctionDefinition
-      return {
-        tag: "fun",
-        name, parameters, body, ret
-      }
+    // case "FunctionDefinition":
+    //   c.firstChild();  // Focus on def
+    //   c.nextSibling(); // Focus on name of function
+    //   var name = s.substring(c.from, c.to);
+    //   c.nextSibling(); // Focus on ParamList
+    //   var parameters = traverseParameters(c, s)
+    //   c.nextSibling(); // Focus on Body or TypeDef
+    //   let ret : Type = NONE;
+    //   if(c.type.name === "TypeDef") {
+    //     c.firstChild();
+    //     ret = traverseType(c, s);
+    //     c.parent();
+    //   }
+    //   c.firstChild();  // Focus on :
+    //   var body = [];
+    //   while(c.nextSibling()) {
+    //     body.push(traverseStmt(c, s));
+    //   }
+    //   // console.log("Before pop to body: ", c.type.name);
+    //   c.parent();      // Pop to Body
+    //   // console.log("Before pop to def: ", c.type.name);
+    //   c.parent();      // Pop to FunctionDefinition
+    //   return {
+    //     tag: "fun",
+    //     name, parameters, body, ret
+    //   }
     case "IfStatement":
       c.firstChild(); // Focus on if
       c.nextSibling(); // Focus on cond
@@ -219,20 +236,105 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
   return parameters;
 }
 
-export function traverse(c : TreeCursor, s : string) : Array<Stmt> {
+export function traverseInit(c : TreeCursor, s : string) : VarInit {
+  c.firstChild(); // go to name
+  var name = s.substring(c.from, c.to);
+  c.nextSibling(); // go to : type
+
+  if(c.type.name !== "TypeDef") {
+    c.parent();
+    throw Error("invalid variable init");
+  }
+  c.firstChild(); // go to :
+  c.nextSibling(); // go to type
+  const type = traverseType(c, s);
+  c.parent();
+  
+  c.nextSibling(); // go to =
+  c.nextSibling(); // go to value
+  var value = traverseLiteral(c, s);
+  c.parent();
+
+  return { name, type, value }
+}
+
+export function traverseDef(c : TreeCursor, s : string) : FunDef {
+  c.firstChild();  // Focus on def
+  c.nextSibling(); // Focus on name of function
+  var name = s.substring(c.from, c.to);
+  c.nextSibling(); // Focus on ParamList
+  var parameters = traverseParameters(c, s)
+  c.nextSibling(); // Focus on Body or TypeDef
+  let ret : Type = NONE;
+  if(c.type.name === "TypeDef") {
+    c.firstChild();
+    ret = traverseType(c, s);
+    c.parent();
+    c.nextSibling();
+  }
+  c.firstChild();  // Focus on :
+  var inits = [];
+  var body = [];
+  
+  var hasChild = c.nextSibling();
+
+  while(hasChild) {
+    if (c.type.name === "AssignStatement") {
+      try {
+        inits.push(traverseInit(c, s));
+      } catch (error) {
+        break;
+      }
+    } else {
+      break;
+    }
+    hasChild = c.nextSibling();
+  }
+
+  while(hasChild) {
+    body.push(traverseStmt(c, s));
+    hasChild = c.nextSibling();
+  } 
+  
+  // console.log("Before pop to body: ", c.type.name);
+  c.parent();      // Pop to Body
+  // console.log("Before pop to def: ", c.type.name);
+  c.parent();      // Pop to FunctionDefinition
+  return { name, parameters, ret, inits, body }
+}
+
+export function traverse(c : TreeCursor, s : string) : Program {
   switch(c.node.type.name) {
     case "Script":
-      const stmts = [];
-      c.firstChild();
-      do {
+      const inits : Array<VarInit> = [];
+      const funs : Array<FunDef> = [];
+      const stmts : Array<Stmt> = [];
+      var hasChild = c.firstChild();
+
+      while(hasChild) {
+        if (c.type.name === "AssignStatement") {
+          try {
+            inits.push(traverseInit(c, s));
+          } catch (error) {
+            break;
+          }
+        } else if (c.type.name === "FunctionDefinition") {
+          funs.push(traverseDef(c, s));
+        } else {
+          break;
+        }
+        hasChild = c.nextSibling();
+      }
+      while(hasChild) {
         stmts.push(traverseStmt(c, s));
-      } while(c.nextSibling())
-      return stmts;
+        hasChild = c.nextSibling();
+      } 
+      return { funs, inits, stmts };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }
 }
-export function parse(source : string) : Array<Stmt> {
+export function parse(source : string) : Program {
   const t = parser.parse(source);
   return traverse(t.cursor(), source);
 }

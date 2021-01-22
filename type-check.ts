@@ -1,5 +1,5 @@
 
-import {Stmt, Expr, Type, NUM, BOOL, OBJ, NONE, Op} from './ast';
+import {Stmt, Expr, Type, NUM, BOOL, OBJ, NONE, Op, Literal} from './ast';
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -70,11 +70,11 @@ export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Arra
   // Per chocopy restrictions. Later nonlocal/global/nested functions come into play
   var curStmt = stmts[0];
   let stmtIndex = 0;
-  while(curStmt.tag === "define") {
-    const typ = tcExpr(env, locals, curStmt.value);
-    locals.vars.set(curStmt.name, typ);
-    curStmt = stmts[++stmtIndex];
-  }
+//   while(curStmt.tag === "define") {
+//     const typ = tcExpr(env, locals, curStmt.value);
+//     locals.vars.set(curStmt.name, typ);
+//     curStmt = stmts[++stmtIndex];
+//   }
   let lastTyp : Type = NONE;
   while(stmtIndex < stmts.length) {
     lastTyp = tcStmt(env, locals, stmts[stmtIndex]);
@@ -85,7 +85,7 @@ export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Arra
 
 export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt) : Type {
   switch(stmt.tag) {
-    case "define":
+    case "assign":
       const valTyp = tcExpr(env, locals, stmt.value);
       const nameTyp = locals.vars.get(stmt.name);
       if(!isAssignable(env, valTyp, nameTyp)) {
@@ -94,8 +94,6 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt) 
       return NONE;
     case "expr":
       return tcExpr(env, locals, stmt.expr);
-    case "fun":
-      return NONE;
     case "if":
       return NONE;
     case "return":
@@ -105,8 +103,7 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt) 
 
 export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) : Type {
   switch(expr.tag) {
-    case "bool": return BOOL;
-    case "num": return NUM;
+    case "literal": return tcLiteral(expr.value);
     case "op":
       const leftTyp = tcExpr(env, locals, expr.left);
       const rightTyp = tcExpr(env, locals, expr.right);
@@ -124,6 +121,23 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
     case "id":
       if(!locals.vars.has(expr.name)) { throw new TypeCheckError("Unbound id: " + expr.name); }
       return locals.vars.get(expr.name);
+    case "builtin1":
+      if (expr.name === "print") {
+        return tcExpr(env, locals, expr.arg);
+      } else {
+        throw new Error("Type checking is unimplemented for: " + expr.name);
+      }
+    case "builtin2":
+      throw new Error("Type checking is unimplemented for: " + expr.name);
+    case "call":
+      throw new Error("Type checking is unimplemented for function calls");
     default: return NONE;
   }
+}
+
+export function tcLiteral(literal : Literal) {
+    switch(literal.tag) {
+        case "bool": return BOOL;
+        case "num": return NUM;
+    }
 }

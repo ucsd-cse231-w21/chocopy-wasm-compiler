@@ -90,14 +90,15 @@ f(9, 3, 1)`, 26);
 
   assert('multi-arg-local-var', `
 def f(x: int, y: int, z: int) -> int:
+  m : int = 0
   m = y * x
   return m - z
 f(9, 3, 1)`, 26);
 
   assert('global-local-same-name', `
-x = 1
+x : int = 1
 def f(y : int) -> int:
-  x = 2
+  x : int = 2
   return x
   
 f(0)`, 2);
@@ -117,6 +118,19 @@ if True:
   5
 else:
   3`, 5);
+
+  assert("init only", `
+  x : int = 0
+  x`, 0);
+
+  assert("init before assign", `
+  x : int = 0
+  x = x + 2`, 2);
+
+  assert("two inits", `
+  x : int = 1
+  y : int = 2
+  y = y + x`, 3);
 
   // assertError("plustrue", "True + 1");
 

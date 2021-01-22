@@ -22,6 +22,10 @@ export class BasicREPL {
       locals: new Set(),
       offset: 0
     };
+    this.currentTypeEnv = {
+      globals: new Map(),
+      functions: new Map()
+    }
   }
   async run(source : string) : Promise<any> {
     // this.importObject.updateNameMap(this.currentEnv); // is this the right place for updating the object's env?

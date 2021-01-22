@@ -1,4 +1,4 @@
-import { Stmt, Expr, Op } from "./ast";
+import { Stmt, Expr, Op, Program, Literal, FunDef } from "./ast";
 import { parse } from "./parser";
 
 // https://learnxinyminutes.com/docs/wasm/
@@ -12,16 +12,12 @@ export type GlobalEnv = {
 
 export const emptyEnv : GlobalEnv = { globals: new Map(), locals: new Set(), offset: 0 };
 
-export function augmentEnv(env: GlobalEnv, stmts: Array<Stmt>) : GlobalEnv {
+export function augmentEnv(env: GlobalEnv, prog: Program) : GlobalEnv {
   const newEnv = new Map(env.globals);
   var newOffset = env.offset;
-  stmts.forEach((s) => {
-    switch(s.tag) {
-      case "define":
-        newEnv.set(s.name, newOffset);
-        newOffset += 1;
-        break;
-    }
+  prog.inits.forEach((v) => {
+    newEnv.set(v.name, newOffset);
+    newOffset += 1;
   })
   return {
     globals: newEnv,
@@ -36,17 +32,17 @@ type CompileResult = {
   newEnv: GlobalEnv
 };
 
-export function getLocals(ast : Array<Stmt>) : Set<string> {
-  const definedVars : Set<string> = new Set();
-  ast.forEach(s => {
-    switch(s.tag) {
-      case "define":
-        definedVars.add(s.name);
-        break;
-    }
-  }); 
-  return definedVars;
-}
+// export function getLocals(ast : Array<Stmt>) : Set<string> {
+//   const definedVars : Set<string> = new Set();
+//   ast.forEach(s => {
+//     switch(s.tag) {
+//       case "define":
+//         definedVars.add(s.name);
+//         break;
+//     }
+//   }); 
+//   return definedVars;
+// }
 
 export function makeLocals(locals: Set<string>) : Array<string> {
   const localDefines : Array<string> = [];
@@ -66,13 +62,13 @@ export function compile(source: string, env: GlobalEnv) : CompileResult {
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs : Array<string> = [];
-  ast.forEach((stmt, i) => {
-    if(stmt.tag === "fun") { funs.push(codeGen(stmt, withDefines).join("\n")); }
+  ast.funs.forEach(f => {
+    funs.push(codeGenDef(f, withDefines).join("\n"));
   });
   const allFuns = funs.join("\n\n");
-  const stmts = ast.filter((stmt) => stmt.tag !== "fun");
+  // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   
-  const commandGroups = stmts.map((stmt) => codeGen(stmt, withDefines));
+  const commandGroups = ast.stmts.map((stmt) => codeGen(stmt, withDefines));
   const commands = localDefines.concat([].concat.apply([], commandGroups));
   withDefines.locals.clear();
   return {
@@ -89,30 +85,30 @@ function envLookup(env : GlobalEnv, name : string) : number {
 
 function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
   switch(stmt.tag) {
-    case "fun":
-      const definedVars = getLocals(stmt.body);
-      definedVars.add("$last");
-      stmt.parameters.forEach(p => definedVars.delete(p.name));
-      definedVars.forEach(env.locals.add, env.locals);
-      stmt.parameters.forEach(p => env.locals.add(p.name));
+    // case "fun":
+    //   const definedVars = getLocals(stmt.body);
+    //   definedVars.add("$last");
+    //   stmt.parameters.forEach(p => definedVars.delete(p.name));
+    //   definedVars.forEach(env.locals.add, env.locals);
+    //   stmt.parameters.forEach(p => env.locals.add(p.name));
       
-      const localDefines = makeLocals(definedVars);
-      const locals = localDefines.join("\n");
-      var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-      var stmts = stmt.body.map((innerStmt) => codeGen(innerStmt, env)).flat();
-      var stmtsBody = stmts.join("\n");
-      env.locals.clear();
-      return [`(func $${stmt.name} ${params} (result i32)
-        ${locals}
-        ${stmtsBody}
-        (i32.const 0)
-        (return))`];
+    //   const localDefines = makeLocals(definedVars);
+    //   const locals = localDefines.join("\n");
+    //   var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
+    //   var stmts = stmt.body.map((innerStmt) => codeGen(innerStmt, env)).flat();
+    //   var stmtsBody = stmts.join("\n");
+    //   env.locals.clear();
+    //   return [`(func $${stmt.name} ${params} (result i32)
+    //     ${locals}
+    //     ${stmtsBody}
+    //     (i32.const 0)
+    //     (return))`];
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
       env.locals.clear();
       valStmts.push("return");
       return valStmts;
-    case "define":
+    case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
         return valStmts.concat([`(local.set $${stmt.name})`]); 
@@ -131,6 +127,27 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
   }
 }
 
+function codeGenDef(def : FunDef, env : GlobalEnv) : Array<string> {
+  var definedVars : Set<string> = new Set();
+  def.inits.forEach(v => definedVars.add(v.name));
+  definedVars.add("$last");
+  def.parameters.forEach(p => definedVars.delete(p.name));
+  definedVars.forEach(env.locals.add, env.locals);
+  def.parameters.forEach(p => env.locals.add(p.name));
+      
+  const localDefines = makeLocals(definedVars);
+  const locals = localDefines.join("\n");
+  var params = def.parameters.map(p => `(param $${p.name} i32)`).join(" ");
+  var stmts = def.body.map((innerStmt) => codeGen(innerStmt, env)).flat();
+  var stmtsBody = stmts.join("\n");
+  env.locals.clear();
+  return [`(func $${def.name} ${params} (result i32)
+    ${locals}
+    ${stmtsBody}
+    (i32.const 0)
+    (return))`];
+}
+
 function codeGenExpr(expr : Expr, env: GlobalEnv) : Array<string> {
   switch(expr.tag) {
     case "builtin1":
@@ -140,10 +157,8 @@ function codeGenExpr(expr : Expr, env: GlobalEnv) : Array<string> {
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
       return [...leftStmts, ...rightStmts, `(call $${expr.name})`]
-    case "num":
-      return ["(i32.const " + expr.value + ")"];
-    case "bool":
-      return [`(i32.const ${Number(expr.value)})`];
+    case "literal":
+      return codeGenLiteral(expr.value);
     case "id":
       if (env.locals.has(expr.name)) {
         return [`(local.get $${expr.name})`];
@@ -158,6 +173,15 @@ function codeGenExpr(expr : Expr, env: GlobalEnv) : Array<string> {
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
+  }
+}
+
+function codeGenLiteral(literal : Literal) : Array<string> {
+  switch(literal.tag) {
+    case "num":
+      return ["(i32.const " + literal.value + ")"];
+    case "bool":
+      return [`(i32.const ${Number(literal.value)})`];
   }
 }
 

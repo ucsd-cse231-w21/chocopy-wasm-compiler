@@ -48,7 +48,7 @@ export async function run(source : string, config: Config) : Promise<[any, compi
   const parsed = parse(source);
   var returnType = "";
   var returnExpr = "";
-  const lastExpr = parsed[parsed.length - 1]
+  const lastExpr = parsed.stmts[parsed.stmts.length - 1]
   if(lastExpr.tag === "expr") {
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)"
