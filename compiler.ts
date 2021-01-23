@@ -125,7 +125,7 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
       var condExpr = codeGenExpr(stmt.cond, env);
       var thnStmts = stmt.thn.map((innerStmt) => codeGen(innerStmt, env)).flat();
       var elsStmts = stmt.els.map((innerStmt) => codeGen(innerStmt, env)).flat();
-      return [`(if ${condExpr} (then ${thnStmts.join("\n")}) (else ${elsStmts.join("\n")}))`]
+      return [`${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join("\n")}))`]
   }
 }
 
@@ -220,13 +220,13 @@ function codeGenOp(op : Op) : string {
     case Op.Neq:
       throw new Error("neq not implemented");
     case Op.Lte:
-      return "(i32.le)"
+      return "(i32.le_s)"
     case Op.Gte:
-      return "(i32.ge)"
+      return "(i32.ge_s)"
     case Op.Lt:
-      return "(i32.lt)"
+      return "(i32.lt_s)"
     case Op.Gt:
-      return "(i32.gt)"
+      return "(i32.gt_s)"
     case Op.Is:
       throw new Error("is not implemented")
     case Op.And:
