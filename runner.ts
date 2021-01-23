@@ -43,8 +43,16 @@ if(typeof process !== "undefined") {
   };
 }
 
-export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv, GlobalTypeEnv]> {
+export async function runWat(source : string, importObject : any) : Promise<any> {
   const wabtInterface = await wabt();
+  const myModule = wabtInterface.parseWat("test.wat", source);
+  var asBinary = myModule.toBinary({});
+  var wasmModule = await WebAssembly.instantiate(asBinary.buffer, importObject);
+  const result = (wasmModule.instance.exports.exported_func as any)();
+  return result;
+}
+
+export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv, GlobalTypeEnv]> {
   const parsed = parse(source);
   var returnType = "";
   var returnExpr = "";
@@ -73,9 +81,6 @@ export async function run(source : string, config: Config) : Promise<[any, compi
     )
   )`;
   console.log(wasmSource);
-  const myModule = wabtInterface.parseWat("test.wat", wasmSource);
-  var asBinary = myModule.toBinary({});
-  var wasmModule = await WebAssembly.instantiate(asBinary.buffer, importObject);
-  const result = (wasmModule.instance.exports.exported_func as any)();
+  const result = runWat(wasmSource, importObject);
   return [result, compiled.newEnv, defaultTypeEnv]; // TODO update
 }
