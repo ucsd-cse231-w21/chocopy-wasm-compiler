@@ -81,6 +81,6 @@ export async function run(source : string, config: Config) : Promise<[any, compi
     )
   )`;
   console.log(wasmSource);
-  const result = runWat(wasmSource, importObject);
+  const result = await runWat(wasmSource, importObject);
   return [result, compiled.newEnv, defaultTypeEnv]; // TODO update
 }
