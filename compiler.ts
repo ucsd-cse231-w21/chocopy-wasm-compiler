@@ -1,4 +1,4 @@
-import { Stmt, Expr, Op, Program, Literal, FunDef } from "./ast";
+import { Stmt, Expr, Op, Program, Literal, FunDef, VarInit } from "./ast";
 import { parse } from "./parser";
 
 // https://learnxinyminutes.com/docs/wasm/
@@ -55,6 +55,8 @@ export function makeLocals(locals: Set<string>) : Array<string> {
 
 export function compile(source: string, env: GlobalEnv) : CompileResult {
   const ast = parse(source);
+
+
   const withDefines = augmentEnv(env, ast);
 
   const definedVars : Set<string> = new Set(); //getLocals(ast);
@@ -67,9 +69,9 @@ export function compile(source: string, env: GlobalEnv) : CompileResult {
   });
   const allFuns = funs.join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
-  
+  const inits = ast.inits.map(init => codeGenInit(init, withDefines)).flat();
   const commandGroups = ast.stmts.map((stmt) => codeGen(stmt, withDefines));
-  const commands = localDefines.concat([].concat.apply([], commandGroups));
+  const commands = localDefines.concat(inits.concat([].concat.apply([], commandGroups)));
   withDefines.locals.clear();
   return {
     functions: allFuns,
@@ -127,6 +129,16 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
   }
 }
 
+function codeGenInit(init : VarInit, env : GlobalEnv) : Array<string> {
+  const value = codeGenLiteral(init.value);
+  if (env.locals.has(init.name)) {
+    return [...value, `(local.set $${init.name})`]; 
+  } else {
+    const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; ${init.name}`];
+    return locationToStore.concat(value).concat([`(i32.store)`]);
+  }
+}
+
 function codeGenDef(def : FunDef, env : GlobalEnv) : Array<string> {
   var definedVars : Set<string> = new Set();
   def.inits.forEach(v => definedVars.add(v.name));
@@ -137,12 +149,15 @@ function codeGenDef(def : FunDef, env : GlobalEnv) : Array<string> {
       
   const localDefines = makeLocals(definedVars);
   const locals = localDefines.join("\n");
+  const inits = def.inits.map(init => codeGenInit(init, env)).flat().join("\n");
+  console.log("INITS IN FUNCTION:", inits);
   var params = def.parameters.map(p => `(param $${p.name} i32)`).join(" ");
   var stmts = def.body.map((innerStmt) => codeGen(innerStmt, env)).flat();
   var stmtsBody = stmts.join("\n");
   env.locals.clear();
   return [`(func $${def.name} ${params} (result i32)
     ${locals}
+    ${inits}
     ${stmtsBody}
     (i32.const 0)
     (return))`];
@@ -151,6 +166,9 @@ function codeGenDef(def : FunDef, env : GlobalEnv) : Array<string> {
 function codeGenExpr(expr : Expr, env: GlobalEnv) : Array<string> {
   switch(expr.tag) {
     case "builtin1":
+      var name = expr.name;
+      if (expr.name === "print") {
+      }
       const argStmts = codeGenExpr(expr.arg, env);
       return argStmts.concat([`(call $${expr.name})`]);
     case "builtin2":
@@ -193,6 +211,24 @@ function codeGenOp(op : Op) : string {
       return "(i32.sub)"
     case Op.Mul:
       return "(i32.mul)"
+    case Op.IDiv:
+      return "(i32.div_s)"
+    case Op.Mod:
+      return "(i32.rem_s)"
+    case Op.Eq:
+      throw new Error("eq not implemented");
+    case Op.Neq:
+      throw new Error("neq not implemented");
+    case Op.Lte:
+      return "(i32.le)"
+    case Op.Gte:
+      return "(i32.ge)"
+    case Op.Lt:
+      return "(i32.lt)"
+    case Op.Gt:
+      return "(i32.gt)"
+    case Op.Is:
+      throw new Error("is not implemented")
     case Op.And:
       return "(i32.and)"
     case Op.Or:

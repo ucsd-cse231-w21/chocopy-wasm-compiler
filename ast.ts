@@ -38,4 +38,4 @@ export type Literal =
   | { tag: "bool", value: boolean }
 
 // TODO: should we split up arithmetic ops from bool ops?
-export enum Op { Plus, Minus, Mul, And, Or};
+export enum Op { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, And, Or};

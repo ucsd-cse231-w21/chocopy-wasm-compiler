@@ -34,10 +34,10 @@ beforeEach(function () {
 describe('run', () => {
   const config : Config = { importObject, env: emptyEnv, typeEnv: defaultTypeEnv };
 
-  function assert(name: string, source: string, result: any) {
+  function assert(name: string, source: string, expected: any) {
     it(name, async() => {
       const [result, env, tenv] = await run(source, config);
-      expect(result).to.equal(result);
+      expect(result).to.equal(expected);
     })  
   }
 
@@ -119,18 +119,43 @@ if True:
 else:
   3`, 5);
 
+  assert("nestedif", `
+if True:
+  if False:
+    0
+  else:
+    1
+else:
+  2`, 1);
+
+  assert("return inside if", `
+def f(x : int) -> int:
+  if x > 0:
+    return x
+  else:
+    return 0
+f(2)`, 2);
+
   assert("init only", `
-  x : int = 0
-  x`, 0);
+  x : int = 2
+  x`, 2);
 
   assert("init before assign", `
   x : int = 0
-  x = x + 2`, 2);
+  x = x + 2
+  x`, 2);
 
   assert("two inits", `
   x : int = 1
   y : int = 2
-  y = y + x`, 3);
+  y = y + x
+  y`, 3);
+
+  assert("init before def", `
+  x : int = 2
+  def f() -> int:
+    return x
+  f()`, 2);
 
   // assertError("plustrue", "True + 1");
 

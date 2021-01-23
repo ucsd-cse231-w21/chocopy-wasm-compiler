@@ -82,6 +82,33 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
         case "*":
           op = Op.Mul;
           break;
+        case "//":
+          op = Op.IDiv;
+          break;
+        case "%":
+          op = Op.Mod;
+          break
+        case "==":
+          op = Op.Eq;
+          break;
+        case "!=":
+          op = Op.Neq;
+          break;
+        case "<=":
+          op = Op.Lte;
+          break;
+        case ">=":
+          op = Op.Gte;
+          break;
+        case "<":
+          op = Op.Lt;
+          break;
+        case ">":
+          op = Op.Gt;
+          break;
+        case "is":
+          op = Op.Is;
+          break; 
         case "and":
           op = Op.And;
           break;
@@ -108,13 +135,13 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 export function traverseArguments(c : TreeCursor, s : string) : Array<Expr> {
   c.firstChild();  // Focuses on open paren
   const args = [];
-  do {
-    c.nextSibling(); // Focuses on a VariableName
+  c.nextSibling();
+  while(c.type.name !== ")") {
     let expr = traverseExpr(c, s);
     args.push(expr);
     c.nextSibling(); // Focuses on either "," or ")"
-
-  } while(c.type.name !== ")");
+    c.nextSibling(); // Focuses on a VariableName
+  } 
   c.parent();       // Pop to ArgList
   return args;
 }
@@ -218,9 +245,8 @@ export function traverseType(c : TreeCursor, s : string) : Type {
 export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter> {
   c.firstChild();  // Focuses on open paren
   const parameters = [];
-  do {
-    c.nextSibling(); // Focuses on a VariableName
-    console.log(c.type.name);
+  c.nextSibling(); // Focuses on a VariableName
+  while(c.type.name !== ")") {
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
@@ -231,7 +257,8 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
     c.parent();
     c.nextSibling(); // Move on to comma or ")"
     parameters.push({name, type: typ});
-  } while(c.type.name !== ")");
+    c.nextSibling(); // Focuses on a VariableName
+  }
   c.parent();       // Pop to ParamList
   return parameters;
 }
@@ -325,6 +352,7 @@ export function traverse(c : TreeCursor, s : string) : Program {
         }
         hasChild = c.nextSibling();
       }
+      console.log("POST:", s.substring(c.from, c.to));
       while(hasChild) {
         stmts.push(traverseStmt(c, s));
         hasChild = c.nextSibling();

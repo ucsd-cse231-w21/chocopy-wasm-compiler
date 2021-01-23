@@ -118,6 +118,7 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
           if(leftTyp === BOOL && rightTyp === BOOL) { return BOOL; }
           else { throw new TypeCheckError("Type mismatch for boolean op" + expr.op); }
       }
+      break;
     case "id":
       if(!locals.vars.has(expr.name)) { throw new TypeCheckError("Unbound id: " + expr.name); }
       return locals.vars.get(expr.name);
