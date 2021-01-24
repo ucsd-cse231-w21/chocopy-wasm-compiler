@@ -1,6 +1,6 @@
 import {parser} from "lezer-python";
 import {Tree, TreeCursor} from "lezer-tree";
-import {Program, Expr, Stmt, Op, Parameter, NUM, BOOL, NONE, OBJ, Type, FunDef, VarInit, Literal} from "./ast";
+import {Program, Expr, Stmt, Op, Parameter, Type, FunDef, VarInit, Literal} from "./ast";
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   switch(c.type.name) {
@@ -41,7 +41,6 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       c.firstChild();
       const callName = s.substring(c.from, c.to);
       c.nextSibling(); // go to arglist
-      c.firstChild(); // go into arglist
 
       let args = traverseArguments(c, s);
 
@@ -63,7 +62,6 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       else {
         expr = { tag: "call", name: callName, arguments: args};
       }
-      c.parent(); // pop arglist
       c.parent(); // pop CallExpression
       return expr;
     case "BinaryExpression":
@@ -120,7 +118,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       }
       c.nextSibling(); // go to rhs
       const rhsExpr = traverseExpr(c, s);
-      c.parent()
+      c.parent();
       return {
         tag: "op",
         op: op,
@@ -189,9 +187,9 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
     //   while(c.nextSibling()) {
     //     body.push(traverseStmt(c, s));
     //   }
-    //   // console.log("Before pop to body: ", c.type.name);
+      // console.log("Before pop to body: ", c.type.name);
     //   c.parent();      // Pop to Body
-    //   // console.log("Before pop to def: ", c.type.name);
+      // console.log("Before pop to def: ", c.type.name);
     //   c.parent();      // Pop to FunctionDefinition
     //   return {
     //     tag: "fun",
@@ -218,7 +216,6 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       while(c.nextSibling()) { // Focus on els stmts
         els.push(traverseStmt(c, s));
       }
-      console.log("Els:", els);
       c.parent();
       c.parent();
       return {
@@ -236,9 +233,9 @@ export function traverseType(c : TreeCursor, s : string) : Type {
   // For now, always a VariableName
   let name = s.substring(c.from, c.to);
   switch(name) {
-    case "int": return NUM;
-    case "bool": return BOOL;
-    case "object": return OBJ;
+    case "int": return Type.NUM;
+    case "bool": return Type.BOOL;
+    case "object": return Type.OBJ;
   }
 }
 
@@ -292,7 +289,7 @@ export function traverseDef(c : TreeCursor, s : string) : FunDef {
   c.nextSibling(); // Focus on ParamList
   var parameters = traverseParameters(c, s)
   c.nextSibling(); // Focus on Body or TypeDef
-  let ret : Type = NONE;
+  let ret : Type = Type.NONE;
   if(c.type.name === "TypeDef") {
     c.firstChild();
     ret = traverseType(c, s);
@@ -352,11 +349,12 @@ export function traverse(c : TreeCursor, s : string) : Program {
         }
         hasChild = c.nextSibling();
       }
-      console.log("POST:", s.substring(c.from, c.to));
+
       while(hasChild) {
         stmts.push(traverseStmt(c, s));
         hasChild = c.nextSibling();
       } 
+      c.parent();
       return { funs, inits, stmts };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);

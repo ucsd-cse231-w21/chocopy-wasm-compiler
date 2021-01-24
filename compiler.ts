@@ -107,7 +107,6 @@ function codeGen(stmt: Stmt, env: GlobalEnv) : Array<string> {
     //     (return))`];
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
-      env.locals.clear();
       valStmts.push("return");
       return valStmts;
     case "assign":
@@ -143,14 +142,13 @@ function codeGenDef(def : FunDef, env : GlobalEnv) : Array<string> {
   var definedVars : Set<string> = new Set();
   def.inits.forEach(v => definedVars.add(v.name));
   definedVars.add("$last");
-  def.parameters.forEach(p => definedVars.delete(p.name));
+  // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach(env.locals.add, env.locals);
   def.parameters.forEach(p => env.locals.add(p.name));
-      
+
   const localDefines = makeLocals(definedVars);
   const locals = localDefines.join("\n");
   const inits = def.inits.map(init => codeGenInit(init, env)).flat().join("\n");
-  console.log("INITS IN FUNCTION:", inits);
   var params = def.parameters.map(p => `(param $${p.name} i32)`).join(" ");
   var stmts = def.body.map((innerStmt) => codeGen(innerStmt, env)).flat();
   var stmtsBody = stmts.join("\n");

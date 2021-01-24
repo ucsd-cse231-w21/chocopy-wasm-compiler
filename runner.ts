@@ -9,7 +9,7 @@ import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
 import {GlobalTypeEnv} from  './type-check';
-import {NUM, BOOL, NONE, OBJ} from './ast';
+import { Type } from './ast';
 
 export type Config = {
   importObject: any;
@@ -18,11 +18,11 @@ export type Config = {
 }
 
 const defaultGlobalFunctions = new Map();
-defaultGlobalFunctions.set("abs", [[NUM], NUM]);
-defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("print", [[OBJ], NUM]);
+defaultGlobalFunctions.set("abs", [[Type.NUM], Type.NUM]);
+defaultGlobalFunctions.set("max", [[Type.NUM, Type.NUM], Type.NUM]);
+defaultGlobalFunctions.set("min", [[Type.NUM, Type.NUM], Type.NUM]);
+defaultGlobalFunctions.set("pow", [[Type.NUM, Type.NUM], Type.NUM]);
+defaultGlobalFunctions.set("print", [[Type.OBJ], Type.NUM]);
 
 export const defaultTypeEnv = {
   globals: new Map(),

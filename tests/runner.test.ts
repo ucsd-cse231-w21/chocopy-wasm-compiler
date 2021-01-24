@@ -166,6 +166,69 @@ f(2)`, 2);
     return x
   f()`, 2);
 
-  // assertError("plustrue", "True + 1");
+  assert("id fun 1", `
+  def id(x: int) -> int:
+    return x
+  id(1)`, 1);
+
+  assert("id fun 2", `
+  def id_helper(x : int) -> int:
+    return x
+
+  def id(x: int) -> int:
+    return id_helper(x)
+
+  id(1) + id(2)`, 3);
+
+  assert("fib(1)",`
+  def fib(n : int) -> int:
+    if n < 2:
+      return 1
+    else:
+      return n * fib(n - 1)
+  fib(1)`, 1);
+
+  assert("fib(2)",`
+  def fib(n : int) -> int:
+    if n < 2:
+      return 1
+    else:
+      return n * fib(n - 1)
+  fib(2)`, 2);
+
+  assert("fib(3)",`
+  def fib(n : int) -> int:
+    if n < 2:
+      return 1
+    else:
+      return n * fib(n - 1)
+  fib(3)`, 6);
+
+  assert("mutual recursion1", `
+  def is_even(x : int) -> bool:
+    if x < 1:
+      return True
+    else:
+      return is_odd(x-1)
+
+  def is_odd(x : int) -> bool:
+    return is_even(x - 1)
+
+  is_even(4)`, 1);
+
+  assert("mutual recursion2", `
+  def is_even(x : int) -> bool:
+    if x < 1:
+      return True
+    else:
+      return is_odd(x-1)
+
+  def is_odd(x : int) -> bool:
+    if x < 1:
+      return False
+    else:
+      return is_even(x - 1)
+
+  is_even(3)`, 0);
 
 });

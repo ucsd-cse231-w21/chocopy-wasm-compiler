@@ -1,5 +1,5 @@
 
-import {Stmt, Expr, Type, NUM, BOOL, OBJ, NONE, Op, Literal, Program, FunDef} from './ast';
+import {Stmt, Expr, Type, Op, Literal, Program, FunDef, VarInit} from './ast';
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -26,7 +26,7 @@ type LocalTypeEnv = {
 function makeEmptyLocals() {
   return {
     vars: new Map(),
-    expectedRet: NONE
+    expectedRet: Type.NONE
   };
 }
 
@@ -36,7 +36,7 @@ export type TypeError = {
 
 export function isSubtype(env : GlobalTypeEnv, t1 : Type, t2 : Type) : boolean {
   if(t1 === t2) { return true; }
-  if(t2 === OBJ) { return true; }
+  if(t2 === Type.OBJ) { return true; }
   return false;
 }
 
@@ -45,7 +45,7 @@ export function isAssignable(env : GlobalTypeEnv, t1 : Type, t2 : Type) : boolea
 }
 
 export function join(env : GlobalTypeEnv, t1 : Type, t2 : Type) : Type {
-  return { tag: "none" }
+  return Type.NONE
 }
 
 export function updateGlobalTypeEnv(env : GlobalTypeEnv, program : Array<Stmt>) {
@@ -54,6 +54,10 @@ export function updateGlobalTypeEnv(env : GlobalTypeEnv, program : Array<Stmt>) 
 
 export function tc(env : GlobalTypeEnv, program : Program) : [Type, GlobalTypeEnv] {
   const locals = makeEmptyLocals();
+
+  program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
+  program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
+  program.funs.forEach(fun => tcDef(env, fun));
   // Strategy here is to allow tcBlock to populate the locals, then copy to the
   // global env afterwards (tcBlock changes locals)
   const lastTyp = tcBlock(env, locals, program.stmts);
@@ -63,6 +67,27 @@ export function tc(env : GlobalTypeEnv, program : Program) : [Type, GlobalTypeEn
     env.globals.set(name, locals.vars.get(name));
   }
   return [lastTyp, env];
+}
+
+export function tcInit(init : VarInit) : Type {
+  const valTyp = tcLiteral(init.value);
+  if (init.type === valTyp) {
+    return init.type;
+  } else {
+    throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
+  }
+}
+
+export function tcDef(env : GlobalTypeEnv, fun : FunDef) {
+  var locals = makeEmptyLocals();
+  locals.expectedRet = fun.ret;
+  fun.parameters.forEach(p => locals.vars.set(p.name, p.type));
+  fun.inits.forEach(init => locals.vars.set(init.name, tcInit(init)));
+  
+  const retTyp = tcBlock(env, locals, fun.body);
+  if (retTyp !== fun.ret) {
+    throw new TypeCheckError("function " + fun.name + " has " + retTyp + " return type; type" + fun.ret + " expected");
+  }
 }
 
 export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Array<Stmt>) : Type {
@@ -75,7 +100,7 @@ export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Arra
 //     locals.vars.set(curStmt.name, typ);
 //     curStmt = stmts[++stmtIndex];
 //   }
-  let lastTyp : Type = NONE;
+  let lastTyp : Type = Type.NONE;
   while(stmtIndex < stmts.length) {
     lastTyp = tcStmt(env, locals, stmts[stmtIndex]);
     stmtIndex += 1;
@@ -98,14 +123,14 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt) 
       if(!isAssignable(env, valTyp, nameTyp)) {
         throw new TypeCheckError("Non-assignable types");
       }
-      return NONE;
+      return Type.NONE;
     case "expr":
       return tcExpr(env, locals, stmt.expr);
     case "if":
       const condTyp = tcExpr(env, locals, stmt.cond);
       const thnTyp = tcBlock(env, locals, stmt.thn);
       const elsTyp = tcBlock(env, locals, stmt.els);
-      if (condTyp !== BOOL) {
+      if (condTyp !== Type.BOOL) {
         throw new TypeCheckError("Condition Expression Must be a bool");
       } else if (thnTyp !== elsTyp) {
         throw new TypeCheckError("Types of then and else branches must match");
@@ -113,8 +138,12 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt) 
         return thnTyp;
       }
     case "return":
-      tcExpr(env, locals, stmt.value);
-      return NONE;
+      const retTyp = tcExpr(env, locals, stmt.value);
+      if (retTyp !== locals.expectedRet) {
+        throw new TypeCheckError("expected return type `" + locals.expectedRet + "`; got type `" + retTyp + "`");
+      } else {
+        return retTyp;
+      }
   }
 }
 
@@ -131,21 +160,21 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
         case Op.Mul:
         case Op.IDiv:
         case Op.Mod:
-          if(leftTyp === NUM && rightTyp === NUM) { return NUM; }
+          if(leftTyp === Type.NUM && rightTyp === Type.NUM) { return Type.NUM; }
           else { throw new TypeCheckError("Type mismatch for numeric op" + expr.op); }
         case Op.Eq:
         case Op.Neq:
-          if(leftTyp === rightTyp) { return BOOL; }
+          if(leftTyp === rightTyp) { return Type.BOOL; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op)}
         case Op.Lte:
         case Op.Gte:
         case Op.Lt:
         case Op.Gt:
-          if(leftTyp === NUM && rightTyp === NUM) { return BOOL; }
+          if(leftTyp === Type.NUM && rightTyp === Type.NUM) { return Type.BOOL; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op) }
         case Op.And:
         case Op.Or:
-          if(leftTyp === BOOL && rightTyp === BOOL) { return BOOL; }
+          if(leftTyp === Type.BOOL && rightTyp === Type.BOOL) { return Type.BOOL; }
           else { throw new TypeCheckError("Type mismatch for boolean op" + expr.op); }
         case Op.Is:
           throw new Error("is not implemented yet");
@@ -178,13 +207,13 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
       } else {
         throw new TypeError("Undefined function: " + expr.name);
       }
-    default: return NONE;
+    default: return Type.NONE;
   }
 }
 
 export function tcLiteral(literal : Literal) {
     switch(literal.tag) {
-        case "bool": return BOOL;
-        case "num": return NUM;
+        case "bool": return Type.BOOL;
+        case "num": return Type.NUM;
     }
 }
