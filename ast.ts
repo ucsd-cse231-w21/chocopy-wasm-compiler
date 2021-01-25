@@ -15,11 +15,14 @@ export type Stmt =
   | { tag: "return", value: Expr }
   | { tag: "expr", expr: Expr }
   | { tag: "if", cond: Expr, thn: Array<Stmt>, els: Array<Stmt> }
+  | { tag: "while", cond: Expr, body: Array<Stmt> }
+  | { tag: "pass" }
 
 export type Expr =
     { tag: "literal", value: Literal }
   | { tag: "id", name: string }
-  | { tag: "op", op: Op, left: Expr, right: Expr}
+  | { tag: "binop", op: BinOp, left: Expr, right: Expr}
+  | { tag: "uniop", op: UniOp, expr: Expr }
   | { tag: "builtin1", name: string, arg: Expr }
   | { tag: "builtin2", name: string, left: Expr, right: Expr}
   | { tag: "call", name: string, arguments: Array<Expr> } 
@@ -29,4 +32,6 @@ export type Literal =
   | { tag: "bool", value: boolean }
 
 // TODO: should we split up arithmetic ops from bool ops?
-export enum Op { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, And, Or};
+export enum BinOp { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, And, Or};
+
+export enum UniOp { Neg, Not };

@@ -1,7 +1,8 @@
-import { Stmt, Expr, Op, Type, Program, Literal, FunDef, VarInit } from "./ast";
+import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit } from "./ast";
 import { augmentTEnv, emptyGlobalTypeEnv, emptyLocalTypeEnv, GlobalTypeEnv, LocalTypeEnv, tc, tcBlock, tcDef, tcExpr } from "./type-check";
 import { parse } from "./parser";
 import { defaultTypeEnv } from "./runner";
+import { getCombinedNodeFlags } from "typescript";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -130,9 +131,15 @@ function codeGenStmt(stmt: Stmt, env: GlobalEnv, tenv: GlobalTypeEnv, tlocals: L
       return exprStmts.concat([`(local.set $$last)`]);
     case "if":
       var condExpr = codeGenExpr(stmt.cond, env, tenv, tlocals);
-      var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env, tenv, tlocals)).flat();
-      var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env, tenv, tlocals)).flat();
+      var thnStmts = stmt.thn.map(innerStmt => codeGenStmt(innerStmt, env, tenv, tlocals)).flat();
+      var elsStmts = stmt.els.map(innerStmt => codeGenStmt(innerStmt, env, tenv, tlocals)).flat();
       return [`${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join("\n")}))`]
+    case "while":
+      var wcondExpr = codeGenExpr(stmt.cond, env, tenv, tlocals);
+      var bodyStmts = stmt.body.map(innerStmt => codeGenStmt(innerStmt, env, tenv, tlocals)).flat();
+      return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
+    case "pass":
+      return [];
   }
 }
 
@@ -195,10 +202,18 @@ function codeGenExpr(expr : Expr, env: GlobalEnv, tenv: GlobalTypeEnv, tlocals: 
       } else {
         return [`(i32.const ${envLookup(env, expr.name)})`, `(i32.load)`]
       }
-    case "op":
+    case "binop":
       const lhsStmts = codeGenExpr(expr.left, env, tenv, tlocals);
       const rhsStmts = codeGenExpr(expr.right, env, tenv, tlocals);
-      return [...lhsStmts, ...rhsStmts, codeGenOp(expr.op)]
+      return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
+    case "uniop":
+      const exprStmts = codeGenExpr(expr.expr, env, tenv, tlocals);
+      switch(expr.op){
+        case UniOp.Neg:
+          return [`(i32.const 0)`, ...exprStmts, `(i32.sub)`];
+        case UniOp.Not:
+          return [`(i32.const 0)`, ...exprStmts, `(i32.eq)`];
+      }
     case "call":
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env, tenv, tlocals)).flat();
       valStmts.push(`(call $${expr.name})`);
@@ -215,35 +230,35 @@ function codeGenLiteral(literal : Literal) : Array<string> {
   }
 }
 
-function codeGenOp(op : Op) : string {
+function codeGenBinOp(op : BinOp) : string {
   switch(op) {
-    case Op.Plus:
+    case BinOp.Plus:
       return "(i32.add)"
-    case Op.Minus:
+    case BinOp.Minus:
       return "(i32.sub)"
-    case Op.Mul:
+    case BinOp.Mul:
       return "(i32.mul)"
-    case Op.IDiv:
+    case BinOp.IDiv:
       return "(i32.div_s)"
-    case Op.Mod:
+    case BinOp.Mod:
       return "(i32.rem_s)"
-    case Op.Eq:
-      throw new Error("eq not implemented");
-    case Op.Neq:
-      throw new Error("neq not implemented");
-    case Op.Lte:
+    case BinOp.Eq:
+      return "(i32.eq)"
+    case BinOp.Neq:
+      return "(i32.ne)"
+    case BinOp.Lte:
       return "(i32.le_s)"
-    case Op.Gte:
+    case BinOp.Gte:
       return "(i32.ge_s)"
-    case Op.Lt:
+    case BinOp.Lt:
       return "(i32.lt_s)"
-    case Op.Gt:
+    case BinOp.Gt:
       return "(i32.gt_s)"
-    case Op.Is:
+    case BinOp.Is:
       throw new Error("is not implemented")
-    case Op.And:
+    case BinOp.And:
       return "(i32.and)"
-    case Op.Or:
+    case BinOp.Or:
       return "(i32.or)"
   }
 }

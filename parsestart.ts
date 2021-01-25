@@ -20,12 +20,7 @@ import {parse} from "./parser";
 // `);
 
 var result = parse(`
-def fib(n : int) -> int:
-  if n < 2:
-    return 1
-  else:
-    return n * fib(n - 1)
-
-fib(1)`)
+while True:
+  pass`)
 
 console.log(JSON.stringify(result, null, 4));

@@ -248,4 +248,20 @@ f(2)`, 2);
   print(True)
   print(1)`, 1);
 
+  assert("while true", `
+  x : int = 3
+  fib : int = 1
+  while x > 1:
+    fib = fib * x
+    x = x - 1
+  fib`, 6);
+
+  assert("parenthesized expr", `
+  (1 + 1) * 5`, 10);
+
+  assert("negative", `-1`, -1);
+
+  assert("negative", `not True`, false);
+
+  assert("negative", `not False`, true);
 });

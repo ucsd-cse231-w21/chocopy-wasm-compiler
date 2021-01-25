@@ -1,5 +1,5 @@
 
-import {Stmt, Expr, Type, Op, Literal, Program, FunDef, VarInit} from './ast';
+import {Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit} from './ast';
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -158,6 +158,16 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt) 
       } else {
         return retTyp;
       }
+    case "while":
+      const wcondTyp = tcExpr(env, locals, stmt.cond);
+      const wbodyTyp = tcBlock(env, locals, stmt.body);
+      if (wcondTyp === Type.BOOL) {
+        return wbodyTyp;
+      } else {
+        throw new TypeCheckError("Condition Expression Must be a bool");
+      }
+    case "pass":
+      return Type.NONE;
   }
 }
 
@@ -165,33 +175,43 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
   switch(expr.tag) {
     case "literal": 
       return tcLiteral(expr.value);
-    case "op":
+    case "binop":
       const leftTyp = tcExpr(env, locals, expr.left);
       const rightTyp = tcExpr(env, locals, expr.right);
       switch(expr.op) {
-        case Op.Plus:
-        case Op.Minus:
-        case Op.Mul:
-        case Op.IDiv:
-        case Op.Mod:
+        case BinOp.Plus:
+        case BinOp.Minus:
+        case BinOp.Mul:
+        case BinOp.IDiv:
+        case BinOp.Mod:
           if(leftTyp === Type.NUM && rightTyp === Type.NUM) { return Type.NUM; }
           else { throw new TypeCheckError("Type mismatch for numeric op" + expr.op); }
-        case Op.Eq:
-        case Op.Neq:
+        case BinOp.Eq:
+        case BinOp.Neq:
           if(leftTyp === rightTyp) { return Type.BOOL; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op)}
-        case Op.Lte:
-        case Op.Gte:
-        case Op.Lt:
-        case Op.Gt:
+        case BinOp.Lte:
+        case BinOp.Gte:
+        case BinOp.Lt:
+        case BinOp.Gt:
           if(leftTyp === Type.NUM && rightTyp === Type.NUM) { return Type.BOOL; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op) }
-        case Op.And:
-        case Op.Or:
+        case BinOp.And:
+        case BinOp.Or:
           if(leftTyp === Type.BOOL && rightTyp === Type.BOOL) { return Type.BOOL; }
           else { throw new TypeCheckError("Type mismatch for boolean op" + expr.op); }
-        case Op.Is:
+        case BinOp.Is:
           throw new Error("is not implemented yet");
+      }
+    case "uniop":
+      const exprTyp = tcExpr(env, locals, expr.expr);
+      switch(expr.op) {
+        case UniOp.Neg:
+          if(exprTyp === Type.NUM) { return Type.NUM }
+          else { throw new TypeCheckError("Type mismatch for op" + expr.op);}
+        case UniOp.Not:
+          if(exprTyp === Type.BOOL) { return Type.BOOL }
+          else { throw new TypeCheckError("Type mismatch for op" + expr.op);}
       }
     case "id":
       if (locals.vars.has(expr.name)) {

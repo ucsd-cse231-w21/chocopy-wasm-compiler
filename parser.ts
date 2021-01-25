@@ -1,6 +1,7 @@
 import {parser} from "lezer-python";
 import {Tree, TreeCursor} from "lezer-tree";
-import {Program, Expr, Stmt, Op, Parameter, Type, FunDef, VarInit, Literal} from "./ast";
+import {Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Literal} from "./ast";
+import { defaultTypeEnv } from "./runner";
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   switch(c.type.name) {
@@ -68,50 +69,50 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       c.firstChild(); // go to lhs 
       const lhsExpr = traverseExpr(c, s);
       c.nextSibling(); // go to op
-      const opStr = s.substring(c.from, c.to);
+      var opStr = s.substring(c.from, c.to);
       var op;
       switch(opStr) {
         case "+":
-          op = Op.Plus;
+          op = BinOp.Plus;
           break;
         case "-":
-          op = Op.Minus;
+          op = BinOp.Minus;
           break;
         case "*":
-          op = Op.Mul;
+          op = BinOp.Mul;
           break;
         case "//":
-          op = Op.IDiv;
+          op = BinOp.IDiv;
           break;
         case "%":
-          op = Op.Mod;
+          op = BinOp.Mod;
           break
         case "==":
-          op = Op.Eq;
+          op = BinOp.Eq;
           break;
         case "!=":
-          op = Op.Neq;
+          op = BinOp.Neq;
           break;
         case "<=":
-          op = Op.Lte;
+          op = BinOp.Lte;
           break;
         case ">=":
-          op = Op.Gte;
+          op = BinOp.Gte;
           break;
         case "<":
-          op = Op.Lt;
+          op = BinOp.Lt;
           break;
         case ">":
-          op = Op.Gt;
+          op = BinOp.Gt;
           break;
         case "is":
-          op = Op.Is;
+          op = BinOp.Is;
           break; 
         case "and":
-          op = Op.And;
+          op = BinOp.And;
           break;
         case "or":
-          op = Op.Or;
+          op = BinOp.Or;
           break;
         default:
           throw new Error("Could not parse op at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to))
@@ -120,11 +121,40 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       const rhsExpr = traverseExpr(c, s);
       c.parent();
       return {
-        tag: "op",
+        tag: "binop",
         op: op,
         left: lhsExpr,
         right: rhsExpr
       }
+    case "ParenthesizedExpression":
+      c.firstChild(); // Focus on (
+      c.nextSibling(); // Focus on inside
+      var expr = traverseExpr(c, s);
+      c.parent();
+      return expr;
+    case "UnaryExpression":
+      c.firstChild(); // Focus on op
+      var opStr = s.substring(c.from, c.to);
+      var op;
+      switch(opStr) {
+        case "-":
+          op = UniOp.Neg;
+          break;
+        case "not":
+          op = UniOp.Not;
+          break;
+        default:
+          throw new Error("Could not parse op at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to))
+      }
+      c.nextSibling(); // go to expr
+      var expr = traverseExpr(c, s);
+      c.parent();
+      return {
+        tag: "uniop",
+        op: op,
+        expr: expr
+      }
+
     default:
       throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
   }
@@ -198,7 +228,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
     case "IfStatement":
       c.firstChild(); // Focus on if
       c.nextSibling(); // Focus on cond
-      const cond = traverseExpr(c, s);
+      var cond = traverseExpr(c, s);
       console.log("Cond:", cond);
       c.nextSibling(); // Focus on : thn
       c.firstChild(); // Focus on :
@@ -224,6 +254,26 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
         thn: thn,
         els: els
       }
+    case "WhileStatement":
+      c.firstChild(); // Focus on while
+      c.nextSibling(); // Focus on condition
+      var cond = traverseExpr(c, s);
+      c.nextSibling(); // Focus on body
+
+      var body = [];
+      c.firstChild(); // Focus on :
+      while(c.nextSibling()) {
+        body.push(traverseStmt(c, s));
+      }
+      c.parent(); 
+      c.parent();
+      return {
+        tag: "while",
+        cond,
+        body
+      }
+    case "PassStatement":
+      return { tag: "pass" }
     default:
       throw new Error("Could not parse stmt at " + c.node.from + " " + c.node.to + ": " + s.substring(c.from, c.to));
   }
