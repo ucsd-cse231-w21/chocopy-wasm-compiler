@@ -14,6 +14,16 @@ const importObject = {
       importObject.output += "\n";
       return arg;
     },
+    print_num: (arg: number) =>  {
+      importObject.output += arg;
+      importObject.output += "\n";
+      return arg;
+    },
+    print_bool: (arg: boolean) => {
+      importObject.output += arg;
+      importObject.output += "\n";
+      return arg;
+    },
     abs: Math.abs,
     min: Math.min,
     max: Math.max,
@@ -32,7 +42,10 @@ beforeEach(function () {
 // You should write enough end-to-end tests until you are confident the compiler
 // runs as expected. 
 describe('run', () => {
-  const config : Config = { importObject, env: emptyEnv, typeEnv: defaultTypeEnv };
+  const config : Config = { 
+    importObject, 
+    env: emptyEnv, 
+    typeEnv: defaultTypeEnv };
 
   function assert(name: string, source: string, expected: any) {
     it(name, async() => {
@@ -214,7 +227,7 @@ f(2)`, 2);
   def is_odd(x : int) -> bool:
     return is_even(x - 1)
 
-  is_even(4)`, 1);
+  is_even(4)`, true);
 
   assert("mutual recursion2", `
   def is_even(x : int) -> bool:
@@ -229,6 +242,10 @@ f(2)`, 2);
     else:
       return is_even(x - 1)
 
-  is_even(3)`, 0);
+  is_even(3)`, false);
+
+  assert("two prints", `
+  print(True)
+  print(1)`, 1);
 
 });

@@ -18,12 +18,19 @@ export type GlobalTypeEnv = {
   functions: Map<string, [Array<Type>, Type]>
 }
 
-type LocalTypeEnv = {
+export type LocalTypeEnv = {
   vars: Map<string, Type>,
   expectedRet: Type
 }
 
-function makeEmptyLocals() {
+export function emptyGlobalTypeEnv() : GlobalTypeEnv {
+  return {
+    globals: new Map(),
+    functions: new Map()
+  };
+}
+
+export function emptyLocalTypeEnv() : LocalTypeEnv {
   return {
     vars: new Map(),
     expectedRet: Type.NONE
@@ -48,25 +55,31 @@ export function join(env : GlobalTypeEnv, t1 : Type, t2 : Type) : Type {
   return Type.NONE
 }
 
-export function updateGlobalTypeEnv(env : GlobalTypeEnv, program : Array<Stmt>) {
-
+export function augmentTEnv(env : GlobalTypeEnv, program : Program) : GlobalTypeEnv {
+  const newGlobs = new Map(env.globals);
+  const newFuns = new Map(env.functions);
+  program.inits.forEach(init => newGlobs.set(init.name, tcInit(init)));
+  program.funs.forEach(fun => newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
+  return { globals: newGlobs, functions: newFuns };
 }
 
 export function tc(env : GlobalTypeEnv, program : Program) : [Type, GlobalTypeEnv] {
-  const locals = makeEmptyLocals();
+  const locals = emptyLocalTypeEnv();
+  const newEnv = augmentTEnv(env, program);
+  program.funs.forEach(fun => tcDef(newEnv, fun));
 
-  program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
-  program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
-  program.funs.forEach(fun => tcDef(env, fun));
+  // program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
+  // program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
+  // program.funs.forEach(fun => tcDef(env, fun));
   // Strategy here is to allow tcBlock to populate the locals, then copy to the
   // global env afterwards (tcBlock changes locals)
-  const lastTyp = tcBlock(env, locals, program.stmts);
+  const lastTyp = tcBlock(newEnv, locals, program.stmts);
   // TODO(joe): check for assignment in existing env vs. new declaration
   // and look for assignment consistency
   for (let name of locals.vars.keys()) {
-    env.globals.set(name, locals.vars.get(name));
+    newEnv.globals.set(name, locals.vars.get(name));
   }
-  return [lastTyp, env];
+  return [lastTyp, newEnv];
 }
 
 export function tcInit(init : VarInit) : Type {
@@ -78,8 +91,8 @@ export function tcInit(init : VarInit) : Type {
   }
 }
 
-export function tcDef(env : GlobalTypeEnv, fun : FunDef) {
-  var locals = makeEmptyLocals();
+export function tcDef(env : GlobalTypeEnv, fun : FunDef) : LocalTypeEnv {
+  var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   fun.parameters.forEach(p => locals.vars.set(p.name, p.type));
   fun.inits.forEach(init => locals.vars.set(init.name, tcInit(init)));
@@ -88,6 +101,7 @@ export function tcDef(env : GlobalTypeEnv, fun : FunDef) {
   if (retTyp !== fun.ret) {
     throw new TypeCheckError("function " + fun.name + " has " + retTyp + " return type; type" + fun.ret + " expected");
   }
+  return locals;
 }
 
 export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Array<Stmt>) : Type {
@@ -188,13 +202,30 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
         throw new TypeCheckError("Unbound id: " + expr.name);
       }
     case "builtin1":
-      if (expr.name === "print") {
-        return tcExpr(env, locals, expr.arg);
+      if(env.functions.has(expr.name)) {
+        const [[expectedArgTyp], retTyp] = env.functions.get(expr.name);
+        const argTyp = tcExpr(env, locals, expr.arg);
+        if(expectedArgTyp === argTyp) {
+          return retTyp
+        } else if (expr.name === "print") {
+          return tcExpr(env, locals, expr.arg);
+        } else {
+          throw new TypeError("Function call type mismatch: " + expr.name);
+        }
       } else {
-        throw new Error("Type checking is unimplemented for: " + expr.name);
+        throw new TypeError("Undefined function: " + expr.name);
       }
     case "builtin2":
-      throw new Error("Type checking is unimplemented for: " + expr.name);
+      if(env.functions.has(expr.name)) {
+        const [[leftTyp, rightTyp], retTyp] = env.functions.get(expr.name);
+        if(tcExpr(env, locals, expr.left) === leftTyp && tcExpr(env, locals, expr.right) === rightTyp) {
+          return retTyp
+        } else {
+          throw new TypeError("Function call type mismatch: " + expr.name);
+        }
+      } else {
+        throw new TypeError("Undefined function: " + expr.name);
+      }
     case "call":
       if(env.functions.has(expr.name)) {
         const [argTypes, retType] = env.functions.get(expr.name);

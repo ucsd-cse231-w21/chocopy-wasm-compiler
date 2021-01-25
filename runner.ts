@@ -8,7 +8,7 @@ import wabt from 'wabt';
 import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
-import {GlobalTypeEnv} from  './type-check';
+import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
 import { Type } from './ast';
 
 export type Config = {
@@ -23,6 +23,8 @@ defaultGlobalFunctions.set("max", [[Type.NUM, Type.NUM], Type.NUM]);
 defaultGlobalFunctions.set("min", [[Type.NUM, Type.NUM], Type.NUM]);
 defaultGlobalFunctions.set("pow", [[Type.NUM, Type.NUM], Type.NUM]);
 defaultGlobalFunctions.set("print", [[Type.OBJ], Type.NUM]);
+defaultGlobalFunctions.set("print_num", [[Type.NUM], Type.NUM]);
+defaultGlobalFunctions.set("print_bool", [[Type.BOOL], Type.BOOL]);
 
 export const defaultTypeEnv = {
   globals: new Map(),
@@ -54,14 +56,17 @@ export async function runWat(source : string, importObject : any) : Promise<any>
 
 export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv, GlobalTypeEnv]> {
   const parsed = parse(source);
+  const [retTyp, tenv] = tc(config.typeEnv, parsed);
   var returnType = "";
   var returnExpr = "";
   const lastExpr = parsed.stmts[parsed.stmts.length - 1]
-  if(lastExpr.tag === "expr") {
+  const lastExprTyp = tcStmt(tenv, emptyLocalTypeEnv(), lastExpr);
+  console.log("LASTEXPR", lastExpr);
+  if(lastExprTyp !== Type.NONE) {
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)"
   } 
-  const compiled = compiler.compile(source, config.env);
+  const compiled = compiler.compile(source, config.env, tenv);
   const importObject = config.importObject;
   if(!importObject.js) {
     const memory = new WebAssembly.Memory({initial:10, maximum:100});
@@ -70,6 +75,8 @@ export async function run(source : string, config: Config) : Promise<[any, compi
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
     (func $print (import "imports" "print") (param i32) (result i32))
+    (func $print_num (import "imports" "print_num") (param i32) (result i32))
+    (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
     (func $abs (import "imports" "abs") (param i32) (result i32))
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
@@ -81,6 +88,9 @@ export async function run(source : string, config: Config) : Promise<[any, compi
     )
   )`;
   console.log(wasmSource);
-  const result = await runWat(wasmSource, importObject);
+  var result = await runWat(wasmSource, importObject);
+  if (retTyp === Type.BOOL) {
+    result = Boolean(result);
+  }
   return [result, compiled.newEnv, defaultTypeEnv]; // TODO update
 }

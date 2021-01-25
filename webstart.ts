@@ -12,6 +12,20 @@ function webStart() {
           elt.innerText = arg;
           return arg;
         },
+        print_num: (arg: number) =>  {
+          console.log("Logging from WASM: ", arg);
+          const elt = document.createElement("pre");
+          document.getElementById("output").appendChild(elt);
+          elt.innerText = arg.toString();
+          return arg;
+        },
+        print_bool: (arg: boolean) => {
+          console.log("Logging from WASM: ", arg);
+          const elt = document.createElement("pre");
+          document.getElementById("output").appendChild(elt);
+          elt.innerText = arg === false? "False" : "True";
+          return arg;
+        },    
         abs: Math.abs,
         min: Math.min,
         max: Math.max,
