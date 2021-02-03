@@ -23,8 +23,6 @@ defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
-defaultGlobalFunctions.set("print_num", [[NUM], NUM]);
-defaultGlobalFunctions.set("print_bool", [[BOOL], BOOL]);
 
 export const defaultTypeEnv = {
   globals: new Map(),
@@ -57,13 +55,13 @@ export async function runWat(source : string, importObject : any) : Promise<any>
 export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv, GlobalTypeEnv]> {
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
-  const retTyp = tprogram.a;
+  const progTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";
-  const lastExpr = parsed.stmts[parsed.stmts.length - 1]
-  const lastExprTyp = tcStmt(tenv, emptyLocalTypeEnv(), lastExpr);
-  console.log("LASTEXPR", lastExpr);
-  if(lastExprTyp !== NONE) {
+  // const lastExpr = parsed.stmts[parsed.stmts.length - 1]
+  // const lastExprTyp = lastExpr.a;
+  // console.log("LASTEXPR", lastExpr);
+  if(progTyp !== NONE) {
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)"
   } 
@@ -75,9 +73,9 @@ export async function run(source : string, config: Config) : Promise<[any, compi
   }
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
-    (func $print (import "imports" "print") (param i32) (result i32))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
+    (func $print_none (import "imports" "print_none") (param i32) (result i32))
     (func $abs (import "imports" "abs") (param i32) (result i32))
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
@@ -90,7 +88,7 @@ export async function run(source : string, config: Config) : Promise<[any, compi
   )`;
   console.log(wasmSource);
   var result = await runWat(wasmSource, importObject);
-  if (retTyp === BOOL) {
+  if (progTyp === BOOL) {
     result = Boolean(result);
   }
   return [result, compiled.newEnv, defaultTypeEnv]; // TODO update

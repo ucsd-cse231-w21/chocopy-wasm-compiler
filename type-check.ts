@@ -58,7 +58,7 @@ export function join(env : GlobalTypeEnv, t1 : Type, t2 : Type) : Type {
 export function augmentTEnv(env : GlobalTypeEnv, program : Program<null>) : GlobalTypeEnv {
   const newGlobs = new Map(env.globals);
   const newFuns = new Map(env.functions);
-  program.inits.forEach(init => newGlobs.set(init.name, tcInit(init)));
+  program.inits.forEach(init => newGlobs.set(init.name, tcInit(init).type));
   program.funs.forEach(fun => newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
   return { globals: newGlobs, functions: newFuns };
 }
@@ -66,67 +66,55 @@ export function augmentTEnv(env : GlobalTypeEnv, program : Program<null>) : Glob
 export function tc(env : GlobalTypeEnv, program : Program<null>) : [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
-  program.funs.forEach(fun => tcDef(newEnv, fun));
+  const tDefs = program.funs.map(fun => tcDef(newEnv, fun));
 
   // program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
   // program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
   // program.funs.forEach(fun => tcDef(env, fun));
   // Strategy here is to allow tcBlock to populate the locals, then copy to the
   // global env afterwards (tcBlock changes locals)
-  const lastTyp = tcBlock(newEnv, locals, program.stmts);
+  const tBody = tcBlock(newEnv, locals, program.stmts);
+  const lastTyp = tBody[tBody.length - 1].a;
   // TODO(joe): check for assignment in existing env vs. new declaration
   // and look for assignment consistency
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram = {a: lastTyp, ...program};
+  const aprogram = {...program, a: lastTyp, stmts: tBody, funs: tDefs};
   return [aprogram, newEnv];
 }
 
-export function tcInit(init : VarInit<null>) : Type {
+export function tcInit(init : VarInit<null>) : VarInit<Type> {
   const valTyp = tcLiteral(init.value);
   if (init.type === valTyp) {
-    return init.type;
+    return init;
   } else {
     throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
   }
 }
 
-export function tcDef(env : GlobalTypeEnv, fun : FunDef<null>) : LocalTypeEnv {
+export function tcDef(env : GlobalTypeEnv, fun : FunDef<null>) : FunDef<Type> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   fun.parameters.forEach(p => locals.vars.set(p.name, p.type));
-  fun.inits.forEach(init => locals.vars.set(init.name, tcInit(init)));
+  fun.inits.forEach(init => locals.vars.set(init.name, tcInit(init).type));
   
-  const retTyp = tcBlock(env, locals, fun.body);
+  const tBody = tcBlock(env, locals, fun.body);
+  const retTyp = tBody[tBody.length - 1].a;
   if (retTyp !== fun.ret) {
-    throw new TypeCheckError("function " + fun.name + " has " + retTyp + " return type; type" + fun.ret + " expected");
+    throw new TypeCheckError("function " + fun.name + " has " + JSON.stringify(retTyp) + " return type; type" + JSON.stringify(fun.ret) + " expected");
   }
-  return locals;
+  return {...fun, body: tBody};
 }
 
-export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Array<Stmt<null>>) : Type {
-  // Assume that the block prelude is *just* variable declarations ("define")
-  // Per chocopy restrictions. Later nonlocal/global/nested functions come into play
-  var curStmt = stmts[0];
-  let stmtIndex = 0;
-//   while(curStmt.tag === "define") {
-//     const typ = tcExpr(env, locals, curStmt.value);
-//     locals.vars.set(curStmt.name, typ);
-//     curStmt = stmts[++stmtIndex];
-//   }
-  let lastTyp : Type = NONE;
-  while(stmtIndex < stmts.length) {
-    lastTyp = tcStmt(env, locals, stmts[stmtIndex]);
-    stmtIndex += 1;
-  }
-  return lastTyp;
+export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Array<Stmt<null>>) : Array<Stmt<Type>> {
+  return stmts.map(stmt => tcStmt(env, locals, stmt));
 }
 
-export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<null>) : Type {
+export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<null>) : Stmt<Type> {
   switch(stmt.tag) {
     case "assign":
-      const valTyp = tcExpr(env, locals, stmt.value);
+      const tValExpr = tcExpr(env, locals, stmt.value);
       var nameTyp;
       if (locals.vars.has(stmt.name)) {
         nameTyp = locals.vars.get(stmt.name);
@@ -135,83 +123,88 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       } else {
         throw new TypeCheckError("Unbound id: " + stmt.name);
       }
-      if(!isAssignable(env, valTyp.a, nameTyp)) {
+      if(!isAssignable(env, tValExpr.a, nameTyp)) {
         throw new TypeCheckError("Non-assignable types");
       }
-      return NONE;
+      return {a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr};
     case "expr":
-      return tcExpr(env, locals, stmt.expr).a;
+      const tExpr = tcExpr(env, locals, stmt.expr);
+      return {a: tExpr.a, tag: stmt.tag, expr: tExpr};
     case "if":
-      const condTyp = tcExpr(env, locals, stmt.cond);
-      const thnTyp = tcBlock(env, locals, stmt.thn);
-      const elsTyp = tcBlock(env, locals, stmt.els);
-      if (condTyp.a !== BOOL) {
+      var tCond = tcExpr(env, locals, stmt.cond);
+      const tThn = tcBlock(env, locals, stmt.thn);
+      const thnTyp = tThn[tThn.length - 1].a;
+      const tEls = tcBlock(env, locals, stmt.els);
+      const elsTyp = tEls[tEls.length - 1].a;
+      if (tCond.a !== BOOL) {
         throw new TypeCheckError("Condition Expression Must be a bool");
       } else if (thnTyp !== elsTyp) {
         throw new TypeCheckError("Types of then and else branches must match");
       } else{
-        return thnTyp;
+        return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls};
       }
     case "return":
-      const retTyp = tcExpr(env, locals, stmt.value);
-      if (retTyp.a !== locals.expectedRet) {
-        throw new TypeCheckError("expected return type `" + locals.expectedRet + "`; got type `" + retTyp + "`");
+      const tRet = tcExpr(env, locals, stmt.value);
+      if (tRet.a !== locals.expectedRet) {
+        throw new TypeCheckError("expected return type `" + locals.expectedRet + "`; got type `" + tRet.a + "`");
       } else {
-        return retTyp.a;
+        return {a: tRet.a, tag: stmt.tag, value:tRet};
       }
     case "while":
-      const wcondTyp = tcExpr(env, locals, stmt.cond);
-      const wbodyTyp = tcBlock(env, locals, stmt.body);
-      if (wcondTyp.a === BOOL) {
-        return wbodyTyp;
+      var tCond = tcExpr(env, locals, stmt.cond);
+      const tBody = tcBlock(env, locals, stmt.body);
+      if (tCond.a === BOOL) {
+        return {a: NONE, tag:stmt.tag, cond: tCond, body: tBody};
       } else {
         throw new TypeCheckError("Condition Expression Must be a bool");
       }
     case "pass":
-      return NONE;
+      return {a: NONE, tag: stmt.tag};
   }
 }
 
 export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<null>) : Expr<Type> {
   switch(expr.tag) {
     case "literal": 
-      return {a: tcLiteral(expr.value), ...expr};
+      return {...expr, a: tcLiteral(expr.value)};
     case "binop":
-      const leftTyp = tcExpr(env, locals, expr.left);
-      const rightTyp = tcExpr(env, locals, expr.right);
+      const tLeft = tcExpr(env, locals, expr.left);
+      const tRight = tcExpr(env, locals, expr.right);
+      const tBin = {...expr, left: tLeft, right: tRight};
       switch(expr.op) {
         case BinOp.Plus:
         case BinOp.Minus:
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
-          if(leftTyp.a === NUM && rightTyp.a === NUM) { return {a: NUM, ...expr}}
+          if(tLeft.a === NUM && tRight.a === NUM) { return {a: NUM, ...tBin}}
           else { throw new TypeCheckError("Type mismatch for numeric op" + expr.op); }
         case BinOp.Eq:
         case BinOp.Neq:
-          if(leftTyp.a === rightTyp.a) { return {a: BOOL, ...expr} ; }
+          if(tLeft.a === tRight.a) { return {a: BOOL, ...tBin} ; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op)}
         case BinOp.Lte:
         case BinOp.Gte:
         case BinOp.Lt:
         case BinOp.Gt:
-          if(leftTyp.a === NUM && rightTyp.a === NUM) { return {a: BOOL, ...expr} ; }
+          if(tLeft.a === NUM && tRight.a === NUM) { return {a: BOOL, ...tBin} ; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op) }
         case BinOp.And:
         case BinOp.Or:
-          if(leftTyp.a === BOOL && rightTyp.a === BOOL) { return {a: BOOL, ...expr} ; }
+          if(tLeft.a === BOOL && tRight.a === BOOL) { return {a: BOOL, ...tBin} ; }
           else { throw new TypeCheckError("Type mismatch for boolean op" + expr.op); }
         case BinOp.Is:
           throw new Error("is not implemented yet");
       }
     case "uniop":
-      const exprTyp = tcExpr(env, locals, expr.expr);
+      const tExpr = tcExpr(env, locals, expr.expr);
+      const tUni = {...expr, a: tExpr.a, expr: tExpr}
       switch(expr.op) {
         case UniOp.Neg:
-          if(exprTyp.a === NUM) { return {a: NUM, ...expr} }
+          if(tExpr.a === NUM) { return tUni }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op);}
         case UniOp.Not:
-          if(exprTyp.a === BOOL) { return {a: BOOL, ...expr} }
+          if(tExpr.a === BOOL) { return tUni }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op);}
       }
     case "id":
@@ -223,13 +216,15 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
         throw new TypeCheckError("Unbound id: " + expr.name);
       }
     case "builtin1":
-      if(env.functions.has(expr.name)) {
+      if (expr.name === "print") {
+        const tArg = tcExpr(env, locals, expr.arg);
+        return {...expr, a: tArg.a, arg: tArg};
+      } else if(env.functions.has(expr.name)) {
         const [[expectedArgTyp], retTyp] = env.functions.get(expr.name);
-        const argTyp = tcExpr(env, locals, expr.arg);
-        if(expectedArgTyp === argTyp.a) {
-          return {a: retTyp, ...expr}
-        } else if (expr.name === "print") {
-          return tcExpr(env, locals, expr.arg);
+        const tArg = tcExpr(env, locals, expr.arg);
+        
+        if(expectedArgTyp === tArg.a) {
+          return {...expr, a: retTyp, arg: tArg};
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
@@ -239,10 +234,10 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
     case "builtin2":
       if(env.functions.has(expr.name)) {
         const [[leftTyp, rightTyp], retTyp] = env.functions.get(expr.name);
-        const leftArgTyp = tcExpr(env, locals, expr.left);
-        const rightArgTyp = tcExpr(env, locals, expr.right);
-        if(leftArgTyp.a === leftTyp && rightArgTyp.a === rightTyp) {
-          return {a: retTyp, ...expr};
+        const tLeftArg = tcExpr(env, locals, expr.left);
+        const tRightArg = tcExpr(env, locals, expr.right);
+        if(tLeftArg.a === leftTyp && tRightArg.a === rightTyp) {
+          return {...expr, a: retTyp, left: tLeftArg, right: tRightArg};
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
@@ -252,9 +247,11 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
     case "call":
       if(env.functions.has(expr.name)) {
         const [argTypes, retType] = env.functions.get(expr.name);
+        const tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
+
         if(argTypes.length === expr.arguments.length &&
-           expr.arguments.every((argT, i) => tcExpr(env, locals, argT).a === argTypes[i])) {
-             return {a: retType, ...expr};
+           tArgs.every((tArg, i) => tArg.a === argTypes[i])) {
+             return {...expr, a: retType, arguments: expr.arguments};
            } else {
             throw new TypeError("Function call type mismatch: " + expr.name);
            }

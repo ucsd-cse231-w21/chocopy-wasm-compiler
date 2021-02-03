@@ -1,7 +1,27 @@
 import { Config, defaultTypeEnv, run, runWat } from '../runner';
 import { expect } from 'chai';
 import { emptyEnv } from '../compiler';
+import { Type, NUM, BOOL, NONE } from '../ast';
 import 'mocha';
+
+function stringify(typ: Type, arg: any) : string {
+  switch(typ.tag) {
+    case "number":
+      return (arg as number).toString();
+    case "bool":
+      return (arg as boolean)? "True" : "False";
+    case "none":
+      return "None";
+    case "class":
+      return typ.name;
+  }
+}
+
+function print(typ: Type, arg : any) : any {
+  importObject.output += stringify(typ, arg);
+  importObject.output += "\n";
+  return arg;
+}
 
 const importObject = {
   imports: {
@@ -9,21 +29,9 @@ const importObject = {
     // the compiler easier, we define print so it logs to a string object.
     //  We can then examine output to see what would have been printed in the
     //  console.
-    print: (arg : any) => {
-      importObject.output += arg;
-      importObject.output += "\n";
-      return arg;
-    },
-    print_num: (arg: number) =>  {
-      importObject.output += arg;
-      importObject.output += "\n";
-      return arg;
-    },
-    print_bool: (arg: boolean) => {
-      importObject.output += arg;
-      importObject.output += "\n";
-      return arg;
-    },
+    print_num: (arg: number) => print(NUM, arg),
+    print_bool: (arg: number) => print(BOOL, arg),
+    print_none: (arg: number) => print(NONE, arg),
     abs: Math.abs,
     min: Math.min,
     max: Math.max,
@@ -62,6 +70,13 @@ describe('run', () => {
       } catch (err) {
         expect(err).to.be.an('Error');
       }
+    })  
+  }
+
+  function assertPrint(name: string, source: string, expected: Array<string>) {
+    it(name, async() => {
+      const [result, env, tenv] = await run(source, config);
+      expect(importObject.output.trim().split("\n")).to.deep.eq(expected);
     })  
   }
 
@@ -265,12 +280,18 @@ f(2)`, 2);
 
   assert("negative", `not False`, true);
 
-  assert("class-with-fields", `
+  assertPrint("print-assert", `
+  print(1)
+  print(True)`, ["1", "True"]);
+  
+  assertPrint("class-with-fields", `
   class C(object):
     x : int = 1
     y : int = 2
 
   c1 : C = None
   c1 = C()
-  c1.x`, 1);
+  print(c1.x)
+  c1.x = 2
+  print(c1.x)`, ["1", "2"]);
 });

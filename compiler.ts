@@ -1,4 +1,4 @@
-import { Stmt, Expr, UniOp, BinOp, Type, NUM, BOOL, Program, Literal, FunDef, VarInit } from "./ast";
+import { Stmt, Expr, UniOp, BinOp, Type, NUM, BOOL, NONE, Program, Literal, FunDef, VarInit } from "./ast";
 import { augmentTEnv, emptyGlobalTypeEnv, emptyLocalTypeEnv, GlobalTypeEnv, LocalTypeEnv, tc, tcBlock, tcDef, tcExpr } from "./type-check";
 import { parse } from "./parser";
 import { defaultTypeEnv } from "./runner";
@@ -177,6 +177,7 @@ function codeGenDef(def : FunDef<Type>, env : GlobalEnv) : Array<string> {
 function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
   switch(expr.tag) {
     case "builtin1":
+      console.log("EXPR.A: ", expr.a);
       const argTyp = expr.a;
       const argStmts = codeGenExpr(expr.arg, env);
       var callName = expr.name;
@@ -184,6 +185,8 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
         callName = "print_num";
       } else if (expr.name === "print" && argTyp === BOOL) {
         callName = "print_bool";
+      } else if (expr.name === "print" && argTyp === NONE) {
+        callName = "print_none";
       }
       return argStmts.concat([`(call $${callName})`]);
     case "builtin2":

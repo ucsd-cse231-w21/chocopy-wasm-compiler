@@ -15,6 +15,10 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
         tag: "bool",
         value: s.substring(c.from, c.to) === "True"
       }
+    case "None":
+      return {
+        tag: "none"
+      }
     default:
       throw new Error("Not literal")
   }
@@ -23,16 +27,12 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
 export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
   switch(c.type.name) {
     case "Number":
+    case "Boolean":
+    case "None":
       return { 
         tag: "literal", 
         value: traverseLiteral(c, s)
-      }
-    case "Boolean":
-      // TODO: add assert to be in [True, False]
-      return {
-        tag: "literal",
-        value: traverseLiteral(c, s)
-      }
+      }      
     case "VariableName":
       return {
         tag: "id",
