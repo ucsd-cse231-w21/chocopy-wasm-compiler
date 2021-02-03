@@ -11,32 +11,32 @@ export type Type =
   | {tag: "none"}
   | {tag: "class", name: string}
 
-export type Parameter = { name: string, type: Type }
+export type Parameter<A> = { name: string, type: Type }
 
-export type Program = { funs: Array<FunDef>, inits: Array<VarInit>, classes: Array<Class>, stmts: Array<Stmt> }
+export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
 
-export type Class = {name: string, fields: Array<VarInit>, methods: Array<FunDef>}
+export type Class<A> = {name: string, fields: Array<VarInit<A>>, methods: Array<FunDef<A>>}
 
-export type VarInit = { name: string, type: Type, value: Literal }
+export type VarInit<A> = { name: string, type: Type, value: Literal }
 
-export type FunDef = { name: string, parameters: Array<Parameter>, ret: Type, inits: Array<VarInit>, body: Array<Stmt> }
+export type FunDef<A> = { name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
 
-export type Stmt =
-  | { tag: "assign", name: string, value: Expr }
-  | { tag: "return", value: Expr }
-  | { tag: "expr", expr: Expr }
-  | { tag: "if", cond: Expr, thn: Array<Stmt>, els: Array<Stmt> }
-  | { tag: "while", cond: Expr, body: Array<Stmt> }
-  | { tag: "pass" }
+export type Stmt<A> =
+  | {  a?: A, tag: "assign", name: string, value: Expr<A> }
+  | {  a?: A, tag: "return", value: Expr<A> }
+  | {  a?: A, tag: "expr", expr: Expr<A> }
+  | {  a?: A, tag: "if", cond: Expr<A>, thn: Array<Stmt<A>>, els: Array<Stmt<A>> }
+  | {  a?: A, tag: "while", cond: Expr<A>, body: Array<Stmt<A>> }
+  | {  a?: A, tag: "pass" }
 
-export type Expr =
-    { tag: "literal", value: Literal }
-  | { tag: "id", name: string }
-  | { tag: "binop", op: BinOp, left: Expr, right: Expr}
-  | { tag: "uniop", op: UniOp, expr: Expr }
-  | { tag: "builtin1", name: string, arg: Expr }
-  | { tag: "builtin2", name: string, left: Expr, right: Expr}
-  | { tag: "call", name: string, arguments: Array<Expr> } 
+export type Expr<A> =
+    {  a?: A, tag: "literal", value: Literal }
+  | {  a?: A, tag: "id", name: string }
+  | {  a?: A, tag: "binop", op: BinOp, left: Expr<A>, right: Expr<A>}
+  | {  a?: A, tag: "uniop", op: UniOp, expr: Expr<A> }
+  | {  a?: A, tag: "builtin1", name: string, arg: Expr<A> }
+  | {  a?: A, tag: "builtin2", name: string, left: Expr<A>, right: Expr<A>}
+  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> } 
 
 export type Literal = 
     { tag: "num", value: number }

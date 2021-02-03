@@ -12,7 +12,8 @@ describe('tc', () => {
   function assert(name: string, source: string, result: any) {
     it(name, async() => {
       const ast = parse(source);
-      const [typ, _] = tc(defaultTypeEnv, ast);
+      const [tast, _] = tc(defaultTypeEnv, ast);
+      const typ = tast.a;
       expect(typ).to.equal(result);
     })  
   }

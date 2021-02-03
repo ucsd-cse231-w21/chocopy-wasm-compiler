@@ -56,7 +56,8 @@ export async function runWat(source : string, importObject : any) : Promise<any>
 
 export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv, GlobalTypeEnv]> {
   const parsed = parse(source);
-  const [retTyp, tenv] = tc(config.typeEnv, parsed);
+  const [tprogram, tenv] = tc(config.typeEnv, parsed);
+  const retTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";
   const lastExpr = parsed.stmts[parsed.stmts.length - 1]
@@ -66,7 +67,7 @@ export async function run(source : string, config: Config) : Promise<[any, compi
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)"
   } 
-  const compiled = compiler.compile(source, config.env, tenv);
+  const compiled = compiler.compile(tprogram, config.env);
   const importObject = config.importObject;
   if(!importObject.js) {
     const memory = new WebAssembly.Memory({initial:10, maximum:100});

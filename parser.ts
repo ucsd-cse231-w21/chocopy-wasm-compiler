@@ -20,7 +20,7 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   }
 }
 
-export function traverseExpr(c : TreeCursor, s : string) : Expr {
+export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
   switch(c.type.name) {
     case "Number":
       return { 
@@ -45,7 +45,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
       let args = traverseArguments(c, s);
 
-      var expr : Expr;
+      var expr : Expr<null>;
       if (callName === "print" || callName === "abs") {
         expr = {
           tag: "builtin1",
@@ -160,7 +160,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
   }
 }
 
-export function traverseArguments(c : TreeCursor, s : string) : Array<Expr> {
+export function traverseArguments(c : TreeCursor, s : string) : Array<Expr<null>> {
   c.firstChild();  // Focuses on open paren
   const args = [];
   c.nextSibling();
@@ -174,7 +174,7 @@ export function traverseArguments(c : TreeCursor, s : string) : Array<Expr> {
   return args;
 }
 
-export function traverseStmt(c : TreeCursor, s : string) : Stmt {
+export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
   switch(c.node.type.name) {
     case "ReturnStatement":
       c.firstChild();  // Focus return keyword
@@ -289,7 +289,7 @@ export function traverseType(c : TreeCursor, s : string) : Type {
   }
 }
 
-export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter> {
+export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter<null>> {
   c.firstChild();  // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
@@ -310,7 +310,7 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
   return parameters;
 }
 
-export function traverseVarInit(c : TreeCursor, s : string) : VarInit {
+export function traverseVarInit(c : TreeCursor, s : string) : VarInit<null> {
   c.firstChild(); // go to name
   var name = s.substring(c.from, c.to);
   c.nextSibling(); // go to : type
@@ -332,7 +332,7 @@ export function traverseVarInit(c : TreeCursor, s : string) : VarInit {
   return { name, type, value }
 }
 
-export function traverseFunDef(c : TreeCursor, s : string) : FunDef {
+export function traverseFunDef(c : TreeCursor, s : string) : FunDef<null> {
   c.firstChild();  // Focus on def
   c.nextSibling(); // Focus on name of function
   var name = s.substring(c.from, c.to);
@@ -377,9 +377,9 @@ export function traverseFunDef(c : TreeCursor, s : string) : FunDef {
   return { name, parameters, ret, inits, body }
 }
 
-export function traverseClass(c : TreeCursor, s : string) : Class {
-  const fields : Array<VarInit> = [];
-  const methods : Array<FunDef> = [];
+export function traverseClass(c : TreeCursor, s : string) : Class<null> {
+  const fields : Array<VarInit<null>> = [];
+  const methods : Array<FunDef<null>> = [];
   c.firstChild();
   c.nextSibling(); // Focus on class name
   const className = s.substring(c.from, c.to);
@@ -404,10 +404,10 @@ export function traverseClass(c : TreeCursor, s : string) : Class {
   };
 }
 
-export function traverseDefs(c : TreeCursor, s : string) : [Array<VarInit>, Array<FunDef>, Array<Class>] {
-  const inits : Array<VarInit> = [];
-  const funs : Array<FunDef> = [];
-  const classes : Array<Class> = [];
+export function traverseDefs(c : TreeCursor, s : string) : [Array<VarInit<null>>, Array<FunDef<null>>, Array<Class<null>>] {
+  const inits : Array<VarInit<null>> = [];
+  const funs : Array<FunDef<null>> = [];
+  const classes : Array<Class<null>> = [];
 
   while(true) {
     if (c.type.name === "AssignStatement") {
@@ -428,13 +428,13 @@ export function traverseDefs(c : TreeCursor, s : string) : [Array<VarInit>, Arra
 
 }
 
-export function traverse(c : TreeCursor, s : string) : Program {
+export function traverse(c : TreeCursor, s : string) : Program<null> {
   switch(c.node.type.name) {
     case "Script":
-      const inits : Array<VarInit> = [];
-      const funs : Array<FunDef> = [];
-      const classes : Array<Class> = [];
-      const stmts : Array<Stmt> = [];
+      const inits : Array<VarInit<null>> = [];
+      const funs : Array<FunDef<null>> = [];
+      const classes : Array<Class<null>> = [];
+      const stmts : Array<Stmt<null>> = [];
       var hasChild = c.firstChild();
 
       while(hasChild) {
@@ -465,7 +465,7 @@ export function traverse(c : TreeCursor, s : string) : Program {
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }
 }
-export function parse(source : string) : Program {
+export function parse(source : string) : Program<null> {
   const t = parser.parse(source);
   return traverse(t.cursor(), source);
 }
