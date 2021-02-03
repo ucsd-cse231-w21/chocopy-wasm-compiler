@@ -9,7 +9,7 @@ import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
 import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
-import { Type } from './ast';
+import { Type, NONE, BOOL, NUM, CLASS } from './ast';
 
 export type Config = {
   importObject: any;
@@ -18,13 +18,13 @@ export type Config = {
 }
 
 const defaultGlobalFunctions = new Map();
-defaultGlobalFunctions.set("abs", [[Type.NUM], Type.NUM]);
-defaultGlobalFunctions.set("max", [[Type.NUM, Type.NUM], Type.NUM]);
-defaultGlobalFunctions.set("min", [[Type.NUM, Type.NUM], Type.NUM]);
-defaultGlobalFunctions.set("pow", [[Type.NUM, Type.NUM], Type.NUM]);
-defaultGlobalFunctions.set("print", [[Type.OBJ], Type.NUM]);
-defaultGlobalFunctions.set("print_num", [[Type.NUM], Type.NUM]);
-defaultGlobalFunctions.set("print_bool", [[Type.BOOL], Type.BOOL]);
+defaultGlobalFunctions.set("abs", [[NUM], NUM]);
+defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
+defaultGlobalFunctions.set("print_num", [[NUM], NUM]);
+defaultGlobalFunctions.set("print_bool", [[BOOL], BOOL]);
 
 export const defaultTypeEnv = {
   globals: new Map(),
@@ -62,7 +62,7 @@ export async function run(source : string, config: Config) : Promise<[any, compi
   const lastExpr = parsed.stmts[parsed.stmts.length - 1]
   const lastExprTyp = tcStmt(tenv, emptyLocalTypeEnv(), lastExpr);
   console.log("LASTEXPR", lastExpr);
-  if(lastExprTyp !== Type.NONE) {
+  if(lastExprTyp !== NONE) {
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)"
   } 
@@ -89,7 +89,7 @@ export async function run(source : string, config: Config) : Promise<[any, compi
   )`;
   console.log(wasmSource);
   var result = await runWat(wasmSource, importObject);
-  if (retTyp === Type.BOOL) {
+  if (retTyp === BOOL) {
     result = Boolean(result);
   }
   return [result, compiled.newEnv, defaultTypeEnv]; // TODO update

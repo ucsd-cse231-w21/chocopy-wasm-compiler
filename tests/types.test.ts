@@ -2,7 +2,7 @@
 import { Config, defaultTypeEnv } from '../runner';
 import { tc, tcStmt, tcExpr, TypeCheckError } from '../type-check';
 import { expect } from 'chai';
-import { Type } from '../ast';
+import { Type, NUM, BOOL, NONE, CLASS } from '../ast';
 import { emptyEnv } from '../compiler';
 import 'mocha';
 import { parse } from '../parser';
@@ -29,21 +29,21 @@ describe('tc', () => {
     })  
   }
 
-  assert("number", "1", Type.NUM);
-  assert("true", "True", Type.BOOL);
-  assert("false", "False", Type.BOOL);
+  assert("number", "1", NUM);
+  assert("true", "True", BOOL);
+  assert("false", "False", BOOL);
 
-  assert("plus", "1 + 2", Type.NUM);
+  assert("plus", "1 + 2", NUM);
   assertFail("plusBoolRight", "1 + True");
   assertFail("plusBoolLeft", "False + 2");
   assertFail("plusBoolBoth", "False + True");
 
-  assert("mul", "1 * 2", Type.NUM);
+  assert("mul", "1 * 2", NUM);
   assertFail("mulBoolRight", "1 * True");
   assertFail("mulBoolLeft", "False * 2");
   assertFail("mulBoolBoth", "False * True");
 
-  assert("sub", "1 - 2", Type.NUM);
+  assert("sub", "1 - 2", NUM);
   assertFail("subBoolRight", "1 - True");
   assertFail("subBoolLeft", "False - 2");
   assertFail("subBoolBoth", "False - True");
@@ -51,13 +51,13 @@ describe('tc', () => {
   assert("vars-then-plus", `
   x : int = 10
   y : int = 12
-  x + y`, Type.NUM);
+  x + y`, NUM);
 
   assert("vars-ending-in-defn", `
   x : int = 10
   y : int = 12
   y
-  x = y + x`, Type.NONE);
+  x = y + x`, NONE);
 
   assert("recursive-fun-tc", `
   def fib(n : int) -> int:
@@ -66,7 +66,7 @@ describe('tc', () => {
     else:
       return n * fib(n - 1)
 
-  fib(5)`, Type.NUM);
+  fib(5)`, NUM);
 
   assert("mutual-recursive-fun-tc", `
   def is_even(n : int) -> bool:
@@ -81,7 +81,7 @@ describe('tc', () => {
     else:
       return is_even(n - 1)
 
-  is_even(100)`, Type.BOOL);
+  is_even(100)`, BOOL);
 
   assertFail("vars-ending-in-error", `
   x : bool = True

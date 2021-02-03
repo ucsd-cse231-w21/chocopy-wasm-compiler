@@ -1,5 +1,5 @@
 
-import {Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit} from './ast';
+import {Stmt, Expr, Type, NUM, BOOL, NONE, CLASS, UniOp, BinOp, Literal, Program, FunDef, VarInit} from './ast';
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -33,7 +33,7 @@ export function emptyGlobalTypeEnv() : GlobalTypeEnv {
 export function emptyLocalTypeEnv() : LocalTypeEnv {
   return {
     vars: new Map(),
-    expectedRet: Type.NONE
+    expectedRet: NONE
   };
 }
 
@@ -43,7 +43,7 @@ export type TypeError = {
 
 export function isSubtype(env : GlobalTypeEnv, t1 : Type, t2 : Type) : boolean {
   if(t1 === t2) { return true; }
-  if(t2 === Type.OBJ) { return true; }
+  if(t2.tag === "class") { return true; }
   return false;
 }
 
@@ -52,7 +52,7 @@ export function isAssignable(env : GlobalTypeEnv, t1 : Type, t2 : Type) : boolea
 }
 
 export function join(env : GlobalTypeEnv, t1 : Type, t2 : Type) : Type {
-  return Type.NONE
+  return NONE
 }
 
 export function augmentTEnv(env : GlobalTypeEnv, program : Program) : GlobalTypeEnv {
@@ -114,7 +114,7 @@ export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Arra
 //     locals.vars.set(curStmt.name, typ);
 //     curStmt = stmts[++stmtIndex];
 //   }
-  let lastTyp : Type = Type.NONE;
+  let lastTyp : Type = NONE;
   while(stmtIndex < stmts.length) {
     lastTyp = tcStmt(env, locals, stmts[stmtIndex]);
     stmtIndex += 1;
@@ -137,14 +137,14 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt) 
       if(!isAssignable(env, valTyp, nameTyp)) {
         throw new TypeCheckError("Non-assignable types");
       }
-      return Type.NONE;
+      return NONE;
     case "expr":
       return tcExpr(env, locals, stmt.expr);
     case "if":
       const condTyp = tcExpr(env, locals, stmt.cond);
       const thnTyp = tcBlock(env, locals, stmt.thn);
       const elsTyp = tcBlock(env, locals, stmt.els);
-      if (condTyp !== Type.BOOL) {
+      if (condTyp !== BOOL) {
         throw new TypeCheckError("Condition Expression Must be a bool");
       } else if (thnTyp !== elsTyp) {
         throw new TypeCheckError("Types of then and else branches must match");
@@ -161,13 +161,13 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt) 
     case "while":
       const wcondTyp = tcExpr(env, locals, stmt.cond);
       const wbodyTyp = tcBlock(env, locals, stmt.body);
-      if (wcondTyp === Type.BOOL) {
+      if (wcondTyp === BOOL) {
         return wbodyTyp;
       } else {
         throw new TypeCheckError("Condition Expression Must be a bool");
       }
     case "pass":
-      return Type.NONE;
+      return NONE;
   }
 }
 
@@ -184,21 +184,21 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
-          if(leftTyp === Type.NUM && rightTyp === Type.NUM) { return Type.NUM; }
+          if(leftTyp === NUM && rightTyp === NUM) { return NUM; }
           else { throw new TypeCheckError("Type mismatch for numeric op" + expr.op); }
         case BinOp.Eq:
         case BinOp.Neq:
-          if(leftTyp === rightTyp) { return Type.BOOL; }
+          if(leftTyp === rightTyp) { return BOOL; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op)}
         case BinOp.Lte:
         case BinOp.Gte:
         case BinOp.Lt:
         case BinOp.Gt:
-          if(leftTyp === Type.NUM && rightTyp === Type.NUM) { return Type.BOOL; }
+          if(leftTyp === NUM && rightTyp === NUM) { return BOOL; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op) }
         case BinOp.And:
         case BinOp.Or:
-          if(leftTyp === Type.BOOL && rightTyp === Type.BOOL) { return Type.BOOL; }
+          if(leftTyp === BOOL && rightTyp === BOOL) { return BOOL; }
           else { throw new TypeCheckError("Type mismatch for boolean op" + expr.op); }
         case BinOp.Is:
           throw new Error("is not implemented yet");
@@ -207,10 +207,10 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
       const exprTyp = tcExpr(env, locals, expr.expr);
       switch(expr.op) {
         case UniOp.Neg:
-          if(exprTyp === Type.NUM) { return Type.NUM }
+          if(exprTyp === NUM) { return NUM }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op);}
         case UniOp.Not:
-          if(exprTyp === Type.BOOL) { return Type.BOOL }
+          if(exprTyp === BOOL) { return BOOL }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op);}
       }
     case "id":
@@ -258,13 +258,13 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr) 
       } else {
         throw new TypeError("Undefined function: " + expr.name);
       }
-    default: return Type.NONE;
+    default: return NONE;
   }
 }
 
 export function tcLiteral(literal : Literal) {
     switch(literal.tag) {
-        case "bool": return Type.BOOL;
-        case "num": return Type.NUM;
+        case "bool": return BOOL;
+        case "num": return NUM;
     }
 }

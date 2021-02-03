@@ -1,4 +1,4 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit } from "./ast";
+import { Stmt, Expr, UniOp, BinOp, Type, NUM, BOOL, Program, Literal, FunDef, VarInit } from "./ast";
 import { augmentTEnv, emptyGlobalTypeEnv, emptyLocalTypeEnv, GlobalTypeEnv, LocalTypeEnv, tc, tcBlock, tcDef, tcExpr } from "./type-check";
 import { parse } from "./parser";
 import { defaultTypeEnv } from "./runner";
@@ -184,9 +184,9 @@ function codeGenExpr(expr : Expr, env: GlobalEnv, tenv: GlobalTypeEnv, tlocals: 
       const argTyp = tcExpr(tenv, tlocals, expr.arg);
       const argStmts = codeGenExpr(expr.arg, env, tenv, tlocals);
       var callName = expr.name;
-      if (expr.name === "print" && argTyp === Type.NUM) {
+      if (expr.name === "print" && argTyp === NUM) {
         callName = "print_num";
-      } else if (expr.name === "print" && argTyp === Type.BOOL) {
+      } else if (expr.name === "print" && argTyp === BOOL) {
         callName = "print_bool";
       }
       return argStmts.concat([`(call $${callName})`]);

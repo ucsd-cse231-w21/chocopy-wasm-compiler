@@ -264,4 +264,13 @@ f(2)`, 2);
   assert("negative", `not True`, false);
 
   assert("negative", `not False`, true);
+
+  assert("class-with-fields", `
+  class C(object):
+    x : int = 1
+    y : int = 2
+
+  c1 : C = None
+  c1 = C()
+  c1.x`, 1);
 });

@@ -1,10 +1,21 @@
 // import { TypeCheckError } from "./type-check";
 
-export enum Type {NUM, BOOL, NONE, OBJ}; 
+// export enum Type {NUM, BOOL, NONE, OBJ}; 
+export const NUM : {tag: "number"} = {tag: "number"};
+export const BOOL : {tag: "bool"} = {tag: "bool"};
+export const NONE : {tag: "none"} = {tag: "none"};
+export function CLASS(name : string) : Type {return {tag: "class", name}};
+export type Type =
+  | {tag: "number"}
+  | {tag: "bool"}
+  | {tag: "none"}
+  | {tag: "class", name: string}
 
 export type Parameter = { name: string, type: Type }
 
-export type Program = { funs: Array<FunDef>, inits: Array<VarInit>, stmts: Array<Stmt> }
+export type Program = { funs: Array<FunDef>, inits: Array<VarInit>, classes: Array<Class>, stmts: Array<Stmt> }
+
+export type Class = {name: string, fields: Array<VarInit>, methods: Array<FunDef>}
 
 export type VarInit = { name: string, type: Type, value: Literal }
 

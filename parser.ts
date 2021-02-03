@@ -1,6 +1,6 @@
 import {parser} from "lezer-python";
 import {Tree, TreeCursor} from "lezer-tree";
-import {Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Literal} from "./ast";
+import {Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, NUM, BOOL, NONE, CLASS, FunDef, VarInit, Class, Literal} from "./ast";
 import { defaultTypeEnv } from "./runner";
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
@@ -283,9 +283,9 @@ export function traverseType(c : TreeCursor, s : string) : Type {
   // For now, always a VariableName
   let name = s.substring(c.from, c.to);
   switch(name) {
-    case "int": return Type.NUM;
-    case "bool": return Type.BOOL;
-    case "object": return Type.OBJ;
+    case "int": return NUM;
+    case "bool": return BOOL;
+    case "object": return CLASS(name);
   }
 }
 
@@ -310,7 +310,7 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
   return parameters;
 }
 
-export function traverseInit(c : TreeCursor, s : string) : VarInit {
+export function traverseVarInit(c : TreeCursor, s : string) : VarInit {
   c.firstChild(); // go to name
   var name = s.substring(c.from, c.to);
   c.nextSibling(); // go to : type
@@ -332,14 +332,14 @@ export function traverseInit(c : TreeCursor, s : string) : VarInit {
   return { name, type, value }
 }
 
-export function traverseDef(c : TreeCursor, s : string) : FunDef {
+export function traverseFunDef(c : TreeCursor, s : string) : FunDef {
   c.firstChild();  // Focus on def
   c.nextSibling(); // Focus on name of function
   var name = s.substring(c.from, c.to);
   c.nextSibling(); // Focus on ParamList
   var parameters = traverseParameters(c, s)
   c.nextSibling(); // Focus on Body or TypeDef
-  let ret : Type = Type.NONE;
+  let ret : Type = NONE;
   if(c.type.name === "TypeDef") {
     c.firstChild();
     ret = traverseType(c, s);
@@ -355,7 +355,7 @@ export function traverseDef(c : TreeCursor, s : string) : FunDef {
   while(hasChild) {
     if (c.type.name === "AssignStatement") {
       try {
-        inits.push(traverseInit(c, s));
+        inits.push(traverseVarInit(c, s));
       } catch (error) {
         break;
       }
@@ -377,23 +377,77 @@ export function traverseDef(c : TreeCursor, s : string) : FunDef {
   return { name, parameters, ret, inits, body }
 }
 
+export function traverseClass(c : TreeCursor, s : string) : Class {
+  const fields : Array<VarInit> = [];
+  const methods : Array<FunDef> = [];
+  c.firstChild();
+  c.nextSibling(); // Focus on class name
+  const className = s.substring(c.from, c.to);
+  c.nextSibling(); // Focus on arglist/superclass
+  c.nextSibling(); // Focus on body
+  c.firstChild();  // Focus colon
+  while(c.nextSibling()) { // Focuses first field
+    if (c.type.name === "AssignStatement") {
+      fields.push(traverseVarInit(c, s));
+    } else if (c.type.name === "FunctionDefinition") {
+      methods.push(traverseFunDef(c, s));
+    } else {
+      throw new Error(`Could not parse the body of class: ${className}` );
+    }
+  } 
+  c.parent();
+  c.parent();
+  return {
+    name: className,
+    fields,
+    methods
+  };
+}
+
+export function traverseDefs(c : TreeCursor, s : string) : [Array<VarInit>, Array<FunDef>, Array<Class>] {
+  const inits : Array<VarInit> = [];
+  const funs : Array<FunDef> = [];
+  const classes : Array<Class> = [];
+
+  while(true) {
+    if (c.type.name === "AssignStatement") {
+      try {
+        inits.push(traverseVarInit(c, s));
+      } catch (error) {
+        break;
+      }
+    } else if (c.type.name === "FunctionDefinition") {
+      funs.push(traverseFunDef(c, s));
+    } else if (c.type.name === "ClassDefinition") {
+      classes.push(traverseClass(c, s));
+    } else {
+      return [inits, funs, classes];
+    }
+    c.nextSibling();
+  }
+
+}
+
 export function traverse(c : TreeCursor, s : string) : Program {
   switch(c.node.type.name) {
     case "Script":
       const inits : Array<VarInit> = [];
       const funs : Array<FunDef> = [];
+      const classes : Array<Class> = [];
       const stmts : Array<Stmt> = [];
       var hasChild = c.firstChild();
 
       while(hasChild) {
         if (c.type.name === "AssignStatement") {
           try {
-            inits.push(traverseInit(c, s));
+            inits.push(traverseVarInit(c, s));
           } catch (error) {
             break;
           }
         } else if (c.type.name === "FunctionDefinition") {
-          funs.push(traverseDef(c, s));
+          funs.push(traverseFunDef(c, s));
+        } else if (c.type.name === "ClassDefinition") {
+          classes.push(traverseClass(c, s));
         } else {
           break;
         }
@@ -405,7 +459,8 @@ export function traverse(c : TreeCursor, s : string) : Program {
         hasChild = c.nextSibling();
       } 
       c.parent();
-      return { funs, inits, stmts };
+      console.log("CLASSES: ", classes);
+      return { funs, inits, classes, stmts };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }
