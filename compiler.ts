@@ -1,34 +1,41 @@
-import { Stmt, Expr, UniOp, BinOp, Type, NUM, BOOL, NONE, Program, Literal, FunDef, VarInit } from "./ast";
-import { augmentTEnv, emptyGlobalTypeEnv, emptyLocalTypeEnv, GlobalTypeEnv, LocalTypeEnv, tc, tcBlock, tcDef, tcExpr } from "./type-check";
-import { parse } from "./parser";
-import { defaultTypeEnv } from "./runner";
-import { getCombinedNodeFlags } from "typescript";
+import { off } from "process";
+import { Stmt, Expr, UniOp, BinOp, Type, NUM, BOOL, NONE, Program, Literal, FunDef, VarInit, Class } from "./ast";
+import { GlobalTypeEnv } from "./type-check";
 
 // https://learnxinyminutes.com/docs/wasm/
 
 // Numbers are offsets into global memory
 export type GlobalEnv = {
   globals: Map<string, number>;
+  classes: Map<string, Map<string, [number, Literal]>>;  
   locals: Set<string>;
   offset: number;
 }
 
 export const emptyEnv : GlobalEnv = { 
   globals: new Map(), 
+  classes: new Map(),
   locals: new Set(),
   offset: 0 
 };
 
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
   const newGlobals = new Map(env.globals);
+  const newClasses = new Map(env.classes);
 
   var newOffset = env.offset;
   prog.inits.forEach((v) => {
     newGlobals.set(v.name, newOffset);
     newOffset += 1;
-  })
+  });
+  prog.classes.forEach(cls => {
+    const classFields = new Map();
+    cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
+    newClasses.set(cls.name, classFields);
+  });
   return {
     globals: newGlobals,
+    classes: newClasses,
     locals: env.locals,
     offset: newOffset
   }
@@ -62,8 +69,6 @@ export function makeLocals(locals: Set<string>) : Array<string> {
 }
 
 export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
-  const tlocals = emptyLocalTypeEnv();
-
   const withDefines = augmentEnv(env, ast);
 
   const definedVars : Set<string> = new Set(); //getLocals(ast);
@@ -74,7 +79,8 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   ast.funs.forEach(f => {
     funs.push(codeGenDef(f, withDefines).join("\n"));
   });
-  const allFuns = funs.join("\n\n");
+  const classes : Array<string> = ast.classes.map(cls => codeGenClass(cls, withDefines)).flat();
+  const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   const inits = ast.inits.map(init => codeGenInit(init, withDefines)).flat();
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
@@ -138,6 +144,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
     case "pass":
       return [];
+    case "field-assign":
+      throw new Error("field assign not implemented yet");
   }
 }
 
@@ -174,10 +182,17 @@ function codeGenDef(def : FunDef<Type>, env : GlobalEnv) : Array<string> {
     (return))`];
 }
 
+function codeGenClass(cls : Class<Type>, env : GlobalEnv) : Array<string> {
+  const methods = [...cls.methods];
+  methods.forEach(method => method.name = `${cls.name}$${method.name}`);
+  const result = methods.map(method => codeGenDef(method, env));
+  console.log("RESULT", result);
+  return result.flat();
+}
+
 function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
   switch(expr.tag) {
     case "builtin1":
-      console.log("EXPR.A: ", expr.a);
       const argTyp = expr.a;
       const argStmts = codeGenExpr(expr.arg, env);
       var callName = expr.name;
@@ -217,6 +232,37 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
+    case "construct":
+      var stmts : Array<string> = [];
+      env.classes.get(expr.name).forEach(([offset, initVal], field) => 
+        stmts.push(...[
+          `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
+          `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
+          ...codeGenLiteral(initVal),              // Initialize field
+          "(i32.store)"                            // Put the default field value on the heap
+        ]));
+      return stmts.concat([
+        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
+        "(i32.const 0)",                                                  // Address for our upcoming store instruction
+        "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
+        `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`,   // Move heap head beyond the two words we just created for fields
+        "(i32.store)",                                                    // Save the new heap offset
+      ]);
+    case "method-call":
+      throw new Error("method call not implemented yet");
+    case "lookup":
+      var objStmts = codeGenExpr(expr.obj, env);
+      var objTyp = expr.obj.a;
+      if(objTyp.tag !== "class") { // I don't think this error can happen
+        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
+      }
+      var className = objTyp.name;
+      var [offset, _] = env.classes.get(className).get(expr.field);
+      return [
+        ...objStmts,
+        `(i32.add (i32.const ${offset * 4}))`,
+        `(i32.load)`
+      ];
   }
 }
 
@@ -226,6 +272,8 @@ function codeGenLiteral(literal : Literal) : Array<string> {
       return ["(i32.const " + literal.value + ")"];
     case "bool":
       return [`(i32.const ${Number(literal.value)})`];
+    case "none":
+      return [`(i32.const 0)`];
   }
 }
 

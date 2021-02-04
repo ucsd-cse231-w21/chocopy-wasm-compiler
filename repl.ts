@@ -14,13 +14,16 @@ export class BasicREPL {
   constructor(importObject : any) {
     this.importObject = importObject;
     if(!importObject.js) {
-      const memory = new WebAssembly.Memory({initial:10, maximum:20});
+      const memory = new WebAssembly.Memory({initial:2000, maximum:2000});
+      const view = new Int32Array(memory.buffer);
+      view[0] = 4;
       this.importObject.js = { memory: memory };
     }
     this.currentEnv = {
       globals: new Map(),
+      classes: new Map(),
       locals: new Set(),
-      offset: 0
+      offset: 1
     };
     this.currentTypeEnv = defaultTypeEnv
   }

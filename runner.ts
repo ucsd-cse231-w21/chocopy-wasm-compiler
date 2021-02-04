@@ -26,7 +26,8 @@ defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
 
 export const defaultTypeEnv = {
   globals: new Map(),
-  functions: defaultGlobalFunctions
+  functions: defaultGlobalFunctions,
+  classes: new Map()
 }
 
 // NOTE(joe): This is a hack to get the CLI Repl to run. WABT registers a global
@@ -54,6 +55,7 @@ export async function runWat(source : string, importObject : any) : Promise<any>
 
 export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv, GlobalTypeEnv]> {
   const parsed = parse(source);
+  console.log(parsed);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const progTyp = tprogram.a;
   var returnType = "";
@@ -65,12 +67,22 @@ export async function run(source : string, config: Config) : Promise<[any, compi
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)"
   } 
+  let globalsBefore = (config.env.globals as Map<string, number>).size;
   const compiled = compiler.compile(tprogram, config.env);
+  let globalsAfter = compiled.newEnv.globals.size;
+
   const importObject = config.importObject;
   if(!importObject.js) {
-    const memory = new WebAssembly.Memory({initial:10, maximum:100});
+    const memory = new WebAssembly.Memory({initial:2000, maximum:2000});
     importObject.js = { memory: memory };
   }
+
+  const view = new Int32Array(importObject.js.memory.buffer);
+  let offsetBefore = view[0];
+  console.log("before updating: ", offsetBefore);
+  view[0] = offsetBefore + ((globalsAfter - globalsBefore) * 4);
+  console.log("after updating: ", view[0])
+
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))

@@ -1,5 +1,7 @@
 
-import {Stmt, Expr, Type, NUM, BOOL, NONE, CLASS, UniOp, BinOp, Literal, Program, FunDef, VarInit} from './ast';
+import { table } from 'console';
+import {Stmt, Expr, Type, NUM, BOOL, NONE, CLASS, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class, equalType} from './ast';
+import { emptyEnv } from './compiler';
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -15,7 +17,8 @@ export class TypeCheckError extends Error {
 
 export type GlobalTypeEnv = {
   globals: Map<string, Type>,
-  functions: Map<string, [Array<Type>, Type]>
+  functions: Map<string, [Array<Type>, Type]>,
+  classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>
 }
 
 export type LocalTypeEnv = {
@@ -26,7 +29,8 @@ export type LocalTypeEnv = {
 export function emptyGlobalTypeEnv() : GlobalTypeEnv {
   return {
     globals: new Map(),
-    functions: new Map()
+    functions: new Map(),
+    classes: new Map()
   };
 }
 
@@ -58,15 +62,25 @@ export function join(env : GlobalTypeEnv, t1 : Type, t2 : Type) : Type {
 export function augmentTEnv(env : GlobalTypeEnv, program : Program<null>) : GlobalTypeEnv {
   const newGlobs = new Map(env.globals);
   const newFuns = new Map(env.functions);
-  program.inits.forEach(init => newGlobs.set(init.name, tcInit(init).type));
+  const newClasses = new Map(env.classes);
+  program.inits.forEach(init => newGlobs.set(init.name, init.type));
   program.funs.forEach(fun => newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
-  return { globals: newGlobs, functions: newFuns };
+  program.classes.forEach(cls => {
+    const fields = new Map();
+    const methods = new Map();
+    cls.fields.forEach(field => fields.set(field.name, field.type));
+    cls.methods.forEach(method => methods.set(method.name, [method.parameters.map(p => p.type), method.ret]));
+    newClasses.set(cls.name, [fields, methods]);
+  });
+  return { globals: newGlobs, functions: newFuns, classes: newClasses };
 }
 
 export function tc(env : GlobalTypeEnv, program : Program<null>) : [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
+  const tInits = program.inits.map(init => tcInit(init));
   const tDefs = program.funs.map(fun => tcDef(newEnv, fun));
+  const tClasses = program.classes.map(cls => tcClass(newEnv, cls));
 
   // program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
   // program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
@@ -80,13 +94,15 @@ export function tc(env : GlobalTypeEnv, program : Program<null>) : [Program<Type
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram = {...program, a: lastTyp, stmts: tBody, funs: tDefs};
+  const aprogram = {a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody};
   return [aprogram, newEnv];
 }
 
 export function tcInit(init : VarInit<null>) : VarInit<Type> {
   const valTyp = tcLiteral(init.value);
   if (init.type === valTyp) {
+    return init;
+  } else if (init.type.tag === "class" && valTyp === NONE) {
     return init;
   } else {
     throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
@@ -101,10 +117,17 @@ export function tcDef(env : GlobalTypeEnv, fun : FunDef<null>) : FunDef<Type> {
   
   const tBody = tcBlock(env, locals, fun.body);
   const retTyp = tBody[tBody.length - 1].a;
-  if (retTyp !== fun.ret) {
+  if (equalType(retTyp, fun.ret)) {
+    return {...fun, body: tBody};
+  } else {
     throw new TypeCheckError("function " + fun.name + " has " + JSON.stringify(retTyp) + " return type; type" + JSON.stringify(fun.ret) + " expected");
   }
-  return {...fun, body: tBody};
+}
+
+export function tcClass(env: GlobalTypeEnv, cls : Class<null>) : Class<Type> {
+  const tFields = cls.fields.map(field => tcInit(field));
+  const tMethods = cls.methods.map(method => tcDef(env, method));
+  return {name: cls.name, fields: tFields, methods: tMethods};
 }
 
 export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Array<Stmt<null>>) : Array<Stmt<Type>> {
@@ -145,10 +168,10 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       }
     case "return":
       const tRet = tcExpr(env, locals, stmt.value);
-      if (tRet.a !== locals.expectedRet) {
-        throw new TypeCheckError("expected return type `" + locals.expectedRet + "`; got type `" + tRet.a + "`");
-      } else {
+      if (equalType(tRet.a, locals.expectedRet)) {
         return {a: tRet.a, tag: stmt.tag, value:tRet};
+      } else {
+        throw new TypeCheckError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
       }
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
@@ -160,6 +183,23 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       }
     case "pass":
       return {a: NONE, tag: stmt.tag};
+    case "field-assign":
+      var tObj = tcExpr(env, locals, stmt.obj);
+      const tVal = tcExpr(env, locals, stmt.value);
+      if (tObj.a.tag === "class") {
+        if (env.classes.has(tObj.a.name)) {
+          const [fields, _] = env.classes.get(tObj.a.name);
+          if (fields.has(stmt.field)) {
+            return {...stmt, a: NONE, obj: tObj, value: tVal};
+          } else {
+            throw new TypeCheckError(`could not found field ${stmt.field} in class ${tObj.a.name}`);
+          }
+        } else {
+          throw new TypeCheckError("field assignment on an unknown class");
+        }
+      } else {
+        throw new TypeCheckError("field assignments require an object");
+      }
   }
 }
 
@@ -245,7 +285,21 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
         throw new TypeError("Undefined function: " + expr.name);
       }
     case "call":
-      if(env.functions.has(expr.name)) {
+      if(env.classes.has(expr.name)) {
+        // surprise surprise this is actually a constructor
+        const tConstruct : Expr<Type> = { a: CLASS(expr.name), tag: "construct", name: expr.name };
+        const [_, methods] = env.classes.get(expr.name);
+        if (methods.has("__init__")) {
+          const [initArgs, initRet] = methods.get("__init__");
+          if (initArgs.length === 0 && initRet === CLASS(expr.name)) {
+            return tConstruct;
+          } else {
+            throw new TypeCheckError("constructors must have no arguments");
+          }
+        } else {
+          return tConstruct;
+        }
+      } else if(env.functions.has(expr.name)) {
         const [argTypes, retType] = env.functions.get(expr.name);
         const tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
 
@@ -258,6 +312,46 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       } else {
         throw new TypeError("Undefined function: " + expr.name);
       }
+    case "lookup":
+      var tObj = tcExpr(env, locals, expr.obj);
+      if (tObj.a.tag === "class") {
+        if (env.classes.has(tObj.a.name)) {
+          const [fields, _] = env.classes.get(tObj.a.name);
+          if (fields.has(expr.field)) {
+            return {...expr, a: fields.get(expr.field), obj: tObj};
+          } else {
+            throw new TypeCheckError(`could not found field ${expr.field} in class ${tObj.a.name}`);
+          }
+        } else {
+          throw new TypeCheckError("field lookup on an unknown class");
+        }
+      } else {
+        throw new TypeCheckError("field lookups require an object");
+      }
+    case "method-call":
+      var tObj = tcExpr(env, locals, expr.obj);
+      var tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
+      if (tObj.a.tag === "class") {
+        if (env.classes.has(tObj.a.name)) {
+          const [_, methods] = env.classes.get(tObj.a.name);
+          if (methods.has(expr.method)) {
+            const [methodArgs, methodRet] = methods.get(expr.method);
+            const realArgs = [tObj].concat(tArgs);
+            if(methodArgs.length === realArgs.length &&
+              methodArgs.every((argTyp, i) => equalType(argTyp, realArgs[i].a))) {
+                return {...expr, a: methodRet, obj: tObj, arguments: tArgs};
+              } else {
+               throw new TypeError("Method call type mismatch: " + expr.method);
+              }
+          } else {
+            throw new TypeCheckError(`could not found method ${expr.method} in class ${tObj.a.name}`);
+          }
+        } else {
+          throw new TypeCheckError("method call on an unknown class");
+        }
+      } else {
+        throw new TypeCheckError("method calls require an object");
+      }
     default: throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
 }
@@ -266,5 +360,6 @@ export function tcLiteral(literal : Literal) {
     switch(literal.tag) {
         case "bool": return BOOL;
         case "num": return NUM;
+        case "none": return NONE;
     }
 }
