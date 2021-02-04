@@ -145,7 +145,20 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
     case "pass":
       return [];
     case "field-assign":
-      throw new Error("field assign not implemented yet");
+      var objStmts = codeGenExpr(stmt.obj, env);
+      var objTyp = stmt.obj.a;
+      if(objTyp.tag !== "class") { // I don't think this error can happen
+        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
+      }
+      var className = objTyp.name;
+      var [offset, _] = env.classes.get(className).get(stmt.field);
+      var valStmts = codeGenExpr(stmt.value, env);
+      return [
+        ...objStmts,
+        `(i32.add (i32.const ${offset * 4}))`,
+        ...valStmts,
+        `(i32.store)`
+      ];
   }
 }
 
@@ -186,7 +199,6 @@ function codeGenClass(cls : Class<Type>, env : GlobalEnv) : Array<string> {
   const methods = [...cls.methods];
   methods.forEach(method => method.name = `${cls.name}$${method.name}`);
   const result = methods.map(method => codeGenDef(method, env));
-  console.log("RESULT", result);
   return result.flat();
 }
 
@@ -249,7 +261,18 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
         "(i32.store)",                                                    // Save the new heap offset
       ]);
     case "method-call":
-      throw new Error("method call not implemented yet");
+      var objStmts = codeGenExpr(expr.obj, env);
+      var objTyp = expr.obj.a;
+      if(objTyp.tag !== "class") { // I don't think this error can happen
+        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
+      }
+      var className = objTyp.name;
+      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+      return [
+        ...objStmts,
+        ...argsStmts,
+        `(call $${className}$${expr.method})`
+      ];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
