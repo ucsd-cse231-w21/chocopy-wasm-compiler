@@ -1,66 +1,40 @@
 
-import { Config, defaultTypeEnv } from '../runner';
-import { tc, tcStmt, tcExpr, TypeCheckError } from '../type-check';
-import { expect } from 'chai';
+import { assertTC, assertTCFail } from './utils.test';
 import { Type, NUM, BOOL, NONE, CLASS } from '../ast';
-import { emptyEnv } from '../compiler';
-import 'mocha';
-import { parse } from '../parser';
-import { fail } from 'assert';
 
 describe('tc', () => {
-  function assert(name: string, source: string, result: any) {
-    it(name, async() => {
-      const ast = parse(source);
-      const [tast, _] = tc(defaultTypeEnv, ast);
-      const typ = tast.a;
-      expect(typ).to.deep.eq(result);
-    })  
-  }
-  function assertFail(name: string, source: string) {
-    it(name, async() => {
-      const ast = parse(source);
-      try {
-        const [typ, _] = tc(defaultTypeEnv, ast);
-        fail("Expected an exception, got a type " + typ);
-      }
-      catch(e) {
-        expect(e).to.instanceof(TypeCheckError);
-      }
-    })  
-  }
 
-  assert("number", "1", NUM);
-  assert("true", "True", BOOL);
-  assert("false", "False", BOOL);
+  assertTC("number", "1", NUM);
+  assertTC("true", "True", BOOL);
+  assertTC("false", "False", BOOL);
 
-  assert("plus", "1 + 2", NUM);
-  assertFail("plusBoolRight", "1 + True");
-  assertFail("plusBoolLeft", "False + 2");
-  assertFail("plusBoolBoth", "False + True");
+  assertTC("plus", "1 + 2", NUM);
+  assertTCFail("plusBoolRight", "1 + True");
+  assertTCFail("plusBoolLeft", "False + 2");
+  assertTCFail("plusBoolBoth", "False + True");
 
-  assert("mul", "1 * 2", NUM);
-  assertFail("mulBoolRight", "1 * True");
-  assertFail("mulBoolLeft", "False * 2");
-  assertFail("mulBoolBoth", "False * True");
+  assertTC("mul", "1 * 2", NUM);
+  assertTCFail("mulBoolRight", "1 * True");
+  assertTCFail("mulBoolLeft", "False * 2");
+  assertTCFail("mulBoolBoth", "False * True");
 
-  assert("sub", "1 - 2", NUM);
-  assertFail("subBoolRight", "1 - True");
-  assertFail("subBoolLeft", "False - 2");
-  assertFail("subBoolBoth", "False - True");
+  assertTC("sub", "1 - 2", NUM);
+  assertTCFail("subBoolRight", "1 - True");
+  assertTCFail("subBoolLeft", "False - 2");
+  assertTCFail("subBoolBoth", "False - True");
 
-  assert("vars-then-plus", `
+  assertTC("vars-then-plus", `
   x : int = 10
   y : int = 12
   x + y`, NUM);
 
-  assert("vars-ending-in-defn", `
+  assertTC("vars-ending-in-defn", `
   x : int = 10
   y : int = 12
   y
   x = y + x`, NONE);
 
-  assert("recursive-fun-tc", `
+  assertTC("recursive-fun-tc", `
   def fib(n : int) -> int:
     if n < 2:
       return 1
@@ -69,7 +43,7 @@ describe('tc', () => {
 
   fib(5)`, NUM);
 
-  assert("mutual-recursive-fun-tc", `
+  assertTC("mutual-recursive-fun-tc", `
   def is_even(n : int) -> bool:
     if n == 0:
       return True
@@ -84,18 +58,18 @@ describe('tc', () => {
 
   is_even(100)`, BOOL);
 
-  assertFail("vars-ending-in-error", `
+  assertTCFail("vars-ending-in-error", `
   x : bool = True
   y : int = 12
   y + x`);
 
-  assertFail("bad-assignment", `
+  assertTCFail("bad-assignment", `
   x : bool = True
   y : int = 12
   y
   y = True`);
 
-  assert("class-with-field", `
+  assertTC("class-with-field", `
   class C(object):
     x : int = 1
 
@@ -103,7 +77,7 @@ describe('tc', () => {
   c1 = C()
   c1.x`, NUM);
 
-  assert("class-with-field-assign", `
+  assertTC("class-with-field-assign", `
   class C(object):
     x : int = 1
     y : int = 2
@@ -111,7 +85,7 @@ describe('tc', () => {
   c1 = C()
   c1.x = c1.y`, NONE);
 
-  assert("class-with-method", `
+  assertTC("class-with-method", `
   class C(object):
     x : int = 1
     y : int = 2

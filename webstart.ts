@@ -1,5 +1,6 @@
 import {BasicREPL} from './repl';
-import { BOOL, NUM, NONE, Type } from './ast';
+import { BOOL, NUM, NONE, Type, Value } from './ast';
+import { defaultTypeEnv } from './runner';
 
 function stringify(typ: Type, arg: any) : string {
   switch(typ.tag) {
@@ -38,11 +39,23 @@ function webStart() {
 
     var repl = new BasicREPL(importObject);
 
-    function renderResult(result : any) : void {
+    function renderResult(result : Value) : void {
       if(result === undefined) { console.log("skip"); return; }
+      if (result.tag === "none") return;
       const elt = document.createElement("pre");
       document.getElementById("output").appendChild(elt);
-      elt.innerText = String(result);
+      switch (result.tag) {
+        case "num":
+          elt.innerText = String(result.value);
+          break;
+        case "bool":
+          elt.innerHTML = (result.value) ? "True" : "False";
+          break;
+        case "object":
+          elt.innerHTML = `<${result.name} object at ${result.address}`
+          break
+        default: throw new Error(`Could not render value: ${result}`);
+      }
     }
 
     function renderError(result : any) : void {
@@ -54,15 +67,18 @@ function webStart() {
 
     function setupRepl() {
       document.getElementById("output").innerHTML = "";
-      const replCodeElement = document.getElementById("next-code") as HTMLInputElement;
+      const replCodeElement = document.getElementById("next-code") as HTMLTextAreaElement;
       replCodeElement.addEventListener("keypress", (e) => {
-        if(e.key === "Enter") {
+
+        if(e.shiftKey && e.key === "Enter") {
+        } else if (e.key === "Enter") {
+          e.preventDefault();
           const output = document.createElement("div");
           const prompt = document.createElement("span");
           prompt.innerText = "»";
           output.appendChild(prompt);
-          const elt = document.createElement("input");
-          elt.type = "text";
+          const elt = document.createElement("textarea");
+          // elt.type = "text";
           elt.disabled = true;
           elt.className = "repl-code";
           output.appendChild(elt);
@@ -76,13 +92,18 @@ function webStart() {
       });
     }
 
+    function resetRepl() {
+      document.getElementById("output").innerHTML = "";
+    }
+
     document.getElementById("run").addEventListener("click", function(e) {
       repl = new BasicREPL(importObject);
       const source = document.getElementById("user-code") as HTMLTextAreaElement;
-      setupRepl();
+      resetRepl();
       repl.run(source.value).then((r) => { renderResult(r); console.log ("run finished") })
           .catch((e) => { renderError(e); console.log("run failed", e) });;
     });
+    setupRepl();
   });
 }
 

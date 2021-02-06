@@ -325,7 +325,7 @@ function codeGenBinOp(op : BinOp) : string {
     case BinOp.Gt:
       return "(i32.gt_s)"
     case BinOp.Is:
-      throw new Error("is not implemented")
+      return "(i32.eq)";
     case BinOp.And:
       return "(i32.and)"
     case BinOp.Or:

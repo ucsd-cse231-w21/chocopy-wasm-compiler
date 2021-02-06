@@ -1,6 +1,7 @@
 import {run, Config, defaultTypeEnv} from "./runner";
 import {emptyEnv, GlobalEnv} from "./compiler";
 import { emptyLocalTypeEnv, GlobalTypeEnv } from "./type-check";
+import { Value } from "./ast";
 
 interface REPL {
   run(source : string) : Promise<any>;
@@ -9,6 +10,7 @@ interface REPL {
 export class BasicREPL {
   currentEnv: GlobalEnv
   currentTypeEnv: GlobalTypeEnv
+  functions: string
   importObject: any
   memory: any
   constructor(importObject : any) {
@@ -25,14 +27,15 @@ export class BasicREPL {
       locals: new Set(),
       offset: 1
     };
-    this.currentTypeEnv = defaultTypeEnv
+    this.currentTypeEnv = defaultTypeEnv;
+    this.functions = "";
   }
-  async run(source : string) : Promise<any> {
-    // this.importObject.updateNameMap(this.currentEnv); // is this the right place for updating the object's env?
-    const config : Config = {importObject: this.importObject, env: this.currentEnv, typeEnv: this.currentTypeEnv};
-    const [result, newEnv, newTypeEnv] = await run(source, config);
+  async run(source : string) : Promise<Value> {
+    const config : Config = {importObject: this.importObject, env: this.currentEnv, typeEnv: this.currentTypeEnv, functions: this.functions};
+    const [result, newEnv, newTypeEnv, newFunctions] = await run(source, config);
     this.currentEnv = newEnv;
     this.currentTypeEnv = newTypeEnv;
+    this.functions += newFunctions;
     return result;
   }
 }

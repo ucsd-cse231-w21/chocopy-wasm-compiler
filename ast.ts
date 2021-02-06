@@ -15,11 +15,11 @@ export type Parameter<A> = { name: string, type: Type }
 
 export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
 
-export type Class<A> = {name: string, fields: Array<VarInit<A>>, methods: Array<FunDef<A>>}
+export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods: Array<FunDef<A>>}
 
-export type VarInit<A> = { name: string, type: Type, value: Literal }
+export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
 
-export type FunDef<A> = { name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
+export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
 
 export type Stmt<A> =
   | {  a?: A, tag: "assign", name: string, value: Expr<A> }
@@ -52,6 +52,6 @@ export enum BinOp { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, 
 
 export enum UniOp { Neg, Not };
 
-export function equalType(t1 : Type, t2 : Type) {
-  return t1 === t2 || t1.tag === "class" && t2.tag === "class" && t1.name === t2.name;
-}
+export type Value =
+    Literal
+  | { tag: "object", name: string, address: number}

@@ -9,12 +9,14 @@ import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
 import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
-import { Type, NONE, BOOL, NUM, CLASS } from './ast';
+import { Type, NONE, BOOL, NUM, CLASS, Value } from './ast';
+import { PyValue } from './utils';
 
 export type Config = {
   importObject: any;
   env: compiler.GlobalEnv,
-  typeEnv: GlobalTypeEnv
+  typeEnv: GlobalTypeEnv,
+  functions: string        // prelude functions
 }
 
 const defaultGlobalFunctions = new Map();
@@ -53,7 +55,7 @@ export async function runWat(source : string, importObject : any) : Promise<any>
   return result;
 }
 
-export async function run(source : string, config: Config) : Promise<[any, compiler.GlobalEnv, GlobalTypeEnv]> {
+export async function run(source : string, config: Config) : Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
   console.log(parsed);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
@@ -92,6 +94,7 @@ export async function run(source : string, config: Config) : Promise<[any, compi
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
       ${compiled.mainSource}
@@ -99,9 +102,7 @@ export async function run(source : string, config: Config) : Promise<[any, compi
     )
   )`;
   console.log(wasmSource);
-  var result = await runWat(wasmSource, importObject);
-  if (progTyp === BOOL) {
-    result = Boolean(result);
-  }
-  return [result, compiled.newEnv, defaultTypeEnv]; // TODO update
+  const result = await runWat(wasmSource, importObject);
+
+  return [PyValue(progTyp, result), compiled.newEnv, tenv, compiled.functions];
 }
