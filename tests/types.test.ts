@@ -1,6 +1,6 @@
 
 import { assertTC, assertTCFail } from './utils.test';
-import { Type, NUM, BOOL, NONE, CLASS } from '../ast';
+import { NUM, BOOL, NONE } from '../utils';
 
 describe('tc', () => {
 

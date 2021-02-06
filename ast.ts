@@ -1,10 +1,6 @@
 // import { TypeCheckError } from "./type-check";
 
 // export enum Type {NUM, BOOL, NONE, OBJ}; 
-export const NUM : {tag: "number"} = {tag: "number"};
-export const BOOL : {tag: "bool"} = {tag: "bool"};
-export const NONE : {tag: "none"} = {tag: "none"};
-export function CLASS(name : string) : Type {return {tag: "class", name}};
 export type Type =
   | {tag: "number"}
   | {tag: "bool"}

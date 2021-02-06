@@ -1,6 +1,5 @@
-import { off } from "process";
-import { Stmt, Expr, UniOp, BinOp, Type, NUM, BOOL, NONE, Program, Literal, FunDef, VarInit, Class } from "./ast";
-import { GlobalTypeEnv } from "./type-check";
+import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
+import { NUM, BOOL, NONE } from "./utils";
 
 // https://learnxinyminutes.com/docs/wasm/
 

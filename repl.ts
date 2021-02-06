@@ -1,7 +1,8 @@
-import {run, Config, defaultTypeEnv} from "./runner";
-import {emptyEnv, GlobalEnv} from "./compiler";
-import { emptyLocalTypeEnv, GlobalTypeEnv } from "./type-check";
-import { Value } from "./ast";
+import { run, Config } from "./runner";
+import { GlobalEnv } from "./compiler";
+import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
+import { Value, Type } from "./ast";
+import { parse } from "./parser";
 
 interface REPL {
   run(source : string) : Promise<any>;
@@ -37,5 +38,11 @@ export class BasicREPL {
     this.currentTypeEnv = newTypeEnv;
     this.functions += newFunctions;
     return result;
+  }
+  async tc(source: string): Promise<Type> {
+    const config: Config = { importObject: this.importObject, env: this.currentEnv, typeEnv: this.currentTypeEnv, functions: this.functions };
+    const parsed = parse(source);
+    const [result, _] = await tc(this.currentTypeEnv, parsed);
+    return result.a;
   }
 }

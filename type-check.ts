@@ -1,6 +1,7 @@
 
 import { table } from 'console';
-import { Stmt, Expr, Type, NUM, BOOL, NONE, CLASS, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from './ast';
+import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from './ast';
+import { NUM, BOOL, NONE, CLASS } from './utils';
 import { emptyEnv } from './compiler';
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -25,6 +26,19 @@ export type LocalTypeEnv = {
   vars: Map<string, Type>,
   expectedRet: Type
 }
+
+const defaultGlobalFunctions = new Map();
+defaultGlobalFunctions.set("abs", [[NUM], NUM]);
+defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
+
+export const defaultTypeEnv = {
+  globals: new Map(),
+  functions: defaultGlobalFunctions,
+  classes: new Map(),
+};
 
 export function emptyGlobalTypeEnv() : GlobalTypeEnv {
   return {

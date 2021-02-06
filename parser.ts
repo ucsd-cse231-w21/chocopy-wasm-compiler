@@ -1,8 +1,7 @@
 import {parser} from "lezer-python";
-import {Tree, TreeCursor} from "lezer-tree";
-import {Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, NUM, BOOL, NONE, CLASS, FunDef, VarInit, Class, Literal} from "./ast";
-import { defaultTypeEnv } from "./runner";
-import { TypeCheckError } from "./type-check";
+import { TreeCursor} from "lezer-tree";
+import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal } from "./ast";
+import { NUM, BOOL, NONE, CLASS } from "./utils";
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   switch(c.type.name) {

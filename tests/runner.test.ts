@@ -1,12 +1,12 @@
 import { PyInt, PyBool, PyNone, PyObj } from '../utils';
-import { runWasm, assert, asserts, assertPrint } from "./utils.test";
+import { assert, asserts, assertPrint } from "./utils.test";
 
 // We write end-to-end tests here to make sure the compiler works as expected.
 // You should write enough end-to-end tests until you are confident the compiler
 // runs as expected. 
 describe('run', () => {
 
-  runWasm('i64 return value', '(module (func (export "exported_func") (result i64) (i64.const 234)))', BigInt(234));
+  // runWasm('i64 return value', '(module (func (export "exported_func") (result i64) (i64.const 234)))', BigInt(234));
 
   assert('add', "2 + 3", PyInt(2 + 3));
 

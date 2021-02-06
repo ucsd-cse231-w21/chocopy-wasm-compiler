@@ -9,27 +9,14 @@ import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
 import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
-import { Type, NONE, BOOL, NUM, CLASS, Value } from './ast';
-import { PyValue } from './utils';
+import { Type, Value } from './ast';
+import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
 
 export type Config = {
   importObject: any;
   env: compiler.GlobalEnv,
   typeEnv: GlobalTypeEnv,
   functions: string        // prelude functions
-}
-
-const defaultGlobalFunctions = new Map();
-defaultGlobalFunctions.set("abs", [[NUM], NUM]);
-defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
-
-export const defaultTypeEnv = {
-  globals: new Map(),
-  functions: defaultGlobalFunctions,
-  classes: new Map()
 }
 
 // NOTE(joe): This is a hack to get the CLI Repl to run. WABT registers a global

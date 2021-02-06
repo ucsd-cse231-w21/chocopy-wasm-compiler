@@ -1,5 +1,4 @@
-import { CLASS, NUM } from "../ast";
-import { PyInt, PyBool, PyNone } from "../utils";
+import { PyInt, PyBool, PyNone, NUM, CLASS } from "../utils";
 import { assert, asserts, assertPrint, assertTCFail, assertTC, assertFail } from "./utils.test";
 
 describe("PA3 visible tests", () => {

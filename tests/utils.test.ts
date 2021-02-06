@@ -1,12 +1,8 @@
 import "mocha";
 import { expect } from "chai";
-import { Config, defaultTypeEnv, run, runWat } from "../runner";
-import { emptyEnv } from "../compiler";
 import { BasicREPL } from "../repl";
-import { Type, NUM, BOOL, NONE, Value } from "../ast";
-import { PyInt, PyBool, PyNone, PyObj } from "../utils";
-import { parse } from "../parser";
-import { tc, tcStmt, tcExpr, TypeCheckError } from "../type-check";
+import { Type, Value } from "../ast";
+import { NUM, BOOL, NONE } from "../utils";
 import { fail } from "assert";
 
 
@@ -98,30 +94,29 @@ export function assertPrint(name: string, source: string, expected: Array<string
   });
 }
 
-export function runWasm(name: string, source: string, expected: any) {
-  it(name, async () => {
-    const result = await runWat(source, {});
-    expect(result).to.equal(expected);
-  });
-}
+// export function runWasm(name: string, source: string, expected: any) {
+//   it(name, async () => {
+//     const result = await runWat(source, {});
+//     expect(result).to.equal(expected);
+//   });
+// }
 
 export function assertTC(name: string, source: string, result: any) {
   it(name, async () => {
-      const ast = parse(source);
-      const [tast, _] = tc(defaultTypeEnv, ast);
-      const typ = tast.a;
+      const repl = new BasicREPL(importObject);
+      const typ = await repl.tc(source);
       expect(typ).to.deep.eq(result);
   });
 }
 
 export function assertTCFail(name: string, source: string) {
   it(name, async () => {
-      const ast = parse(source);
+      const repl = new BasicREPL(importObject);
       try {
-      const [typ, _] = tc(defaultTypeEnv, ast);
+      const typ = await repl.tc(source);
       fail("Expected an exception, got a type " + typ);
       } catch (e) {
-      expect(e).to.instanceof(TypeCheckError);
+      expect(e).to.instanceof(Error);
       }
   });
 }
