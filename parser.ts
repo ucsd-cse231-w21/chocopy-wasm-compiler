@@ -207,8 +207,12 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
   switch(c.node.type.name) {
     case "ReturnStatement":
       c.firstChild();  // Focus return keyword
-      c.nextSibling(); // Focus expression
-      var value = traverseExpr(c, s);
+      
+      var value : Expr<null>;
+      if (c.nextSibling()) // Focus expression
+        value = traverseExpr(c, s);
+      else
+        value = { tag: "literal", value: { tag: "none" } };
       c.parent();
       return { tag: "return", value };
     case "AssignStatement":
@@ -270,14 +274,14 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       c.firstChild(); // Focus on if
       c.nextSibling(); // Focus on cond
       var cond = traverseExpr(c, s);
-      console.log("Cond:", cond);
+      // console.log("Cond:", cond);
       c.nextSibling(); // Focus on : thn
       c.firstChild(); // Focus on :
       var thn = [];
       while(c.nextSibling()) {  // Focus on thn stmts
         thn.push(traverseStmt(c,s));
       }
-      console.log("Thn:", thn);
+      // console.log("Thn:", thn);
       c.parent();
       
       c.nextSibling(); // Focus on else
@@ -434,6 +438,10 @@ export function traverseClass(c : TreeCursor, s : string) : Class<null> {
   } 
   c.parent();
   c.parent();
+
+  if (!methods.find(method => method.name === "__init__")) {
+    methods.push({ name: "__init__", parameters: [{ name: "self", type: CLASS(className) }], ret: NONE, inits: [], body: [] });
+  }
   return {
     name: className,
     fields,

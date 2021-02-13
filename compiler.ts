@@ -254,10 +254,13 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
         ]));
       return stmts.concat([
         "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
+        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
         "(i32.const 0)",                                                  // Address for our upcoming store instruction
         "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
         `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`,   // Move heap head beyond the two words we just created for fields
         "(i32.store)",                                                    // Save the new heap offset
+        `(call $${expr.name}$__init__)`,                                  // call __init__
+        "(drop)"
       ]);
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);

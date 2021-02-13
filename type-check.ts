@@ -24,7 +24,8 @@ export type GlobalTypeEnv = {
 
 export type LocalTypeEnv = {
   vars: Map<string, Type>,
-  expectedRet: Type
+  expectedRet: Type,
+  topLevel: Boolean
 }
 
 const defaultGlobalFunctions = new Map();
@@ -51,7 +52,8 @@ export function emptyGlobalTypeEnv() : GlobalTypeEnv {
 export function emptyLocalTypeEnv() : LocalTypeEnv {
   return {
     vars: new Map(),
-    expectedRet: NONE
+    expectedRet: NONE,
+    topLevel: true
   };
 }
 
@@ -136,16 +138,12 @@ export function tcInit(env: GlobalTypeEnv, init : VarInit<null>) : VarInit<Type>
 export function tcDef(env : GlobalTypeEnv, fun : FunDef<null>) : FunDef<Type> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
+  locals.topLevel = false;
   fun.parameters.forEach(p => locals.vars.set(p.name, p.type));
   fun.inits.forEach(init => locals.vars.set(init.name, tcInit(env, init).type));
   
   const tBody = tcBlock(env, locals, fun.body);
-  const retTyp = tBody[tBody.length - 1].a;
-  if (isAssignable(env, retTyp, fun.ret)) {
-    return {...fun, a: NONE, body: tBody};
-  } else {
-    throw new TypeCheckError("function " + fun.name + " has " + JSON.stringify(retTyp) + " return type; type" + JSON.stringify(fun.ret) + " expected");
-  }
+  return {...fun, a: NONE, body: tBody};
 }
 
 export function tcClass(env: GlobalTypeEnv, cls : Class<null>) : Class<Type> {
@@ -188,6 +186,8 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
         throw new TypeCheckError("Types of then and else branches must match");
       return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls};
     case "return":
+      if (locals.topLevel)
+        throw new TypeCheckError("cannot return outside of functions");
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
         throw new TypeCheckError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
@@ -306,11 +306,11 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
         const [_, methods] = env.classes.get(expr.name);
         if (methods.has("__init__")) {
           const [initArgs, initRet] = methods.get("__init__");
-          if (initArgs.length === 0 && initRet === CLASS(expr.name)) {
-            return tConstruct;
-          } else {
-            throw new TypeCheckError("constructors must have no arguments");
-          }
+          if (expr.arguments.length !== initArgs.length - 1)
+            throw new TypeCheckError("__init__ didn't receive the correct number of arguments from the constructor");
+          if (initRet !== NONE) 
+            throw new TypeCheckError("__init__  must have a void return type");
+          return tConstruct;
         } else {
           return tConstruct;
         }
@@ -353,10 +353,10 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
             const [methodArgs, methodRet] = methods.get(expr.method);
             const realArgs = [tObj].concat(tArgs);
             if(methodArgs.length === realArgs.length &&
-              methodArgs.every((argTyp, i) => equalType(argTyp, realArgs[i].a))) {
+              methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))) {
                 return {...expr, a: methodRet, obj: tObj, arguments: tArgs};
               } else {
-               throw new TypeError("Method call type mismatch: " + expr.method);
+               throw new TypeCheckError(`Method call type mismatch: ${expr.method} --- callArgs: ${JSON.stringify(realArgs)}, methodArgs: ${JSON.stringify(methodArgs)}` );
               }
           } else {
             throw new TypeCheckError(`could not found method ${expr.method} in class ${tObj.a.name}`);
