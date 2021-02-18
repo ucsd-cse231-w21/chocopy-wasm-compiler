@@ -25,10 +25,12 @@ jobs:
         npm run build-web
       
     - name: deploy pages
-      uses: ./build/
+      uses: ./
       with:
         username: ${{ secrets.DEPLOY_USERNAME }}
         password: ${{ secrets.DEPLOY_ACCESS_TOKEN }}
         remote_url: https://github.com/appleboy/gh-pages-action.git
+        pages_directory: build
+
 
 
