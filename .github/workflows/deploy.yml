@@ -23,13 +23,17 @@ jobs:
       run: |
         npm install
         npm run build-web
+        
+    - name: GitHub Pages Deploy
+      uses: appleboy/gh-pages-action@v0.0.2
       
     - name: deploy pages
       uses: ./
       with:
+        target_branch: gh-pages
         username: ${{ secrets.DEPLOY_USERNAME }}
         password: ${{ secrets.DEPLOY_ACCESS_TOKEN }}
-        remote_url: https://github.com/appleboy/gh-pages-action.git
+        remote_url: https://github.com/ucsd-cse231-w21/chocopy-wasm-compiler.git
         pages_directory: build
 
 
