@@ -105,7 +105,7 @@ else:
   assert("none-is-none", `
   None is None`, PyBool(true));
 
-  assertTC("void-is-none-tc", `    
+  /*assertTC("void-is-none-tc", `    
   class C(object):
     def new(self: C, other: C) -> C:
       return other
@@ -121,7 +121,7 @@ else:
     def f(self: C):
       return 
 
-  C().new().f() is None`, PyBool(true));
+  C().new().f() is None`, PyBool(true)); */
 
   assert("alias-is-same", `
   class C(object):
