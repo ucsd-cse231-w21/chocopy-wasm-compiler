@@ -1,6 +1,7 @@
 import {BasicREPL} from './repl';
-import { BOOL, NUM, NONE, Type, Value } from './ast';
-import { defaultTypeEnv } from './runner';
+import { Type, Value } from './ast';
+import { defaultTypeEnv } from './type-check';
+import { NUM, BOOL, NONE } from './utils';
 
 function stringify(typ: Type, arg: any) : string {
   switch(typ.tag) {
