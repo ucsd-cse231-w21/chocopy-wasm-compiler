@@ -1,20 +1,20 @@
 Within the proposals/ directory, submit a file called your-project.md that contains the following:
 
 1. 10 representative example programs related to your feature. For each, a description of how their behavior will be different/work/etc. when you are done.
-    1. Add
-    2. Sub
-    3. Mult
-    4. Div !!
-    5. Print
-    6. Bignum as expression
-    7. Adding a regular number and Bignum
-    8. Mod !!
-    9. == != > < >= <=
-    10. Typing: can't compare int and bool
-    11. Big nums in memory are immutable
-    12. How to handle numbers as reference:
+    * Add
+    * Sub
+    * Mult
+    * Div !!
+    * Print
+    * Bignum as expression
+    * Adding a regular number and Bignum
+    * Mod !!
+    * == != > < >= <=
+    * Typing: can't compare int and bool
+    * Big nums in memory are immutable
+    * How to handle numbers as reference:
         
-        ```
+        ```python
         a:int = 3
         b:int = 3
         x:object = None
@@ -48,7 +48,7 @@ Within the proposals/ directory, submit a file called your-project.md that conta
     * In TC: no changes - nums are still nums
     * In CodeGen: 
         
-        ```
+        ```typescript
         function codeGenLiteral(literal : Literal) : Array<string> {
             switch(literal.tag) {
                 // Literal is now an address in memory referencing bignum object
@@ -60,7 +60,7 @@ Within the proposals/ directory, submit a file called your-project.md that conta
         }
         ```
         
-        ```
+        ```typescript
         function codeGenBinOp(op : BinOp) : string {
         // almost everything will change here
         
