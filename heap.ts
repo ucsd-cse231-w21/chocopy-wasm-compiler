@@ -56,6 +56,10 @@ export class BumpAllocator {
   owns(ptr: bigint): boolean {
     return ptr >= this.absStart && ptr < this.absEnd;
   }
+
+  description(): string {
+    return `Bump { counter: ${this.counter}, start: ${this.absStart}, end: ${this.absEnd} } `;
+  }
 }
 
 // AllocList: [ { header, obj}, { header, obj }, { header, obj }]
