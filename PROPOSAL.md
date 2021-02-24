@@ -89,6 +89,7 @@ This comprehension works with a “literally-defined” list with literal values
 - We need to have runtime tests that ensure that the lists created from comprehension only have the correct, expected values, across different ways of specifying the comprehension’s expression, iterable, and condition.
 
 ### A description of any new AST forms you plan to add.
+We add the following expression to our AST:
 ```
 { a?: A, tag: ‘comprehension’, expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
 ```
@@ -140,8 +141,9 @@ function transform(expr: Expr<A>): Expr<A> {
 	switch (expr.tag) {
 		case ‘comprehension’:
 			transformed = {a: expr.a, tag: ‘block’}
-			// Initialize the list variable
-			// Generate statement(s) for the for loop and store				// Store the list id in transformed
+			// Add a statement for initializing the list variable to the block
+			// Add statement(s) for the for loop (which appends to this list variable) to the block
+			// Store the list id in the transformed's expr field
 			return transformed
 	}
 }
