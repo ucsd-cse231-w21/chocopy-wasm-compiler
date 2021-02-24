@@ -1,5 +1,6 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE } from "./utils";
+import * as Error from "./error";
 
 // https://learnxinyminutes.com/docs/wasm/
 
