@@ -49,6 +49,10 @@ export class BumpAllocator {
     };
   }
 
+  free2(ptr: bigint) {
+    // noop
+  }
+
   owns(ptr: bigint): boolean {
     return ptr >= this.absStart && ptr < this.absEnd;
   }
