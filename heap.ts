@@ -1,3 +1,40 @@
+// Allocation sizes <= sizeLimit go to the small allocator
+export class Segregator {
+  sizeLimit: bigint;
+  small: Allocator;
+  large: Allocator;
+
+  constructor(sizeLimit: bigint, s: Allocator, l: Allocator) {
+    this.sizeLimit = sizeLimit;
+    this.small = s;
+    this.large = l;
+  }
+
+  alloc(size: bigint): Block {
+    if (size <= this.sizeLimit) {
+      return this.small.alloc(size);
+    } else {
+      return this.large.alloc(size);
+    }
+  }
+
+  free2(ptr: bigint) {
+    if (this.small.owns(ptr)) {
+      this.small.free2(ptr);
+    } else {
+      this.large.free2(ptr);
+    }
+  }
+
+  owns(ptr: bigint): boolean {
+    return this.small.owns(ptr) || this.large.owns(ptr);
+  }
+
+  description(): string {
+    return `Segregator { limit: ${this.sizeLimit.toString()}, small: ${this.small.description()}, large: ${this.large.description()}}`
+  }
+}
+
 export class Describer {
   message: string;
   allocator: Allocator;
