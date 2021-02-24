@@ -100,7 +100,7 @@ export class Switch {
   }
 
   description(): string {
-    return `Segregator { flag: ${this.flag}, primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`
+    return `Switch { flag: ${this.flag}, primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`
   }
 
   setFlag(f: boolean) {
