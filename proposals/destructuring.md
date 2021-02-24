@@ -20,6 +20,19 @@ attributeref ::=  primary "." identifier
 
 Slicing: `a[1:3]`
 
+```python
+h, *tail = (True, 2, 3, 4)
+
+# =>
+
+_tmp = (1, 2, 3, 4)
+h, *tail = _tmp
+whole = _tmp
+
+# =>
+
+```
+
 
 ## Flow
 
