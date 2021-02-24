@@ -71,12 +71,12 @@ export class BumpAllocator {
 // flag === false => primary
 //
 // flag defaults to false
-export class Switch {
+export class Switch<P extends Allocator, F extends Allocator> {
   flag: boolean;
-  primary: Allocator;
-  fallback: Allocator;
+  primary: P;
+  fallback: F;
 
-  constructor(p: Allocator, f: Allocator) {
+  constructor(p: P, f: F) {
     this.flag = false;
 
     this.primary = p;
@@ -118,12 +118,12 @@ export class Switch {
 
 // Allocation sizes <= sizeLimit go to the small allocator
 // sizeLimit is in BYTES
-export class Segregator<N extends bigint> {
+export class Segregator<N extends bigint, S extends Allocator, L extends Allocator> {
   sizeLimit: N;
-  small: Allocator;
-  large: Allocator;
+  small: S;
+  large: L;
 
-  constructor(sizeLimit: N, s: Allocator, l: Allocator) {
+  constructor(sizeLimit: N, s: S, l: L) {
     this.sizeLimit = sizeLimit;
     this.small = s;
     this.large = l;
@@ -154,11 +154,11 @@ export class Segregator<N extends bigint> {
   }
 }
 
-export class Describer {
+export class Describer<A extends Allocator> {
   message: string;
-  allocator: Allocator;
+  allocator: A;
 
-  constructor(a: Allocator, d: string) {
+  constructor(a: A, d: string) {
     this.message = d;
     this.allocator = a;
   }
@@ -180,11 +180,11 @@ export class Describer {
   }
 }
 
-export class Fallback {
-  primary: Allocator;
-  fallback: Allocator;
+export class Fallback<P extends Allocator, F extends Allocator> {
+  primary: P;
+  fallback: F;
 
-  constructor(primary: Allocator, fallback: Allocator) {
+  constructor(primary: P, fallback: F) {
     this.primary = primary;
     this.fallback = fallback;
   }
