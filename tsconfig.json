@@ -2,7 +2,7 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "noImplicitAny": true,
-    "target": "es2015",
+    "target": "es2020",
     "allowJs": true,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
