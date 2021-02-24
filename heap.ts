@@ -113,12 +113,13 @@ export class Switch {
 }
 
 // Allocation sizes <= sizeLimit go to the small allocator
-export class Segregator {
-  sizeLimit: bigint;
+// sizeLimit is in BYTES
+export class Segregator<N extends bigint> {
+  sizeLimit: N;
   small: Allocator;
   large: Allocator;
 
-  constructor(sizeLimit: bigint, s: Allocator, l: Allocator) {
+  constructor(sizeLimit: N, s: Allocator, l: Allocator) {
     this.sizeLimit = sizeLimit;
     this.small = s;
     this.large = l;
