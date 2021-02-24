@@ -1,3 +1,52 @@
+// flag === true => fallback
+// flag === false => primary
+//
+// flag defaults to false
+export class Switch {
+  flag: boolean;
+  primary: Allocator;
+  fallback: Allocator;
+
+  constructor(p: Allocator, f: Allocator) {
+    this.flag = false;
+
+    this.primary = p;
+    this.fallback = f;
+  }
+
+  alloc(size: bigint): Block {
+    if (this.flag) {
+      return this.fallback.alloc(size);
+    } else {
+      return this.primary.alloc(size);
+    }
+  }
+
+  free2(ptr: bigint) {
+    if (this.primary.owns(ptr)) {
+      this.primary.free2(ptr);
+    } else {
+      this.fallback.free2(ptr);
+    }
+  }
+
+  owns(ptr: bigint): boolean {
+    return this.primary.owns(ptr) || this.fallback.owns(ptr);
+  }
+
+  description(): string {
+    return `Segregator { flag: ${this.flag}, primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`
+  }
+
+  setFlag(f: boolean) {
+    this.flag = f;
+  }
+
+  toggleFlag() {
+    this.flag = !this.flag;
+  }
+}
+
 // Allocation sizes <= sizeLimit go to the small allocator
 export class Segregator {
   sizeLimit: bigint;
