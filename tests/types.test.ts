@@ -1,6 +1,7 @@
 
 import { assertTC, assertTCFail } from './utils.test';
-import { NUM, BOOL, NONE } from '../utils';
+import { NUM, BOOL, NONE, CLASS } from '../utils';
+import { expect } from 'chai';
 
 describe('tc', () => {
 
@@ -99,3 +100,15 @@ describe('tc', () => {
   c = C().new(3, 4)
   c.x`, NUM);
 });
+
+describe("type serialization", () => {
+  [NONE, NUM, BOOL].forEach((type) => {
+    it(`${type.tag} serializes to its name`, () => {
+      expect(type.toString()).to.eq(type.tag)
+    })
+  })
+
+  it("Serializes classes to their name", () => {
+    expect(CLASS("TestClass").toString()).to.eq("TestClass")
+  }) 
+})

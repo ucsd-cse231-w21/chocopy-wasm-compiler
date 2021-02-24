@@ -1,11 +1,23 @@
 // import { TypeCheckError } from "./type-check";
 
+export class TaggedType<T extends string> {
+  tag: T;
+  constructor(tag: T) { this.tag = tag }
+  toString(): string { return this.tag }
+}
+
+export class ClassType extends TaggedType<"class"> {
+  name: string;
+  constructor(name: string) { super("class"); this.name = name }
+  toString() { return this.name }
+}
+
 // export enum Type {NUM, BOOL, NONE, OBJ}; 
 export type Type =
-  | {tag: "number"}
-  | {tag: "bool"}
-  | {tag: "none"}
-  | {tag: "class", name: string}
+  | TaggedType<"number">
+  | TaggedType<"bool">
+  | TaggedType<"none">
+  | ClassType
 
 export type Parameter<A> = { name: string, type: Type }
 
