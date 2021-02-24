@@ -1,8 +1,9 @@
-interface Heap {
+export interface Heap {
+  // The heap owns this ptr
   owns: (ptr: bigint) => boolean,
 }
 
-interface Block {
+export interface Block {
   ptr: bigint,
   size: bigint,
 }
@@ -14,19 +15,23 @@ const NULL_BLOCK: Block = {
 
 // NOTE: No deallocation
 // [counter, usableMemory...]
-class BumpAllocator {
-  counter: bigint,
-  absStart: bigint,
-  absEnd: bigint,
+export class BumpAllocator {
+  counter: bigint;
+  absStart: bigint;
+  absEnd: bigint;
 
-  constructor(s: bigint, e: bigint) {
+  constructor(s: bigint, endExclusive: bigint) {
     this.absStart = s;
     this.counter = s;
-    this.absEnd = e;
+    this.absEnd = endExclusive;
+
+    if (endExclusive <= s) {
+      throw new Error(`Error: end (${endExclusive.toString()})<= start of memory (${s.toString()})`);
+    }
   }
 
   alloc(size: bigint): Block {
-    if (counter >= absEnd - size) {
+    if (this.counter >= this.absEnd - size) {
       return NULL_BLOCK;
     }
 
@@ -37,17 +42,10 @@ class BumpAllocator {
       size: size,
     };
   }
-}
 
-class AllocList {
-  absStart: bigint,
-  absEnd: bigint,
-}
-
-class BitMappedBlocks<BLOCK_SIZE, > {
-  absStart: bigint,
-  absEnd: bigint,
-  b
+  owns(ptr: bigint): boolean {
+    return ptr >= this.absStart && ptr < this.absEnd;
+  }
 }
 
 // AllocList: [ { header, obj}, { header, obj }, { header, obj }]
