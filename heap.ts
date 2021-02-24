@@ -1,6 +1,49 @@
-export interface Heap {
-  // The heap owns this ptr
+export class Fallback {
+  primary: Allocator;
+  fallback: Allocator;
+
+  constructor(primary: Allocator, fallback: Allocator) {
+    this.primary = primary;
+    this.fallback = fallback;
+  }
+
+  alloc(size: bigint): Block {
+    const b1 = this.primary.alloc(size);
+    if (b1 === NULL_BLOCK) {
+      return this.fallback.alloc(size);
+    }
+
+    return b1;
+  }
+
+  free2(ptr: bigint) {
+    if (this.primary.owns(ptr)) {
+      this.primary.free2(ptr);
+    } else if (this.fallback.owns(ptr)) {
+      this.fallback.free2(ptr);
+    } else {
+      throw new Error(`Attempting to free pointer (${ptr.toString()}) through allocators that do not own it: ${this.description()}`);
+    }
+  }
+
+  owns(ptr: bigint): boolean {
+    return this.primary.owns(ptr) || this.fallback.owns(ptr);
+  }
+
+  description(): string {
+    return `Fallback { primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`;
+  }
+}
+
+export interface Allocator {
+  alloc: (size: bigint) => Block,
+
+  // NOTE: this probably should take a Block
+  free2: (ptr: bigint) => void,
+
   owns: (ptr: bigint) => boolean,
+
+  description: () => string,
 }
 
 export interface Block {
@@ -53,4 +96,4 @@ export class BumpAllocator {
 //      prev: bigint,
 //      next: bigint,
 //   }
-// BitMappedBlocks: [infomap: bucket1, bucket2, bucket3...]
+// BitMappedBlocks: [infomap, bucket1, bucket2, bucket3...]
