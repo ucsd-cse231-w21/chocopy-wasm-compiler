@@ -97,8 +97,4 @@ The subset of our AST we plan to finish includes everything but *Classes*:
     - Function Call
 
 ## References
-<<<<<<< HEAD
 - [CSmith](https://www.cs.utah.edu/~regehr/papers/pldi11-preprint.pdf)
-=======
-TODO cite Csmith
->>>>>>> 30117c2aa754e8c59f980978ae2c67bd935b3513
