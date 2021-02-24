@@ -1,3 +1,29 @@
+export class Describer {
+  message: string;
+  allocator: Allocator;
+
+  constructor(a: Allocator, d: string) {
+    this.message = d;
+    this.allocator = a;
+  }
+
+  alloc(size: bigint): Block {
+    return this.allocator.alloc(size);
+  }
+
+  free2(ptr: bigint) {
+    this.allocator.free2(ptr);
+  }
+
+  owns(ptr: bigint): boolean {
+    return this.allocator.owns(ptr);
+  }
+
+  description(): string {
+    return this.message;
+  }
+}
+
 export class Fallback {
   primary: Allocator;
   fallback: Allocator;
