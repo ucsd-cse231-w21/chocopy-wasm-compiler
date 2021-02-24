@@ -82,7 +82,8 @@ Our program generation grammar will include:
 
 In order to evaluate the correctness of our generated Python programs, we will
 create two subprocesses, 1) to run the Python program natively and 2) to
-compile the Python program to WASM, and evaluate the stdout/stderr of each subprocess. To create subprocesses from TypeScript, we plan to use [python-shell](https://github.com/extrabacon/python-shell).
+compile the Python program to WASM, and evaluate the stdout/stderr of each subprocess.
+To create subprocesses from TypeScript, we plan to use [python-shell](https://github.com/extrabacon/python-shell).
 
 Users will still be able to write and run local unit tests via `npm run test`.
 Our fuzzing framework will instead be avaiable with `npm run fuzz`. This testing
@@ -91,7 +92,8 @@ programs, and write the evaluation results to a file.
 
 ## Milestone
 
-Our milestone for March 4th is to finish program generation for a subset of our AST and fully implement the testing & evaluation loop.
+Our milestone for March 4th is to finish program generation for a subset of our AST and fully implement
+the testing & evaluation loop.
 
 The subset of our AST we plan to finish includes everything but _Classes_:
 
