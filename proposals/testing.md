@@ -8,7 +8,7 @@ For each grammar production, we generate a required target from the allowable ta
 is nonterminal, that production is recursively generated. Each production will be generated according to
 a probability table of appropriate productions.
 
-Functions, variables, and classes require special generation. We will preemptively generate some random
+Functions, variables, and classes require special treatment. We will preemptively generate some random
 number of functions, variables, and classes, and maintain these in a global environment. When generating
 function and method bodies, we will add the parameters to the global environment in the context of that
 function or method to create a function environment. Any production that selects a variable to produce
@@ -34,6 +34,11 @@ type errors is found, continuing to generate that type error is not very interes
 we would like most of our programs to type-check. Notably, this differs from Csmith, because Csmith
 is concerned with edge-case bugs in mature compilers. Since we are testing a very immature compiler,
 we consider errors like this to be more interesting.
+
+We will restrict the literals we generate to 0, 1, True, False, and None. We can construct all valid
+numbers from 0 and 1, and generating only these literals simplifies generation. To ensure the
+generation of interesting programs, we will dynamically change the probability table to disfavor
+0 when 0 has already been generated in the program.
 
 To serve as our source of truth, we will use the Python interpreter, and run all generated programs
 through Python as a source of truth. We make this selection for two
@@ -69,9 +74,11 @@ Our program generation grammar will include:
   - Function Call
 - Classes
   - Class Definition
-  - Class Attributes & Lookups
+  - Class Attributes, Lookups, and Assignments
   - Class Construct
   - Method Calls
+- If Statements
+- Return Statements
 
 In order to evaluate the correctness of our generated Python programs, we will
 create two subprocesses, 1) to run the Python program natively and 2) to
