@@ -116,6 +116,68 @@ print(x)    # => [0, 2]
 
 ## Technical aspects to implement
 
+- Parsing destructured assignments
+  - Parsing multiple targets (e.g. `a, b = 1, 2`) for a destructured assignment statement
+  - Parsing a hanging comma in a destructured assignment (e.g. `a, = (1,)`)
+  - Parsing the "splat" operator (e.g. `a, *b = [1, 1, 2, 3, 5, 9]`)
+  - (Stretch goal) Parsing chained assignments (e.g. `up, *rest = *rest, down = (0, 1, 2, 3)`)
+- Typechecking destructured assignments
+  - Typechecking individual tuple and array elements against a target
+    (e.g. `a` in `a, b = (12, True)` or `b, a = [20, 40]`)
+  - Typechecking multiple tuple elements or an array against a "splat" target
+    (e.g. `b` in `a, *b, c = (True, 12, 13, None)` or `*b, c = [None]`)
+  - Checking number of targets against number of elements when that is knowable at compile time (i.e. tuples)
+  - Validating destructured assignments (i.e. not allowing multiple splat targets, etc.)
+- Compiling destructured assignments
+  - Support individual assignments from array and tuple elements
+  - Support splat assignments from arrays and tuples
+  - Add runtime checks when destructuring arrays whose lengths cannot be computed at compile time
+  - Enforce proper assignment order (left to right)
+
+## Two test cases to finish by March 4th
+
+```python
+# We will use classes as stand-ins for tuples and arrays
+class Tuple(object):
+  one: int = 0
+  two: bool = False
+  three: object = None
+x: int = 0
+y: bool = True
+z: object = None
+x, y, z = Tuple(10, True, None)
+x == 10
+y == True
+z == None
+
+# Program does not pass validation because of incompatible types
+y, z, x = Tuple(10, True, None)
+```
+
+## Testing strategy
+Our team will evenly distribute testing responsibilities among the team members. Tests will be written in accordance
+with the Python specification provided above. Our tests will focus on covering common use cases and possibly
+problematic edge cases.
+
+## Modifications to existing files
+
+- ast.ts
+  - Add `AssignTarget` type to represent the target of assignment (variable or object attribute) with relevant type
+    and compiler decorations
+  - Change `Assign` statement to contain an array of `AssignTarget`s rather than a name string
+- parser.ts
+  - Update the `AssignStatement` case in `traverseStmt` to support parsing destructured assignments
+  - Possible create a new function `traverseAssignTargets` to parse any number of assign targets (this could be
+    reused when parsing `for ... in ...`)
+- type-check.ts
+  - Add new function `tcDestructure` to encapsulate typechecking for destructured assignments
+  - Possible add new function `tcAssignTargets` to encapsulate typechecking the correctness of assign targets (again
+    , for the for loop iterators team)
+  - Update the `assign` case in `tcStmt` to use `tcDestructure`
+- compiler.ts
+  - Add new function `codeGenDestructure` to generate WASM for destructuring
+  - Update the `assign` case in `codeGenStmt` to use `codeGenDestructure`
+
 ## What's NOT in scope
 
 - Multiple assignment variable initialization
