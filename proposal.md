@@ -12,16 +12,18 @@ Within the proposals/ directory, submit a file called your-project.md that conta
     
         ```python
         print(4294967296)
+        print(-1000000000000)
         ```
-        Big numbers should be printable, the above program should print `4294967296` and return `4294967296`.
+        Big numbers should be printable as both positive and negative values. The above program should print `4294967296` and `-1000000000000`.
     
     * 32 bit numbers and big numbers are the same to the programmer
         
         ```python
         x:int = 1
         x = 4294967296
+        print(x)
         ```
-        The program above should complete without any errors. Big numbers are the same as regular numbers from the programmers perspective.
+        The program above should complete without any errors. Big numbers are the same as regular numbers from the programmer's perspective. This program should print `4294967296`.
     
     * Addition and subtraction
     
@@ -52,7 +54,16 @@ Within the proposals/ directory, submit a file called your-project.md that conta
         4294967296 >= 4294967296
         4294967296 < 4294967296
         ```
-        All binary comparasion operators should work on numbers of arbitrary length. The above program will evaluate to `True` and `False`.
+        All binary comparison operators should work on numbers of arbitrary length. The above program will evaluate to `True` and `False`.
+        
+    * Operations with differently-sized operands
+        ```python
+        print (1000000000000 + 1000000000000000000000) # approximately 2^40 + 2^70
+        print (1000000000000 - 1000)
+        print (1000000 * 1000000) # approximately 2^20 * 2^20
+        ```
+        
+        The algorithms for each operation must take into account differences in size between each operand and the result. For example, the operands in the addition on the first line require 2 and 3 (respectively) 32-bit words in memory to be correctly stored. The second line involves a subtraction between a BigNumber operand and an ordinary integer. The third line multiplies two ordinary integers to get a BigNumber. When run, this program should print `1000000001000000000000`, `999999999000`, and `1000000000000`.
         
     * Typing: can't compare int and bool
         
@@ -60,7 +71,7 @@ Within the proposals/ directory, submit a file called your-project.md that conta
         4294967296 == True
         4294967296 == 4294967296
         ```
-        Typing should still enforce that nums and bools/etc cannot be compared. Binary operations that are valid on numbers should also be valid on big numbers.
+        Typing should still enforce that nums and bools/etc cannot be compared. Binary operations that are valid on numbers should also be valid on big numbers. The program above should throw a compile-time error.
         
     * Big nums in memory are immutable
     
@@ -68,27 +79,15 @@ Within the proposals/ directory, submit a file called your-project.md that conta
         a = 4294967296
         b = a
         b = b + 1
+        print(a)
         ```
         Even though big numbers will be objects, they should still act like int literals during execution. The above program will have `4294967296` for the value of `a` and `4294967297` for the value of `b`.
-        
-    * How to handle numbers as reference:
-        
-        ```python
-        a:int = 3
-        b:int = 3
-        x:object = None
-        y:object = None
-
-        x = a
-        y = a
-        print(x is y) # returns False
-        ```
         
 2. A description of how you will add tests for your feature.
 
     Tests will be added in two of the test files. We will add tests to
     parser.test.ts that ensure that arbitrarily large integers are correctly
-    parsed from the program and stored in the AST. Additionally, we wil add
+    parsed from the program and stored in the AST. Additionally, we will add
     tests to runner.test.ts to run the representative programs above, as well
     as other tests to ensure the correct runtime behavior of Python Bignums.
 
@@ -99,7 +98,7 @@ Within the proposals/ directory, submit a file called your-project.md that conta
     substantial changes to the AST structure. However, we will have to modify
     the AST type for number literals by replacing its `value` property to have
     TypeScript type `BigInt` instead of `number` in order to be able to
-    accomodate arbitrarily large integer values.
+    accomodate arbitrarily-large integer values.
     
 4. A description of any new functions, datatypes, and/or files added to the codebase.
 
@@ -108,7 +107,7 @@ Within the proposals/ directory, submit a file called your-project.md that conta
     be represented, we will implement a function in the compiler that will
     take as input a BigInt storing the integer value of the Bignum, and output
     an array of 32-bit words encoding that integer value in conformance with
-    the Python3 standard. To allow for printing of Bignums, a decoding function
+    the Python standard. To allow for printing of Bignums, a decoding function
     will be implemented as well, which will take as input an array of 32-bit
     words and output the integer value of the encoded Bignum as a TypeScript
     BigInt. 
@@ -117,7 +116,7 @@ Within the proposals/ directory, submit a file called your-project.md that conta
     (set as 1) followed by the 31 bit which represents the address. And int would 
     be 1 bit of tag(set as 0) followed by 31 bit of binary representation of the acutal
     value. In addition, a function that can determine whether a `Num` is BigNum 
-    or regular int is required. More functions are expteced to retrieve the address
+    or regular int is required. More functions are expected to retrieve the address
     of BigNum or the value of Int.
 
     The new representation of integer values will result in significantly
@@ -137,7 +136,7 @@ Within the proposals/ directory, submit a file called your-project.md that conta
       program will be parsed regardless of size, and stored in a TypeScript
       BigInt value rather than TypeScript number value
     * `type-check.ts` will not need to be modified as the type-checking rules
-      that apply to integers as already defined do not change as a result of
+      that apply to integers as already defined do not change as a result of the
       increased capacity of Bignums.
     * `compiler.ts` will require changes as follows:
       * Case `num` in function `codeGenLiteral`: Any input will be converted to
@@ -156,18 +155,18 @@ Within the proposals/ directory, submit a file called your-project.md that conta
         separate in runtime, four general cases are present:
         1. BigNum `binop` BigNum\
            In this scenario, we are going to retrieve both BigNum from the memory,
-           and perform the binary operation from retrieved value. However, the 
+           and perform the binary operation from the retrieved values. However, the 
            simple `i32` WASM instructions would no longer be sufficient to 
            implement arithmetic operations. New algorithms would be necessary to
            implement this feature. A similar modification will be made to 
            the `UniOp.Neg` case in function `codeGenExpr`.
         2. BigNum `binop` Int \
            In this case, Integer would need to be upgraded to BigNum first and then
-           the same procedue would follow from `1`.
+           the same procedure would follow from `1`.
         3. Int `binop` BigNum \
            Same as `2`. 
         5. Int `binop` Int \
-           Regular operations can still be excuted as it did in the original compiler.
+           Regular operations can still be executed as in the original compiler.
            However, since 1 bit of the `i32` is used as the tag bit, if the result 
            of the binary operation cannot be represented by 31 bits(overflow detected).
            Both integer would then be wrapped up into BigNum and follow the case
@@ -196,13 +195,12 @@ Within the proposals/ directory, submit a file called your-project.md that conta
    Intergers that can be represented with 32 bits would be treated as i32 in the 
    program and numbers that are beyond the limit of i32 would be treated as BigNum, 
    which will be stored as objects on the heap in 32-bit words, conforming to the 
-   Python3 standard as follows:
+   Python specifications as follows:
     * The first word will be signed integer, where the sign represents the
       sign of the actual value of the Bignum, and the magnitude indicates
       the number of additional 32-bit words that follow.
     * Subsequent words will encode the magnitude of the Bignum value,
-      with 30 bits contained in each word, starting with the least
-      significant 30 bits.
+      32 bits at a time, starting with the least significant 32 bits.
     * When an integer is stored in a variable or passed as an argument to a
       function at runtime, it will be represented as a WASM i32 value
       containing the memory location of the Bignum value
