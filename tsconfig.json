@@ -2,11 +2,12 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "noImplicitAny": true,
-    "target": "es2015",
+    "sourceMap": true,
+    "target": "es2019",
     "allowJs": true,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "lib": ["es2019", "dom"]
+    "lib": ["es2019", "dom"],
   }
 }
