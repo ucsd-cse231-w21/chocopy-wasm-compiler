@@ -10,13 +10,13 @@ Use instanceof to get additional properties of each Error type.
     |   +-- ZeroDivisionError
     +-- AttributeError
     +-- LookupError
-    |
-    |
+    |   +-- IndexError
+    |   +-- KeyError
     +-- MemoryError
     +-- NameError
-    |   +--
+    |   +-- UnBoundLocalError
     +-- RuntimeError
-    |
+    |   +-- RecursionError
     +-- SyntaxError
     |   +-- IndentationError
     +-- TypeError
