@@ -1,17 +1,76 @@
 Within the proposals/ directory, submit a file called your-project.md that contains the following:
 
 1. 10 representative example programs related to your feature. For each, a description of how their behavior will be different/work/etc. when you are done.
-    * Add
-    * Sub
-    * Mult
-    * Div !!
-    * Print
     * Bignum as expression
-    * Adding a regular number and Bignum
-    * Mod !!
-    * == != > < >= <=
+    
+        ```python
+        4294967296
+        ```
+        Big number literals should be valid expressions. The above program would return the literal.
+    
+    * Print
+    
+        ```python
+        print(4294967296)
+        ```
+        Big numbers should be printable, the above program should print `4294967296` and return `4294967296`.
+    
+    * 32 bit numbers and big numbers are the same to the programmer
+        
+        ```python
+        x:int = 1
+        x = 4294967296
+        ```
+        The program above should complete without any errors. Big numbers are the same as regular numbers from the programmers perspective.
+    
+    * Addition and subtraction
+    
+        ```python
+        1 + 1 # = 2
+        4294967295 + 1 # = 4294967296
+        ```
+        Addition should now work for any number with no overflow.
+    
+    * Division and multiplication
+    
+        ```python
+        4294967296 // 2
+        4294967296 * 4294967296
+        ```
+        Division and multiplication should work for any numbers with no overflow. The above program should evaluate to `2147483648` and `18446744073709551616`.
+        
+    * Mod 
+    
+        ```python
+        4294967296 % 4294967297
+        ```
+        Modulo should work for any arbitrary number and return values with no overflow. The above program will evaluate to `4294967296`.
+        
+    * Binary operators: == != > < >= <=
+        
+        ```python
+        4294967296 >= 4294967296
+        4294967296 < 4294967296
+        ```
+        All binary comparasion operators should work on numbers of arbitrary length. The above program will evaluate to `True` and `False`.
+        
     * Typing: can't compare int and bool
+        
+        ```python
+        4294967296 == True
+        4294967296 == 4294967296
+        ```
+        Typing should still enforce that nums and bools/etc cannot be compared. Binary operations that are valid on numbers should also be valid on big numbers.
+        
     * Big nums in memory are immutable
+    
+        ```python
+        a = 4294967296
+        b = a
+        b = b + 1
+        ```
+        Even though big numbers will be objects, they should still act like int literals during execution. The above program will have `4294967296` for the value of `a` and `4294967297` for the value of `b`.
+        
     * How to handle numbers as reference:
         
         ```python
