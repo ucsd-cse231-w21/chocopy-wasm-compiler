@@ -173,25 +173,33 @@ y, z, x = Tuple(10, True, None)
 ## Testing strategy
 
 Our team will evenly distribute testing responsibilities among the team members. Tests will be written in accordance
-with the Python specification provided above. Our tests will focus on covering common use cases and possibly
-problematic edge cases.
+with the Python specification provided above. Our tests will focus on covering common use cases and possibly problematic
+edge cases.
+
+## AST additions
+
+```typescript
+
+```
 
 ## Modifications to existing files
 
-- ast.ts
-  - Add `AssignTarget` type to represent the target of assignment (variable or object attribute) with relevant type
-    and compiler decorations
+- `ast.ts`
+  - Add `AssignTarget` type to represent the target of assignment (variable or object attribute) with relevant type and
+    compiler decorations
   - Change `Assign` statement to contain an array of `AssignTarget`s rather than a name string
-- parser.ts
+- `parser.ts`
   - Update the `AssignStatement` case in `traverseStmt` to support parsing destructured assignments
-  - Possible create a new function `traverseAssignTargets` to parse any number of assign targets (this could be
+    - Additionally, integrating with attribute/object property assignment (unify assignment with other teams if
+      possible)
+  - Possibly create a new function `traverseAssignTargets` to parse any number of assign targets (this could be
     reused when parsing `for ... in ...`)
-- type-check.ts
+- `type-check.ts`
   - Add new function `tcDestructure` to encapsulate typechecking for destructured assignments
-  - Possible add new function `tcAssignTargets` to encapsulate typechecking the correctness of assign targets (again
-    , for the for loop iterators team)
+  - Possible add new function `tcAssignTargets` to encapsulate typechecking the correctness of assign targets (again,
+    for the for loop iterators team)
   - Update the `assign` case in `tcStmt` to use `tcDestructure`
-- compiler.ts
+- `compiler.ts`
   - Add new function `codeGenDestructure` to generate WASM for destructuring
   - Update the `assign` case in `codeGenStmt` to use `codeGenDestructure`
 
