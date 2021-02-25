@@ -202,20 +202,26 @@ None to add.
 ## Codebase Changes
 
 New files:
+* `heap.ts`: defines all allocator implementations/interfaces
+  * `Allocator`: common interface for heap allocators
+  * `BumpAllocator`: bump allocator heap implementation
+  * `AllocList`: free-list heap implementation
+  * `BitMappedBlocks`: bit-mapped block heap implementation
+  * `Switch`: heap combinator that allows switching between primary/fallback allocators
+  * `Segregator`: heap combinator chooses allocators depending on allocation size
+  * `Describer`: heap combinator that can give more debug info to allocators
+  * `Fallback`: heap combinator uses a primary allocator and switches to a fallback allocator when the primary fails
 * `gc.ts`: defines all the GC implementations/interfaces
-  * `Heap`: class that defines an unmanaged section of linear memory
-    * Composable allocator API methods
-  * `MnSGC`: class that defines a mark-and-sweep GC
-    * `alloc(size)` method: allocates a new object of the given size
-    * `forceCollect()` method: starts the GC mark and sweep
-    * Composable GC API methods
-  * GC combinator classes
+  * `MSGc`: class that defines a mark-and-sweep GC
+  * `CopyingGc`: class that defines a copying GC
+* `alloc.ts`: defines the main allocator interface
+  * `Allocator`: class that composes the GC and heap implementations into a coherent unit
 * `tests/gc-unit-tests.test.ts`: defines the GC unit tests
 * `tests/gc-int-tests.test.ts`: defines the GC integration tests
 
 Changed files:
 * `compiler.ts`:
-  * Need to augment any heap allocation code to call the GC for memory
+  * Need to augment any heap allocation code to call the allocators/GC for memory
   * Need to track local variables and global variables for GC roots (and generate code to inform the GC) in `augmentEnv()` and `makeLocals()`
   * In `augmentEnv()`, we also need to generate code that sends type info to the GC for tracing
 
