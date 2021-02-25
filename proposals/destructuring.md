@@ -178,8 +178,40 @@ edge cases.
 
 ## AST additions
 
-```typescript
+We propose adding a couple new data structures to the AST to support destructured assignment. In particular, these
+changes are made with the goal of unifying how assignment is treated in the AST. Rather than fully separate structures
+for properties and variables, it makes sense to have them take on a common form.
 
+```typescript
+export type Stmt<A> =
+  | {  a?: A, tag: "assign", target: Destructure<A>, value: Expr<A> }
+  // Temporarily rename the old assign to id-assign until fully unified
+  | {  a?: A, tag: "id-assign", name: string, value: Expr<A> }
+  | ...
+
+export interface AssignTarget<A> {
+  target: Assignable<A>;
+  // If this is the `_` ignore symbol
+  ignore: boolean;
+  // is this a starred target e.g. head, *tail = myList
+  starred: boolean;
+}
+
+export interface Destructure<A> {
+  // indicates if this is simple target assignment or destructuring
+  isDestructured: boolean;
+  targets: AssignTarget<A>[];
+}
+
+// Union of all assignable targets
+export type Assignable<A> =
+  | {  a?: A, tag: "id", name: string }
+  | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
+
+export type Expr<A> =
+  | ...
+  | Assignable<A>
+  | ...
 ```
 
 ## Modifications to existing files
@@ -202,6 +234,15 @@ edge cases.
 - `compiler.ts`
   - Add new function `codeGenDestructure` to generate WASM for destructuring
   - Update the `assign` case in `codeGenStmt` to use `codeGenDestructure`
+
+## Memory layout changes
+
+Our feature will not directly require any changes to memory layout. In general, we will be working on integrating with
+other memory layouts and accessing their fields. Additionally, we will eventually be calling the List instantiate
+methods, but that is not adding any new memory layout.
+
+In WASM, we most likely _will_ need to add another local variable alongside `$$last` for all functions like
+`$$assignValue`. This will be used for keeping track of what the current value is for assigning to all targets.
 
 ## What's NOT in scope
 
