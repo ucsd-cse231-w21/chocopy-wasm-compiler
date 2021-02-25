@@ -18,7 +18,7 @@ export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
 export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
 
 export type Stmt<A> =
-  | {  a?: A, tag: "assign", targets: AssignTarget<A>[], value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
+  | {  a?: A, tag: "assign", target: Destructure<A>, value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
   | {  a?: A, tag: "id-assign", name: string, value: Expr<A> }
   | {  a?: A, tag: "return", value: Expr<A> }
   | {  a?: A, tag: "expr", expr: Expr<A> }
@@ -27,15 +27,14 @@ export type Stmt<A> =
   | {  a?: A, tag: "pass" }
   | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
 
-export enum AssignType {
-  Simple, // a     = (1, 2)  # => a == (1, 2)
-  Splat,  // *a, _ = (1, 2)  # => a == [1]
-  Item,   // a, _  = (1, 2)  # => a == 1
+export interface Destructure<A> {
+  isDestructured: boolean;
+  targets: AssignTarget<A>[];
 }
 
 export interface AssignTarget<A> {
   target: Assignable<A>;
-  type: AssignType;
+  starred: boolean;
   ignore: boolean;
 }
 
