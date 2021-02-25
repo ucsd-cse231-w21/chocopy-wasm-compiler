@@ -57,57 +57,80 @@ whole = _tmp
 a: int = 9
 a = a
 a = 100
+assert a == 100
 
-# 1) Support tuples
-t: (int, int) = (1, 2)
+# 1) Support destructuring tuples
+a: int = 0
+b: bool = False
+t: (int, bool) = (1, True)
 a, b = t
+assert a == 1 and b == True
 
 # 2) Generalization: Single element tuple
+a: int = 0
 a, = (1,)
-a == 1
+assert a == 1
 
 # 3) _ is throwaway
+a: int = 0
 a, _ = (1, 2)
 assert a == 1
 
 # 3.1) Consequentially, _ cannot be a valid variable name
+x: int = 0
 _ = 1
 x = _
 #   ^ SyntaxError: _ cannot be used as variable
 # Discussion: `_` could still be a valid field name, such as x._
 
 # 4) Splat operator
+a: int = 0
+b: [int] = None
+c: int = 0
 a, *b = (1, 2)
 c, *_ = (1, 2)
 assert a == 1 and b == [2] and c == 1
 
 # 5) Empty splat operator
+a: int = 0
+b: int = 0
+c: [int] = None
 a, b, *c = (1, 2)
-assert c == []
+assert a == 1 and b == 2 and c == []
 
 # 6) Single splat at any location
+a: int = 0
+c: [int] = None
+b: int = 0
 a, *c, b = (1, 2, 3)
-assert c == [2]
+assert a == 1 and c == [2] and b == 3
 
 # 7) Splat always creates a list
+b: [int] = None
+c: [int] = None
 _, *b = [1, 2, 3]
 assert b == [2, 3]
 _, *c = (1, 2, 3)
 assert c == [2, 3]
 
-# 8) Assignment happens in a left to right order
-x = [0, 1]
-i = 0
+# 8) Assignment happens in a left to right order. 
+# Destructured assignment can happen at particular indicies in arrays.
+x: [int] = [0, 1]
+i: int = 0
 i, x[i] = 1, 2         # i is updated, then x[i] is updated
-assert x == [0, 2]
+assert i == 1 and x == [0, 2]
 
 # 9) Assignment targets are performed entirely from left to right
+# Part of our stretch goal: chained assignments
+a: int = 0
+b: int = 0
+x: int = 0
 a, b = x, a = 1, 2
-assert a == 2
-assert b == 2
-assert x == 1
+assert a == 2 and b == 2 and x == 1
 
 # 10) Optional parens around a target list
+a: int = 0
+b: int = 0
 (a, b) = (1, 2)
 assert a == 1 and b == 2
 
@@ -115,7 +138,16 @@ assert a == 1 and b == 2
 x: [int] = None
 a: int = 0
 a, *x, x = (1, 2, [3])
-assert x == [3]
+assert a == 1 and x == [3]
+
+# 12) Object field assignment using destructured assignment
+class Test(object):
+  a: int = 0
+  b: int = 0
+t: Test = None
+t = Test()
+t.a, t.b = (5, 6)
+assert t.a == 5 and t.b == 6
 ```
 
 ## Teams to collaborate with
@@ -154,20 +186,22 @@ assert x == [3]
 ```python
 # We will use classes as stand-ins for tuples and arrays until such time as they are implemented
 # For now, this "dirty hack" will rely on the positional offsets of properties
+class OtherObject(object):
+  q: int = 3
 class Tuple(object):
-  one: int = 0
-  two: bool = False
-  three: object = None
+  one: int = 10
+  two: bool = True
+  three: OtherObject = None
 x: int = 0
-y: bool = True
-z: object = None
-x, y, z = Tuple(10, True, None)
+y: bool = False
+z: OtherObject = None
+x, y, z = Tuple()
 assert x == 10
 assert y == True
 assert z == None
 
 # Program does not pass validation because of incompatible types
-y, z, x = Tuple(10, True, None)
+y, z, x = Tuple()
 ```
 
 ## Testing strategy
