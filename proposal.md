@@ -140,19 +140,19 @@ Within the proposals/ directory, submit a file called your-project.md that conta
       that apply to integers as already defined do not change as a result of
       increased capacity of Bignums.
     * `compiler.ts` will require changes as follows:
-      * Case `num` in function `codeGenLiteral`: we are going to convert any input 
-        as a i32 num with 1 bit of tag at front followed by 31 bits of data which would 
-        be either the actual number(Int) or address(BigNum):
-        * If the num can be represented with 31 bits, we are going to have the 
-        same code generation which would result in a tag of `0`
+      * Case `num` in function `codeGenLiteral`: Any input will be converted to
+        a i32 num with 1 bit of tag at front followed by 31 bits of data which would 
+        be either address(BigNum) or the actual number(Int) :
+        * If the num can be represented with 31 bits, same code would be generated
+        for the num as an `i32` value. 
         * If the num can not be represented by 31 bits then the function will be
-        modified to add the part where we generate WASM code that allocates integer
+        modified to add the part to generate WASM code that allocates integer
         values in the heap (similarly to the current implementation of object construction)
         and places i32 number with a tag of `1` followed by `31` bits reference 
         to the allocated memory location on the stack.
       * The function `codeGenBinOp` will be modified to generate WASM code that
         calls built-in WASM functions implementing the arithmetic and relational
-        operation. Since we are considering the BigNum and regular Int as 
+        operation. Since BigNum and regular Int are treated as 
         separate in runtime, four general cases are present:
         1. BigNum `binop` BigNum\
            In this scenario, we are going to retrieve both BigNum from the memory,
