@@ -1,6 +1,6 @@
 // import { TypeCheckError } from "./type-check";
 
-// export enum Type {NUM, BOOL, NONE, OBJ}; 
+// export enum Type {NUM, BOOL, NONE, OBJ};
 export type Type =
   | {tag: "number"}
   | {tag: "bool"}
@@ -18,7 +18,8 @@ export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
 export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
 
 export type Stmt<A> =
-  | {  a?: A, tag: "assign", name: string, value: Expr<A> }
+  | {  a?: A, tag: "assign", targets: AssignTarget<A>[], value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
+  | {  a?: A, tag: "id-assign", name: string, value: Expr<A> }
   | {  a?: A, tag: "return", value: Expr<A> }
   | {  a?: A, tag: "expr", expr: Expr<A> }
   | {  a?: A, tag: "if", cond: Expr<A>, thn: Array<Stmt<A>>, els: Array<Stmt<A>> }
@@ -26,19 +27,35 @@ export type Stmt<A> =
   | {  a?: A, tag: "pass" }
   | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
 
+export enum AssignType {
+  Simple, // a     = (1, 2)  # => a == (1, 2)
+  Splat,  // *a, _ = (1, 2)  # => a == [1]
+  Item,   // a, _  = (1, 2)  # => a == 1
+}
+
+interface AssignTarget<A> {
+  target: Assignable<A>;
+  type: AssignType;
+  ignore: boolean;
+}
+
+// Union of all assignable targets
+export type Assignable<A> =
+  | {  a?: A, tag: "id", name: string }
+  | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
+
 export type Expr<A> =
     {  a?: A, tag: "literal", value: Literal }
-  | {  a?: A, tag: "id", name: string }
   | {  a?: A, tag: "binop", op: BinOp, left: Expr<A>, right: Expr<A>}
   | {  a?: A, tag: "uniop", op: UniOp, expr: Expr<A> }
   | {  a?: A, tag: "builtin1", name: string, arg: Expr<A> }
   | {  a?: A, tag: "builtin2", name: string, left: Expr<A>, right: Expr<A>}
-  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> } 
-  | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
+  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> }
+  | Assignable<A>
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
 
-export type Literal = 
+export type Literal =
     { tag: "num", value: number }
   | { tag: "bool", value: boolean }
   | { tag: "none" }

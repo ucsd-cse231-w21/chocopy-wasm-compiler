@@ -6,16 +6,16 @@ import { NUM, BOOL, NONE } from "./utils";
 // Numbers are offsets into global memory
 export type GlobalEnv = {
   globals: Map<string, number>;
-  classes: Map<string, Map<string, [number, Literal]>>;  
+  classes: Map<string, Map<string, [number, Literal]>>;
   locals: Set<string>;
   offset: number;
 }
 
-export const emptyEnv : GlobalEnv = { 
-  globals: new Map(), 
+export const emptyEnv : GlobalEnv = {
+  globals: new Map(),
   classes: new Map(),
   locals: new Set(),
-  offset: 0 
+  offset: 0
 };
 
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
@@ -54,7 +54,7 @@ type CompileResult = {
 //         definedVars.add(s.name);
 //         break;
 //     }
-//   }); 
+//   });
 //   return definedVars;
 // }
 
@@ -105,7 +105,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
     //   stmt.parameters.forEach(p => definedVars.delete(p.name));
     //   definedVars.forEach(env.locals.add, env.locals);
     //   stmt.parameters.forEach(p => env.locals.add(p.name));
-      
+
     //   const localDefines = makeLocals(definedVars);
     //   const locals = localDefines.join("\n");
     //   var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
@@ -121,10 +121,10 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       var valStmts = codeGenExpr(stmt.value, env);
       valStmts.push("return");
       return valStmts;
-    case "assign":
+    case "id-assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]); 
+        return valStmts.concat([`(local.set $${stmt.name})`]);
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
         return locationToStore.concat(valStmts).concat([`(i32.store)`]);
@@ -164,7 +164,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
 function codeGenInit(init : VarInit<Type>, env : GlobalEnv) : Array<string> {
   const value = codeGenLiteral(init.value);
   if (env.locals.has(init.name)) {
-    return [...value, `(local.set $${init.name})`]; 
+    return [...value, `(local.set $${init.name})`];
   } else {
     const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; ${init.name}`];
     return locationToStore.concat(value).concat([`(i32.store)`]);
@@ -245,7 +245,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       return valStmts;
     case "construct":
       var stmts : Array<string> = [];
-      env.classes.get(expr.name).forEach(([offset, initVal], field) => 
+      env.classes.get(expr.name).forEach(([offset, initVal], field) =>
         stmts.push(...[
           `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
           `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
