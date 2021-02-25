@@ -1,6 +1,7 @@
 # Destructuring
 
-Relevant section of python specification/documentation: https://docs.python.org/3/reference/simple_stmts.html#assignment-statements
+Relevant section(s) of python [specification/documentation](https://docs.python.org/3/reference/simple_stmts.html#assignment-statements).
+The grammar is also copied below:
 
 ```
 assignment_stmt ::=  (target_list "=")+ (starred_expression | yield_expression)
@@ -34,13 +35,13 @@ whole = _tmp
 ```
 
 
-## Flow
+## Flow (copied from python documentation)
 
 - If the target list is a single target with no trailing comma, optionally in parentheses, the
-  object is assigned tothat target.
+  object is assigned to that target.
 - Else: The object must be an iterable with the same number of items as there are targets in the
   target list, and the items are assigned, from left to right, to the corresponding targets.
-  - If the target list contains one target prefixed with an asterisk, called a “starred” target: The
+  - If the target list contains one target prefixed with an asterisk, called a "starred" target: The
     object must be an iterable with at least as many items as there are targets in the target list,
     minus one. The first items of the iterable are assigned, from left to right, to the targets
     before the starred target. The final items of the iterable are assigned to the targets after the
@@ -49,66 +50,78 @@ whole = _tmp
   - Else: The object must be an iterable with the same number of items as there are targets in the
     target list, and the items are assigned, from left to right, to the corresponding targets.
 
-
-
 ## Valid syntaxes
 
 ```python
-# Don't break existing assignment
+# 0) Don't break existing assignment
 a: int = 9
 a = a
 a = 100
 
-# Support tuples
+# 1) Support tuples
 t: (int, int) = (1, 2)
 a, b = t
 
-# Generalization: Single element tuple
+# 2) Generalization: Single element tuple
 a, = (1,)
 a == 1
 
-# _ is throwaway
-# Consequentially, _ cannot be a valid variable name
-a, _ = t
+# 3) _ is throwaway
+a, _ = (1, 2)
+assert a == 1
 
-# Splat operator
-a, *_ = t
+# 3.1) Consequentially, _ cannot be a valid variable name
+_ = 1
+x = _
+#   ^ SyntaxError: _ cannot be used as variable
+# Discussion: `_` could still be a valid field name, such as x._
 
-# Empty splat operator
-a, b, *_ = t
+# 4) Splat operator
+a, *b = (1, 2)
+c, *_ = (1, 2)
+assert a == 1 and b == [2] and c == 1
 
-# Single splat at any location
-a, *_, b = t
+# 5) Empty splat operator
+a, b, *c = (1, 2)
+assert c == []
 
-# Splat realizes as a list
+# 6) Single splat at any location
+a, *c, b = (1, 2, 3)
+assert c == [2]
+
+# 7) Splat always creates a list
 _, *b = [1, 2, 3]
-b == [2, 3]
+assert b == [2, 3]
 _, *c = (1, 2, 3)
-c == [2, 3]
+assert c == [2, 3]
 
-# Slicing assignment (Depends on tuple/list group)
-# Stretch goal??
-splat: [int] = [0, 0]
-splat[:] = t
-*splat[:] = t # illegal syntax
-
-# Idiosyncracies of not quite instant assignment
-# This **should** be the expected idea of how this implements
+# 8) Assignment happens in a left to right order
 x = [0, 1]
 i = 0
 i, x[i] = 1, 2         # i is updated, then x[i] is updated
-print(x)    # => [0, 2]
+assert x == [0, 2]
 
-# Assignment targets are performed entirely from left to right
- a, b = x, a = 1, 2
- a == 2
- b == 2
- x == 1
+# 9) Assignment targets are performed entirely from left to right
+a, b = x, a = 1, 2
+assert a == 2
+assert b == 2
+assert x == 1
+
+# 10) Optional parens around a target list
+(a, b) = (1, 2)
+assert a == 1 and b == 2
+
+# 11) Starred assign happens in regular order
+x: [int] = None
+a: int = 0
+a, *x, x = (1, 2, [3])
+assert x == [3]
 ```
 
 ## Teams to collaborate with
 
 - Lists: `head, *rest = [1, 2, 3]`
+  - Both how memory is implemented and how values are assigned
 - Tuples: `head, *rest = (1, 2, 3)`
   - Note: `a, b = b, a` actually creates a tuple `(b, a)`
 - For loops/iterators: `for a, b in enumerate(dict): ...`
@@ -121,6 +134,8 @@ print(x)    # => [0, 2]
   - Parsing a hanging comma in a destructured assignment (e.g. `a, = (1,)`)
   - Parsing the "splat" operator (e.g. `a, *b = [1, 1, 2, 3, 5, 9]`)
   - (Stretch goal) Parsing chained assignments (e.g. `up, *rest = *rest, down = (0, 1, 2, 3)`)
+  - (Stretch goal++) Parsing nested targets (e.g. `a, (b, c) = (1, (2, 3))`)
+    - Note: we consider it unlikely we will get to this step
 - Typechecking destructured assignments
   - Typechecking individual tuple and array elements against a target
     (e.g. `a` in `a, b = (12, True)` or `b, a = [20, 40]`)
@@ -137,7 +152,8 @@ print(x)    # => [0, 2]
 ## Two test cases to finish by March 4th
 
 ```python
-# We will use classes as stand-ins for tuples and arrays
+# We will use classes as stand-ins for tuples and arrays until such time as they are implemented
+# For now, this "dirty hack" will rely on the positional offsets of properties
 class Tuple(object):
   one: int = 0
   two: bool = False
@@ -146,15 +162,16 @@ x: int = 0
 y: bool = True
 z: object = None
 x, y, z = Tuple(10, True, None)
-x == 10
-y == True
-z == None
+assert x == 10
+assert y == True
+assert z == None
 
 # Program does not pass validation because of incompatible types
 y, z, x = Tuple(10, True, None)
 ```
 
 ## Testing strategy
+
 Our team will evenly distribute testing responsibilities among the team members. Tests will be written in accordance
 with the Python specification provided above. Our tests will focus on covering common use cases and possibly
 problematic edge cases.
@@ -185,3 +202,24 @@ problematic edge cases.
   - Python only allows annotations on single target assignment
   - Therefore, we cannot support `x: int, b: bool = 4, False`
     - We can still support `x, b = 4, False` if `x` and `b` were already declared
+
+## Additional Thoughts
+
+The more I think about it, we probably want to make use of the other AST components as much as we can. For example:
+
+```python
+x: [int] = None
+x = [0, 0]
+a: int = 0
+x[0], a = (1, 2)
+```
+
+would desugar to
+
+```python
+__destructureInternal = (1, 2)
+x[0] = __destructureInternal[0]
+a = __destructureInternal[1]
+```
+
+Most likely we'd need to do this in the
