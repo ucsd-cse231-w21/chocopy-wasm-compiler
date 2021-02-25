@@ -214,6 +214,9 @@ New files:
 * `gc.ts`: defines all the GC implementations/interfaces
   * `MSGc`: class that defines a mark-and-sweep GC
   * `CopyingGc`: class that defines a copying GC
+  * `MarkableAllocator`: interface for heaps that can be used by `MSGc`
+  * `MarkableBitMappedBlocks`: class that wraps a `BitMappedBlocks` heap to provide a `MarkableAllocator` implementation (used to allocate/access object headers)
+  * `MarkableAllocList`: class that wraps an `AllocList` heap to provide a `MarkableAllocator` implementation (used to allocate/access object headers)
 * `alloc.ts`: defines the main allocator interface
   * `Allocator`: class that composes the GC and heap implementations into a coherent unit
 * `tests/gc-unit-tests.test.ts`: defines the GC unit tests
