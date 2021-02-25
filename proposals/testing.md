@@ -55,7 +55,11 @@ broken up into any number of logical components, but only at the statement level
 that each component is also a valid eChocoPy program in the presence of a REPL. Then, we will compare
 the result of evaluating components sequentially in the REPL with evaluating components cumulatively in
 Python-that is, if we want to evaluate component 3, we would feed component 3 to the REPL, but feed
-the concatenation of components 1,2,3 to Python.
+the concatenation of components 1,2,3 to Python. Additionally, we will use the 
+[Cypress](https://www.cypress.io/) testing framework to test our generated programs in the context of 
+the REPL webpage, as well as expose the Cypress interface
+to other groups to allow them to write their own Cypress tests. We chose Cypress over Selenium due to 
+Edward's previous experience with Cypress.
 
 ## Evaluation/Functionality
 
@@ -88,7 +92,11 @@ To create subprocesses from TypeScript, we plan to use [python-shell](https://gi
 Users will still be able to write and run local unit tests via `npm run test`.
 Our fuzzing framework will instead be avaiable with `npm run fuzz`. This testing
 script will continually generate new programs of interest, evaluate the
-programs, and write the evaluation results to a file.
+programs, and write the evaluation results to a file. These programs will be evaluated using
+Cypress.
+
+We will also make available Cypress unit tests via `npm run cypress-test`. Users can create their
+own tests under the [cypress](../cypress/) directory.
 
 ## Milestone
 
