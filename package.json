@@ -10,6 +10,9 @@
     "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/*.test.ts'",
     "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/**/*.test.ts'"
   },
+  "engines": {
+    "npm": "^6.0.0"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
