@@ -1,6 +1,6 @@
 import {parser} from "lezer-python";
 import { TreeCursor} from "lezer-tree";
-import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal } from "./ast";
+import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal, AssignTarget, AssignType } from "./ast";
 import { NUM, BOOL, NONE, CLASS } from "./utils";
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
@@ -203,6 +203,36 @@ export function traverseArguments(c : TreeCursor, s : string) : Array<Expr<null>
   return args;
 }
 
+// Traverse the lhs of assign operations and return the assignment targets
+function traverseAssignTargets(c: TreeCursor, s: string): AssignTarget<null>[] {
+  // TODO: Actually support destructured assignment
+  const targets: AssignTarget<null>[] = [];
+  const target = traverseExpr(c, s);
+  let isSimple = true
+  if (target.tag !== "lookup" && target.tag !== "id") {
+    throw new Error("Unknown target while parsing assignment");
+  }
+  targets.push({
+    target,
+    type: AssignType.Item,
+    ignore: false,
+  })
+  c.nextSibling(); // move to =
+  if (c.name !== "AssignOp") {
+    isSimple = false;
+    throw new Error(`Multiple assignment currently not supported. Expected "=", got "${s.substring(c.from, c.to)}"`)
+  }
+  c.prevSibling(); // Move back to previous for parsing to continue
+
+  if (targets.length === 1) {
+    targets[0].type = isSimple ? AssignType.Simple : AssignType.Item;
+  } else if (targets.length === 0) {
+    throw new Error("No assignment targets found")
+  }
+
+  return targets;
+}
+
 export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
   switch(c.node.type.name) {
     case "ReturnStatement":
@@ -217,12 +247,15 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       return { tag: "return", value };
     case "AssignStatement":
       c.firstChild(); // go to name
-      const target = traverseExpr(c, s);
+      const targets = traverseAssignTargets(c, s);
       c.nextSibling(); // go to equals
       c.nextSibling(); // go to value
       var value = traverseExpr(c, s);
       c.parent();
 
+      const target = targets[0].target;
+
+      // TODO: The new assign syntax should hook in here
       if (target.tag === "lookup") {
         return {
           tag: "field-assign",

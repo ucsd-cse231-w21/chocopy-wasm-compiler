@@ -33,7 +33,7 @@ export enum AssignType {
   Item,   // a, _  = (1, 2)  # => a == 1
 }
 
-interface AssignTarget<A> {
+export interface AssignTarget<A> {
   target: Assignable<A>;
   type: AssignType;
   ignore: boolean;
