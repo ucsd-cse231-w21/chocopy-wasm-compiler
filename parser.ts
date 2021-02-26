@@ -1,7 +1,7 @@
 import {parser} from "lezer-python";
 import { TreeCursor} from "lezer-tree";
-import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal, AssignTarget, Destructure } from "./ast";
-import { NUM, BOOL, NONE, CLASS } from "./utils";
+import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal, AssignTarget, Destructure, ASSIGNABLE_TAGS } from "./ast";
+import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   switch(c.type.name) {
@@ -209,7 +209,8 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
   const targets: AssignTarget<null>[] = [];
   const target = traverseExpr(c, s);
   let isSimple = true
-  if (target.tag !== "lookup" && target.tag !== "id") {
+  if (!isTagged(target, ASSIGNABLE_TAGS)) {
+    target.tag
     throw new Error("Unknown target while parsing assignment");
   }
   targets.push({
