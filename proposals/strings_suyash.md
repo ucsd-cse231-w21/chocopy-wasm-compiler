@@ -1,5 +1,7 @@
 # Strings - Proposals
 
+Implementation: https://github.com/suyashmahar/py-wasm
+
 ## Members
 - Suyash Mahar
 
