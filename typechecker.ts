@@ -418,6 +418,20 @@ export function loadMethodDef(ct: ClassType, fd: FuncDef) {
   let funcType: FuncType = new FuncType(globalName, paramsType, returnType, true);
   
   curEnv.registerFunc(`${ct.getName()}#${fd.name}`, funcType, newEnv);
+
+  if (ct.methods.has(fd.name)) {
+    if (!funcType.isOverload(ct.methods.get(fd.name))) {
+      throw new Error(`Method overload with mismatched signature: ${fd.name}`);
+    }
+  }
+  ct.methods.set(fd.name, funcType);
+
+  if (!ct.methodPtrs.has(fd.name)) {
+    ct.methodPtrs.set(fd.name, ct.methodPtrs.size);
+  }
+  
+  console.log(ct);
+  memoryManager.collectFunc(funcType.globalName);
 }
 
 export function tcMethodDef(ct: ClassType, fd: FuncDef) {
@@ -433,21 +447,6 @@ export function tcMethodDef(ct: ClassType, fd: FuncDef) {
     }
   }
   curEnv = curEnv.parent;
-
-  let memberFunc = curEnv.nameToFunc.get(`${ct.getName()}#${fd.name}`);
-  if (ct.methods.has(fd.name)) {
-    if (!memberFunc.isOverload(ct.methods.get(fd.name))) {
-      throw new Error(`Method overload with mismatched signature: ${fd.name}`);
-    }
-  }
-  ct.methods.set(fd.name, memberFunc);
-
-  if (!ct.methodPtrs.has(fd.name)) {
-    ct.methodPtrs.set(fd.name, ct.methodPtrs.size);
-  }
-  
-  console.log(ct);
-  memoryManager.collectFunc(memberFunc.globalName);
 }
 
 export function loadClassDef(cd: ClassDef) {
@@ -473,21 +472,28 @@ export function loadClassDef(cd: ClassDef) {
   memoryManager.classNameToTag.set(globalName, memoryManager.classNameToTag.size);
 }
 
-export function tcClassDef(cd: ClassDef) {
+function loadClassAttrDef(cd: ClassDef) {
   let classType = curEnv.nameToClass.get(cd.name);
 
   if (classType.parent) {
     classType.parent.attributes.forEach((v, name) => {
       classType.attributes.set(name, v);
     });
-    classType.parent.methods.forEach((f, name) => {
-      classType.methods.set(name, f);
-      classType.methodPtrs.set(name, classType.parent.methodPtrs.get(name));
-    })
   }
 
   for (const varDef of cd.defs.varDefs) {
     tcAttributesDef(classType, varDef);
+  }
+}
+
+function loadClassMethodDef(cd: ClassDef) {
+  let classType = curEnv.nameToClass.get(cd.name);
+
+  if (classType.parent) {
+    classType.parent.methods.forEach((f, name) => {
+      classType.methods.set(name, f);
+      classType.methodPtrs.set(name, classType.parent.methodPtrs.get(name));
+    })
   }
 
   let methodNames: Set<string> = new Set();
@@ -505,6 +511,10 @@ export function tcClassDef(cd: ClassDef) {
 
     loadMethodDef(classType, funcDef);
   }
+}
+
+export function tcClassDef(cd: ClassDef) {
+  let classType = curEnv.nameToClass.get(cd.name);
 
   for (const funcDef of cd.defs.funcDefs) {
     tcMethodDef(classType, funcDef); 
@@ -530,6 +540,7 @@ export function tcDefs(pd: PreDef) {
   }
 }
 
+// class def -> attr def -> method def
 export function tcProgram(p: Program, gm: MemoryManager, em: EnvManager) {
   memoryManager = gm;
   envManager = em;
@@ -537,6 +548,12 @@ export function tcProgram(p: Program, gm: MemoryManager, em: EnvManager) {
 
   for (const classDef of p.defs.classDefs) {
     loadClassDef(classDef);
+  }
+  for (const classDef of p.defs.classDefs) {
+    loadClassAttrDef(classDef);
+  }
+  for (const classDef of p.defs.classDefs) {
+    loadClassMethodDef(classDef);
   }
   for (const funcDef of p.defs.funcDefs) {
     loadFuncDef(funcDef);

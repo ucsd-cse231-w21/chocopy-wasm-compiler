@@ -29,8 +29,11 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   let importObject = {
-    builtin: {
-      print,
+    imports: {
+      print_num: (arg: number) => print(2, arg),
+      print_bool: (arg: number) => print(1, arg),
+      print_none: (arg: number) => print(-1, arg),
+      print_obj: (arg: number) => print(-1, arg),
     }
   }
   

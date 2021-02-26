@@ -16,7 +16,7 @@ export class BasicREPL {
     this.importObject = importObject;
     this.importObject.js = { memory: this.memoryManager.memory };
 
-    (window as any)["wasmMemory"] = new Int32Array(this.memoryManager.memory.buffer);
+    // (window as any)["wasmMemory"] = new Int32Array(this.memoryManager.memory.buffer);
   }
 
   async run(source: string): Promise<any> {
@@ -29,8 +29,18 @@ export class BasicREPL {
     var asBinary = myModule.toBinary({});
     var wasmModule = await WebAssembly.instantiate(asBinary.buffer, this.importObject);
     const result = await (wasmModule.instance.exports.exported_func as any)();
+
+    if (compileResult.resultValue.tag === "bool") {
+      if (result === 1) {
+        compileResult.resultValue.value = true;
+      }
+    } else if (compileResult.resultValue.tag === "num") {
+      compileResult.resultValue.value = result;
+    } else if (compileResult.resultValue.tag === "object") {
+      compileResult.resultValue.address = result;
+    }
     
-    return result
+    return compileResult.resultValue;
   }
 
   async tc(source: string): Promise<Type> {

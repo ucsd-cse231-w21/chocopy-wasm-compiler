@@ -1,4 +1,4 @@
-import { ClassDef, ClassType, Expr, FuncDef, FuncType, Literal, Program, Stmt, VarDef } from "./ast";
+import { ClassDef, ClassType, Expr, FuncDef, FuncType, Literal, Program, Stmt, Value, VarDef } from "./ast";
 import { Env, EnvManager } from "./env";
 import { MemoryManager } from "./memory";
 import { parse } from "./parser";
@@ -124,7 +124,7 @@ const binaryOpToWASM: Map<string, Array<string>> = new Map([
   ["or", ["(i32.or)"]],
 ])
 
-function codeGenCallerInit(loadParam: Array<string>): Array<string> {
+function codeGenCallerInit(): Array<string> {
   let wasms: Array<string> = new Array();
 
   wasms = wasms.concat(
@@ -132,7 +132,6 @@ function codeGenCallerInit(loadParam: Array<string>): Array<string> {
     setValWithPtrPtrOffsetExpr(constant.PTR_SP, -2, getPtrFromPtrPtrOffset(constant.PTR_DL, -1)),
     storeTempValueWithExpr(constant.PTR_T2, getPtrFromPtrPtrOffset(constant.PTR_SP, -1)),  // store new DL
     setPtrWithPtrPtrOffset(constant.PTR_SP, -2),
-    loadParam,
     setValWithPtrExpr(constant.PTR_DL, loadTempValue(constant.PTR_T2)),
   )
   return wasms;
@@ -305,7 +304,7 @@ function codeGenExpr(expr: Expr): Array<string> {
       }
 
       let pushArgsExpr: Array<string> = new Array();
-      let isMemberFunc = true;
+      let fillArgsExpr: Array<string> = new Array();
 
       if (expr.caller.classType) {
         let ct = expr.caller.classType;
@@ -314,7 +313,8 @@ function codeGenExpr(expr: Expr): Array<string> {
           return codeGenAlloc(ct);
         } else {
           let funcEnv = envManager.envMap.get(`${ct.globalName}#__init__`);
-          pushArgsExpr = codeGenFillParam(funcEnv, expr.args, true);
+          pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true);
+          fillArgsExpr = codeGenFillParam(expr.args.length+1);
           wasms = wasms.concat(
             storeTempValueWithExpr(constant.PTR_T1, codeGenAlloc(ct)),
 
@@ -322,8 +322,11 @@ function codeGenExpr(expr: Expr): Array<string> {
 
             loadTempValue(constant.PTR_T1),
             getMethodFromPtr(ct, "__init__"),
+
+            pushArgsExpr,
+            codeGenCallerInit(),
+            fillArgsExpr,
             
-            codeGenCallerInit(pushArgsExpr),
             [`(call_indirect (type ${constant.WASM_FUNC_TYPE}))`],
             [`(drop)`], 
             [`;; caller destroy`],
@@ -335,16 +338,18 @@ function codeGenExpr(expr: Expr): Array<string> {
 
       let ft = expr.caller.funcType;
       let funcEnv = envManager.envMap.get(ft.globalName);
-      isMemberFunc = ft.isMemberFunc;
 
-      pushArgsExpr = codeGenFillParam(funcEnv, expr.args, ft.isMemberFunc);
-      
+      pushArgsExpr = codeGenPushParam(funcEnv, expr.args, ft.isMemberFunc);
+      fillArgsExpr = codeGenFillParam(expr.args.length + (ft.isMemberFunc ? 1 : 0));
+
       wasms = wasms.concat(
         codeGenExpr(expr.caller),
       );
 
       wasms = wasms.concat(
-        codeGenCallerInit(pushArgsExpr),
+        pushArgsExpr,
+        codeGenCallerInit(),
+        fillArgsExpr,
         [`(call_indirect (type ${constant.WASM_FUNC_TYPE}))`],
         [`;; caller destroy`],
         codeGenCallerDestroy(),
@@ -356,15 +361,15 @@ function codeGenExpr(expr: Expr): Array<string> {
   return wasms;
 }
 
-function codeGenFillParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean): Array<string> {
+function codeGenPushParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean): Array<string> {
   let pushArgsExpr: Array<string> = new Array();
   let paramSize = args.length;
   let offset = isMemberFunc ? 1 : 0;
 
   if (isMemberFunc) {
     pushArgsExpr = pushArgsExpr.concat(
-      [`;; push self`],
-      setValWithPtrPtrOffsetExpr(constant.PTR_SP, -1, loadTempValue(constant.PTR_T1)),
+      getPtrFromPtrPtrOffset(constant.PTR_SP, -3),
+      loadTempValue(constant.PTR_T1),
     )
   }
 
@@ -374,12 +379,21 @@ function codeGenFillParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean
         return;
       }
       pushArgsExpr = pushArgsExpr.concat(
-        setValWithPtrPtrOffsetExpr(constant.PTR_SP, -1-variable.offset, codeGenExpr(args[variable.offset - offset])),
+        getPtrFromPtrPtrOffset(constant.PTR_SP, -3-variable.offset),
+        codeGenExpr(args[variable.offset - offset]),
       )
     }
   });
+  return pushArgsExpr;
+}
+
+function codeGenFillParam(numArgs: number): Array<string> {
+  let pushArgsExpr: Array<string> = new Array();
+  for (let i = 0; i < numArgs; i++) {
+    pushArgsExpr = pushArgsExpr.concat([(`i32.store`)]);
+  }
   pushArgsExpr = pushArgsExpr.concat(
-    setPtrWithPtrPtrOffset(constant.PTR_SP, -paramSize-offset),
+    setPtrWithPtrPtrOffset(constant.PTR_SP, -numArgs),
   );
   return pushArgsExpr;
 }
@@ -644,6 +658,7 @@ function codeGenProgram(p: Program): Array<Array<string>> {
 
 type CompileResult = {
   wasmSource: string,
+  resultValue: Value,
 };
 
 export function compile(source: string, importObject: any, gm: MemoryManager, em: EnvManager): CompileResult {
@@ -656,20 +671,43 @@ export function compile(source: string, importObject: any, gm: MemoryManager, em
   tcProgram(ast, gm, em);
   console.log(curEnv);
 
+  let resultValue:Value;
+  if (ast.stmts.length > 0) {
+    let resultType = ast.stmts[ast.stmts.length-1].type;
+    if (!resultType) {
+      resultValue = {tag: "none"};
+    } else if (resultType.getName() === "int") {
+      resultValue = {tag: "num", value: 0};
+    } else if (resultType.getName() === "bool") {
+      resultValue = {tag: "bool", value: false};
+    } else if (resultType.getName() === "<None>") {
+      resultValue = {tag: "none"};
+    } else {
+      resultValue = {tag: "object", name: resultType.getName(), address: 0};
+    }
+  } else {
+    resultValue = {tag: "none"};
+  }
+
   importObject.js = {mem: memoryManager.memory}
-  importObject.imports = {
+  importObject.builtin = {
     print_obj: (ptr: number) => {
-      importObject.builtin.print(-1, ptr);
+      if (ptr === 0) {
+        importObject.imports.print_none(ptr);
+      } else {
+        importObject.imports.print_obj(ptr);
+      }
+      
       return 0;
     },
 
     print_int: (val: number) => {
-      importObject.builtin.print(2, val);
+      importObject.imports.print_num(val);
       return 0;
     },
 
     print_bool: (val: number) => {
-      importObject.builtin.print(1, val);
+      importObject.imports.print_bool(val);
       return 0;
     },
 
@@ -690,6 +728,11 @@ export function compile(source: string, importObject: any, gm: MemoryManager, em
   let returnExpr = "";
   let scratchVar = "(local $$last i32)";
 
+  if(resultValue.tag !== "none") {
+    returnType = "(result i32)";
+    returnExpr = "(local.get $$last)"
+  } 
+
   let initWASM: Array<string> = new Array();
   if (!memoryManager.initialized) {
     initWASM = initWASM.concat(
@@ -705,11 +748,11 @@ export function compile(source: string, importObject: any, gm: MemoryManager, em
 
   const wasmSource = `(module
     (import "js" "mem" (memory ${constant.MEM_SIZE}))  ;; memory with one page(64KB)
-    (func $print#int (import "imports" "print_int") (param i32) (result i32))
-    (func $print#bool (import "imports" "print_bool") (param i32) (result i32))
-    (func $print#object (import "imports" "print_obj") (param i32) (result i32))
-    (func $print#debug (import "imports" "print_debug") (param i32) (result i32))
-    (func $$noneabort (import "imports" "none_abort"))
+    (func $print#int (import "builtin" "print_int") (param i32) (result i32))
+    (func $print#bool (import "builtin" "print_bool") (param i32) (result i32))
+    (func $print#object (import "builtin" "print_obj") (param i32) (result i32))
+    (func $print#debug (import "builtin" "print_debug") (param i32) (result i32))
+    (func $$noneabort (import "builtin" "none_abort"))
     
     ;; function table
     (table ${constant.MAX_FUNC_SUPPORT} anyfunc)
@@ -733,5 +776,6 @@ export function compile(source: string, importObject: any, gm: MemoryManager, em
   console.log(wasmSource);
   return {
     wasmSource,
+    resultValue
   };
 }
