@@ -229,12 +229,14 @@ Changed files:
   * In `augmentEnv()`, we also need to generate code that sends type info to the GC for tracing
 
 ## Value Representation/Layouts
-Adding no new values. May need to modify layouts depending on how other teams structure data. We need to somehow track which fields are pointers to chase.
+No new values are being added but value representations need to be modified to somehow track pointers.
 Options:
-1. Compiler emits type info into objects headers to tell which are pointers
-2. Compiler emits type info in the program that gives hints to the GC
-3. Compiler emits a hidden function in the vtable which tells the GC which fields are pointers
-4. Extend runtime representation to be tagged and add a max size header to objects
+1. Tag values (primitive vs pointer) and add size information to object headers. This allows a GC to linearly scan an object's fields for any pointers.
+2. Box every object and place a special function in the vtable that tells the GC which fields are poiners.
+
+Decision as of 2/25/2021: option 1 with 32 bit values, using the least significant bit as the tag.
+* Primitives are tagged with `0`
+* Pointers are tagged with `1`
 
 ## March 4 Milestone Plan
 We plan to target programs 1 and 2 such that they execute properly.
