@@ -15,8 +15,7 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
       const str_trimmed = str.substring(1,str.length-1)
       return{
         tag:"string",
-        value: str_trimmed,
-        length: str_trimmed.length
+        value: str_trimmed
       }
     case "Boolean":
       return {
