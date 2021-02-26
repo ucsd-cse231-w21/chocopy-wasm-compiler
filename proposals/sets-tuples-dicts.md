@@ -143,4 +143,4 @@ Say, we perform `d[15] = 75`. Then we will store `(15, 75, NONE)`.
 In the above example, the key is 15. The hash value for 15 is 15%7 = 1
 - Once we know the hash value, then we go to the corresponding bucket. Since we know the starting address of the dictionary, we add the hash value to get the bucket.
 - If the bucket has value `None`, then this is the first item in the linked list. We will then update `None` to ‘m’, that is, the location of the new key-value pair.
-- If the bucket has some value, then we will have to go to that address and traverse the linked list till we find the last node of the linked list. We will then update the next address from None to ‘m’.
+- If the bucket has some value, then we will have to go to that address and traverse the linked list till we find the last node of the linked list. We will then update the next address from `None` to ‘m’.
