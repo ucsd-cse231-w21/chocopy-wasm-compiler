@@ -1,7 +1,7 @@
 
 import { table } from 'console';
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from './ast';
-import { NUM, BOOL, NONE, CLASS } from './utils';
+import { NUM, BOOL, NONE, CLASS, STRING } from './utils';
 import { emptyEnv } from './compiler';
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -379,5 +379,6 @@ export function tcLiteral(literal : Literal) {
         case "bool": return BOOL;
         case "num": return NUM;
         case "none": return NONE;
+        case "string": return STRING;
     }
 }

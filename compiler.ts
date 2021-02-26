@@ -1,5 +1,5 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE } from "./utils";
+import { NUM, BOOL, NONE, STRING } from "./utils";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -72,6 +72,8 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   
   const definedVars : Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$string_address"); //required for printing a string
+  definedVars.add("$string_ascii_val"); //required for printing a string
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs : Array<string> = [];
@@ -162,7 +164,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
 }
 
 function codeGenInit(init : VarInit<Type>, env : GlobalEnv) : Array<string> {
-  const value = codeGenLiteral(init.value);
+  const value = codeGenLiteral(init.value, env);
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`]; 
   } else {
@@ -209,6 +211,28 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       var callName = expr.name;
       if (expr.name === "print" && argTyp === NUM) {
         callName = "print_num";
+      } else if (expr.name === "print" && argTyp === STRING) {
+        callName = "print_str";
+        
+        //In order to print all characters in a string, I am using the starting address of the first character to
+        //load the ASCII value of the first character and then call print_str function which prints out the character. 
+        //Then I am increasing the offset by 4 to print the next character and so on. Each time before printing I am 
+        //checking if the ASCII value stored in the character is 0. If it is 0, I am stopping the loop to print the charcters.
+              
+        const print_str_stmts = [
+              `${argStmts.join("")}(local.set $$string_address)
+              (block $loop_break 
+                (loop $loop_start 
+                  (local.get $$string_address)(i32.load)(local.set $$string_ascii_val)
+                  (local.get $$string_ascii_val) (i32.const 0) (i32.eq) (br_if $loop_break)
+                  (local.get $$string_ascii_val)(call $${callName}) 
+                  (local.get $$string_address)(i32.const 4)(i32.add) (local.set $$string_address)
+                (br $loop_start)))
+              ${argStmts.join(" ")}`
+              ];
+                
+        return print_str_stmts;
+      
       } else if (expr.name === "print" && argTyp === BOOL) {
         callName = "print_bool";
       } else if (expr.name === "print" && argTyp === NONE) {
@@ -220,7 +244,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       const rightStmts = codeGenExpr(expr.right, env);
       return [...leftStmts, ...rightStmts, `(call $${expr.name})`]
     case "literal":
-      return codeGenLiteral(expr.value);
+      return codeGenLiteral(expr.value, env);
     case "id":
       if (env.locals.has(expr.name)) {
         return [`(local.get $${expr.name})`];
@@ -249,7 +273,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
         stmts.push(...[
           `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
           `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
-          ...codeGenLiteral(initVal),              // Initialize field
+          ...codeGenLiteral(initVal, env),              // Initialize field
           "(i32.store)"                            // Put the default field value on the heap
         ]));
       return stmts.concat([
@@ -291,10 +315,32 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
   }
 }
 
-function codeGenLiteral(literal : Literal) : Array<string> {
+function allocateStringMemory(string_val:string, env: GlobalEnv) : Array<string>{
+  var newOffset = env.offset;
+  var startOffset = newOffset;
+  var i = 0;
+  const str_stmts = []; 
+  while(i!=string_val.length){
+    var ascii_val =  string_val.charCodeAt(i);
+    const locationToStore = `(i32.const ${newOffset*4})`;
+    const value = `(i32.const ${ascii_val})`;
+    str_stmts.push(locationToStore + value + `(i32.store)`);
+    newOffset+=1;
+    i+=1;
+  }
+  str_stmts.push(`(i32.const ${newOffset*4})(i32.const 0)(i32.store)`) //end of string
+  newOffset+=1;
+  env.offset=newOffset;
+  str_stmts.push(`(i32.const ${startOffset*4})`); //return starting character address
+  return str_stmts;
+} 
+
+function codeGenLiteral(literal : Literal, env: GlobalEnv) : Array<string> {
   switch(literal.tag) {
     case "num":
       return ["(i32.const " + literal.value + ")"];
+    case "string":
+      return allocateStringMemory(literal.value, env);
     case "bool":
       return [`(i32.const ${Number(literal.value)})`];
     case "none":

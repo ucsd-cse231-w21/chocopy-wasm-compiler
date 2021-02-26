@@ -1,12 +1,15 @@
 import {BasicREPL} from './repl';
 import { Type, Value } from './ast';
 import { defaultTypeEnv } from './type-check';
-import { NUM, BOOL, NONE } from './utils';
+import { NUM, BOOL, NONE, STRING } from './utils';
 
 function stringify(typ: Type, arg: any) : string {
   switch(typ.tag) {
     case "number":
       return (arg as number).toString();
+    case "string":
+      console.log("STRING print "+String.fromCharCode(arg))
+      return String.fromCharCode(arg);
     case "bool":
       return (arg as boolean)? "True" : "False";
     case "none":
@@ -29,6 +32,7 @@ function webStart() {
     var importObject = {
       imports: {
         print_num: (arg: number) => print(NUM, arg),
+        print_str: (arg: number) => print(STRING, arg),
         print_bool: (arg: number) => print(BOOL, arg),
         print_none: (arg: number) => print(NONE, arg),
         abs: Math.abs,
@@ -51,6 +55,9 @@ function webStart() {
           break;
         case "bool":
           elt.innerHTML = (result.value) ? "True" : "False";
+          break;
+        case "string":
+          elt.innerText = "String stored at address "+String(result.value);
           break;
         case "object":
           elt.innerHTML = `<${result.name} object at ${result.address}`
