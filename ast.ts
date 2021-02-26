@@ -6,6 +6,11 @@ export type Type =
   | {tag: "bool"}
   | {tag: "none"}
   | {tag: "class", name: string}
+  | {tag: "callable", args: Array<Type>, ret: Type}
+
+export type Scope<A> = 
+  | { a?: A, tag: "global", name: string} // not support
+  | { a?: A, tag: "nonlocal", name: string}
 
 export type Parameter<A> = { name: string, type: Type }
 
@@ -15,7 +20,16 @@ export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods
 
 export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
 
-export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
+export type FunDef<A> = { 
+  a?: A, 
+  name: string, 
+  parameters: Array<Parameter<A>>, 
+  ret: Type, 
+  decls: Array<Scope<A>>,
+  inits: Array<VarInit<A>>, 
+  funs: Array<FunDef<A>>
+  body: Array<Stmt<A>>
+}
 
 export type Stmt<A> =
   | {  a?: A, tag: "assign", name: string, value: Expr<A> }
@@ -27,7 +41,7 @@ export type Stmt<A> =
   | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
 
 export type Expr<A> =
-    {  a?: A, tag: "literal", value: Literal }
+  | {  a?: A, tag: "literal", value: Literal }
   | {  a?: A, tag: "id", name: string }
   | {  a?: A, tag: "binop", op: BinOp, left: Expr<A>, right: Expr<A>}
   | {  a?: A, tag: "uniop", op: UniOp, expr: Expr<A> }
@@ -39,15 +53,16 @@ export type Expr<A> =
   | {  a?: A, tag: "construct", name: string }
 
 export type Literal = 
-    { tag: "num", value: number }
+  | { tag: "num", value: number }
   | { tag: "bool", value: boolean }
   | { tag: "none" }
 
 // TODO: should we split up arithmetic ops from bool ops?
-export enum BinOp { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, And, Or};
+export enum BinOp { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, And, Or };
 
 export enum UniOp { Neg, Not };
 
 export type Value =
-    Literal
+  | Literal
   | { tag: "object", name: string, address: number}
+  | { tag: "callable", name: string, address: number}
