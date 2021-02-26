@@ -16,7 +16,7 @@ export function PyValue(typ: Type, result: number): Value {
 }
 
 export function PyInt(n: number): Value {
-  return { tag: "num", value: n };
+  return { tag: "num", value: BigInt(n) };
 }
 
 export function PyString(n: number): Value {

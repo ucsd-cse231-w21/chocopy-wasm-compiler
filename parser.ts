@@ -8,7 +8,7 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
     case "Number":
       return {
         tag: "num",
-        value: Number(s.substring(c.from, c.to))
+        value: BigInt(s.substring(c.from, c.to))
       }
     case "String":
       const str = s.substring(c.from,c.to);
@@ -292,7 +292,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       // console.log("Thn:", thn);
       c.parent();
       
-      c.nextSibling(); // Focus on else
+      if (!c.nextSibling() || c.name !== "else") {
+        // Focus on else
+        throw new Error("if statement missing else block");
+      }; 
       c.nextSibling(); // Focus on : els
       c.firstChild(); // Focus on :
       var els = [];

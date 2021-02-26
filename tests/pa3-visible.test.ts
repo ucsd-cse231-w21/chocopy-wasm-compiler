@@ -203,4 +203,7 @@ else:
   c : C = None
   c = None`, PyNone());
 
+  assertFail("missing-else", `
+if True:
+  pass`)
 });
