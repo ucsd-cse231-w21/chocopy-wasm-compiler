@@ -21,7 +21,7 @@ const NULL_BLOCK: Block = {
 
 // NOTE: No deallocation
 // [counter, usableMemory...]
-export class BumpAllocator {
+export class BumpAllocator implements Allocator {
   counter: bigint;
   absStart: bigint;
   absEnd: bigint;
@@ -75,7 +75,7 @@ export class BumpAllocator {
 // flag === false => primary
 //
 // flag defaults to false
-export class Switch<P extends Allocator, F extends Allocator> {
+export class Switch<P extends Allocator, F extends Allocator> implements Allocator {
   flag: boolean;
   primary: P;
   fallback: F;
@@ -122,7 +122,7 @@ export class Switch<P extends Allocator, F extends Allocator> {
 
 // Allocation sizes <= sizeLimit go to the small allocator
 // sizeLimit is in BYTES
-export class Segregator<N extends bigint, S extends Allocator, L extends Allocator> {
+export class Segregator<N extends bigint, S extends Allocator, L extends Allocator> implements Allocator {
   sizeLimit: N;
   small: S;
   large: L;
@@ -158,7 +158,7 @@ export class Segregator<N extends bigint, S extends Allocator, L extends Allocat
   }
 }
 
-export class Describer<A extends Allocator> {
+export class Describer<A extends Allocator> implements Allocator {
   message: string;
   allocator: A;
 
@@ -184,7 +184,7 @@ export class Describer<A extends Allocator> {
   }
 }
 
-export class Fallback<P extends Allocator, F extends Allocator> {
+export class Fallback<P extends Allocator, F extends Allocator> implements Allocator {
   primary: P;
   fallback: F;
 
