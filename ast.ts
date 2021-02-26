@@ -7,7 +7,7 @@ export type Type =
   | {tag: "none"}
   | {tag: "class", name: string}
 
-export type Parameter<A> = { name: string, type: Type }
+export type Parameter<A> = { name: string, type: Type, value?: Literal }
 
 export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
 
