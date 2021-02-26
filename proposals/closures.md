@@ -231,7 +231,7 @@ export type Value =
   export type Closure<A> = 
 	  { a?: A, name: string, nonlocals: Array<VarInit<A>>, apply: FunDef<A>> }
   
-  // change case, ToDo
+  // change case, TODO: design decisions to discuss
   export type Expr<A> = ...
 	  | { a?: A, tag: "ref", name: string }
 	  | { a?: A, tag: "fun_id", name: string }
