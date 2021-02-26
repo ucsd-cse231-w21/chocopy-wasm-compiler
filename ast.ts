@@ -53,7 +53,7 @@ export enum UniOp { Neg, Not };
 
 export type Value =
     //Literal
-    { tag: "num", value: number }
+    { tag: "num", value: BigInt }
   | { tag: "bool", value: boolean }
   | { tag: "string", value: number}
   | { tag: "none" }
