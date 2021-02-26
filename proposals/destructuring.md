@@ -248,6 +248,56 @@ export type Expr<A> =
   | ...
 ```
 
+### Why this form of unified Assignable
+
+Python grammar defines a certain subset of expressions which are able to be assigned to. The way this is performed in
+CPython is (more or less) the identifier is interpretted to get the memory location it should expand to, and then the
+new value is assigned there, altering reference counts of the old value (GC, not applicable here). Since expressions
+already typecheck to their contained value, we can know for certain exactly what it evaluates to. We can then use this
+information to make sure that the relevant target is actually being assigned the correct value.
+
+The next stage is compiling. Accesses already compute the memory location for a variable. Because of this, we can use a
+slightly modified version of that logic to instead of storing to that location, generating code that leaves the
+variable/field location on the stack. Alternatively, the assign op leaves the value on the stack and the implementation
+specific code uses that value.
+
+For example, here's pseudocode for setting ids
+
+```typescript
+function codeGenAssignTargets(targets: Target[], value: Expr, env: Env) {
+  const valueGen = codeGenExpr(value, env);
+
+  const getValue = "local.get $$tmp";
+  const targetAssign = targets.map((target) => {
+    switch (target.tag) {
+      case "id":
+        return codeGenAssignId(getValue, target, env)
+      case "lookup":
+        return codeGenAssignField(getValue, target, env)
+    }
+  });
+
+  return [...valueGen, "local.set $$tmp", ...targetAssign.flat()]
+}
+
+// Value is a wasm string that gets the 
+function codeGenAssignId(value: string, target: IdExpr, env: Env) {
+  return [`i32.const ${env.getAddress(value.name)}`, value, "i32.store"];
+}
+
+function codeGenAssignField(value: string, target: LookupExpr, env: Env) {
+  const expr = codeGenExpr(target.expr, env);
+
+  return [
+    `i32.const ${env.getAddress(value.name)}`,
+    ...expr,
+    env.classes.get(target.expr.a.name).getOffset(target.name),
+    "i32.add",
+    "i32.store"
+  ];
+}
+```
+
 ## Modifications to existing files
 
 - `ast.ts`
@@ -286,9 +336,10 @@ In WASM, we most likely _will_ need to add another local variable alongside `$$l
   - Therefore, we cannot support `x: int, b: bool = 4, False`
     - We can still support `x, b = 4, False` if `x` and `b` were already declared
 
-## Additional Thoughts
+## Additional Thoughts (Read: Assorted notes)
 
-The more I think about it, we probably want to make use of the other AST components as much as we can. For example:
+Depending on how on board lists/tuples/objects/etc. are, it might also be worth considering a desugaring approach. For
+example:
 
 ```python
 x: [int] = None
@@ -300,9 +351,12 @@ x[0], a = (1, 2)
 would desugar to
 
 ```python
+# Some magic var which always succeeds on typechecks
 __destructureInternal = (1, 2)
 x[0] = __destructureInternal[0]
 a = __destructureInternal[1]
 ```
 
-Most likely we'd need to do this in the
+This might be something to expand do in the typechecking stage. Ideally we have a generalized approach though with other
+teams because that ~makes things easier. After briefly discussing with lists and tuples, this definitely sounds
+reasonable
