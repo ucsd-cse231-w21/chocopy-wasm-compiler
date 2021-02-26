@@ -29,7 +29,25 @@ export class BasicREPL {
       offset: 1
     };
     this.currentTypeEnv = defaultTypeEnv;
-    this.functions = "";
+      this.functions = "";
+
+    // Calculate the length of a string using its heap pointer
+    this.importObject.imports.str_len = (offBigInt: any): any => {
+      // untag the pointer
+      const off: number = Number(offBigInt - STR_BI);
+
+      // Get pointer to the WASM shared memory
+      const memBuffer: ArrayBuffer = (importObject as any).js.memory.buffer;
+      const memUint8 = new Uint8Array(memBuffer);
+
+      // Loop until the NULL character
+      var iter = off*8;
+      while (memUint8[iter] != 0) {
+	iter += 1;
+      }
+
+      return BigInt(iter - off*8);
+    };
   }
   async run(source : string) : Promise<Value> {
     const config : Config = {importObject: this.importObject, env: this.currentEnv, typeEnv: this.currentTypeEnv, functions: this.functions};
