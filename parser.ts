@@ -1,7 +1,7 @@
 import {parser} from "lezer-python";
 import { TreeCursor} from "lezer-tree";
 import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal } from "./ast";
-import { NUM, BOOL, NONE, CLASS } from "./utils";
+import { NUM, BOOL, NONE, STRING, CLASS } from "./utils";
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   switch(c.type.name) {
@@ -9,6 +9,14 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
       return {
         tag: "num",
         value: Number(s.substring(c.from, c.to))
+      }
+    case "String":
+      const str = s.substring(c.from,c.to);
+      const str_trimmed = str.substring(1,str.length-1)
+      return{
+        tag:"string",
+        value: str_trimmed,
+        length: str_trimmed.length
       }
     case "Boolean":
       return {
@@ -28,6 +36,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
   switch(c.type.name) {
     case "Number":
     case "Boolean":
+    case "String":
     case "None":
       return { 
         tag: "literal", 
@@ -222,7 +231,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       c.nextSibling(); // go to value
       var value = traverseExpr(c, s);
       c.parent();
-
+//a:str="Joe"
       if (target.tag === "lookup") {
         return {
           tag: "field-assign",
@@ -330,6 +339,7 @@ export function traverseType(c : TreeCursor, s : string) : Type {
   switch(name) {
     case "int": return NUM;
     case "bool": return BOOL;
+    case "str": return STRING;
     default: return CLASS(name);
   }
 }

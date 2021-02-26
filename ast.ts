@@ -5,7 +5,9 @@ export type Type =
   | {tag: "number"}
   | {tag: "bool"}
   | {tag: "none"}
+  | {tag: "string"}
   | {tag: "class", name: string}
+  
 
 export type Parameter<A> = { name: string, type: Type }
 
@@ -41,6 +43,7 @@ export type Expr<A> =
 export type Literal = 
     { tag: "num", value: number }
   | { tag: "bool", value: boolean }
+  | { tag: "string", value: string, length: number}
   | { tag: "none" }
 
 // TODO: should we split up arithmetic ops from bool ops?
@@ -49,5 +52,9 @@ export enum BinOp { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, 
 export enum UniOp { Neg, Not };
 
 export type Value =
-    Literal
+    //Literal
+    { tag: "num", value: number }
+  | { tag: "bool", value: boolean }
+  | { tag: "string", value: number}
+  | { tag: "none" }
   | { tag: "object", name: string, address: number}

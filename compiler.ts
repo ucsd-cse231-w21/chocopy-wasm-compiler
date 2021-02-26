@@ -69,7 +69,7 @@ export function makeLocals(locals: Set<string>) : Array<string> {
 
 export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   const withDefines = augmentEnv(env, ast);
-
+  
   const definedVars : Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
   definedVars.forEach(env.locals.add, env.locals);
