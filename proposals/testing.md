@@ -93,7 +93,7 @@ Users will still be able to write and run local unit tests via `npm run test`.
 Our fuzzing framework will instead be avaiable with `npm run fuzz`. This testing
 script will continually generate new programs of interest, evaluate the
 programs, and write the evaluation results to a file. These programs will be evaluated using
-Cypress.
+Cypress, and will likely run continuously in an AWS instance.
 
 We will also make available Cypress unit tests via `npm run cypress-test`. Users can create their
 own tests under the [cypress](../cypress/) directory.
