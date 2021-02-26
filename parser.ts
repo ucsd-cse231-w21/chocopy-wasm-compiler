@@ -29,10 +29,10 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
     case "Number":
     case "Boolean":
     case "None":
-      return {
-        tag: "literal",
+      return { 
+        tag: "literal", 
         value: traverseLiteral(c, s)
-      }
+      }      
     case "VariableName":
       return {
         tag: "id",
@@ -73,13 +73,13 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         else {
           expr = { tag: "call", name: callName, arguments: args};
         }
-        return expr;
+        return expr;  
       } else {
         throw new Error("Unknown target while parsing assignment");
       }
 
     case "BinaryExpression":
-      c.firstChild(); // go to lhs
+      c.firstChild(); // go to lhs 
       const lhsExpr = traverseExpr(c, s);
       c.nextSibling(); // go to op
       var opStr = s.substring(c.from, c.to);
@@ -120,7 +120,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
           break;
         case "is":
           op = BinOp.Is;
-          break;
+          break; 
         case "and":
           op = BinOp.And;
           break;
@@ -198,7 +198,7 @@ export function traverseArguments(c : TreeCursor, s : string) : Array<Expr<null>
     args.push(expr);
     c.nextSibling(); // Focuses on either "," or ")"
     c.nextSibling(); // Focuses on a VariableName
-  }
+  } 
   c.parent();       // Pop to ArgList
   return args;
 }
@@ -240,7 +240,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
   switch(c.node.type.name) {
     case "ReturnStatement":
       c.firstChild();  // Focus return keyword
-
+      
       var value : Expr<null>;
       if (c.nextSibling()) // Focus expression
         value = traverseExpr(c, s);
@@ -271,7 +271,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
           tag: "id-assign",
           name: target.name,
           value: value
-        }
+        }  
       } else {
         throw new Error("Unknown target while parsing assignment");
       }
@@ -319,11 +319,11 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       }
       // console.log("Thn:", thn);
       c.parent();
-
+      
       if (!c.nextSibling() || c.name !== "else") {
         // Focus on else
         throw new Error("if statement missing else block");
-      };
+      }
       c.nextSibling(); // Focus on : els
       c.firstChild(); // Focus on :
       var els = [];
@@ -349,7 +349,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       while(c.nextSibling()) {
         body.push(traverseStmt(c, s));
       }
-      c.parent();
+      c.parent(); 
       c.parent();
       return {
         tag: "while",
@@ -407,7 +407,7 @@ export function traverseVarInit(c : TreeCursor, s : string) : VarInit<null> {
   c.nextSibling(); // go to type
   const type = traverseType(c, s);
   c.parent();
-
+  
   c.nextSibling(); // go to =
   c.nextSibling(); // go to value
   var value = traverseLiteral(c, s);
@@ -433,7 +433,7 @@ export function traverseFunDef(c : TreeCursor, s : string) : FunDef<null> {
   c.firstChild();  // Focus on :
   var inits = [];
   var body = [];
-
+  
   var hasChild = c.nextSibling();
 
   while(hasChild) {
@@ -448,8 +448,8 @@ export function traverseFunDef(c : TreeCursor, s : string) : FunDef<null> {
   while(hasChild) {
     body.push(traverseStmt(c, s));
     hasChild = c.nextSibling();
-  }
-
+  } 
+  
   // console.log("Before pop to body: ", c.type.name);
   c.parent();      // Pop to Body
   // console.log("Before pop to def: ", c.type.name);
@@ -474,7 +474,7 @@ export function traverseClass(c : TreeCursor, s : string) : Class<null> {
     } else {
       throw new Error(`Could not parse the body of class: ${className}` );
     }
-  }
+  } 
   c.parent();
   c.parent();
 
@@ -515,7 +515,7 @@ export function isVarInit(c : TreeCursor, s : string) : Boolean {
 
     const isVar = c.type.name as any === "TypeDef";
     c.parent();
-    return isVar;
+    return isVar;  
   } else {
     return false;
   }
@@ -554,7 +554,7 @@ export function traverse(c : TreeCursor, s : string) : Program<null> {
       while(hasChild) {
         stmts.push(traverseStmt(c, s));
         hasChild = c.nextSibling();
-      }
+      } 
       c.parent();
       return { funs, inits, classes, stmts };
     default:

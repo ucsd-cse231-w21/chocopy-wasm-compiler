@@ -1,6 +1,6 @@
 // import { TypeCheckError } from "./type-check";
 
-// export enum Type {NUM, BOOL, NONE, OBJ};
+// export enum Type {NUM, BOOL, NONE, OBJ}; 
 export type Type =
   | {tag: "number"}
   | {tag: "bool"}
@@ -49,12 +49,12 @@ export type Expr<A> =
   | {  a?: A, tag: "uniop", op: UniOp, expr: Expr<A> }
   | {  a?: A, tag: "builtin1", name: string, arg: Expr<A> }
   | {  a?: A, tag: "builtin2", name: string, left: Expr<A>, right: Expr<A>}
-  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> }
+  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> } 
   | Assignable<A>
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
 
-export type Literal =
+export type Literal = 
     { tag: "num", value: number }
   | { tag: "bool", value: boolean }
   | { tag: "none" }
