@@ -5,6 +5,7 @@ export type Type =
   | {tag: "number"}
   | {tag: "bool"}
   | {tag: "none"}
+  | {tag: "str"}
   | {tag: "class", name: string}
 
 export type Parameter<A> = { name: string, type: Type, value?: Literal }
@@ -26,6 +27,9 @@ export type Stmt<A> =
   | {  a?: A, tag: "pass" }
   | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
 
+// For line information on error
+export type Pos = { line: number, col: number, len: number }
+
 export type Expr<A> =
     {  a?: A, tag: "literal", value: Literal }
   | {  a?: A, tag: "id", name: string }
@@ -40,6 +44,13 @@ export type Expr<A> =
   | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
   | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
 
+  // Represents a statically allocated string
+  | {  a?: A, tag: "string", pos: Pos, value: string }
+
+  // Represents the slice operator, expr is the string to be sliced
+  // and args represent the start, end and the step
+  | {  a?: A, tag: "intervalExp", pos: Pos, expr: Expr, args: Expr[] } 
+
 export type Literal = 
     { tag: "num", value: BigInt }
   | { tag: "bool", value: boolean }
@@ -53,3 +64,4 @@ export enum UniOp { Neg, Not };
 export type Value =
     Literal
   | { tag: "object", name: string, address: number}
+  | { tag: "str", off: number } // Heap offset

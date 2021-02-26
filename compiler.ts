@@ -18,6 +18,9 @@ export const emptyEnv : GlobalEnv = {
   offset: 0 
 };
 
+var tempHeapPtr: number = 0; // Stores the heap pointer during compile pass
+var tempStrAlloc : Map<string, number> = new Map(); // Stores the string to offset map during compile pass
+
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
@@ -95,6 +98,62 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
 function envLookup(env : GlobalEnv, name : string) : number {
   if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
   return (env.globals.get(name) * 4); // 4-byte values
+}
+
+// Notes:
+//   STR_BI is the BigInt representation of the string pointer
+export function codeGenString(expr: Expr, env: envM.GlobalEnv, localParams : Array<Parameter>, source:string, classT: Type = undefined) : Array<string> {
+  if (expr.tag == "string") {
+    const str: string = expr.value;
+    const strLen: number = expr.value.length + 1; // Extra null character
+
+    // Check to see if this string has already been statically allocated onto the heap
+    var strPtr = tempHeapPtr;
+    if (tempStrAlloc.get(str) == undefined) {
+      tempStrAlloc.set(str, tempHeapPtr);
+      tempHeapPtr += strLen;
+    } else {
+      strPtr = tempStrAlloc.get(str);
+    }
+    
+    return [
+      `(i64.const ${cmn.STR_BI + BigInt(strPtr)}) ;; `+
+	`Heap pointer for string '${str}' of length ${strLen}`];
+  } else {
+    err.internalError();
+  }
+}
+
+// Function to generate code for slice operator, e.g. "test string"[1:6:2]
+// The actual code for generating a slice is written in repl.ts in typescript
+// NONE_BI is the BigInt representation of the None value
+export function codeGenIntervalExpr(expr: Expr, env: envM.GlobalEnv, source: string, localParams: Array<Parameter>, classT: Type = undefined) : Array<string> {
+  if (expr.tag == "intervalExp") {
+    var result: Array<string> = [];
+
+    result = result.concat(codeGenExpr(expr.expr, env, localParams, source, classT));
+    
+    /* Evaluate all the arguments */
+    var args: string[] = []
+    var argCnt = 0;
+    expr.args.forEach(arg => {
+      args = args.concat(codeGenExpr(arg, env, localParams, source, classT));
+      argCnt += 1;
+    });
+
+    while (argCnt < 3) {
+      args.push(`(i64.const ${cmn.NONE_BI})`);
+      argCnt += 1;
+    }
+
+    result = result.concat(args);
+    
+    result.push(`(call $str$slice)`);
+  } else {
+    err.internalError();
+  }
+  
+  return result;
 }
 
 function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
@@ -202,7 +261,12 @@ function codeGenClass(cls : Class<Type>, env : GlobalEnv) : Array<string> {
 }
 
 function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
-  switch(expr.tag) {
+    switch(expr.tag) {
+    // Source, localParams and classT is current environment
+    case "memExp":
+      return codeGenMemberExpr(expr, env, source, localParams, classT);
+    case "intervalExp":
+      return codeGenIntervalExpr(expr, env, source, localParams, classT);
     case "builtin1":
       const argTyp = expr.a;
       const argStmts = codeGenExpr(expr.arg, env);
