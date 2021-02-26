@@ -1,7 +1,7 @@
 import * as Heap from './heap';
 import * as GC from './gc';
 
-class Allocator {
+class MemoryManager {
   globalAllocator: Heap.BumpAllocator;
   // In the future, we can do something like
   // globalAllocator: Fallback<BumpAllocator, Generic>

@@ -218,7 +218,7 @@ New files:
   * `MarkableBitMappedBlocks`: class that wraps a `BitMappedBlocks` heap to provide a `MarkableAllocator` implementation (used to allocate/access object headers)
   * `MarkableAllocList`: class that wraps an `AllocList` heap to provide a `MarkableAllocator` implementation (used to allocate/access object headers)
 * `alloc.ts`: defines the main allocator interface
-  * `Allocator`: class that composes the GC and heap implementations into a coherent unit
+  * `MemoryManager`: class that composes the GC and heap implementations into a coherent unit
 * `tests/gc-unit-tests.test.ts`: defines the GC unit tests
 * `tests/gc-int-tests.test.ts`: defines the GC integration tests
 
