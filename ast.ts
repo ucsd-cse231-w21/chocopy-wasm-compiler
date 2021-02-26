@@ -26,7 +26,7 @@ export type Stmt<A> =
   | {  a?: A, tag: "while", cond: Expr<A>, body: Array<Stmt<A>> }
   | {  a?: A, tag: "pass" }
   | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
-  | {  a?: A, tag: "list_assign", list: Expr<A>, index: number, value: Expr<A> }
+  | {  a?: A, tag: "list_assign", list: Expr<A>, index: Expr<A>, value: Expr<A> }
 
 export type Expr<A> =
     {  a?: A, tag: "literal", value: Literal }

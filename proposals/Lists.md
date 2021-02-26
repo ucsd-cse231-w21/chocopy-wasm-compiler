@@ -95,7 +95,7 @@ type Type =
   | { tag: "list", content_type: Type }
 
 type Stmt<A> =
-  | {  a?: A, tag: "list_assign", list: Expr<A>, index: number, value: Expr<A> }
+  | {  a?: A, tag: "list_assign", list: Expr<A>, index: Expr<A>, value: Expr<A> }
 
 type Expr<A> =
   | {  a?: A, tag: "list_expr", contents: [Expr<A>] }
