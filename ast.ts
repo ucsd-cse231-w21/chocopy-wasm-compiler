@@ -26,7 +26,7 @@ export type Stmt<A> =
   | {  a?: A, tag: "while", cond: Expr<A>, body: Array<Stmt<A>> }
   | {  a?: A, tag: "pass" }
   | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
-  | {  a?: A, tag: "list_assign", list: Expr<A>, index: Expr<A>, value: Expr<A> }
+  | {  a?: A, tag: "bracket-assign", obj: Expr<A>, key: Expr<A>, value: Expr<A> }
 
 export type Expr<A> =
     {  a?: A, tag: "literal", value: Literal }
@@ -39,8 +39,8 @@ export type Expr<A> =
   | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
-  | {  a?: A, tag: "list_expr", contents: Array<Expr<A>> }
-  | {  a?: A, tag: "list_lookup", list: Expr<A>, index: Expr<A> }
+  | {  a?: A, tag: "bracket-expr", contents: Array<Expr<A>> }
+  | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
 
 export type Literal = 
     { tag: "num", value: number }
