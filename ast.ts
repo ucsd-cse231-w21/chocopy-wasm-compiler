@@ -37,11 +37,10 @@ export type Expr<A> =
   | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
-<<<<<<< HEAD
   | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
   | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
-=======
->>>>>>> 6d24f62f2fcbcfee9ffbfb7dfcdb711c911de92f
+  | {  a?: A, tag: "dict", value: Map<Expr<A>, Expr<A>> }
+  | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
 
 export type Literal = 
     { tag: "num", value: BigInt }
