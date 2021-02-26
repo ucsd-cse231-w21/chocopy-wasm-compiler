@@ -7,7 +7,7 @@ export type Type =
   | {tag: "none"}
   | {tag: "class", name: string}
 
-export type Parameter<A> = { name: string, type: Type }
+export type Parameter<A> = { name: string, type: Type, value?: Literal }
 
 export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
 
@@ -53,9 +53,11 @@ export type Expr<A> =
   | Assignable<A>
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
+  | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
+  | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
 
 export type Literal = 
-    { tag: "num", value: number }
+    { tag: "num", value: BigInt }
   | { tag: "bool", value: boolean }
   | { tag: "none" }
 
@@ -67,3 +69,5 @@ export enum UniOp { Neg, Not };
 export type Value =
     Literal
   | { tag: "object", name: string, address: number}
+
+export type Location = { line : number, col : number, length : number }
