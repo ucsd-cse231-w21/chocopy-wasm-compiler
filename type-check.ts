@@ -101,9 +101,9 @@ export function augmentTEnv(env : GlobalTypeEnv, program : Program<null>) : Glob
 }
 
 export function tc(env : GlobalTypeEnv, program : Program<null>) : [Program<Type>, GlobalTypeEnv] {
-  if(program.inits[0].type.tag=="string" && program.inits[0].value.tag=="string"){
+  /*if(program.inits[0].type.tag=="string" && program.inits[0].value.tag=="string"){
     console.log("AST final "+program.inits[0].value.value);
-  }
+  }*/
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
   const tInits = program.inits.map(init => tcInit(env, init));
