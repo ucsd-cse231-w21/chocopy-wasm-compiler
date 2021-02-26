@@ -284,7 +284,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       // console.log("Thn:", thn);
       c.parent();
       
-      c.nextSibling(); // Focus on else
+      if (!c.nextSibling() || c.name !== "else") {
+        // Focus on else
+        throw new Error("if statement missing else block");
+      }; 
       c.nextSibling(); // Focus on : els
       c.firstChild(); // Focus on :
       var els = [];
