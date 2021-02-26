@@ -31,6 +31,13 @@ export type FunDef<A> = {
   body: Array<Stmt<A>>
 }
 
+export type Closure<A> = { 
+  a?: A, 
+  name: string, 
+  fields: Array<VarInit<A>>, 
+  apply: FunDef<A> 
+}
+
 export type Stmt<A> =
   | { a?: A, tag: "assign", name: string, value: Expr<A> }
   | { a?: A, tag: "return", value: Expr<A> }
