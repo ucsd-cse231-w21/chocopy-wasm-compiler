@@ -8,7 +8,7 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
     case "Number":
       return {
         tag: "num",
-        value: Number(s.substring(c.from, c.to))
+        value: BigInt(s.substring(c.from, c.to))
       }
     case "Boolean":
       return {
