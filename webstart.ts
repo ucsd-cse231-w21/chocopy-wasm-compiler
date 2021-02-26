@@ -7,6 +7,8 @@ import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
 import "codemirror/mode/python/python"
 
+import "./style.scss";
+
 function stringify(typ: Type, arg: any) : string {
   switch(typ.tag) {
     case "number":
