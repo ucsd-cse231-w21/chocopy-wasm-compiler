@@ -28,9 +28,10 @@
   "devDependencies": {
     "@types/chai": "^4.2.14",
     "@types/mocha": "^8.2.0",
-    "chai": "^4.2.0",
     "browser-sync": "^2.26.7",
     "browser-sync-webpack-plugin": "^2.0.1",
+    "chai": "^4.2.0",
+    "codemirror": "^5.59.4",
     "gulp": "^4.0.2",
     "gulp-autoprefixer": "^7.0.1",
     "gulp-bower": "0.0.15",
