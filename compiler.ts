@@ -1,336 +1,737 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE } from "./utils";
+import { ClassDef, ClassType, Expr, FuncDef, FuncType, Literal, Program, Stmt, VarDef } from "./ast";
+import { Env, EnvManager } from "./env";
+import { MemoryManager } from "./memory";
+import { parse } from "./parser";
+import { tcProgram } from "./typechecker";
+import * as constant from "./constant"
 
-// https://learnxinyminutes.com/docs/wasm/
+let memoryManager: MemoryManager;
+let envManager: EnvManager;
+let curEnv: Env;
 
-// Numbers are offsets into global memory
-export type GlobalEnv = {
-  globals: Map<string, number>;
-  classes: Map<string, Map<string, [number, Literal]>>;  
-  locals: Set<string>;
-  offset: number;
+function getValFromPtr(p: number): Array<string> {
+  return [
+    `(i32.const ${p * constant.WORD_SIZE})`,
+    `(i32.load)`,
+  ];
 }
 
-export const emptyEnv : GlobalEnv = { 
-  globals: new Map(), 
-  classes: new Map(),
-  locals: new Set(),
-  offset: 0 
-};
+function getPtrFromPtrPtr(pp: number): Array<string> {
+  return getValFromPtr(pp);
+}
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
-  const newGlobals = new Map(env.globals);
-  const newClasses = new Map(env.classes);
+function getPtrFromPtrPtrOffset(pp: number, offset: number): Array<string> {
+  return [
+    `(i32.const ${pp * constant.WORD_SIZE})`,
+    `(i32.load)`,
+    `(i32.const ${offset * constant.WORD_SIZE})`,
+    `(i32.add)`,
+  ];
+}
 
-  var newOffset = env.offset;
-  prog.inits.forEach((v) => {
-    newGlobals.set(v.name, newOffset);
-    newOffset += 1;
-  });
-  prog.classes.forEach(cls => {
-    const classFields = new Map();
-    cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
-    newClasses.set(cls.name, classFields);
-  });
-  return {
-    globals: newGlobals,
-    classes: newClasses,
-    locals: env.locals,
-    offset: newOffset
+function setValWithPtrExpr(p: number, expr: Array<string>): Array<string> {
+  let wasms: Array<string> = new Array();
+  wasms = wasms.concat(
+    [`(i32.const ${p * constant.WORD_SIZE})`],
+    expr,
+    [`(i32.store)`]
+  )
+  return wasms;
+}
+
+function setValWithPtr(p: number, value: number): Array<string> {
+  return setValWithPtrExpr(p, [`(i32.const ${value})`]);
+}
+
+function setValWithPtrPtrOffsetExpr(pp: number, offset: number, expr: Array<string>): Array<string> {
+  let wasms: Array<string> = new Array();
+  wasms = wasms.concat(
+    getPtrFromPtrPtrOffset(pp, offset),
+    expr,
+    [`(i32.store)`]
+  )
+  return wasms;
+}
+
+function setValWithPtrPtrOffset(pp: number, offset: number, value: number): Array<string> {
+  return setValWithPtrPtrOffsetExpr(pp, offset, [`i32.const ${value}`]);
+}
+
+function setPtrWithPtrPtrOffset(pp: number, offset: number): Array<string> {
+  return setValWithPtrExpr(pp, getPtrFromPtrPtrOffset(pp, offset));
+}
+
+function storeTempValueWithExpr(p: number, expr: Array<string>): Array<string> {
+  return setValWithPtrExpr(p, expr);
+}
+
+function loadTempValue(p: number): Array<string> {
+  return getValFromPtr(p);
+}
+
+function findVarPosition(name: string): Array<string> {
+  let iterEnv = curEnv;
+  let wasms: Array<string> = new Array();
+  wasms = wasms.concat(
+    getPtrFromPtrPtrOffset(constant.PTR_DL, -1),
+  )
+  while (!iterEnv.nameToVar.has(name)) {
+    iterEnv = iterEnv.parent;
+    wasms = wasms.concat([`i32.load`]);
   }
+
+  wasms = wasms.concat(
+    [`i32.const ${(-1 - iterEnv.nameToVar.get(name).offset) * constant.WORD_SIZE}`],
+    [`i32.add`]
+  );
+  return wasms;
+}
+
+function getMethodFromPtr(ct: ClassType, methodName: string): Array<string> {
+  return [
+    `(i32.const ${(ct.getDispatchTablePtrOffset()) * constant.WORD_SIZE})`,
+    `(i32.add)`,
+    `(i32.load)`,  // dispatch table ptr
+    `(i32.const ${(ct.methodPtrs.get(methodName)) * constant.WORD_SIZE})`,
+    `(i32.add)`,
+    `(i32.load)`,
+  ]
+}
+
+function getAttributeFromPtr(ct: ClassType, attrName: string): Array<string> {
+  return [
+    `(i32.const ${(
+    ct.headerSize + ct.attributes.get(attrName).offset) * constant.WORD_SIZE})`,
+    `(i32.add)`,
+    `(i32.load)`
+  ];
+}
+
+const binaryOpToWASM: Map<string, Array<string>> = new Map([
+  ["+", ["(i32.add)"]],
+  ["-", ["(i32.sub)"]],
+  ["*", ["(i32.mul)"]],
+  ["//", ["(i32.div_s)"]],
+  ["%", ["(i32.rem_s)"]],
+  ["==", ["(i32.eq)"]],
+  ["!=", ["(i32.ne)"]],
+  ["<=", ["(i32.le_s)"]],
+  [">=", ["(i32.ge_s)"]],
+  ["<", ["(i32.lt_s)"]],
+  [">", ["(i32.gt_s)"]],
+  ["is", ["(i32.eq)"]],
+  ["and", ["(i32.and)"]],
+  ["or", ["(i32.or)"]],
+])
+
+function codeGenCallerInit(loadParam: Array<string>): Array<string> {
+  let wasms: Array<string> = new Array();
+
+  wasms = wasms.concat(
+    setValWithPtrPtrOffsetExpr(constant.PTR_SP, -1, getPtrFromPtrPtr(constant.PTR_DL)),
+    setValWithPtrPtrOffsetExpr(constant.PTR_SP, -2, getPtrFromPtrPtrOffset(constant.PTR_DL, -1)),
+    storeTempValueWithExpr(constant.PTR_T2, getPtrFromPtrPtrOffset(constant.PTR_SP, -1)),  // store new DL
+    setPtrWithPtrPtrOffset(constant.PTR_SP, -2),
+    loadParam,
+    setValWithPtrExpr(constant.PTR_DL, loadTempValue(constant.PTR_T2)),
+  )
+  return wasms;
+}
+
+function codeGenCallerDestroy(): Array<string> {
+  let wasms: Array<string> = new Array();
+
+  let loadDL: Array<string> = new Array();
+  loadDL = loadDL.concat(
+    getPtrFromPtrPtr(constant.PTR_DL),
+    [`(i32.load)`]
+  )
+
+  wasms = wasms.concat(
+    setValWithPtrExpr(constant.PTR_SP, getPtrFromPtrPtrOffset(constant.PTR_DL, 1)),
+    setValWithPtrExpr(constant.PTR_DL, loadDL),
+  )
+  return wasms;
+}
+
+function codeGenLiteral(l: Literal): Array<string> {
+  return [`(i32.const ${literalToVal(l)})`];
+}
+
+function literalToVal(l: Literal): number {
+  switch (l.tag) {
+    case "True":
+      return 1;
+    case "number":
+      return l.value;
+    default:
+      return 0;
+  }
+}
+
+function codeGenAlloc(ct: ClassType): Array<string> {
+  let wasms: Array<string> = new Array();
+  wasms = wasms.concat(
+    [`;; Allocating class ${ct.getName()}`],
+    setValWithPtrPtrOffset(constant.PTR_EP, 0, -1),  // tag
+    setValWithPtrPtrOffset(constant.PTR_EP, 1, ct.size),  // size
+    setValWithPtrPtrOffset(
+      constant.PTR_EP, 2, 
+      (ct.methodPtrsHead + constant.PTR_DTABLE) * constant.WORD_SIZE
+    ),  // dtable
+  )
+
+  ct.attributes.forEach(attr => {
+    wasms = wasms.concat(
+      setValWithPtrPtrOffset(constant.PTR_EP, ct.headerSize + attr.offset, literalToVal(attr.value))
+    );
+  });
+
+  wasms = wasms.concat(
+    getPtrFromPtrPtr(constant.PTR_EP),  // leave a ptr as result
+    setPtrWithPtrPtrOffset(constant.PTR_EP, ct.size),  // update EP
+  )
+
+  return wasms;
+}
+
+
+function codeGenExpr(expr: Expr): Array<string> {
+  let wasms: Array<string> = new Array();
+
+  switch (expr.tag) {
+    case "literal": {
+      return codeGenLiteral(expr.value);
+    }
+    case "id": {
+      let asVar = curEnv.findVar(expr.name);
+      if (asVar) {
+        wasms = wasms.concat(
+          getPtrFromPtrPtrOffset(constant.PTR_DL, -1)
+        );  // pointer to current SL 
+        let iterEnv = curEnv;
+        let counter = 0;
+        while (!iterEnv.nameToVar.has(expr.name)) {
+          counter += 1;
+          iterEnv = iterEnv.parent;
+          wasms = wasms.concat([`(i32.load)`])
+        }
+        // at SL now
+        let idInfo = iterEnv.nameToVar.get(expr.name);
+        wasms = wasms.concat([
+          `(i32.const ${(-1 - idInfo.offset) * constant.WORD_SIZE})`,
+          `(i32.add)`,
+          `(i32.load)`,
+        ])
+        break;
+      }
+
+      let asFunc = curEnv.findFunc(expr.name);
+      if (asFunc) {
+        wasms = wasms.concat([
+          `(i32.const ${memoryManager.functionNameToId.get(asFunc.globalName)})`,
+        ])
+        break;
+      }
+
+      let asClass = curEnv.findClass(expr.name);
+      if (asClass) {
+
+      }
+      break;
+    }
+    case "unaryop": {
+      let exprWASM = codeGenExpr(expr.expr);
+      if (expr.op === "-") {
+        wasms = wasms.concat(
+          ["(i32.const 0)"],
+          exprWASM,
+          ["(i32.sub)"]
+        )
+      } else if (expr.op === "not") {
+        wasms = wasms.concat(
+          ["(i32.const 1)"],
+          exprWASM,
+          ["(i32.xor)"]
+        )
+      }
+      break;
+    }
+    case "binaryop": {
+      const expr1Stmts = codeGenExpr(expr.expr1);
+      const expr2Stmts = codeGenExpr(expr.expr2);
+      wasms = wasms.concat(
+        expr1Stmts,
+        expr2Stmts,
+        binaryOpToWASM.get(expr.op),
+      )
+      break;
+    }
+    case "member": {
+      let ownerWASM = codeGenExpr(expr.owner);
+      let ownerType = expr.owner.type;
+      if (ownerType.attributes.has(expr.property)) {
+        wasms = wasms.concat(
+          storeTempValueWithExpr(constant.PTR_T1, ownerWASM),  // load owner ptr
+
+          loadTempValue(constant.PTR_T1),
+          codeGenNoneAbort(),
+
+          loadTempValue(constant.PTR_T1),
+          [
+            `(i32.const ${(
+            ownerType.headerSize + 
+            ownerType.attributes.get(expr.property).offset) * constant.WORD_SIZE})`,
+            `(i32.add)`,
+            `(i32.load)`
+          ],
+        );
+      } else if (ownerType.methods.has(expr.property)) {
+        wasms = wasms.concat(
+          storeTempValueWithExpr(constant.PTR_T1, ownerWASM),  // load owner ptr
+
+          loadTempValue(constant.PTR_T1),
+          codeGenNoneAbort(),
+
+          loadTempValue(constant.PTR_T1),
+          getMethodFromPtr(ownerType, expr.property),
+        );
+      }
+      break;
+    }
+    case "call": {
+      if (expr.caller.tag !== "member" && expr.caller.tag !== "id") {
+        break;
+      }
+
+      let pushArgsExpr: Array<string> = new Array();
+      let isMemberFunc = true;
+
+      if (expr.caller.classType) {
+        let ct = expr.caller.classType;
+        if (!ct.methods.has("__init__")) {
+          // ptr on stack, no acti
+          return codeGenAlloc(ct);
+        } else {
+          let funcEnv = envManager.envMap.get(`${ct.globalName}#__init__`);
+          pushArgsExpr = codeGenFillParam(funcEnv, expr.args, true);
+          wasms = wasms.concat(
+            storeTempValueWithExpr(constant.PTR_T1, codeGenAlloc(ct)),
+
+            loadTempValue(constant.PTR_T1),  // need an extra ptr as result
+
+            loadTempValue(constant.PTR_T1),
+            getMethodFromPtr(ct, "__init__"),
+            
+            codeGenCallerInit(pushArgsExpr),
+            [`(call_indirect (type ${constant.WASM_FUNC_TYPE}))`],
+            [`(drop)`], 
+            [`;; caller destroy`],
+            codeGenCallerDestroy(),
+          );
+          return wasms;
+        }
+      }
+
+      let ft = expr.caller.funcType;
+      let funcEnv = envManager.envMap.get(ft.globalName);
+      isMemberFunc = ft.isMemberFunc;
+
+      pushArgsExpr = codeGenFillParam(funcEnv, expr.args, ft.isMemberFunc);
+      
+      wasms = wasms.concat(
+        codeGenExpr(expr.caller),
+      );
+
+      wasms = wasms.concat(
+        codeGenCallerInit(pushArgsExpr),
+        [`(call_indirect (type ${constant.WASM_FUNC_TYPE}))`],
+        [`;; caller destroy`],
+        codeGenCallerDestroy(),
+      );
+      
+      break;
+    }
+  }
+  return wasms;
+}
+
+function codeGenFillParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean): Array<string> {
+  let pushArgsExpr: Array<string> = new Array();
+  let paramSize = args.length;
+  let offset = isMemberFunc ? 1 : 0;
+
+  if (isMemberFunc) {
+    pushArgsExpr = pushArgsExpr.concat(
+      [`;; push self`],
+      setValWithPtrPtrOffsetExpr(constant.PTR_SP, -1, loadTempValue(constant.PTR_T1)),
+    )
+  }
+
+  funcEnv.nameToVar.forEach((variable, name) => {
+    if (variable.offset < paramSize + offset) {
+      if (isMemberFunc && variable.offset === 0) {
+        return;
+      }
+      pushArgsExpr = pushArgsExpr.concat(
+        setValWithPtrPtrOffsetExpr(constant.PTR_SP, -1-variable.offset, codeGenExpr(args[variable.offset - offset])),
+      )
+    }
+  });
+  pushArgsExpr = pushArgsExpr.concat(
+    setPtrWithPtrPtrOffset(constant.PTR_SP, -paramSize-offset),
+  );
+  return pushArgsExpr;
+}
+
+function codeGenNoneAbort(): Array<string> {
+  let wasms: Array<string> = new Array();
+  // ptr should be on stack
+
+  wasms = wasms.concat(
+    [
+      `(i32.eqz)`,
+      `(if (then`,
+      `(call $$noneabort)`,
+      `))`
+    ]
+  )
+  return wasms;
+}
+
+function codeGenStmt(s: Stmt): Array<string> {
+  let wasms: Array<string> = new Array();
+  switch (s.tag) {
+    case "assign": {
+      wasms = wasms.concat(
+        codeGenExpr(s.name).slice(0, -1),
+        codeGenExpr(s.value),
+        [`(i32.store)`],
+      );
+      break;
+    }
+    case "expr": {
+      wasms = wasms.concat(
+        codeGenExpr(s.expr),
+      );
+      wasms = wasms.concat(
+        [`(local.set $$last)`]
+      )
+      break;
+    }
+    case "if": {
+      if (s.exprs.length === 0) {
+        if (s.blocks.length === 1) {
+          s.blocks[0].forEach(stmt => {
+            wasms = wasms.concat(codeGenStmt(stmt));
+          })
+        }
+        return wasms;
+      }
+      wasms = wasms.concat(
+        codeGenExpr(s.exprs[0]),
+        [`(if`],
+        [`(then`]
+      );
+
+      s.blocks[0].forEach(stmt => {
+        wasms = wasms.concat(codeGenStmt(stmt));
+      })
+
+      if (s.exprs.length !== s.blocks.length) {
+        s.exprs.shift();
+        s.blocks.shift();
+        
+        wasms = wasms.concat(
+          [`)\n(else`],
+          codeGenStmt(s),
+        );
+      }
+
+      wasms = wasms.concat([`)\n)`]);
+      break;
+    }
+    case "pass": {
+      break;
+    }
+    case "return": {
+      if (s.expr.tag === "literal" && s.expr.value.tag === "None") {
+        break;
+      }
+      wasms = wasms.concat(
+        codeGenExpr(s.expr),
+        [`(local.set $$last)`, `(br $$func_block)`],
+      );
+      break;
+    }
+    case "while": {
+      wasms = wasms.concat(
+        [`(block \n(loop`],
+        codeGenExpr(s.expr),
+        [`(i32.const 1)`, `(i32.xor)`, `(br_if 1)`],
+      )
+      s.stmts.forEach(stmt => {
+        wasms = wasms.concat(codeGenStmt(stmt));
+      });
+      wasms = wasms.concat(
+        [`(br 0)\n)\n)`]
+      )
+      break;
+    }
+    case "print": {
+      wasms = wasms.concat(
+        codeGenExpr(s.expr),
+      );
+      
+      let exprTypeName = s.expr.type.getName();
+      if (exprTypeName === "int") {
+        wasms = wasms.concat([`call $print#int`]);
+      } else if (exprTypeName === "bool") {
+        wasms = wasms.concat([`call $print#bool`]);
+      } else {
+        wasms = wasms.concat([`call $print#object`]);
+      }
+      wasms = wasms.concat([`(local.set $$last)`]);
+      return wasms;
+    }
+  }
+  return wasms;
+}
+
+function codeGenVarDef(vd: VarDef): Array<string> {
+  let wasms: Array<string> = new Array();
+  let varVal = curEnv.nameToVar.get(vd.tvar.name);
+  
+  wasms = wasms.concat(
+    setValWithPtrPtrOffset(constant.PTR_DL, -2-varVal.offset, literalToVal(vd.value)),
+    setPtrWithPtrPtrOffset(constant.PTR_SP, -1),
+  )
+
+  return wasms;
+}
+
+function codeGenFuncDef(fd: FuncDef): Array<string> {
+  let wasms: Array<string> = new Array();
+
+  let ft = curEnv.nameToFunc.get(fd.name);
+  curEnv = curEnv.nameToChildEnv.get(fd.name);
+
+  wasms = wasms.concat(
+    [
+      `(func ${ft.globalName} (result i32)`,
+      `(local $$last i32)`,
+      `(block $$func_block`
+    ],
+  )
+
+  for (const varDef of fd.body.defs.varDefs) {
+    wasms = wasms.concat(codeGenVarDef(varDef));
+  }
+
+  for (const stmt of fd.body.stmts) {
+    wasms = wasms.concat(codeGenStmt(stmt));
+  }
+  if (ft.returnType.getName() === "<None>") {
+    wasms = wasms.concat([
+      `(i32.const 0)`,
+      `(local.set $$last)`
+    ]);
+  }
+
+  wasms = wasms.concat([
+    `)`,
+    `(local.get $$last)`,
+    `)`
+  ]);
+
+  for (const funcDef of fd.body.defs.funcDefs) {
+    wasms = wasms.concat(codeGenFuncDef(funcDef));
+  }
+  
+  curEnv = curEnv.parent;
+  return wasms;
+}
+
+function codeGenMethodDef(fd: FuncDef, ft: FuncType): Array<string> {
+  let wasms: Array<string> = new Array();
+
+  curEnv = curEnv.nameToChildEnv.get(ft.getName());
+  wasms = wasms.concat(
+    [
+      `(func ${ft.globalName} (result i32)`,
+      `(local $$last i32)`,
+      `(block $$func_block`
+    ],
+  )
+
+  for (const varDef of fd.body.defs.varDefs) {
+    wasms = wasms.concat(codeGenVarDef(varDef));
+  }
+
+  for (const stmt of fd.body.stmts) {
+    wasms = wasms.concat(codeGenStmt(stmt));
+  }
+
+  if (ft.returnType.getName() === "<None>") {
+    wasms = wasms.concat([
+      `(i32.const 0)`,
+      `(local.set $$last)`
+    ]);
+  }
+
+  wasms = wasms.concat([
+    `)`,
+    `(local.get $$last)`,
+    `)`
+  ]);
+
+  curEnv = curEnv.parent;
+  return wasms;
+}
+
+function codeGenClassDef(cd: ClassDef): [Array<string>, Array<string>] {
+  let wasms: Array<string> = new Array();
+
+  let classType = curEnv.nameToClass.get(cd.name);
+
+  console.log(memoryManager);
+  // allocate dispatch table
+  classType.methodPtrs.forEach((offset, name) => {
+    let ft = classType.methods.get(name);
+    wasms = wasms.concat(
+      setValWithPtr(
+        constant.PTR_DTABLE + classType.methodPtrsHead + classType.methodPtrs.get(name),
+        memoryManager.functionNameToId.get(ft.globalName)
+      )
+    )
+  });
+
+  let methodWASM: Array<string> = new Array();
+  for (const method of cd.defs.funcDefs) {
+    methodWASM = methodWASM.concat(codeGenMethodDef(method, classType.methods.get(method.name)));
+  }
+  return [wasms, methodWASM];
+}
+
+function codeGenProgram(p: Program): Array<Array<string>> {
+  let varWASM: Array<string> = new Array();
+  for (const varDef of p.defs.varDefs) {
+    varWASM = varWASM.concat(codeGenVarDef(varDef));
+  }
+
+  let classWASM: Array<string> = new Array();
+  let methodWASM: Array<string> = new Array();
+  for (const classDef of p.defs.classDefs) {
+    let [cwasm, mwasm] = codeGenClassDef(classDef);
+    classWASM = classWASM.concat(cwasm);
+    methodWASM = methodWASM.concat(mwasm);
+  }
+
+  for (const funcDef of p.defs.funcDefs) {
+    methodWASM = methodWASM.concat(codeGenFuncDef(funcDef));
+  }
+
+  let stmtsWASM: Array<string> = new Array();
+  
+  for (const stmt of p.stmts) {
+    stmtsWASM = stmtsWASM.concat(
+      codeGenStmt(stmt)
+    )
+  }
+
+  return [varWASM, classWASM, methodWASM, stmtsWASM];
 }
 
 type CompileResult = {
-  functions: string,
-  mainSource: string,
-  newEnv: GlobalEnv
+  wasmSource: string,
 };
 
-// export function getLocals(ast : Array<Stmt>) : Set<string> {
-//   const definedVars : Set<string> = new Set();
-//   ast.forEach(s => {
-//     switch(s.tag) {
-//       case "define":
-//         definedVars.add(s.name);
-//         break;
-//     }
-//   }); 
-//   return definedVars;
-// }
+export function compile(source: string, importObject: any, gm: MemoryManager, em: EnvManager): CompileResult {
+  memoryManager = gm;
+  envManager = em;
+  curEnv = em.getGlobalEnv();
 
-export function makeLocals(locals: Set<string>) : Array<string> {
-  const localDefines : Array<string> = [];
-  locals.forEach(v => {
-    localDefines.push(`(local $${v} i32)`);
-  });
-  return localDefines;
+  const ast = parse(source);
+  console.log(ast);
+  tcProgram(ast, gm, em);
+  console.log(curEnv);
 
-}
+  importObject.js = {mem: memoryManager.memory}
+  importObject.imports = {
+    print_obj: (ptr: number) => {
+      importObject.builtin.print(-1, ptr);
+      return 0;
+    },
 
-export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
-  const withDefines = augmentEnv(env, ast);
+    print_int: (val: number) => {
+      importObject.builtin.print(2, val);
+      return 0;
+    },
 
-  const definedVars : Set<string> = new Set(); //getLocals(ast);
-  definedVars.add("$last");
-  definedVars.forEach(env.locals.add, env.locals);
-  const localDefines = makeLocals(definedVars);
-  const funs : Array<string> = [];
-  ast.funs.forEach(f => {
-    funs.push(codeGenDef(f, withDefines).join("\n"));
-  });
-  const classes : Array<string> = ast.classes.map(cls => codeGenClass(cls, withDefines)).flat();
-  const allFuns = funs.concat(classes).join("\n\n");
-  // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
-  const inits = ast.inits.map(init => codeGenInit(init, withDefines)).flat();
-  const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(inits.concat([].concat.apply([], commandGroups)));
-  withDefines.locals.clear();
+    print_bool: (val: number) => {
+      importObject.builtin.print(1, val);
+      return 0;
+    },
+
+    print_debug: (val: number) => {
+      console.log(`Debugging: ${val}`);
+      return val;
+    },
+
+    none_abort: () => {
+      throw new Error("none ptr");
+    },
+  }
+
+  let memorySizeByte = importObject.js.mem.buffer.byteLength;
+
+  const wasms = codeGenProgram(ast);
+  let returnType = "";
+  let returnExpr = "";
+  let scratchVar = "(local $$last i32)";
+
+  let initWASM: Array<string> = new Array();
+  if (!memoryManager.initialized) {
+    initWASM = initWASM.concat(
+      setPtrWithPtrPtrOffset(constant.PTR_EP, constant.PTR_HEAP),
+      setPtrWithPtrPtrOffset(constant.PTR_SP, memorySizeByte / 4 - 2),
+      setPtrWithPtrPtrOffset(constant.PTR_DL, memorySizeByte / 4 - 1),
+      setValWithPtrPtrOffsetExpr(constant.PTR_SP, 0, getPtrFromPtrPtr(constant.PTR_SP)),
+    );
+    memoryManager.initialized = true;
+  }
+
+  memoryManager.functionSource += "\n" + wasms[2].join("\n");
+
+  const wasmSource = `(module
+    (import "js" "mem" (memory ${constant.MEM_SIZE}))  ;; memory with one page(64KB)
+    (func $print#int (import "imports" "print_int") (param i32) (result i32))
+    (func $print#bool (import "imports" "print_bool") (param i32) (result i32))
+    (func $print#object (import "imports" "print_obj") (param i32) (result i32))
+    (func $print#debug (import "imports" "print_debug") (param i32) (result i32))
+    (func $$noneabort (import "imports" "none_abort"))
+    
+    ;; function table
+    (table ${constant.MAX_FUNC_SUPPORT} anyfunc)
+    (type ${constant.WASM_FUNC_TYPE} (func (result i32)))
+    ${memoryManager.functionSource}
+    (elem (i32.const 0) ${memoryManager.functionIdToName.join(" ")})
+
+    (func (export "exported_func") ${returnType}
+      ${scratchVar}
+      ${initWASM.join("\n")}
+      ;; class def
+      ${wasms[1].join("\n")}
+      ;; var def
+      ${wasms[0].join("\n")}
+      ;; stmts
+      ${wasms[3].join("\n")}
+      ${returnExpr}
+    )
+  )`;
+
+  console.log(wasmSource);
   return {
-    functions: allFuns,
-    mainSource: commands.join("\n"),
-    newEnv: withDefines
+    wasmSource,
   };
-}
-
-function envLookup(env : GlobalEnv, name : string) : number {
-  if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
-  return (env.globals.get(name) * 4); // 4-byte values
-}
-
-function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
-  switch(stmt.tag) {
-    // case "fun":
-    //   const definedVars = getLocals(stmt.body);
-    //   definedVars.add("$last");
-    //   stmt.parameters.forEach(p => definedVars.delete(p.name));
-    //   definedVars.forEach(env.locals.add, env.locals);
-    //   stmt.parameters.forEach(p => env.locals.add(p.name));
-      
-    //   const localDefines = makeLocals(definedVars);
-    //   const locals = localDefines.join("\n");
-    //   var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-    //   var stmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-    //   var stmtsBody = stmts.join("\n");
-    //   env.locals.clear();
-    //   return [`(func $${stmt.name} ${params} (result i32)
-    //     ${locals}
-    //     ${stmtsBody}
-    //     (i32.const 0)
-    //     (return))`];
-    case "return":
-      var valStmts = codeGenExpr(stmt.value, env);
-      valStmts.push("return");
-      return valStmts;
-    case "assign":
-      var valStmts = codeGenExpr(stmt.value, env);
-      if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]); 
-      } else {
-        const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
-        return locationToStore.concat(valStmts).concat([`(i32.store)`]);
-      }
-    case "expr":
-      var exprStmts = codeGenExpr(stmt.expr, env);
-      return exprStmts.concat([`(local.set $$last)`]);
-    case "if":
-      var condExpr = codeGenExpr(stmt.cond, env);
-      var thnStmts = stmt.thn.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
-      var elsStmts = stmt.els.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
-      return [`${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join("\n")}))`]
-    case "while":
-      var wcondExpr = codeGenExpr(stmt.cond, env);
-      var bodyStmts = stmt.body.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
-      return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
-    case "pass":
-      return [];
-    case "field-assign":
-      var objStmts = codeGenExpr(stmt.obj, env);
-      var objTyp = stmt.obj.a;
-      if(objTyp.tag !== "class") { // I don't think this error can happen
-        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
-      }
-      var className = objTyp.name;
-      var [offset, _] = env.classes.get(className).get(stmt.field);
-      var valStmts = codeGenExpr(stmt.value, env);
-      return [
-        ...objStmts,
-        `(i32.add (i32.const ${offset * 4}))`,
-        ...valStmts,
-        `(i32.store)`
-      ];
-  }
-}
-
-function codeGenInit(init : VarInit<Type>, env : GlobalEnv) : Array<string> {
-  const value = codeGenLiteral(init.value);
-  if (env.locals.has(init.name)) {
-    return [...value, `(local.set $${init.name})`]; 
-  } else {
-    const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; ${init.name}`];
-    return locationToStore.concat(value).concat([`(i32.store)`]);
-  }
-}
-
-function codeGenDef(def : FunDef<Type>, env : GlobalEnv) : Array<string> {
-  var definedVars : Set<string> = new Set();
-  def.inits.forEach(v => definedVars.add(v.name));
-  definedVars.add("$last");
-  // def.parameters.forEach(p => definedVars.delete(p.name));
-  definedVars.forEach(env.locals.add, env.locals);
-  def.parameters.forEach(p => env.locals.add(p.name));
-
-  const localDefines = makeLocals(definedVars);
-  const locals = localDefines.join("\n");
-  const inits = def.inits.map(init => codeGenInit(init, env)).flat().join("\n");
-  var params = def.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-  var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-  var stmtsBody = stmts.join("\n");
-  env.locals.clear();
-  return [`(func $${def.name} ${params} (result i32)
-    ${locals}
-    ${inits}
-    ${stmtsBody}
-    (i32.const 0)
-    (return))`];
-}
-
-function codeGenClass(cls : Class<Type>, env : GlobalEnv) : Array<string> {
-  const methods = [...cls.methods];
-  methods.forEach(method => method.name = `${cls.name}$${method.name}`);
-  const result = methods.map(method => codeGenDef(method, env));
-  return result.flat();
-}
-
-function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
-  switch(expr.tag) {
-    case "builtin1":
-      const argTyp = expr.a;
-      const argStmts = codeGenExpr(expr.arg, env);
-      var callName = expr.name;
-      if (expr.name === "print" && argTyp === NUM) {
-        callName = "print_num";
-      } else if (expr.name === "print" && argTyp === BOOL) {
-        callName = "print_bool";
-      } else if (expr.name === "print" && argTyp === NONE) {
-        callName = "print_none";
-      }
-      return argStmts.concat([`(call $${callName})`]);
-    case "builtin2":
-      const leftStmts = codeGenExpr(expr.left, env);
-      const rightStmts = codeGenExpr(expr.right, env);
-      return [...leftStmts, ...rightStmts, `(call $${expr.name})`]
-    case "literal":
-      return codeGenLiteral(expr.value);
-    case "id":
-      if (env.locals.has(expr.name)) {
-        return [`(local.get $${expr.name})`];
-      } else {
-        return [`(i32.const ${envLookup(env, expr.name)})`, `(i32.load)`]
-      }
-    case "binop":
-      const lhsStmts = codeGenExpr(expr.left, env);
-      const rhsStmts = codeGenExpr(expr.right, env);
-      return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
-    case "uniop":
-      const exprStmts = codeGenExpr(expr.expr, env);
-      switch(expr.op){
-        case UniOp.Neg:
-          return [`(i32.const 0)`, ...exprStmts, `(i32.sub)`];
-        case UniOp.Not:
-          return [`(i32.const 0)`, ...exprStmts, `(i32.eq)`];
-      }
-    case "call":
-      var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      valStmts.push(`(call $${expr.name})`);
-      return valStmts;
-    case "construct":
-      var stmts : Array<string> = [];
-      env.classes.get(expr.name).forEach(([offset, initVal], field) => 
-        stmts.push(...[
-          `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
-          `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
-          ...codeGenLiteral(initVal),              // Initialize field
-          "(i32.store)"                            // Put the default field value on the heap
-        ]));
-      return stmts.concat([
-        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
-        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
-        "(i32.const 0)",                                                  // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
-        `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`,   // Move heap head beyond the two words we just created for fields
-        "(i32.store)",                                                    // Save the new heap offset
-        `(call $${expr.name}$__init__)`,                                  // call __init__
-        "(drop)"
-      ]);
-    case "method-call":
-      var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
-      if(objTyp.tag !== "class") { // I don't think this error can happen
-        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
-      }
-      var className = objTyp.name;
-      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      return [
-        ...objStmts,
-        ...argsStmts,
-        `(call $${className}$${expr.method})`
-      ];
-    case "lookup":
-      var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
-      if(objTyp.tag !== "class") { // I don't think this error can happen
-        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
-      }
-      var className = objTyp.name;
-      var [offset, _] = env.classes.get(className).get(expr.field);
-      return [
-        ...objStmts,
-        `(i32.add (i32.const ${offset * 4}))`,
-        `(i32.load)`
-      ];
-  }
-}
-
-function codeGenLiteral(literal : Literal) : Array<string> {
-  switch(literal.tag) {
-    case "num":
-      return ["(i32.const " + literal.value + ")"];
-    case "bool":
-      return [`(i32.const ${Number(literal.value)})`];
-    case "none":
-      return [`(i32.const 0)`];
-  }
-}
-
-function codeGenBinOp(op : BinOp) : string {
-  switch(op) {
-    case BinOp.Plus:
-      return "(i32.add)"
-    case BinOp.Minus:
-      return "(i32.sub)"
-    case BinOp.Mul:
-      return "(i32.mul)"
-    case BinOp.IDiv:
-      return "(i32.div_s)"
-    case BinOp.Mod:
-      return "(i32.rem_s)"
-    case BinOp.Eq:
-      return "(i32.eq)"
-    case BinOp.Neq:
-      return "(i32.ne)"
-    case BinOp.Lte:
-      return "(i32.le_s)"
-    case BinOp.Gte:
-      return "(i32.ge_s)"
-    case BinOp.Lt:
-      return "(i32.lt_s)"
-    case BinOp.Gt:
-      return "(i32.gt_s)"
-    case BinOp.Is:
-      return "(i32.eq)";
-    case BinOp.And:
-      return "(i32.and)"
-    case BinOp.Or:
-      return "(i32.or)"
-  }
 }

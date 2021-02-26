@@ -1,53 +1,178 @@
-// import { TypeCheckError } from "./type-check";
+import { SyntaxNode } from "lezer-tree"
 
-// export enum Type {NUM, BOOL, NONE, OBJ}; 
-export type Type =
-  | {tag: "number"}
-  | {tag: "bool"}
-  | {tag: "none"}
-  | {tag: "class", name: string}
+export type Program = {
+  defs: PreDef,
+  stmts: Array<Stmt>
+}
 
-export type Parameter<A> = { name: string, type: Type }
+export type PreDef = {
+  varDefs: Array<VarDef>,
+  funcDefs: Array<FuncDef>,
+  classDefs: Array<ClassDef>,
+}
 
-export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
+export type VarDef = { tvar: TypedVar, value: Literal }
+export type TypeStr = string
+export type TypedVar = { name: VarName, type: TypeStr }
 
-export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods: Array<FunDef<A>>}
+export type FuncDef = {
+  name: VarName,
+  params: Array<TypedVar>,
+  retType: TypeStr,
+  body: FuncBody,
+}
 
-export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
+export type ClassDef = {
+  name: VarName,
+  parent: VarName,
+  defs: PreDef,
+}
 
-export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
+export type FuncBody = {
+  defs: PreDef,
+  stmts: Array<Stmt>
+}
 
-export type Stmt<A> =
-  | {  a?: A, tag: "assign", name: string, value: Expr<A> }
-  | {  a?: A, tag: "return", value: Expr<A> }
-  | {  a?: A, tag: "expr", expr: Expr<A> }
-  | {  a?: A, tag: "if", cond: Expr<A>, thn: Array<Stmt<A>>, els: Array<Stmt<A>> }
-  | {  a?: A, tag: "while", cond: Expr<A>, body: Array<Stmt<A>> }
-  | {  a?: A, tag: "pass" }
-  | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
+export type Stmt =
+  { cursor: SyntaxNode, type: ClassType } &
+  (
+    { tag: "assign", name: Expr, value: Expr }
+    | { tag: "if", exprs: Array<Expr>, blocks: Array<Array<Stmt>> }
+    | { tag: "while", expr: Expr, stmts: Array<Stmt> }
+    | { tag: "pass" }
+    | { tag: "return", expr: Expr }
+    | { tag: "expr", expr: Expr }
+    | { tag: "print", expr: Expr }
+  )
 
-export type Expr<A> =
-    {  a?: A, tag: "literal", value: Literal }
-  | {  a?: A, tag: "id", name: string }
-  | {  a?: A, tag: "binop", op: BinOp, left: Expr<A>, right: Expr<A>}
-  | {  a?: A, tag: "uniop", op: UniOp, expr: Expr<A> }
-  | {  a?: A, tag: "builtin1", name: string, arg: Expr<A> }
-  | {  a?: A, tag: "builtin2", name: string, left: Expr<A>, right: Expr<A>}
-  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> } 
-  | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
-  | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
-  | {  a?: A, tag: "construct", name: string }
+export type Expr =
+  { cursor: SyntaxNode, type: ClassType } &
+  (
+    { tag: "literal", value: Literal }
+    | { tag: "id", name: VarName, funcType: FuncType, classType: ClassType }
+    | { tag: "binaryop", expr1: Expr, expr2: Expr, op: Op }
+    | { tag: "unaryop", expr: Expr, op: Op }
+    | { tag: "call", caller: Expr, args: Array<Expr> }
+    | { tag: "member", owner: Expr, property: VarName, funcType: FuncType, classType: ClassType }  // e.g.: x.y.z -> name: x.y, property: z, z can be function
+  )
 
-export type Literal = 
-    { tag: "num", value: number }
-  | { tag: "bool", value: boolean }
-  | { tag: "none" }
+export type VarName = string
+export type Op = string
 
-// TODO: should we split up arithmetic ops from bool ops?
-export enum BinOp { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, And, Or};
+export type Literal =
+  { tag: "None" }
+  | { tag: "True" }
+  | { tag: "False" }
+  | { tag: "number", value: number }
 
-export enum UniOp { Neg, Not };
+export class Variable {
+  name: VarName;
+  type: ClassType;
+  value: Literal;
+  offset: number;
+}
+
+export class FuncType {
+  globalName: string;
+  paramsType: Array<ClassType>;
+  returnType: ClassType;
+  isMemberFunc: boolean;
+
+  constructor(globalName: string, paramsType: Array<ClassType>, returnType: ClassType, isMemberFunc: boolean) {
+    this.globalName = globalName;
+    this.paramsType = paramsType;
+    this.returnType = returnType;
+    this.isMemberFunc = isMemberFunc;
+  }
+
+  public getName(): string {
+    let components = this.globalName.split("$");
+    return components[components.length - 1];
+  }
+
+  public isOverload(ft: FuncType): boolean {
+    if (this.paramsType.length !== ft.paramsType.length) {
+      return false;
+    }
+    let idx = 0;
+    if (this.isMemberFunc) {
+      idx = 1;
+    }
+    for (let i = idx; i < this.paramsType.length; i++) {
+      let p1 = this.paramsType[i];
+      let p2 = ft.paramsType[i];
+      if (p1.globalName !== p2.globalName) {
+        return false;
+      }
+    }
+    if (this.returnType.globalName !== ft.returnType.globalName) {
+      return false;
+    }
+    return true;
+  }
+};
+
+export class ClassType {
+  globalName: string;
+  methods: Map<string, FuncType>;
+  methodPtrs: Map<string, number>;
+  methodPtrsHead: number;
+  attributes: Map<string, Variable>;
+  parent: ClassType;
+  size: number;
+  tag: number;
+  headerSize: number;
+
+  constructor(globalName: string, parent: ClassType, tag: number) {
+    this.globalName = globalName;
+    this.methods = new Map();
+    this.methodPtrs = new Map();
+    this.attributes = new Map();
+    this.parent = parent;
+    this.size = 0;
+    this.tag = tag;
+    this.headerSize = 3;  // tag, size, dispatchTablePtr
+  }
+
+  public getDispatchTablePtrOffset(): number {
+    return this.headerSize - 1;
+  }
+
+  public getName(): string {
+    let components = this.globalName.split("$");
+    return components[components.length - 1];
+  }
+
+  public hasDescendant(descendant: ClassType): boolean {
+    if (descendant.globalName === "$<None>" && 
+    (this.globalName !== "$int" && this.globalName !== "$bool")) {
+      return true;
+    }
+    let c = descendant;
+    while (c) {
+      if (c.globalName == this.globalName) {
+        return true;
+      }
+      c = c.parent;
+    }
+    return false;
+  }
+}
 
 export type Value =
-    Literal
-  | { tag: "object", name: string, address: number}
+  { tag: "none" }
+  | { tag: "bool", value: boolean }
+  | { tag: "num", value: number }
+  | { tag: "object", name: string, address: number }
+
+export type Type =
+  | { tag: "number" }
+  | { tag: "bool" }
+  | { tag: "none" }
+  | { tag: "class", name: string }
+
+export type ImportObject = {
+  js: { mem: WebAssembly.Memory },
+  imports: any,
+}
+
