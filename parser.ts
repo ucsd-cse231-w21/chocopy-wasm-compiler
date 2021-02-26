@@ -268,7 +268,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
         }
       } else if (target.tag === "id") {
         return {
-          tag: "id-assign",
+          tag: "assign",
           name: target.name,
           value: value
         }  
