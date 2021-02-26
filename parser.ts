@@ -1,7 +1,20 @@
 import {parser} from "lezer-python";
 import { TreeCursor} from "lezer-tree";
-import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal } from "./ast";
+import { Pos, Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal } from "./ast";
 import { NUM, BOOL, NONE, CLASS } from "./utils";
+
+export function getSourcePos(c : TreeCursor, s : string) : Pos {
+  const substring = s.substring(0, c.node.to);
+  const line = substring.split("\n").length;
+  const prevContent = substring.split("\n").slice(0, line-1).join("\n");
+  const col = c.node.from - prevContent.length
+  
+  return {
+    line: line,
+    col: col,
+    len: c.node.to - c.node.from 
+  }
+}
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   switch(c.type.name) {
@@ -26,6 +39,12 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
   switch(c.type.name) {
+    case "String":
+      return {
+	tag: "string",
+	value: s.substring(c.node.from+1, c.node.to-1),
+	pos: getSourcePos(c, s)
+      }
     case "Number":
     case "Boolean":
     case "None":
