@@ -39,8 +39,8 @@ export type Expr<A> =
   | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
-  | {  a?: A, tag: "list_expr", contents: [Expr<A>] }
-  | {  a?: A, tag: "list_lookup", list: Expr<A>, index: number }
+  | {  a?: A, tag: "list_expr", contents: Array<Expr<A>> }
+  | {  a?: A, tag: "list_lookup", list: Expr<A>, index: Expr<A> }
 
 export type Literal = 
     { tag: "num", value: number }
