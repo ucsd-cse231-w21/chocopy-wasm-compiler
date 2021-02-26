@@ -7,7 +7,8 @@
     "start": "webpack serve --mode=development --open",
     "build-web": "webpack",
     "build-parse": "tsc parsestart.ts --esModuleInterop --moduleResolution node --outDir cli/",
-    "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/*.test.ts'"
+    "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/*.test.ts'",
+    "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/**/*.test.ts'"
   },
   "engines": {
     "npm": "^6.0.0"
@@ -16,9 +17,11 @@
   "license": "ISC",
   "dependencies": {
     "@types/node": "^14.14.20",
+    "cypress": "^6.5.0",
     "lezer-python": "^0.13.1",
     "lezer-tree": "^0.13.0",
     "mochawesome": "^6.2.1",
+    "python-shell": "^2.0.3",
     "ts-loader": "^8.0.11",
     "ts-node": "^9.1.1",
     "typescript": "^4.1.2",
