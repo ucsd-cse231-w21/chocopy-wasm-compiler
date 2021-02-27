@@ -8,7 +8,6 @@ function stringify(typ: Type, arg: any) : string {
     case "number":
       return (arg as number).toString();
     case "string":
-      console.log("STRING print "+String.fromCharCode(arg))
       return String.fromCharCode(arg);
     case "bool":
       return (arg as boolean)? "True" : "False";

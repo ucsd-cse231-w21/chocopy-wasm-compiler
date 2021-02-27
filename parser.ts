@@ -230,7 +230,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       c.nextSibling(); // go to value
       var value = traverseExpr(c, s);
       c.parent();
-//a:str="Joe"
+
       if (target.tag === "lookup") {
         return {
           tag: "field-assign",
