@@ -8,7 +8,7 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
     case "Number":
       return {
         tag: "num",
-        value: Number(s.substring(c.from, c.to))
+        value: BigInt(s.substring(c.from, c.to))
       }
     case "Boolean":
       return {
@@ -185,6 +185,23 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         tag: "id",
         name: "self"
       };
+    case "ArrayExpression":
+      let listExpr : Array<Expr<null>> = []
+      c.firstChild();
+      c.nextSibling();
+      while(s.substring(c.from, c.to).trim() !== "]")
+      {
+        listExpr.push(traverseExpr(c, s));
+        c.nextSibling(); // Focuses on either "," or ")"
+        c.nextSibling(); // Focuses on a VariableName
+      }
+      
+      c.parent();
+      return {
+        tag: "list-expr",
+        contents: listExpr
+      }
+     
     default:
       throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
   }
@@ -286,7 +303,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       // console.log("Thn:", thn);
       c.parent();
       
-      c.nextSibling(); // Focus on else
+      if (!c.nextSibling() || c.name !== "else") {
+        // Focus on else
+        throw new Error("if statement missing else block");
+      }; 
       c.nextSibling(); // Focus on : els
       c.firstChild(); // Focus on :
       var els = [];
@@ -349,8 +369,15 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
     c.nextSibling(); // Focuses on type itself
     let typ = traverseType(c, s);
     c.parent();
-    c.nextSibling(); // Move on to comma or ")"
-    parameters.push({name, type: typ});
+    c.nextSibling(); // Move on to comma or ")" or "="
+    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now
+    if(nextTagName === "AssignOp") { 
+      c.nextSibling();
+      let val = traverseLiteral(c, s);
+      parameters.push({name, type: typ, value: val});
+    } else {
+      parameters.push({name, type: typ});
+    }
     c.nextSibling(); // Focuses on a VariableName
   }
   c.parent();       // Pop to ParamList

@@ -3,6 +3,7 @@ import { table } from 'console';
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from './ast';
 import { NUM, BOOL, NONE, CLASS } from './utils';
 import { emptyEnv } from './compiler';
+import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -367,6 +368,29 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       } else {
         throw new TypeCheckError("method calls require an object");
       }
+    case "list-expr":
+        var commonType = null;
+        const listExpr = expr.contents.map(content => tcExpr(env, locals, content));
+        if(listExpr.length == 0) {
+          commonType = NONE;
+        } else {
+          commonType = listExpr[0].a;
+          for(var i = 1; i < listExpr.length; ++i) { //takecare of nested list
+            var lexprType = listExpr[i].a
+            if( !equalType(lexprType,commonType)) {
+              if( equalType(commonType,NONE) && isNoneOrClass(lexprType) ){
+                commonType = lexprType
+              } else if( !(equalType(lexprType,NONE) && isNoneOrClass(commonType)) ) {
+                throw new TypeCheckError(`list expr type mismatch: ${lexprType}, expect type: ${commonType}` );
+              } 
+            } 
+          }
+        }
+        return {...expr, a: { tag: "list", content_type: commonType }, contents: listExpr};
+        
+
+     
+
     default: throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
 }
