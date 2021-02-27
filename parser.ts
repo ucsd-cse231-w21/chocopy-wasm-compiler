@@ -10,13 +10,6 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
         tag: "num",
         value: BigInt(s.substring(c.from, c.to))
       }
-    case "String":
-      const str = s.substring(c.from,c.to);
-      const str_trimmed = str.substring(1,str.length-1)
-      return{
-        tag:"string",
-        value: str_trimmed
-      }
     case "Boolean":
       return {
         tag: "bool",
@@ -35,7 +28,6 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
   switch(c.type.name) {
     case "Number":
     case "Boolean":
-    case "String":
     case "None":
       return { 
         tag: "literal", 

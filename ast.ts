@@ -52,9 +52,5 @@ export enum BinOp { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, 
 export enum UniOp { Neg, Not };
 
 export type Value =
-    //Literal
-    { tag: "num", value: BigInt }
-  | { tag: "bool", value: boolean }
-  | { tag: "string", value: number}
-  | { tag: "none" }
+    Literal
   | { tag: "object", name: string, address: number}
