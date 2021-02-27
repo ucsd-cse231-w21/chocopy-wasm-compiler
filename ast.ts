@@ -39,6 +39,7 @@ export type Closure<A> = {
 }
 
 export type Stmt<A> =
+  | {  a?: A, tag: "assignment", target: Destructure<A>, value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
   | {  a?: A, tag: "assign", name: string, value: Expr<A> }
   | {  a?: A, tag: "return", value: Expr<A> }
   | {  a?: A, tag: "expr", expr: Expr<A> }
@@ -50,15 +51,38 @@ export type Stmt<A> =
   | {  a?: A, tag: "break" }
   | {  a?: A, tag: "for", name: string, index?: Expr<A>, iterable: Expr<A>, body: Array<Stmt<A>> }
 
+export interface Destructure<A> {
+  isDestructured: boolean;
+  targets: AssignTarget<A>[];
+}
+
+export interface AssignTarget<A> {
+  target: Assignable<A>;
+  starred: boolean;
+  ignore: boolean;
+}
+
+// List of tags in Assignable. unfortunately, TS can't generate a JS array from a type,
+// so we instead must explicitly declare one.
+export const ASSIGNABLE_TAGS = ["id", "lookup"] as const;
+/**
+ * Subset of Expr types which are valid as assign targets
+ */
+export type Assignable<A> =
+  | {  a?: A, tag: "id", name: string }
+  | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
+
 export type Expr<A> =
     {  a?: A, tag: "literal", value: Literal }
-  | {  a?: A, tag: "id", name: string }
   | {  a?: A, tag: "binop", op: BinOp, left: Expr<A>, right: Expr<A>}
   | {  a?: A, tag: "uniop", op: UniOp, expr: Expr<A> }
   | {  a?: A, tag: "builtin1", name: string, arg: Expr<A> }
   | {  a?: A, tag: "builtin2", name: string, left: Expr<A>, right: Expr<A>}
   | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> } 
+  // ASSIGNABLE EXPRS
+  | {  a?: A, tag: "id", name: string }
   | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
+  // END ASSIGNABLE EXPRS
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
   | {  a?: A, tag: "lambda", args: Array<string>, ret: Expr<A> }
