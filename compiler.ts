@@ -122,6 +122,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       var valStmts = codeGenExpr(stmt.value, env);
       valStmts.push("return");
       return valStmts;
+    case "assignment":
+      throw new Error("Destructured assignment not implemented");  
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
