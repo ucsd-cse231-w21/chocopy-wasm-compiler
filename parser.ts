@@ -351,8 +351,15 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
     c.nextSibling(); // Focuses on type itself
     let typ = traverseType(c, s);
     c.parent();
-    c.nextSibling(); // Move on to comma or ")"
-    parameters.push({name, type: typ});
+    c.nextSibling(); // Move on to comma or ")" or "="
+    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now
+    if(nextTagName === "AssignOp") { 
+      c.nextSibling();
+      let val = traverseLiteral(c, s);
+      parameters.push({name, type: typ, value: val});
+    } else {
+      parameters.push({name, type: typ});
+    }
     c.nextSibling(); // Focuses on a VariableName
   }
   c.parent();       // Pop to ParamList

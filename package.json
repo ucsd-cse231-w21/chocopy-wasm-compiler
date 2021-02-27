@@ -7,8 +7,8 @@
     "start": "webpack serve --mode=development --open",
     "build-web": "webpack",
     "build-parse": "tsc parsestart.ts --esModuleInterop --moduleResolution node --outDir cli/",
-    "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/*.test.ts'",
-    "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/**/*.test.ts'"
+    "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/mocha/bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/*.test.ts'",
+    "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/mocha/bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/**/*.test.ts'"
   },
   "engines": {
     "npm": "^6.0.0"
@@ -17,6 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "@types/node": "^14.14.20",
+    "codemirror": "^5.59.4",
     "cypress": "^6.5.0",
     "lezer-python": "^0.13.1",
     "lezer-tree": "^0.13.0",
@@ -30,10 +31,17 @@
   },
   "devDependencies": {
     "@types/chai": "^4.2.14",
+    "@types/codemirror": "0.0.108",
     "@types/mocha": "^8.2.0",
+    "browser-sync": "^2.26.7",
+    "browser-sync-webpack-plugin": "^2.0.1",
     "chai": "^4.2.0",
+    "css-loader": "^5.1.0",
     "html-webpack-plugin": "^5.2.0",
     "mocha": "^8.2.1",
+    "sass": "^1.32.8",
+    "sass-loader": "^11.0.1",
+    "style-loader": "^2.0.0",
     "webpack-cli": "^4.2.0",
     "webpack-dev-server": "^3.11.2"
   }

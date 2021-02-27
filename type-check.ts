@@ -3,6 +3,7 @@ import { table } from 'console';
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from './ast';
 import { NUM, BOOL, NONE, CLASS, STRING } from './utils';
 import { emptyEnv } from './compiler';
+import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
