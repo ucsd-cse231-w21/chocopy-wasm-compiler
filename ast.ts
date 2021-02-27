@@ -6,6 +6,11 @@ export type Type =
   | {tag: "bool"}
   | {tag: "none"}
   | {tag: "class", name: string}
+  | {tag: "callable", args: Array<Type>, ret: Type}
+
+export type Scope<A> = 
+  | { a?: A, tag: "global", name: string} // not support
+  | { a?: A, tag: "nonlocal", name: string}
 
 export type Parameter<A> = { name: string, type: Type, value?: Literal }
 
@@ -15,7 +20,23 @@ export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods
 
 export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
 
-export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
+export type FunDef<A> = { 
+  a?: A, 
+  name: string, 
+  parameters: Array<Parameter<A>>, 
+  ret: Type, 
+  decls: Array<Scope<A>>,
+  inits: Array<VarInit<A>>, 
+  funs: Array<FunDef<A>>
+  body: Array<Stmt<A>>
+}
+
+export type Closure<A> = { 
+  a?: A, 
+  name: string, 
+  fields: Array<VarInit<A>>, 
+  apply: FunDef<A> 
+}
 
 export type Stmt<A> =
   | {  a?: A, tag: "assign", name: string, value: Expr<A> }
@@ -40,6 +61,7 @@ export type Expr<A> =
   | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
   | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
   | {  a?: A, tag: "construct", name: string }
+  | {  a?: A, tag: "lambda", args: Array<string>, ret: Expr<A> }
   | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
   | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
   | {  a?: A, tag: "dict", entries: Array<[Expr<A>, Expr<A>]> }
@@ -58,5 +80,6 @@ export enum UniOp { Neg, Not };
 export type Value =
     Literal
   | { tag: "object", name: string, address: number}
+  | { tag: "callable", name: string, address: number}
 
 export type Location = { line : number, col : number, length : number }

@@ -1,6 +1,6 @@
 import {parser} from "lezer-python";
 import { TreeCursor} from "lezer-tree";
-import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal } from "./ast";
+import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal, Scope } from "./ast";
 import { NUM, BOOL, NONE, CLASS } from "./utils";
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
@@ -425,7 +425,12 @@ export function traverseFunDef(c : TreeCursor, s : string) : FunDef<null> {
   c.parent();      // Pop to Body
   // console.log("Before pop to def: ", c.type.name);
   c.parent();      // Pop to FunctionDefinition
-  return { name, parameters, ret, inits, body }
+  
+  // TODO: Closure group: fill decls and funs to make things work
+  const decls: Scope<null>[] = []
+  const funs: FunDef<null>[] = []
+
+  return { name, parameters, ret, inits, decls, funs, body }
 }
 
 export function traverseClass(c : TreeCursor, s : string) : Class<null> {
@@ -450,7 +455,15 @@ export function traverseClass(c : TreeCursor, s : string) : Class<null> {
   c.parent();
 
   if (!methods.find(method => method.name === "__init__")) {
-    methods.push({ name: "__init__", parameters: [{ name: "self", type: CLASS(className) }], ret: NONE, inits: [], body: [] });
+    methods.push({ 
+      name: "__init__", 
+      parameters: [{ name: "self", type: CLASS(className) }], 
+      ret: NONE, 
+      decls: [],
+      inits: [],
+      funs: [],
+      body: [],
+    });
   }
   return {
     name: className,
