@@ -4,8 +4,6 @@ export function PyValue(typ: Type, result: number): Value {
   switch (typ.tag) {
     case "number":
       return PyInt(result);
-    case "string":
-      return PyString(result);
     case "bool":
       return PyBool(Boolean(result));
     case "class":
@@ -17,10 +15,6 @@ export function PyValue(typ: Type, result: number): Value {
 
 export function PyInt(n: number): Value {
   return { tag: "num", value: BigInt(n) };
-}
-
-export function PyString(n: number): Value {
-  return { tag: "string", value: n };
 }
 
 export function PyBool(b: boolean): Value {
@@ -37,7 +31,6 @@ export function PyNone(): Value {
 }
 
 export const NUM : Type = {tag: "number"};
-export const STRING : Type = {tag: "string"};
 export const BOOL : Type = {tag: "bool"};
 export const NONE : Type = {tag: "none"};
 export function CLASS(name : string) : Type {return {tag: "class", name}};

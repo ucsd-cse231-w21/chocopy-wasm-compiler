@@ -44,6 +44,8 @@ export type Expr<A> =
   | {  a?: A, tag: "construct", name: string }
   | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
   | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
+  | {  a?: A, tag: "string_indexing", name: Expr<A>, index: Expr<A>}
+  | {  a?: A, tag: "string_slicing", name: Expr<A>, start: Expr<A>, end: Expr<A>, stride: Expr<A>}
 
 export type Literal = 
     { tag: "num", value: BigInt }

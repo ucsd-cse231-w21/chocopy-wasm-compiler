@@ -1,7 +1,7 @@
 import {BasicREPL} from './repl';
 import { Type, Value } from './ast';
 import { defaultTypeEnv } from './type-check';
-import { NUM, BOOL, NONE, STRING } from './utils';
+import { NUM, BOOL, NONE } from './utils';
 
 import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
@@ -35,7 +35,6 @@ function webStart() {
     var importObject = {
       imports: {
         print_num: (arg: number) => print(NUM, arg),
-        print_str: (arg: number) => print(STRING, arg),
         print_bool: (arg: number) => print(BOOL, arg),
         print_none: (arg: number) => print(NONE, arg),
         abs: Math.abs,
