@@ -25,6 +25,7 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
 }
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
+  console.info("Parser Expr",c.type.name)
   switch(c.type.name) {
     case "Number":
     case "Boolean":
@@ -204,6 +205,7 @@ export function traverseArguments(c : TreeCursor, s : string) : Array<Expr<null>
 }
 
 export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
+  console.info("Parser Stmt",c.type.name)
   switch(c.node.type.name) {
     case "ReturnStatement":
       c.firstChild();  // Focus return keyword
