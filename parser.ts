@@ -185,6 +185,28 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         tag: "id",
         name: "self"
       };
+
+    case "DictionaryExpression":  
+    // entries: Array<[Expr<A>, Expr<A>]>
+    let keyValuePairs: Array<[Expr<null>, Expr<null>]> = []; 
+    c.firstChild(); // Focus on "{"
+    while(c.nextSibling()) {  
+      if(s.substring(c.from, c.to) === "}") { // check for empty dict
+        break;
+      }
+      let key = traverseExpr(c, s);
+      c.nextSibling(); // Focus on :
+      c.nextSibling(); // Focus on Value
+      let value = traverseExpr(c, s);
+      keyValuePairs.push([key, value]);
+      c.nextSibling(); // Focus on } or ,
+      }    
+    c.parent(); // Pop to DictionaryExpression
+    return {
+      tag: "dict", 
+      entries: keyValuePairs
+    }
+
     default:
       throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
   }
