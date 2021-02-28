@@ -38,8 +38,11 @@ export type Closure<A> = {
   apply: FunDef<A> 
 }
 
+export type FindTagged<T extends {tag: V | string}, V> =
+  T extends {tag: V} ? T : never;
+
 export type Stmt<A> =
-  | {  a?: A, tag: "assignment", target: Destructure<A>, value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
+  | {  a?: A, tag: "assignment", destruct: Destructure<A>, value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
   | {  a?: A, tag: "assign", name: string, value: Expr<A> }
   | {  a?: A, tag: "return", value: Expr<A> }
   | {  a?: A, tag: "expr", expr: Expr<A> }

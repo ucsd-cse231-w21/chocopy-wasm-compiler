@@ -258,24 +258,11 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       var value = traverseExpr(c, s);
       c.parent();
 
-      const target = destruct.targets[0].target;
 
-      // TODO: The new assign syntax should hook in here
-      if (target.tag === "lookup") {
-        return {
-          tag: "field-assign",
-          obj: target.obj,
-          field: target.field,
-          value: value
-        }
-      } else if (target.tag === "id") {
-        return {
-          tag: "assign",
-          name: target.name,
-          value: value
-        }  
-      } else {
-        throw new Error("Unknown target while parsing assignment");
+      return {
+        tag: "assignment",
+        destruct,
+        value,
       }
     case "ExpressionStatement":
       c.firstChild();

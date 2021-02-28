@@ -1,8 +1,8 @@
 
 import { table } from 'console';
-import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from './ast';
-import { NUM, BOOL, NONE, CLASS } from './utils';
-import { emptyEnv } from './compiler';
+import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class, Destructure, FindTagged, Assignable, AssignTarget, ASSIGNABLE_TAGS } from './ast';
+import { NUM, BOOL, NONE, CLASS, isTagged } from './utils';
+import { emptyEnv, GlobalEnv } from './compiler';
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -160,7 +160,8 @@ export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Arra
 export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<null>) : Stmt<Type> {
   switch(stmt.tag) {
     case "assignment":
-      throw new TypeCheckError("Destructured assignment not implemented");
+      const tValueExpr = tcExpr(env, locals, stmt.value);
+      return {a: NONE, tag: stmt.tag, value: tValueExpr, destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a)};
     case "assign":
       const tValExpr = tcExpr(env, locals, stmt.value);
       var nameTyp;
@@ -217,6 +218,50 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
         throw new TypeCheckError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
       return {...stmt, a: NONE, obj: tObj, value: tVal};
   }
+}
+
+function tcDestructure(env: GlobalTypeEnv, locals: LocalTypeEnv, destruct: Destructure<null>, value: Type): Destructure<Type> {
+  let values: Type[];
+  
+  if (destruct.isDestructured) {
+    throw new TypeCheckError("Destructured assignment not implemented");
+  } else if (destruct.targets.length === 1) {
+    values = [value];
+  } else {
+    throw new TypeCheckError(`Non-destructured assignment must have 1 target. Got ${destruct.targets.length}`);
+  }
+
+  const tTargets = destruct.targets.map(({target, ignore, starred}, i) => {
+    const tValue = values[i];
+    const tTarget = tcAssignable(env, locals, target);
+    if (starred) {
+      throw new TypeCheckError("Starred values not supported")
+    }
+    const targetType = tTarget.a;
+
+    if (!isAssignable(env, tValue, targetType)) {
+      throw new TypeCheckError(`Non-assignable types: Cannot assign ${tValue} to ${targetType}`);
+    }
+
+    return {
+      starred,
+      ignore,
+      target: tTarget,
+    }
+  });
+
+  return {
+    isDestructured: destruct.isDestructured,
+    targets: tTargets,
+  }
+}
+
+function tcAssignable(env: GlobalTypeEnv, locals: LocalTypeEnv, target: Assignable<null>): Assignable<Type> {
+  const expr = tcExpr(env, locals, target);
+  if (!isTagged(expr, ASSIGNABLE_TAGS)) {
+    throw new TypeCheckError(`Cannot assing to target type ${expr.tag}`)
+  }
+  return expr;
 }
 
 export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<null>) : Expr<Type> {

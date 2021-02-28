@@ -1,6 +1,7 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
+import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, FindTagged, Assignable } from "./ast";
 import { NUM, BOOL, NONE } from "./utils";
 import * as BaseException from "./error";
+import { traverseArguments } from "./parser";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -73,6 +74,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
 
   const definedVars : Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$destruct");
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs : Array<string> = [];
@@ -123,7 +125,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       valStmts.push("return");
       return valStmts;
     case "assignment":
-      throw new Error("Destructured assignment not implemented");  
+      return codeGenAssignment(stmt, env)
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
@@ -164,6 +166,65 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
   }
 }
 
+function codeGenAssignment(stmt: FindTagged<Stmt<Type>, "assignment">, env: GlobalEnv): string[] {
+  const { destruct, value } = stmt;
+  
+  const valueCode = codeGenExpr(value, env);
+  const getValue = "(local.get $$destruct)"
+
+  let assignStmts: string[] = [];
+
+  if (destruct.isDestructured) {
+    throw new Error("Destructuring not yet supported in compiler")
+  } else {
+    const target = destruct.targets[0];
+    if (!target.ignore) {
+      assignStmts = codeGenAssignable(target.target, getValue, env)
+    }
+  }
+
+  return [
+    ...valueCode,
+    "local.set $$destruct",
+    ...assignStmts,
+  ]
+}
+
+function codeGenAssignable(target: Assignable<Type>, value: string, env: GlobalEnv): string[] {
+  switch (target.tag) {
+    case "id": // Variables
+      if (env.locals.has(target.name)) {
+        return [value, `(local.set $${target.name})`]; 
+      } else {
+        const locationToStore = [`(i32.const ${envLookup(env, target.name)}) ;; ${target.name}`];
+        return [
+          ...locationToStore,
+          value,
+          "(i32.store)"
+        ]
+      }
+    case "lookup": // Field lookup
+      const objStmts = codeGenExpr(target.obj, env);
+      const objTyp = target.obj.a;
+      if (objTyp.tag !== "class") { // I don't think this error can happen
+        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
+      }
+      const className = objTyp.name;
+      const [offset, _] = env.classes.get(className).get(target.field);
+      return [
+        ...objStmts,
+        `(i32.add (i32.const ${offset * 4}))`,
+        value,
+        `(i32.store)`
+      ];
+    default:
+      // Force type error if assignable is added without implementation
+      // At the very least, there should be a stub
+      const err: never = target;
+      throw new Error(`Unknown target ${JSON.stringify(err)} (compiler)`)
+  }
+}
+
 function codeGenInit(init : VarInit<Type>, env : GlobalEnv) : Array<string> {
   const value = codeGenLiteral(init.value);
   if (env.locals.has(init.name)) {
@@ -178,6 +239,7 @@ function codeGenDef(def : FunDef<Type>, env : GlobalEnv) : Array<string> {
   var definedVars : Set<string> = new Set();
   def.inits.forEach(v => definedVars.add(v.name));
   definedVars.add("$last");
+  definedVars.add("$destruct");
   // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach(env.locals.add, env.locals);
   def.parameters.forEach(p => env.locals.add(p.name));
