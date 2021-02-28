@@ -1,7 +1,7 @@
 import {BasicREPL} from './repl';
 import { Type, Value } from './ast';
 import { defaultTypeEnv } from './type-check';
-import { NUM, BOOL, NONE } from './utils';
+import { NUM, BOOL, NONE, PyValue } from './utils';
 
 import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
@@ -9,16 +9,17 @@ import "codemirror/mode/python/python"
 
 import "./style.scss";
 
-function stringify(typ: Type, arg: any) : string {
-  switch(typ.tag) {
-    case "number":
-      return (arg as number).toString();
+function stringify(result: Value) : string {
+  switch(result.tag) {
+    case "num":
+      return result.value.toString();
     case "bool":
-      return (arg as boolean)? "True" : "False";
+      return (result.value) ? "True" : "False";
     case "none":
       return "None";
-    case "class":
-      return typ.name;
+    case "object":
+      return `<${result.name} object at ${result.address}`;
+    default: throw new Error(`Could not render value: ${result}`);
   }
 }
 
@@ -26,7 +27,8 @@ function print(typ: Type, arg : number) : any {
   console.log("Logging from WASM: ", arg);
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
-  elt.innerText = stringify(typ, arg);
+  const val = PyValue(typ, arg);
+  elt.innerText = stringify(val); // stringify(typ, arg, mem);
   return arg;
 }
 
@@ -51,18 +53,7 @@ function webStart() {
       if (result.tag === "none") return;
       const elt = document.createElement("pre");
       document.getElementById("output").appendChild(elt);
-      switch (result.tag) {
-        case "num":
-          elt.innerText = String(result.value);
-          break;
-        case "bool":
-          elt.innerHTML = (result.value) ? "True" : "False";
-          break;
-        case "object":
-          elt.innerHTML = `<${result.name} object at ${result.address}`
-          break
-        default: throw new Error(`Could not render value: ${result}`);
-      }
+      elt.innerText = stringify(result);
     }
 
     function renderError(result : any) : void {
