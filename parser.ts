@@ -1,7 +1,7 @@
 import {parser} from "lezer-python";
 import { TreeCursor} from "lezer-tree";
 import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal, Scope, AssignTarget, Destructure, ASSIGNABLE_TAGS } from "./ast";
-import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
+import { NUM, BOOL, NONE, CLASS, isTagged, LIST } from "./utils";
 
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
@@ -418,9 +418,33 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
   }
 }
 
+export function traverseBracketType(c : TreeCursor, s : string) : Type {
+  // For now, always a VariableName
+  let bracketTypes = [];
+  c.firstChild();
+  while(c.nextSibling())
+  {
+    bracketTypes.push(traverseType(c,s))
+    c.nextSibling()
+  }
+  c.parent()
+  if(bracketTypes.length == 1) { //List 
+    return LIST(bracketTypes[0])
+  } else if(bracketTypes.length == 2) { 
+    //Dict?
+  }
+  else{
+    throw new Error("Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to);
+  }
+
+}
+
 export function traverseType(c : TreeCursor, s : string) : Type {
   // For now, always a VariableName
+  
   let name = s.substring(c.from, c.to);
+  if(name.includes("["))
+    return traverseBracketType(c,s)
   switch(name) {
     case "int": return NUM;
     case "bool": return BOOL;

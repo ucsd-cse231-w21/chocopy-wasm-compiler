@@ -2,10 +2,15 @@ import { PyInt, PyBool, PyNone, PyObj } from '../utils';
 import { assert, asserts, assertPrint } from "./utils.test";
 
 describe('run', () => {
+    // assert('Parsing Empty List', '[]',  PyNone())
+    // assert('Parsing List', '[1,2,3]',  PyNone())
+    var source = `
+        items : [int] = None
+        items = [1, 2, 3]
+        items
+    `
   
-
-  
-    assert('Parsing Empty List', '[1,2,3]',  PyNone())
+    assert('Parsing Empty List', source,  PyObj(`list<number>`, 8))
     // assert('Lists Declaration','items : [int] = None\nitems', PyNone())
     // var source = `
     //     items : [int] = None
