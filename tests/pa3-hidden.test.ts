@@ -29,7 +29,7 @@ else:
   // Assignability tests, None into class (return, assign, field assign)
   assertTC("none-assign", `
   class C(object):
-    def f() -> int:
+    def f(self: C) -> int:
       return 0
   c : C = None
   c = None`, PyNone());
@@ -52,19 +52,19 @@ else:
   // Type-checking block of method (keep checking after return?)
   assertTCFail("return-after-return", `
   class C(object):
-    def f() -> int:
+    def f(self: C) -> int:
       return 1
       return False`);
   
   assertTCFail("tc-error-after-return", `
   class C(object):
-    def f() -> int:
+    def f(self: C) -> int:
       return 1
       1 - True`);
   
   assertTCFail("no-return-just-expr", `
   class C(object):
-    def f() -> int:
+    def f(self: C) -> int:
       1`);
   
   
@@ -80,13 +80,13 @@ else:
   assertTCFail("return-id", `
   class C(object):
     x : int = 0
-    def f() -> int:
+    def f(self: C) -> int:
       x`);
   
   // Return in one branch of if but not the other
   assertTCFail("return-in-one-branch", `
   class C(object):
-    def f() -> int:
+    def f(self: C) -> int:
       if True:
         return 0
       else:
@@ -311,5 +311,34 @@ l: LinkedList = None
 l = LinkedList().new(1, LinkedList().new(2, LinkedList().new(3, None)))
 l.next.sum()`, NUM);
 
+  // correct number of things on the stack
+  assert("many-literals", `
+  1
+  2
+  3
+  4`, PyInt(4));
+
+  assertTCFail("expr-not-ret-type", `
+  class C(object):
+    def f(self: C) -> int:
+      if True:
+        return 0
+      else:
+        1`);
+  
+  assert("many-ifs", `
+  class C(object):
+    def f(self: C):
+      if True:
+        1
+      else:
+        0
+      if False:
+        0
+      else:
+        1
+  c : C = None
+  c = C()
+  c.f()`, PyNone());
 
 });
