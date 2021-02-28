@@ -8,7 +8,8 @@
     "build-web": "webpack",
     "build-parse": "tsc parsestart.ts --esModuleInterop --moduleResolution node --outDir cli/",
     "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/*.test.ts'",
-    "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/**/*.test.ts'"
+    "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/tests/**/*.test.ts'",
+    "fuzzonce": "tsc fuzzer/fuzzer.ts --outDir fuzzer/cli/ && node fuzzer/cli/fuzzer/fuzzer.js"
   },
   "engines": {
     "npm": "^6.0.0"
