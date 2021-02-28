@@ -73,6 +73,7 @@ export async function run(source : string, config: Config) : Promise<[Value, com
 
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
+    (func $print (import "imports" "print") (param i32) (result i32))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "print_none") (param i32) (result i32))
@@ -90,5 +91,5 @@ export async function run(source : string, config: Config) : Promise<[Value, com
   console.log(wasmSource);
   const result = await runWat(wasmSource, importObject);
 
-  return [PyValue(progTyp, result), compiled.newEnv, tenv, compiled.functions];
+  return [PyValue(progTyp, result, view), compiled.newEnv, tenv, compiled.functions];
 }

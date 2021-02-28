@@ -23,22 +23,24 @@ function stringify(result: Value) : string {
   }
 }
 
-function print(typ: Type, arg : number) : any {
+function print(typ: Type, arg : number, mem: any) : any {
   console.log("Logging from WASM: ", arg);
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
-  const val = PyValue(typ, arg);
+  const val = PyValue(typ, arg, mem);
   elt.innerText = stringify(val); // stringify(typ, arg, mem);
   return arg;
 }
+
 
 function webStart() {
   document.addEventListener("DOMContentLoaded", function() {
     var importObject = {
       imports: {
-        print_num: (arg: number) => print(NUM, arg),
-        print_bool: (arg: number) => print(BOOL, arg),
-        print_none: (arg: number) => print(NONE, arg),
+        print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_num: (arg: number) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_bool: (arg: number) => print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_none: (arg: number) => print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
         abs: Math.abs,
         min: Math.min,
         max: Math.max,

@@ -314,14 +314,62 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
   }
 }
 
+function codeGenBigInt(num : bigint) : Array<string> {
+  const WORD_SIZE = 4;
+  const mask = BigInt(0x7fffffff);
+  var sign = 1;
+  var size = 0;
+  // fields ? [(0, sign), (1, size)]
+  if (num < 0n) {
+    sign = 0
+    num *= -1n
+  }
+  var words : bigint[] = [];
+  do {
+    words.push(num & mask);
+    num >>= 31n;
+    size += 1
+  } while (num > 0n)
+  // size MUST be > 0
+  var alloc = [
+    // eventually we will be able to call something like alloc(size+2)
+    "(i32.load (i32.const 0))", // Load dynamic heap head offset
+    `(i32.add (i32.const ${0 * WORD_SIZE}))`, // add space for sign field
+    `(i32.const ${sign})`,
+    "(i32.store)", // store sign val
+    "(i32.load (i32.const 0))", // Load dynamic heap head offset
+    `(i32.add (i32.const ${1 * WORD_SIZE}))`, // move offset another 4 for size
+    `(i32.const ${size})`, // size is only 32 bits :(
+    "(i32.store)" // store size
+  ]
+  words.forEach((w, i) => {
+    alloc = alloc.concat([
+      "(i32.load (i32.const 0))", // Load dynamic heap head offset
+      `(i32.add (i32.const ${(2 + i) * WORD_SIZE}))`, // advance pointer
+      `(i32.const ${w})`,
+      ...encodeLiteral,
+      "(i32.store)" // store
+    ]);
+  });
+  alloc = alloc.concat([
+    "(i32.const 0)", // where will we store the updated heap offset
+    "(i32.load (i32.const 0))", // Load dynamic heap head offset
+    `(i32.add (i32.const ${(2 + size) * WORD_SIZE}))`, // this is how much space we need
+    "(i32.store)", // store new offset
+    "(i32.load (i32.const 0))", // reload offset
+    `(i32.sub (i32.const ${(2 + size) * WORD_SIZE}))` // this is the addr for the number
+  ]);
+  console.log(words, size, sign);
+  return alloc;
+}
+
 function codeGenLiteral(literal : Literal) : Array<string> {
   switch(literal.tag) {
     case "num":
       if (literal.value <= INT_LITERAL_MAX && literal.value >= INT_LITERAL_MIN) {
         return [`(i32.const ${literal.value})`, ...encodeLiteral];
       } else {
-        // place holder for generating big int
-        return [`(i32.const ${literal.value})`, ...encodeLiteral];
+        return codeGenBigInt(literal.value);
       }
     case "bool":
       return [`(i32.const ${Number(literal.value)})`, ...encodeLiteral];

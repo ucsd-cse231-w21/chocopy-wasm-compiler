@@ -1,14 +1,22 @@
 import { Value, Type } from "./ast";
 import { nTagBits } from "./compiler";
 
-export function PyValue(typ: Type, result: number): Value {
+export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "number":
       if (result & 1) {
         return PyInt(result >> nTagBits);
       } else {
-        // placeholder for BigInts
-        return PyInt(result);
+        var idx : number = Number(result) / 4;
+        var size = mem[idx+1];
+        var i = 1;
+        var num = 0n;
+        while (i <= size) {
+          var dig = mem[idx+1+i];
+          num += BigInt(dig >> nTagBits) << BigInt((i - 1) * (32 - nTagBits));
+          i += 1
+        }
+        return PyBigInt(num);
       }
     case "bool":
       return PyBool(Boolean(result >> nTagBits));
