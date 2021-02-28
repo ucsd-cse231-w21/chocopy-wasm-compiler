@@ -1,4 +1,4 @@
-import { PyInt, PyBool, PyNone, PyObj } from '../utils';
+import { PyInt, PyBigInt, PyBool, PyNone, PyObj } from '../utils';
 import { assert, asserts, assertPrint } from "./utils.test";
 
 // We write end-to-end tests here to make sure the compiler works as expected.
@@ -12,11 +12,11 @@ describe('run', () => {
 
   assert('add3', "2 + 3 + 4", PyInt(2 + 3 + 4));
 
-  assert('add-overflow', "4294967295 + 1", PyInt(0));
+  assert('add-overflow', "4294967295 + 1", PyBigInt(4294967296n));
 
   assert('sub', "1 - 2", PyInt(1 - 2));
 
-  assert('sub-underflow', "0 - 4294967295 - 1", PyInt(0));
+  assert('sub-underflow', "0 - 4294967295 - 1", PyBigInt(-4294967296n));
 
   assert('mul', "2 * 3 * 4", PyInt(2 * 3 * 4));
 

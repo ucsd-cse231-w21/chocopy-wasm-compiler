@@ -17,6 +17,10 @@ export function PyInt(n: number): Value {
   return { tag: "num", value: BigInt(n) };
 }
 
+export function PyBigInt(n: bigint): Value {
+  return { tag: "num", value: n };
+}
+
 export function PyBool(b: boolean): Value {
   return { tag: "bool", value: b };
 }
