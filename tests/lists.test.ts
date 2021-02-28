@@ -6,9 +6,6 @@ describe('run', () => {
 
   
     assert('Parsing Empty List', '[1,2,3]',  PyNone())
-  
-    // assert('add', "2 + 3", PyInt(2 + 3));
-
     // assert('Lists Declaration','items : [int] = None\nitems', PyNone())
     // var source = `
     //     items : [int] = None

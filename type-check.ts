@@ -159,6 +159,8 @@ export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Arra
 
 export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<null>) : Stmt<Type> {
   switch(stmt.tag) {
+    case "assignment":
+      throw new TypeCheckError("Destructured assignment not implemented");
     case "assign":
       const tValExpr = tcExpr(env, locals, stmt.value);
       var nameTyp;

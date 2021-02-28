@@ -32,6 +32,10 @@ export function PyNone(): Value {
   return { tag: "none" };
 }
 
+export function isTagged<A extends string[], V extends {tag: string}, T extends {tag: A[number]}>(val: V | T, set: readonly [...A]): val is T {
+  return set.includes(val.tag);
+}
+
 export const NUM : Type = {tag: "number"};
 export const BOOL : Type = {tag: "bool"};
 export const NONE : Type = {tag: "none"};
