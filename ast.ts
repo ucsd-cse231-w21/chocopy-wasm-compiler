@@ -5,6 +5,7 @@ export type Type =
   | {tag: "number"}
   | {tag: "bool"}
   | {tag: "none"}
+  | {tag: "string"}
   | {tag: "class", name: string}
   | {tag: "callable", args: Array<Type>, ret: Type}
   | {tag: "list", content_type: Type }
@@ -92,6 +93,7 @@ export type Expr<A> =
   | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
   | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
   | {  a?: A, tag: "list-expr", contents: Array<Expr<A>> }
+  | {  a?: A, tag: "string_slicing", name: Expr<A>, start: Expr<A>, end: Expr<A>, stride: Expr<A>}
   | {  a?: A, tag: "dict", entries: Array<[Expr<A>, Expr<A>]> }
   | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
 
@@ -99,6 +101,7 @@ export type Expr<A> =
 export type Literal = 
     { tag: "num", value: BigInt }
   | { tag: "bool", value: boolean }
+  | { tag: "string", value: string}
   | { tag: "none" }
 
 // TODO: should we split up arithmetic ops from bool ops?
