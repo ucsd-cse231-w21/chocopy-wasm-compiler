@@ -204,6 +204,14 @@ function codeGenClass(cls : Class<Type>, env : GlobalEnv) : Array<string> {
   return result.flat();
 }
 
+function codeGenListCopy() : Array<string> {
+  return []
+}
+
+function codeGenListConcat() : Array<string> {
+  return []
+}
+
 function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
   switch(expr.tag) {
     case "builtin1":
@@ -233,6 +241,8 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
     case "binop":
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
+      if(expr.left.a.tag === "list")
+        return [...lhsStmts, ...rhsStmts, ...codeGenListConcat()]
       return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
@@ -369,4 +379,7 @@ function codeGenBinOp(op : BinOp) : string {
     case BinOp.Or:
       return "(i32.or)"
   }
+
+  
+    
 }

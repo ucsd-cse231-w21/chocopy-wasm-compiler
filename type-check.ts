@@ -233,6 +233,7 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       const tBin = {...expr, left: tLeft, right: tRight};
       switch(expr.op) {
         case BinOp.Plus:
+          if(tLeft.a.tag === "list" && equalType(tLeft.a, tRight.a) ) { return {a: tLeft.a, ...tBin}}
         case BinOp.Minus:
         case BinOp.Mul:
         case BinOp.IDiv:

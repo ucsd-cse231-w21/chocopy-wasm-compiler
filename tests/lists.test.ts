@@ -11,6 +11,22 @@ describe('run', () => {
     `
   
     assert('Parsing Empty List', source,  PyObj(`list<number>`, 8))
+
+    var source = `
+        items : [int] = None
+        items = [1, 2, 3] + [2, 3, 4]
+        items
+    `
+  
+    assert('Parsing Empty List', source,  PyObj(`list<number>`, 8))
+    var source = `
+    items : int = 1
+    while(False):
+        items = 3
+    items
+`
+
+    assert('Parsing Empty List', source,  PyInt(1))
     // assert('Lists Declaration','items : [int] = None\nitems', PyNone())
     // var source = `
     //     items : [int] = None
