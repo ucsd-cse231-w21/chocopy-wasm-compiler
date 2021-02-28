@@ -14,13 +14,18 @@ jobs:
       # Make use of npm install cache
       - uses: actions/cache@v2
         with:
-          path: ~/.npm
+          path: |
+            ~/.npm
+            ~/.cache/Cypress
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
       # Install using ONLY the package-lock.json
       - name: Install dependencies
         run: npm ci
+
+      - name: Run tests
+        run: npm test
 
       - name: Build app
         run: npm run build-web
@@ -30,3 +35,6 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build
+          # Attribute to github actions rather than @jpolitz https://github.com/peaceiris/actions-gh-pages#%EF%B8%8F-set-git-username-and-email
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
