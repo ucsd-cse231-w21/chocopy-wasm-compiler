@@ -92,7 +92,7 @@ export type Expr<A> =
   | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
 
 export type Literal = 
-    { tag: "num", value: BigInt }
+    { tag: "num", value: bigint }
   | { tag: "bool", value: boolean }
   | { tag: "none" }
 
