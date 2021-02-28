@@ -169,17 +169,36 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         op: op,
         expr: expr
       }
+    //
     case "MemberExpression":
       c.firstChild(); // Focus on object
       var objExpr = traverseExpr(c, s);
       c.nextSibling(); // Focus on .
-      c.nextSibling(); // Focus on property
-      var propName = s.substring(c.from, c.to);
-      c.parent();
-      return {
-        tag: "lookup",
-        obj: objExpr,
-        field: propName
+      const memberChar = s.substring(c.from,c.to);
+      //Check if "." or "["
+      if(memberChar === ".") {
+        c.nextSibling(); // Focus on property
+        var propName = s.substring(c.from, c.to);
+        c.parent();
+        return {
+          tag: "lookup",
+          obj: objExpr,
+          field: propName
+        }
+      }
+      else if(memberChar === "[") {
+        c.nextSibling(); // Focus on property
+        //Parse Expr used as index
+        var propExpr = traverseExpr(c, s);
+        c.parent();
+        return {
+          tag: "bracket-lookup",
+          obj: objExpr,
+          key: propExpr
+        }
+      }
+      else {
+        throw new Error("Could not parse MemberExpression char");
       }
     case "self":
       return {
@@ -280,22 +299,37 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       const target = destruct.targets[0].target;
 
       // TODO: The new assign syntax should hook in here
+      switch(target.tag) {
+        case "lookup":
+          return {
+            tag: "field-assign",
+            obj: target.obj,
+            field: target.field,
+            value: value
+          }
+        case "bracket-lookup":
+          return {
+            tag: "bracket-assign",
+            obj: target.obj,
+            key: target.key,
+            value: value
+          }
+        case "id":
+          return {
+            tag: "assign",
+            name: target.name,
+            value: value
+          }  
+        default:
+          throw new Error("Unknown target while parsing assignment");
+      }
+      /*
       if (target.tag === "lookup") {
-        return {
-          tag: "field-assign",
-          obj: target.obj,
-          field: target.field,
-          value: value
-        }
       } else if (target.tag === "id") {
-        return {
-          tag: "assign",
-          name: target.name,
-          value: value
-        }  
       } else {
         throw new Error("Unknown target while parsing assignment");
       }
+      */
     case "ExpressionStatement":
       c.firstChild();
       const expr = traverseExpr(c, s);
