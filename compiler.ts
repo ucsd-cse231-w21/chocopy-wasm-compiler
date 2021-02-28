@@ -133,14 +133,6 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
         "local.set $$destruct",
         ...codeGenDestructure(stmt.destruct, getValue, env),
       ]    
-    case "assign":
-      var valStmts = codeGenExpr(stmt.value, env);
-      if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]); 
-      } else {
-        const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
-        return locationToStore.concat(valStmts).concat([`(i32.store)`]);
-      }
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
       return exprStmts.concat([`(local.set $$last)`]);
@@ -155,21 +147,6 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
     case "pass":
       return [];
-    case "field-assign":
-      var objStmts = codeGenExpr(stmt.obj, env);
-      var objTyp = stmt.obj.a;
-      if(objTyp.tag !== "class") { // I don't think this error can happen
-        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
-      }
-      var className = objTyp.name;
-      var [offset, _] = env.classes.get(className).get(stmt.field);
-      var valStmts = codeGenExpr(stmt.value, env);
-      return [
-        ...objStmts,
-        `(i32.add (i32.const ${offset * 4}))`,
-        ...valStmts,
-        `(i32.store)`
-      ];
   }
 }
 

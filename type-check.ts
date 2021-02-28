@@ -162,19 +162,6 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
     case "assignment":
       const tValueExpr = tcExpr(env, locals, stmt.value);
       return {a: NONE, tag: stmt.tag, value: tValueExpr, destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a)};
-    case "assign":
-      const tValExpr = tcExpr(env, locals, stmt.value);
-      var nameTyp;
-      if (locals.vars.has(stmt.name)) {
-        nameTyp = locals.vars.get(stmt.name);
-      } else if (env.globals.has(stmt.name)) {
-        nameTyp = env.globals.get(stmt.name);
-      } else {
-        throw new TypeCheckError("Unbound id: " + stmt.name);
-      }
-      if(!isAssignable(env, tValExpr.a, nameTyp)) 
-        throw new TypeCheckError("Non-assignable types");
-      return {a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr};
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
       return {a: tExpr.a, tag: stmt.tag, expr: tExpr};
@@ -204,19 +191,6 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       return {a: NONE, tag:stmt.tag, cond: tCond, body: tBody};
     case "pass":
       return {a: NONE, tag: stmt.tag};
-    case "field-assign":
-      var tObj = tcExpr(env, locals, stmt.obj);
-      const tVal = tcExpr(env, locals, stmt.value);
-      if (tObj.a.tag !== "class") 
-        throw new TypeCheckError("field assignments require an object");
-      if (!env.classes.has(tObj.a.name)) 
-        throw new TypeCheckError("field assignment on an unknown class");
-      const [fields, _] = env.classes.get(tObj.a.name);
-      if (!fields.has(stmt.field)) 
-        throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
-      if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
-        throw new TypeCheckError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
-      return {...stmt, a: NONE, obj: tObj, value: tVal};
   }
 }
 

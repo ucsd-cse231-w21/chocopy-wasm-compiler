@@ -43,13 +43,11 @@ export type FindTagged<T extends {tag: V | string}, V> =
 
 export type Stmt<A> =
   | {  a?: A, tag: "assignment", destruct: Destructure<A>, value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
-  | {  a?: A, tag: "assign", name: string, value: Expr<A> }
   | {  a?: A, tag: "return", value: Expr<A> }
   | {  a?: A, tag: "expr", expr: Expr<A> }
   | {  a?: A, tag: "if", cond: Expr<A>, thn: Array<Stmt<A>>, els: Array<Stmt<A>> }
   | {  a?: A, tag: "while", cond: Expr<A>, body: Array<Stmt<A>> }
   | {  a?: A, tag: "pass" }
-  | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
   | {  a?: A, tag: "continue" }
   | {  a?: A, tag: "break" }
   | {  a?: A, tag: "for", name: string, index?: Expr<A>, iterable: Expr<A>, body: Array<Stmt<A>> }
