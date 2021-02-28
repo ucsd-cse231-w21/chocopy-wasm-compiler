@@ -99,7 +99,7 @@ export type Expr<A> =
 
 
 export type Literal = 
-    { tag: "num", value: BigInt }
+    { tag: "num", value: bigint }
   | { tag: "bool", value: boolean }
   | { tag: "string", value: string}
   | { tag: "none" }
