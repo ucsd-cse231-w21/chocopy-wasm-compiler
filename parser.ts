@@ -1,7 +1,8 @@
 import {parser} from "lezer-python";
 import { TreeCursor} from "lezer-tree";
-import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal } from "./ast";
-import { NUM, BOOL, NONE, CLASS } from "./utils";
+import { Program, Expr, Stmt, UniOp, BinOp, Parameter, Type, FunDef, VarInit, Class, Literal, Scope, AssignTarget, Destructure, ASSIGNABLE_TAGS } from "./ast";
+import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
+
 
 export function traverseLiteral(c : TreeCursor, s : string) : Literal {
   switch(c.type.name) {
@@ -203,6 +204,40 @@ export function traverseArguments(c : TreeCursor, s : string) : Array<Expr<null>
   return args;
 }
 
+// Traverse the lhs of assign operations and return the assignment targets
+function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
+  // TODO: Actually support destructured assignment
+  const targets: AssignTarget<null>[] = [];
+  const target = traverseExpr(c, s);
+  let isSimple = true
+  if (!isTagged(target, ASSIGNABLE_TAGS)) {
+    target.tag
+    throw new Error("Unknown target while parsing assignment");
+  }
+  targets.push({
+    target,
+    ignore: false,
+    starred: false,
+  })
+  c.nextSibling(); // move to =
+  if (c.name !== "AssignOp") {
+    isSimple = false;
+    throw new Error(`Multiple assignment currently not supported. Expected "=", got "${s.substring(c.from, c.to)}"`)
+  }
+  c.prevSibling(); // Move back to previous for parsing to continue
+
+  if (targets.length === 1 && isSimple) {
+    return {
+      isDestructured: false,
+      targets,
+    }
+  } else if (targets.length === 0) {
+    throw new Error("No assignment targets found")
+  } else {
+    throw new Error("Unsupported non-simple assignment")
+  }
+}
+
 export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
   switch(c.node.type.name) {
     case "ReturnStatement":
@@ -217,12 +252,15 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       return { tag: "return", value };
     case "AssignStatement":
       c.firstChild(); // go to name
-      const target = traverseExpr(c, s);
+      const destruct = traverseDestructure(c, s);
       c.nextSibling(); // go to equals
       c.nextSibling(); // go to value
       var value = traverseExpr(c, s);
       c.parent();
 
+      const target = destruct.targets[0].target;
+
+      // TODO: The new assign syntax should hook in here
       if (target.tag === "lookup") {
         return {
           tag: "field-assign",
@@ -287,7 +325,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       if (!c.nextSibling() || c.name !== "else") {
         // Focus on else
         throw new Error("if statement missing else block");
-      }; 
+      }
       c.nextSibling(); // Focus on : els
       c.firstChild(); // Focus on :
       var els = [];
@@ -425,7 +463,12 @@ export function traverseFunDef(c : TreeCursor, s : string) : FunDef<null> {
   c.parent();      // Pop to Body
   // console.log("Before pop to def: ", c.type.name);
   c.parent();      // Pop to FunctionDefinition
-  return { name, parameters, ret, inits, body }
+  
+  // TODO: Closure group: fill decls and funs to make things work
+  const decls: Scope<null>[] = []
+  const funs: FunDef<null>[] = []
+
+  return { name, parameters, ret, inits, decls, funs, body }
 }
 
 export function traverseClass(c : TreeCursor, s : string) : Class<null> {
@@ -450,7 +493,15 @@ export function traverseClass(c : TreeCursor, s : string) : Class<null> {
   c.parent();
 
   if (!methods.find(method => method.name === "__init__")) {
-    methods.push({ name: "__init__", parameters: [{ name: "self", type: CLASS(className) }], ret: NONE, inits: [], body: [] });
+    methods.push({ 
+      name: "__init__", 
+      parameters: [{ name: "self", type: CLASS(className) }], 
+      ret: NONE, 
+      decls: [],
+      inits: [],
+      funs: [],
+      body: [],
+    });
   }
   return {
     name: className,
