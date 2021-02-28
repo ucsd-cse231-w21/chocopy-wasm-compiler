@@ -14,7 +14,7 @@ export function PyValue(typ: Type, result: number): Value {
 }
 
 export function PyInt(n: number): Value {
-  return { tag: "num", value: n };
+  return { tag: "num", value: BigInt(n) };
 }
 
 export function PyBool(b: boolean): Value {
@@ -28,6 +28,10 @@ export function PyObj(name: string, address: number): Value {
 
 export function PyNone(): Value {
   return { tag: "none" };
+}
+
+export function isTagged<A extends string[], V extends {tag: string}, T extends {tag: A[number]}>(val: V | T, set: readonly [...A]): val is T {
+  return set.includes(val.tag);
 }
 
 export const NUM : Type = {tag: "number"};
