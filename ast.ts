@@ -39,7 +39,7 @@ export type Closure<A> = {
 }
 
 export type Stmt<A> =
-  | {  a?: A, tag: "assignment", destruct: Destructure<A>, value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
+  | {  a?: A, tag: "assignment", destruct: Destructure<A>, value: Expr<A> }
   | {  a?: A, tag: "return", value: Expr<A> }
   | {  a?: A, tag: "expr", expr: Expr<A> }
   | {  a?: A, tag: "if", cond: Expr<A>, thn: Array<Stmt<A>>, els: Array<Stmt<A>> }
@@ -49,6 +49,15 @@ export type Stmt<A> =
   | {  a?: A, tag: "break" }
   | {  a?: A, tag: "for", name: string, index?: Expr<A>, iterable: Expr<A>, body: Array<Stmt<A>> }
 
+/**
+ * Description of assign targets. isDestructured indicates if we are doing
+ * object destructuring and targets is an array of targets. One case where this
+ * distinction is important is with single element tuples:
+ * 
+ * `(a,) = (1,)` vs. `a = (1,)`
+ * 
+ * The first assigns `a = 1` while the second results in `a = (1,)`
+ */
 export interface Destructure<A> {
   isDestructured: boolean;
   targets: AssignTarget<A>[];

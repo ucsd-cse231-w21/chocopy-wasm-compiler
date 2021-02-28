@@ -1,7 +1,6 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, Assignable, Destructure } from "./ast";
 import { NUM, BOOL, NONE } from "./utils";
 import * as BaseException from "./error";
-import { traverseArguments } from "./parser";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -150,6 +149,12 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
   }
 }
 
+/**
+ * Generate assign statements as described by the destructuring term
+ * @param destruct Destructuring description of assign targets
+ * @param value WASM code literal value for fetching the referenced value. E.g. "(local.get $$myValue)"
+ * @param env GlobalEnv
+ */
 function codeGenDestructure(destruct: Destructure<Type>, value: string, env: GlobalEnv): string[] {  
   let assignStmts: string[] = [];
 

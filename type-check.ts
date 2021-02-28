@@ -194,6 +194,14 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
   }
 }
 
+/**
+ * Type check a Destructure<null>. This requires explicitly passing in the type of the value this
+ * assignment will receive.
+ * @param env GlobalTypeEnv
+ * @param locals LocalTypeEnv
+ * @param destruct Destructure description of assign targets
+ * @param value Type of the value passed into this destructure
+ */
 function tcDestructure(env: GlobalTypeEnv, locals: LocalTypeEnv, destruct: Destructure<null>, value: Type): Destructure<Type> {
   let values: Type[];
   
