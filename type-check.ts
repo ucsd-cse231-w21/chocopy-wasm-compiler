@@ -1,6 +1,6 @@
 
 import { table } from 'console';
-import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class, Destructure, FindTagged, Assignable, AssignTarget, ASSIGNABLE_TAGS } from './ast';
+import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class, Destructure, Assignable, ASSIGNABLE_TAGS } from './ast';
 import { NUM, BOOL, NONE, CLASS, isTagged } from './utils';
 import { emptyEnv, GlobalEnv } from './compiler';
 import * as BaseException from "./error";

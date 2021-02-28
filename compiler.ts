@@ -1,4 +1,4 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, FindTagged, Assignable, Destructure } from "./ast";
+import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, Assignable, Destructure } from "./ast";
 import { NUM, BOOL, NONE } from "./utils";
 import * as BaseException from "./error";
 import { traverseArguments } from "./parser";
