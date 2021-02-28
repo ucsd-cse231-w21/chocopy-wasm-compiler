@@ -1,6 +1,7 @@
 const python = require('lezer-python');
 
-const input = "-1";
+const input = `for x in range(10):
+print(x)`;
 
 const tree = python.parser.parse(input);
 
@@ -11,4 +12,3 @@ do {
   console.log(cursor.node.type.name);
   console.log(input.substring(cursor.node.from, cursor.node.to));
 } while(cursor.next());
-
