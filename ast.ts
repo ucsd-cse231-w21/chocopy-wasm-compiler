@@ -53,8 +53,6 @@ export type Stmt<A> =
   | {  a?: A, tag: "break" }
   | {  a?: A, tag: "for", name: string, index?: Expr<A>, iterable: Expr<A>, body: Array<Stmt<A>> }
   | {  a?: A, tag: "bracket-assign", obj: Expr<A>, key: Expr<A>, value: Expr<A> }
-<<<<<<< HEAD
-=======
 
 export interface Destructure<A> {
   isDestructured: boolean;
@@ -76,7 +74,7 @@ export const ASSIGNABLE_TAGS = ["id", "lookup"] as const;
 export type Assignable<A> =
   | {  a?: A, tag: "id", name: string }
   | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
->>>>>>> main
+
 
 export type Expr<A> =
     {  a?: A, tag: "literal", value: Literal }
@@ -94,17 +92,10 @@ export type Expr<A> =
   | {  a?: A, tag: "lambda", args: Array<string>, ret: Expr<A> }
   | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
   | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> main
   | {  a?: A, tag: "list-expr", contents: Array<Expr<A>> }
-  | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
-
-=======
   | {  a?: A, tag: "dict", entries: Array<[Expr<A>, Expr<A>]> }
   | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
->>>>>>> upstream/main
+
 
 export type Literal = 
     { tag: "num", value: BigInt }
