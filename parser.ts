@@ -170,42 +170,65 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
       }
     case "MemberExpression":
       c.firstChild(); // Focus on object
-      var objExpr = traverseExpr(c, s);
-      c.nextSibling(); // Focus on .
-      c.nextSibling(); // Focus on property
-      var propName = s.substring(c.from, c.to);
-      c.parent();
-      return {
-        tag: "lookup",
-        obj: objExpr,
-        field: propName
+      var objExpr = traverseExpr(c, s);     //object name
+
+      
+      //branch off to class member look up or bracket (dict or list) look-up based on next sibling
+      c.nextSibling();   //will have . or [
+
+      if(s.substring(c.from, c.to) == ".")   //class member lookup; example: ctr.n
+      {   
+        c.nextSibling(); // Focus on property
+        var propName = s.substring(c.from, c.to);
+        c.parent();
+
+        return {
+          tag: "lookup",
+          obj: objExpr,
+          field: propName
+        }
+      }
+      
+      else              //dictionary or list lookup; example: d[5]
+      {
+        c.nextSibling();    //focus on expression inside the brackets
+        var bracketExpr = traverseExpr(c, s);
+
+        c.nextSibling();    //focus on }
+        c.parent();         //go back to MemberExpression
+
+        return {
+          tag: "bracket-lookup",
+          obj: objExpr,
+          key: bracketExpr
+        }
       }
     case "self":
       return {
         tag: "id",
         name: "self"
       };
-
+      
     case "DictionaryExpression":  
-    // entries: Array<[Expr<A>, Expr<A>]>
-    let keyValuePairs: Array<[Expr<null>, Expr<null>]> = []; 
-    c.firstChild(); // Focus on "{"
-    while(c.nextSibling()) {  
-      if(s.substring(c.from, c.to) === "}") { // check for empty dict
-        break;
+      // entries: Array<[Expr<A>, Expr<A>]>
+      let keyValuePairs: Array<[Expr<null>, Expr<null>]> = []; 
+      c.firstChild(); // Focus on "{"
+      while(c.nextSibling()) {  
+        if(s.substring(c.from, c.to) === "}") { // check for empty dict
+          break;
+        }
+        let key = traverseExpr(c, s);
+        c.nextSibling(); // Focus on :
+        c.nextSibling(); // Focus on Value
+        let value = traverseExpr(c, s);
+        keyValuePairs.push([key, value]);
+        c.nextSibling(); // Focus on } or ,
+        }    
+      c.parent(); // Pop to DictionaryExpression
+      return {
+        tag: "dict", 
+        entries: keyValuePairs
       }
-      let key = traverseExpr(c, s);
-      c.nextSibling(); // Focus on :
-      c.nextSibling(); // Focus on Value
-      let value = traverseExpr(c, s);
-      keyValuePairs.push([key, value]);
-      c.nextSibling(); // Focus on } or ,
-      }    
-    c.parent(); // Pop to DictionaryExpression
-    return {
-      tag: "dict", 
-      entries: keyValuePairs
-    }
 
     default:
       throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
