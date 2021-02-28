@@ -10,10 +10,14 @@
     "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/*.test.ts'",
     "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/.bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/**/*.test.ts'"
   },
+  "engines": {
+    "npm": "^6.0.0"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@types/node": "^14.14.20",
+    "cypress": "^6.5.0",
     "lezer-python": "^0.13.1",
     "lezer-tree": "^0.13.0",
     "mochawesome": "^6.2.1",
