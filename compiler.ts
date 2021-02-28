@@ -19,6 +19,22 @@ export const emptyEnv : GlobalEnv = {
   offset: 0 
 };
 
+export const nTagBits = 1;
+const INT_LITERAL_MAX = BigInt(2**(31 - nTagBits) - 1);
+const INT_LITERAL_MIN = BigInt(-(2**(31 - nTagBits)));
+
+const encodeLiteral : Array<string> = [  
+  `(i32.const ${nTagBits})`,
+  "(i32.shl)",
+  "(i32.const 1)", // literals are tagged with a 1 in the LSB
+  "(i32.add)"
+]
+
+const decodeLiteral : Array<string> = [
+  `(i32.const ${nTagBits})`,
+  "(i32.shr_s)"
+]
+
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
@@ -136,12 +152,12 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       var exprStmts = codeGenExpr(stmt.expr, env);
       return exprStmts.concat([`(local.set $$last)`]);
     case "if":
-      var condExpr = codeGenExpr(stmt.cond, env);
+      var condExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
       var thnStmts = stmt.thn.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
       var elsStmts = stmt.els.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
       return [`${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join("\n")}))`]
     case "while":
-      var wcondExpr = codeGenExpr(stmt.cond, env);
+      var wcondExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
       var bodyStmts = stmt.body.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
     case "pass":
@@ -233,14 +249,18 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
     case "binop":
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
-      return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
+      if (expr.op == BinOp.Is) {
+        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral]
+      } else {
+        return [...lhsStmts, ...decodeLiteral, ...rhsStmts, ...decodeLiteral, codeGenBinOp(expr.op), ...encodeLiteral]
+      }
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
       switch(expr.op){
         case UniOp.Neg:
-          return [`(i32.const 0)`, ...exprStmts, `(i32.sub)`];
+          return [`(i32.const 0)`, ...exprStmts, ...decodeLiteral, `(i32.sub)`, ...encodeLiteral];
         case UniOp.Not:
-          return [`(i32.const 0)`, ...exprStmts, `(i32.eq)`];
+          return [`(i32.const 0)`, ...exprStmts, ...decodeLiteral, `(i32.eq)`, ...encodeLiteral];
       }
     case "call":
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
@@ -297,9 +317,14 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
 function codeGenLiteral(literal : Literal) : Array<string> {
   switch(literal.tag) {
     case "num":
-      return ["(i32.const " + literal.value + ")"];
+      if (literal.value <= INT_LITERAL_MAX && literal.value >= INT_LITERAL_MIN) {
+        return [`(i32.const ${literal.value})`, ...encodeLiteral];
+      } else {
+        // place holder for generating big int
+        return [`(i32.const ${literal.value})`, ...encodeLiteral];
+      }
     case "bool":
-      return [`(i32.const ${Number(literal.value)})`];
+      return [`(i32.const ${Number(literal.value)})`, ...encodeLiteral];
     case "none":
       return [`(i32.const 0)`];
   }
