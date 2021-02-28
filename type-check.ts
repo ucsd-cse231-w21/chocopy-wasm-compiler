@@ -346,6 +346,20 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       } else {
         throw new TypeCheckError("field lookups require an object");
       }
+    case "bracket-lookup":
+      var tObj = tcExpr(env, locals, expr.obj);
+      var tKey = tcExpr(env, locals, expr.key);
+      if (tObj.a.tag === "list") {
+        if(tKey.a.tag === "number") {
+          return {...expr, a: tObj.a.content_type, obj: tObj, key: tKey }
+        }
+        else {
+          throw new TypeCheckError("list lookups require a number as index");
+        }
+      }
+      else {
+        throw new TypeCheckError("list lookups require a list");
+      }
     case "method-call":
       var tObj = tcExpr(env, locals, expr.obj);
       var tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
