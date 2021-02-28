@@ -185,6 +185,15 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         tag: "id",
         name: "self"
       };
+
+    // [expression for item in iterable if condition == True]
+    case "ArrayComprehensionExpression":
+      c.firstChild(); // Focus on '[' (left bracket)
+      c.nextSibling(); // Focus on the expression
+      var expr = traverseExpr(c, s);
+      c.nextSibling(); // Focus on 'for'
+      c.nextSibling();
+
     default:
       throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
   }
