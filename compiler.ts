@@ -291,6 +291,22 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
         `(i32.add (i32.const ${offset * 4}))`,
         `(i32.load)`
       ];
+    case "bracket-lookup":
+      var objStmts = codeGenExpr(expr.obj, env);
+      //This should eval to a number
+      //Multiply it by 4 to use as offset in memory
+      var keyStmts = codeGenExpr(expr.key, env);
+      //Add 3 to keyStmts to jump over type + size + bound
+      //Add that to objStmts base address
+      //Load from there
+      return objStmts.concat(
+        keyStmts,
+        [
+        `(i32.mul (i32.const 4))`,
+        `(i32.add (i32.const 12))`,
+        `(i32.add)`,
+        `(i32.load)`
+      ]);
     case "list-expr":
       var stmts : Array<string> = [];
       var listType = 10;
