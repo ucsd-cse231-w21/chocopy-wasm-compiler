@@ -291,6 +291,39 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
         `(i32.add (i32.const ${offset * 4}))`,
         `(i32.load)`
       ];
+    case "list-expr":
+      var stmts : Array<string> = [];
+      var listType = 10;
+      var listSize = expr.contents.length;
+      var listBound = (expr.contents.length + 10) * 2;
+      let listHeader = [listType,listSize,listBound]
+      var listindex = 0
+      listHeader.forEach( val => {
+        stmts.push(...[
+          `(i32.load (i32.const 0))`,               
+          `(i32.add (i32.const ${listindex * 4}))`,   
+          "(i32.const " + val + ")",                
+          "(i32.store)"                            
+        ])
+        listindex += 1
+      });
+      expr.contents.forEach( lexpr => {
+        stmts.push(...[
+          `(i32.load (i32.const 0))`,               
+          `(i32.add (i32.const ${listindex * 4}))`,   
+          ...codeGenExpr(lexpr,env),                
+          "(i32.store)"                            
+        ])
+        listindex += 1
+      });
+      
+      return stmts.concat([
+        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
+        "(i32.const 0)",                                                  // Address for our upcoming store instruction
+        "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
+        `(i32.add (i32.const ${ (listBound+3) * 4}))`,   // Move heap head beyond the two words we just created for fields
+        "(i32.store)",                                                    // Save the new heap offset
+      ]);
   }
 }
 
