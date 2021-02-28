@@ -1,4 +1,4 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, FindTagged, Assignable } from "./ast";
+import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, FindTagged, Assignable, Destructure } from "./ast";
 import { NUM, BOOL, NONE } from "./utils";
 import * as BaseException from "./error";
 import { traverseArguments } from "./parser";
@@ -125,7 +125,14 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       valStmts.push("return");
       return valStmts;
     case "assignment":
-      return codeGenAssignment(stmt, env)
+      const valueCode = codeGenExpr(stmt.value, env);
+      const getValue = "(local.get $$destruct)"
+    
+      return [
+        ...valueCode,
+        "local.set $$destruct",
+        ...codeGenDestructure(stmt.destruct, getValue, env),
+      ]    
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
@@ -166,12 +173,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
   }
 }
 
-function codeGenAssignment(stmt: FindTagged<Stmt<Type>, "assignment">, env: GlobalEnv): string[] {
-  const { destruct, value } = stmt;
-  
-  const valueCode = codeGenExpr(value, env);
-  const getValue = "(local.get $$destruct)"
-
+function codeGenDestructure(destruct: Destructure<Type>, value: string, env: GlobalEnv): string[] {  
   let assignStmts: string[] = [];
 
   if (destruct.isDestructured) {
@@ -179,15 +181,11 @@ function codeGenAssignment(stmt: FindTagged<Stmt<Type>, "assignment">, env: Glob
   } else {
     const target = destruct.targets[0];
     if (!target.ignore) {
-      assignStmts = codeGenAssignable(target.target, getValue, env)
+      assignStmts = codeGenAssignable(target.target, value, env)
     }
   }
 
-  return [
-    ...valueCode,
-    "local.set $$destruct",
-    ...assignStmts,
-  ]
+  return assignStmts;
 }
 
 function codeGenAssignable(target: Assignable<Type>, value: string, env: GlobalEnv): string[] {
