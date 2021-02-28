@@ -8,10 +8,12 @@ export type Type =
   | {tag: "string"}
   | {tag: "class", name: string}
   | {tag: "callable", args: Array<Type>, ret: Type}
+  | {tag: "list", content_type: Type }
 
 export type Scope<A> = 
   | { a?: A, tag: "global", name: string} // not support
   | { a?: A, tag: "nonlocal", name: string}
+
 
 export type Parameter<A> = { name: string, type: Type, value?: Literal }
 
@@ -51,6 +53,7 @@ export type Stmt<A> =
   | {  a?: A, tag: "continue" }
   | {  a?: A, tag: "break" }
   | {  a?: A, tag: "for", name: string, index?: Expr<A>, iterable: Expr<A>, body: Array<Stmt<A>> }
+  | {  a?: A, tag: "bracket-assign", obj: Expr<A>, key: Expr<A>, value: Expr<A> }
 
 export interface Destructure<A> {
   isDestructured: boolean;
@@ -89,9 +92,11 @@ export type Expr<A> =
   | {  a?: A, tag: "lambda", args: Array<string>, ret: Expr<A> }
   | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
   | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
+  | {  a?: A, tag: "list-expr", contents: Array<Expr<A>> }
   | {  a?: A, tag: "string_slicing", name: Expr<A>, start: Expr<A>, end: Expr<A>, stride: Expr<A>}
   | {  a?: A, tag: "dict", entries: Array<[Expr<A>, Expr<A>]> }
   | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
+
 
 export type Literal = 
     { tag: "num", value: BigInt }
