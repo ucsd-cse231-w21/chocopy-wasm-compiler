@@ -1,6 +1,6 @@
 // import { TypeCheckError } from "./type-check";
 
-// export enum Type {NUM, BOOL, NONE, OBJ}; 
+// export enum Type {NUM, BOOL, NONE, OBJ};
 export type Type =
   | {tag: "number"}
   | {tag: "bool"}
@@ -8,7 +8,7 @@ export type Type =
   | {tag: "class", name: string}
   | {tag: "callable", args: Array<Type>, ret: Type}
 
-export type Scope<A> = 
+export type Scope<A> =
   | { a?: A, tag: "global", name: string} // not support
   | { a?: A, tag: "nonlocal", name: string}
 
@@ -20,22 +20,22 @@ export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods
 
 export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
 
-export type FunDef<A> = { 
-  a?: A, 
-  name: string, 
-  parameters: Array<Parameter<A>>, 
-  ret: Type, 
+export type FunDef<A> = {
+  a?: A,
+  name: string,
+  parameters: Array<Parameter<A>>,
+  ret: Type,
   decls: Array<Scope<A>>,
-  inits: Array<VarInit<A>>, 
+  inits: Array<VarInit<A>>,
   funs: Array<FunDef<A>>
   body: Array<Stmt<A>>
 }
 
-export type Closure<A> = { 
-  a?: A, 
-  name: string, 
-  fields: Array<VarInit<A>>, 
-  apply: FunDef<A> 
+export type Closure<A> = {
+  a?: A,
+  name: string,
+  fields: Array<VarInit<A>>,
+  apply: FunDef<A>
 }
 
 export type Stmt<A> =
@@ -49,7 +49,7 @@ export type Stmt<A> =
   | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
   | {  a?: A, tag: "continue" }
   | {  a?: A, tag: "break" }
-  | {  a?: A, tag: "for", name: string, index?: Expr<A>, iterable: Expr<A>, body: Array<Stmt<A>> }
+  | {  a?: A, tag: "for", name: string, index?: string, iterable: Expr<A>, body: Array<Stmt<A>> }
 
 export interface Destructure<A> {
   isDestructured: boolean;
@@ -78,7 +78,7 @@ export type Expr<A> =
   | {  a?: A, tag: "uniop", op: UniOp, expr: Expr<A> }
   | {  a?: A, tag: "builtin1", name: string, arg: Expr<A> }
   | {  a?: A, tag: "builtin2", name: string, left: Expr<A>, right: Expr<A>}
-  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> } 
+  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> }
   // ASSIGNABLE EXPRS
   | {  a?: A, tag: "id", name: string }
   | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
@@ -91,7 +91,7 @@ export type Expr<A> =
   | {  a?: A, tag: "dict", entries: Array<[Expr<A>, Expr<A>]> }
   | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
 
-export type Literal = 
+export type Literal =
     { tag: "num", value: BigInt }
   | { tag: "bool", value: boolean }
   | { tag: "none" }

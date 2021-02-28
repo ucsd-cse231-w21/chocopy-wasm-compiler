@@ -364,7 +364,14 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       c.firstChild(); // Focus on for
       c.nextSibling(); // Focus on variable name
       let name = s.substring(c.from, c.to);
-      c.nextSibling(); // Focus on in
+      c.nextSibling(); // Focus on in / ','
+      var index = null;
+      if (s.substring(c.from, c.to) == ",") {
+        index = name;
+        c.nextSibling(); // Focus on var name
+        name = s.substring(c.from, c.to);
+        c.nextSibling(); // Focus on in
+      }
       c.nextSibling(); // Focus on iterable expression
       var iter = traverseExpr(c, s);
       c.nextSibling(); // Focus on body
@@ -375,6 +382,9 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       }
       c.parent();
       c.parent();
+      if (index!=null) {
+        return { tag: "for", name: name, index: index, iterable: iter, body: body}
+      }
       return { tag: "for", name: name, iterable: iter, body: body}
     default:
       throw new Error("Could not parse stmt at " + c.node.from + " " + c.node.to + ": " + s.substring(c.from, c.to));
@@ -594,6 +604,7 @@ export function traverse(c : TreeCursor, s : string) : Program<null> {
         hasChild = c.nextSibling();
       }
       c.parent();
+      console.log("parser-output:", { funs, inits, classes, stmts })
       return { funs, inits, classes, stmts };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
