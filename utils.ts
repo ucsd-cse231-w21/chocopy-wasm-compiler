@@ -1,11 +1,17 @@
 import { Value, Type } from "./ast";
+import { nTagBits } from "./compiler";
 
 export function PyValue(typ: Type, result: number): Value {
   switch (typ.tag) {
     case "number":
-      return PyInt(result);
+      if (result & 1) {
+        return PyInt(result >> nTagBits);
+      } else {
+        // placeholder for BigInts
+        return PyInt(result);
+      }
     case "bool":
-      return PyBool(Boolean(result));
+      return PyBool(Boolean(result >> nTagBits));
     case "class":
       return PyObj(typ.name, result);
     case "none":
