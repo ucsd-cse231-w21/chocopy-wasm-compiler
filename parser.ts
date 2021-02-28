@@ -185,6 +185,47 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         tag: "id",
         name: "self"
       };
+
+    // in the form [expression for field in iterable if condition == True]
+    case "ArrayComprehensionExpression":
+      c.firstChild(); // Focus on '[' (left bracket)
+      c.nextSibling(); // Focus on the expression
+      var expr = traverseExpr(c, s);
+      c.nextSibling(); // Focus on 'for'
+      c.nextSibling(); // Focus on field
+      var field = traverseExpr(c, s);
+      // Enforce field to be an Assignable
+      if(!isTagged(field, ASSIGNABLE_TAGS))
+      {
+        throw new Error(`Can't assign to ${field.tag}, in traverseExpr, case ArrayComprehensionExpression`);
+      }
+      c.nextSibling(); // Focus on 'in'
+      c.nextSibling(); // Focus on iterable
+      var iter = traverseExpr(c, s);
+      c.nextSibling()
+      // If the if cond is present
+      if(c.name !== "]")
+      {
+        c.nextSibling(); // Skip 'if', focus on condition
+        var cond = traverseExpr(c, s);
+        c.parent();
+        return {
+          tag: "comprehension",
+          expr: expr, 
+          field: field,
+          iter: iter,
+          cond: cond
+        };
+      }
+      c.parent();
+      return {
+        tag: "comprehension",
+        expr: expr, 
+        field: field,
+        iter: iter
+      };
+
+    
     default:
       throw new Error("Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to));
   }
