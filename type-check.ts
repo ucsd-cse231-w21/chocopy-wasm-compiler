@@ -235,6 +235,7 @@ function tcDestructure(env: GlobalTypeEnv, locals: LocalTypeEnv, destruct: Destr
   return {
     isDestructured: destruct.isDestructured,
     targets: tTargets,
+    a: value,
   }
 }
 
