@@ -1,5 +1,6 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE } from "./utils";
+import * as BaseException from "./error";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -69,7 +70,7 @@ export function makeLocals(locals: Set<string>) : Array<string> {
 
 export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   const withDefines = augmentEnv(env, ast);
-
+  
   const definedVars : Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
   definedVars.forEach(env.locals.add, env.locals);
@@ -121,6 +122,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       var valStmts = codeGenExpr(stmt.value, env);
       valStmts.push("return");
       return valStmts;
+    case "assignment":
+      throw new Error("Destructured assignment not implemented");  
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
@@ -162,7 +165,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
 }
 
 function codeGenInit(init : VarInit<Type>, env : GlobalEnv) : Array<string> {
-  const value = codeGenLiteral(init.value);
+  const value = codeGenLiteral(init.value, env);
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`]; 
   } else {
@@ -220,7 +223,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       const rightStmts = codeGenExpr(expr.right, env);
       return [...leftStmts, ...rightStmts, `(call $${expr.name})`]
     case "literal":
-      return codeGenLiteral(expr.value);
+      return codeGenLiteral(expr.value, env);
     case "id":
       if (env.locals.has(expr.name)) {
         return [`(local.get $${expr.name})`];
@@ -249,7 +252,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
         stmts.push(...[
           `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
           `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
-          ...codeGenLiteral(initVal),              // Initialize field
+          ...codeGenLiteral(initVal, env),              // Initialize field
           "(i32.store)"                            // Put the default field value on the heap
         ]));
       return stmts.concat([
@@ -291,7 +294,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
   }
 }
 
-function codeGenLiteral(literal : Literal) : Array<string> {
+function codeGenLiteral(literal : Literal, env: GlobalEnv) : Array<string> {
   switch(literal.tag) {
     case "num":
       return ["(i32.const " + literal.value + ")"];
