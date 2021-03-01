@@ -45,13 +45,29 @@ class Env {
     });
   }
 
-  addFunc() {}
+  addFunc(func: FunDef<any>) {
+    if(!this.funcs.has(func.ret)){
+      this.funcs.set(func.ret, []);
+    }
+    this.funcs.get(func.ret).push(func);
+  }
 
   copyEnv(): Env {
     var newEnv = new Env();
     newEnv.vars = new Map(this.vars);
     newEnv.funcs = new Map(this.funcs);
     return newEnv;
+  }
+
+  selectRandomFunc(ty: Type) : FunDef<any> {
+    if(!this.funcs.has(ty)){
+      return undefined; //sentinel value for no possible fundef
+    }
+    const tyFuncs = this.funcs.get(ty);
+    if(tyFuncs.length == 0){
+      throw new Error("Attempting to select random function from list of size 0"); //should never get here
+    }
+    return tyFuncs[Math.floor(Math.random() * tyFuncs.length)];
   }
 }
 //constants
@@ -68,6 +84,7 @@ var classLiteralProbs: Array<ProbPair>;
 var numberBinopProbs: Array<ProbPair>;
 var boolBinopProbs: Array<ProbPair>;
 var TypeProbs: Array<ProbPair>;
+var newProbs: Array<ProbPair>;
 
 var CorrectProbs: Array<ProbPair>; // probability of generating something correct
 
@@ -135,6 +152,11 @@ const initBoolBinopProbs = [
   { key: "Or", prob: 1 },
 ];
 
+const initNewProbs = [
+  { key: "new", prob: 0.8 },
+  { key: "existing", prob: 1},
+]
+
 function initDefaultProbs() {
   StmtProbs = [...initStmtProbs];
   ExprProbs = [...initExprProbs];
@@ -144,6 +166,7 @@ function initDefaultProbs() {
   CorrectProbs = [...initCorrectProbs];
   numberBinopProbs = [...initNumberBinopProbs];
   boolBinopProbs = [...initBoolBinopProbs];
+  newProbs = [...initNewProbs];
 }
 
 function convertTypeFromKey(key: string): Type {
@@ -219,6 +242,20 @@ function selectRandomType(): Type {
   return convertTypeFromKey(selectKey(TypeProbs));
 }
 
+function selectFuncSig(ty: Type, env: Env) : FunDef {
+  var toGen = selectKey(newProbs);
+  switch(toGen){
+    case "new":
+      const newSig = genFuncSig(ty, env);
+      env.addFunc(newSig);
+      return newSig;
+    case "existing":
+      return env.selectRandomFunc(ty);
+    default:
+      throw new Error(`Selected unknown action in selectFuncSig: ${toGen}` );
+  }
+}
+
 function selectRandomStmt(): string {
   return selectKey(StmtProbs);
 }
@@ -238,6 +275,41 @@ function genFuncName(env: Env, retType: Type): string {
 
 function genParam(env: Env): Parameter<any> {
   return { name: "", type: { tag: "none" } }; //TODO generate unique parameter name
+}
+
+function genFuncSig(ty: Type, env: Env): FunDef<any> {
+  var paramList = [];
+  var retType = ty; //fixed function return type
+  var funcName = genFuncName(env, retType);
+  var funcHeader = "def " + funcName + "(";
+  var funcEnv = env.copyEnv();
+  var first = true;
+  while (true) {
+    if (first) {
+      first = false;
+    } else {
+      funcHeader += ", ";
+    }
+    if (Math.random() > PARAM_CHANCE) {
+      break;
+    }
+    const param = genParam(env);
+    paramList.push(param);
+    funcHeader += param.name;
+  }
+  funcHeader += "):";
+  //augment funcEnv with params
+  paramList.forEach(function (param) {
+    funcEnv.delVar(param.name);
+    funcEnv.addVar(param.name, param.type);
+  });
+  
+  return {
+    name: funcName,
+    parameters: paramList,
+    ret: retType,
+  }
+ 
 }
 
 function genFuncDef(
@@ -427,6 +499,8 @@ function genExpr(type: Type, env: Env): string {
           throw new Error(`Unknown uniop: ${op}`);
       }
     case "call":
+      //roll for existing or new function
+      const funcSig = selectFuncSig(type, env);
     default:
       throw new Error(`Unknown expr in genExpr: ${whichExpr}`);
   }
