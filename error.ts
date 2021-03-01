@@ -63,7 +63,7 @@ export class StopIteration extends Exception {
     constructor(message?: string, name = "StopIteration") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, StopIteration);
         }
     }
 }
@@ -72,7 +72,7 @@ export class ArithmeticError extends Exception {
     constructor(message?: string, name = "ArithmeticError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, ArithmeticError);
         }
     }
 }
@@ -81,7 +81,7 @@ export class OverflowError extends ArithmeticError {
     constructor(message?: string, name = "OverflowError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, OverflowError);
         }
     }
 }
@@ -100,7 +100,7 @@ export class AttributeError extends Exception {
     constructor(message?: string, name = "AttributeError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, AttributeError);
         }
     }
 }
@@ -109,7 +109,7 @@ export class LookupError extends Exception {
     constructor(message?: string, name = "LookupError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, LookupError);
         }
     }
 }
@@ -119,7 +119,7 @@ export class IndexError extends LookupError {
     constructor(message?: string, name = "IndexError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, IndexError);
         }
     }
 }
@@ -128,7 +128,7 @@ export class KeyError extends LookupError {
     constructor(message?: string, name = "KeyError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, KeyError);
         }
     }
 }
@@ -137,7 +137,7 @@ export class MemoryError extends Exception {
     constructor(message?: string, name = "MemoryError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, MemoryError);
         }
     }
 }
@@ -146,7 +146,7 @@ export class NameError extends Exception {
     constructor(message?: string, name = "NameError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, NameError);
         }
     }
 }
@@ -155,7 +155,7 @@ export class UnboundLocalError extends NameError {
     constructor(message?: string, name = "UnboundLocalError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, UnboundLocalError);
         }
     }
 }
@@ -165,7 +165,7 @@ export class RuntimeError extends Exception {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, RuntimeError);
         }
     }
 }
@@ -175,7 +175,7 @@ export class RecursionError extends RuntimeError {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, RecursionError);
         }
     }
 }
@@ -185,7 +185,7 @@ export class SyntaxError extends Exception {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, SyntaxError);
         }
     }
 }
@@ -195,7 +195,7 @@ export class IndentationError extends SyntaxError {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, IndentationError);
         }
     }
 }
@@ -205,7 +205,7 @@ export class TypeError extends Exception {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, TypeError);
         }
     }
 }
@@ -215,7 +215,7 @@ export class ValueError extends Exception {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, ValueError);
         }
     }
 }
@@ -225,7 +225,7 @@ export class UnicodeError extends ValueError {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, UnicodeError);
         }
     }
 }
