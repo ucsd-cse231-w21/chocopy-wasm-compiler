@@ -403,12 +403,27 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
 }
 
 export function traverseType(c : TreeCursor, s : string) : Type {
-  // For now, always a VariableName
-  let name = s.substring(c.from, c.to);
-  switch(name) {
-    case "int": return NUM;
-    case "bool": return BOOL;
-    default: return CLASS(name);
+  switch(c.type.name) {
+    case "VariableName":
+      let name = s.substring(c.from, c.to);
+      switch(name) {
+        case "int": return NUM;
+        case "bool": return BOOL;
+        default: return CLASS(name);
+      }
+    case "ArrayExpression":
+      c.firstChild(); // Focus on [
+      c.nextSibling();
+      let keytype = traverseType(c, s);
+      c.nextSibling(); //Could be , or ]
+      if(s.substring(c.from, c.to) === ","){
+        c.nextSibling();
+        let valtype = traverseType(c, s);
+        c.parent();
+        return {tag:"dict", key:keytype, value:valtype };
+      }
+      c.parent();
+      throw new Error("Invalid type " + s.substring(c.from, c.to));
   }
 }
 

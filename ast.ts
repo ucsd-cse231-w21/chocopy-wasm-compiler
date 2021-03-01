@@ -9,6 +9,7 @@ export type Type =
   | {tag: "class", name: string}
   | {tag: "callable", args: Array<Type>, ret: Type}
   | {tag: "list", content_type: Type }
+  | {tag: "dict", key: Type, value: Type }
 
 export type Scope<A> = 
   | { a?: A, tag: "global", name: string} // not support
