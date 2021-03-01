@@ -23,14 +23,14 @@ export const nTagBits = 1;
 const INT_LITERAL_MAX = BigInt(2**(31 - nTagBits) - 1);
 const INT_LITERAL_MIN = BigInt(-(2**(31 - nTagBits)));
 
-const encodeLiteral : Array<string> = [  
+export const encodeLiteral : Array<string> = [  
   `(i32.const ${nTagBits})`,
   "(i32.shl)",
   "(i32.const 1)", // literals are tagged with a 1 in the LSB
   "(i32.add)"
 ]
 
-const decodeLiteral : Array<string> = [
+export const decodeLiteral : Array<string> = [
   `(i32.const ${nTagBits})`,
   "(i32.shr_s)"
 ]
@@ -258,7 +258,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       const exprStmts = codeGenExpr(expr.expr, env);
       switch(expr.op){
         case UniOp.Neg:
-          return [`(i32.const 0)`, ...exprStmts, ...decodeLiteral, `(i32.sub)`, ...encodeLiteral];
+          return [...exprStmts, "(call $$bignum_neg)"];
         case UniOp.Not:
           return [`(i32.const 0)`, ...exprStmts, ...decodeLiteral, `(i32.eq)`, ...encodeLiteral];
       }
