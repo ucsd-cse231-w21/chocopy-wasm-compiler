@@ -9,6 +9,8 @@ export type Type =
   | {tag: "class", name: string}
   | {tag: "callable", args: Array<Type>, ret: Type}
   | {tag: "list", content_type: Type }
+  | {tag: "failedToInfer"}  // Throws an error, asking for user to specify a type annotation
+  | {tag: "unsat"}  // Type inference constraints is unsatisfiable. Indicates type-checker should throw error
 
 export type Scope<A> = 
   | { a?: A, tag: "global", name: string} // not support

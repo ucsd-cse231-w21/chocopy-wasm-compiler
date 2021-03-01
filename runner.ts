@@ -44,6 +44,7 @@ export async function runWat(source : string, importObject : any) : Promise<any>
 
 export async function run(source : string, config: Config) : Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
+  // INFER THE TYPES HERE, PASS PARTIALLY TYPED PROGRAM TO TC
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const progTyp = tprogram.a;
   var returnType = "";

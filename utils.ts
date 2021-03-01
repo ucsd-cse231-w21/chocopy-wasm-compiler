@@ -34,6 +34,9 @@ export function isTagged<A extends string[], V extends {tag: string}, T extends 
   return set.includes(val.tag);
 }
 
+export const FAILEDINFER : Type = {tag: "failedToInfer"}
+export const UNSAT : Type = {tag:"unsat"}
+export const STR : Type = {tag: "string"}
 export const NUM : Type = {tag: "number"};
 export const BOOL : Type = {tag: "bool"};
 export const NONE : Type = {tag: "none"};
