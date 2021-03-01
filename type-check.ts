@@ -140,11 +140,27 @@ export function tcDef(env : GlobalTypeEnv, fun : FunDef<null>) : FunDef<Type> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
+  // type checking defaults
+  fun.parameters.forEach(p => tcDefault(p.type, p.value));
   fun.parameters.forEach(p => locals.vars.set(p.name, p.type));
   fun.inits.forEach(init => locals.vars.set(init.name, tcInit(env, init).type));
   
   const tBody = tcBlock(env, locals, fun.body);
   return {...fun, a: NONE, body: tBody};
+}
+
+export function tcDefault(paramType : Type, paramLiteral : Literal) {
+  // no default values
+  if (paramLiteral === undefined) {
+    return;
+  }
+  else if (paramLiteral.tag === "num" && paramType.tag === "number") {
+    return;
+  }
+  else if (paramLiteral.tag !== paramType.tag) {
+    throw new TypeCheckError("Default value type " + paramLiteral.tag +
+     " does not match param type " + paramType.tag);
+  }
 }
 
 export function tcClass(env: GlobalTypeEnv, cls : Class<null>) : Class<Type> {

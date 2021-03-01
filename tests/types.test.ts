@@ -99,3 +99,19 @@ describe('tc', () => {
   c = C().new(3, 4)
   c.x`, NUM);
 });
+
+describe('tc Param with defaults', () => {
+  assertTCFail("different param type", `
+  def foo(x : int = 3) -> int:
+    return x
+  
+  y : bool = True
+  foo(y)`);
+
+  assertTCFail("different param type2", `
+  def foo(x : bool = True) -> bool:
+    return x
+  
+  y : int = 3
+  foo(y)`);
+});
