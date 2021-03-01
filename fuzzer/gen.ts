@@ -1,12 +1,64 @@
-import { Type } from "../ast";
+import { DEFAULT_MAX_VERSION } from "tls";
+import { forEachChild } from "typescript";
+import { Parameter, VarInit, Type } from "../ast";
 
-const indent: string = "    ";
-const rangeMax: number = 1;
+const indent: string = "  ";
+
+type FunDef<A> = {
+  a?: A;
+  name: string;
+  parameters: Array<Parameter<A>>;
+  ret: Type;
+};
 
 type ProbPair = {
   prob: number;
   key: string;
 };
+
+type Program = {
+  program: Array<string>;
+  stmt: string;
+};
+
+class Env {
+  vars: Map<Type, Array<string>>;
+  funcs: Map<Type, Array<FunDef<any>>>;
+
+  constructor() {
+    this.vars = new Map();
+    this.funcs = new Map();
+  }
+
+  addVar(name: string, type: Type) {
+    this.vars.get(type).push(name);
+  }
+
+  delVar(varName: string) {
+    this.vars.forEach((names: Array<string>, type: Type) => {
+      this.vars.set(
+        type,
+        names.filter(function (name) {
+          return name !== varName;
+        })
+      );
+    });
+  }
+
+  addFunc() {}
+
+  copyEnv(): Env {
+    var newEnv = new Env();
+    newEnv.vars = new Map(this.vars);
+    newEnv.funcs = new Map(this.funcs);
+    return newEnv;
+  }
+}
+//constants
+const BODY_STMT_CHANCE = 0.5;
+const IF_ELIF_CHANCE = 0.2;
+const IF_ELSE_CHANCE = 0.5;
+const PARAM_CHANCE = 0.5;
 
 var StmtProbs: Array<ProbPair>;
 var ExprProbs: Array<ProbPair>;
@@ -18,8 +70,6 @@ var boolBinopProbs: Array<ProbPair>;
 var TypeProbs: Array<ProbPair>;
 
 var CorrectProbs: Array<ProbPair>; // probability of generating something correct
-
-var VariableMap: Map<Type, Array<string>>;
 
 const initTypeProbs = [
   { key: "number", prob: 0.6 },
@@ -33,10 +83,10 @@ const initCorrectProbs = [
 ];
 
 const initStmtProbs = [
-  { key: "expr", prob: 1 },
+  { key: "expr", prob: 0.7 },
+  { key: "if", prob: 0.9 },
   { key: "assign", prob: 1 },
   { key: "return", prob: 1 },
-  { key: "if", prob: 1 },
   { key: "while", prob: 1 },
   { key: "pass", prob: 1 },
   { key: "field-assign", prob: 1 },
@@ -96,19 +146,6 @@ function initDefaultProbs() {
   boolBinopProbs = [...initBoolBinopProbs];
 }
 
-function selectKey(probTable: Array<ProbPair>): string {
-  const prob = Math.random();
-  let selection = "";
-  for (var i = 0; i < probTable.length; i++) {
-    if (prob <= probTable[i].prob) {
-      selection = probTable[i].key;
-      break;
-    }
-  }
-  if (selection == "") throw new Error("selection was never assigned");
-  return selection;
-}
-
 function convertTypeFromKey(key: string): Type {
   switch (key) {
     case "number":
@@ -120,6 +157,19 @@ function convertTypeFromKey(key: string): Type {
     default:
       throw new Error(`Unknown type from key: ${key}`);
   }
+}
+
+function selectKey(probTable: Array<ProbPair>): string {
+  const prob = Math.random();
+  let selection = "";
+  for (var i = 0; i < probTable.length; i++) {
+    if (prob <= probTable[i].prob) {
+      selection = probTable[i].key;
+      break;
+    }
+  }
+  if (selection == "") throw new Error("selection was never assigned");
+  return selection;
 }
 
 function selectRandomExpr(type: Type): string {
@@ -173,57 +223,157 @@ function selectRandomStmt(): string {
   return selectKey(StmtProbs);
 }
 
-function genClassDef(level: number): Array<string> {
+function genClassDef(level: number, env: Env): Array<string> {
   return []; //TODO
 }
 
-function genFuncDef(level: number, className?: string): Array<string> {
-  return []; //TODO
+function genFuncName(env: Env, retType: Type): string {
+  //add func to env
+  if (!env.funcs.has(retType)) {
+    env.funcs.set(retType, []);
+  }
+  var funcList = env.funcs.get(retType);
+  return `func_${retType.tag}${funcList.length}`;
+}
+
+function genParam(env: Env): Parameter<any> {
+  return { name: "", type: { tag: "none" } }; //TODO generate unique parameter name
+}
+
+function genFuncDef(
+  level: number,
+  env: Env,
+  className?: string
+): Array<string> {
+  var funcStrings = [];
+  var paramList = [];
+  var retType = selectRandomType();
+  var funcName = genFuncName(env, retType);
+  var funcHeader = "def " + funcName + "(";
+  var funcEnv = env.copyEnv();
+  var first = true;
+  while (true) {
+    if (first) {
+      first = false;
+    } else {
+      funcHeader += ", ";
+    }
+    if (Math.random() > PARAM_CHANCE) {
+      break;
+    }
+    const param = genParam(env);
+    paramList.push(param);
+    funcHeader += param.name;
+  }
+  funcHeader += "):";
+  funcStrings.push(funcHeader);
+  //augment funcEnv with params
+  paramList.forEach(function (param) {
+    funcEnv.delVar(param.name);
+    funcEnv.addVar(param.name, param.type);
+  });
+
+  var funcList = env.funcs.get(retType);
+  funcList.push({
+    name: funcName,
+    parameters: paramList,
+    ret: retType,
+  });
+
+  var body = genBody(level + 1, funcEnv);
+  funcStrings = funcStrings.concat(body.program);
+  return funcStrings; //TODO
 }
 
 function genWhile(level: number): Array<string> {
   return []; //TODO
 }
 
-function genIf(level: number): Array<string> {
-  return []; //TODO
+function genIf(level: number, env: Env): Program {
+  const currIndent = indent.repeat(level);
+  const condition = genExpr({ tag: "bool" }, env);
+  const ifStart = currIndent + "if " + condition + ":";
+  var stmtList = [ifStart];
+
+  //generate then block
+  stmtList = stmtList.concat(genBody(level + 1, env).program); // generate a statement
+
+  //potentially generate elif blocks
+  while (true) {
+    if (Math.random() > IF_ELIF_CHANCE) {
+      //opposite logic since we break
+      break; //if we don't want to generate elif
+    }
+    const elifCondition = genExpr({ tag: "bool" }, env);
+    stmtList.push(currIndent + "elif " + elifCondition + " :");
+    stmtList = stmtList.concat(genBody(level + 1, env).program); // generate a statement
+  }
+
+  //potentially generate else block
+  if (Math.random() < IF_ELSE_CHANCE) {
+    stmtList.push(currIndent + "else:");
+    stmtList = stmtList.concat(genBody(level + 1, env).program); // generate a statement
+  }
+  return { program: stmtList, stmt: "if" };
 }
 
-function genStmt(level: number): Array<string> {
+function genBody(level: number, env: Env): Program {
+  var stmtList: Array<string> = [];
+  const currIndent = indent.repeat(level);
+  var stmt: string;
+  while (true) {
+    var generated = genStmt(level, env);
+    stmtList = stmtList.concat(generated.program); // generate a statement
+    stmt = generated.stmt;
+    if (Math.random() > BODY_STMT_CHANCE) {
+      //opposite logic since
+      break; //this tests where to stop
+    }
+  }
+
+  return { program: stmtList, stmt: stmt };
+}
+
+function genDecl(env: Env): Array<string> {
+  return [];
+}
+
+function genStmt(level: number, env: Env): Program {
   const currIndent = indent.repeat(level);
   const whichStmt: string = selectRandomStmt();
   switch (whichStmt) {
-    // case "assign":
-    //   return {
-    //     tag: "assign",
-    //     name: "",
-    //     value: selectRandomExpr(),
-    //   };
+    case "assign":
+      const assignType: Type = selectRandomType();
+      var name = genId(assignType, env);
+      var expr = genExpr(assignType, env);
+      return { program: [currIndent + name + " = " + expr], stmt: "assign" };
     // case "return":
     case "expr":
       const exprType: Type = selectRandomType();
-      const exprString = currIndent + genExpr(exprType);
-      return [exprString];
-
-    // case "if":
+      const exprString = currIndent + genExpr(exprType, env);
+      return { program: [exprString], stmt: "expr" };
+    case "if":
+      return genIf(level, env);
 
     // case "while":
 
-    // case "pass":
+    // case "pass": //this isn't very interesting, do we have to generate pass?
 
     // case "field-assign":
 
     default:
       throw new Error(`Unknown stmt in genStmt: ${whichStmt}`);
   }
-  return []; //TODO
+  return { program: [], stmt: "none" }; //TODO
 }
 
-function genExpr(type: Type): string {
+function genExpr(type: Type, env: Env): string {
   const whichExpr: string = selectRandomExpr(type);
   switch (whichExpr) {
     case "literal":
       return genLiteral(type);
+    case "id":
+      return genId(type, env);
     case "binop":
       var op = selectRandomBinOp(type);
       var leftType: Type;
@@ -256,10 +406,16 @@ function genExpr(type: Type): string {
           leftType = { tag: "none" };
           rightType = { tag: "none" };
       }
-      return genExpr(leftType) + " " + genBinOp(op) + " " + genExpr(rightType);
+      return (
+        genExpr(leftType, env) +
+        " " +
+        genBinOp(op) +
+        " " +
+        genExpr(rightType, env)
+      );
     case "uniop":
       var op = selectRandomUniOp(type);
-      var expr = genExpr(type);
+      var expr = genExpr(type, env);
       switch (op) {
         case "Neg":
           return `-${expr}`;
@@ -270,6 +426,7 @@ function genExpr(type: Type): string {
         default:
           throw new Error(`Unknown uniop: ${op}`);
       }
+    case "call":
     default:
       throw new Error(`Unknown expr in genExpr: ${whichExpr}`);
   }
@@ -278,6 +435,29 @@ function genExpr(type: Type): string {
 
 function genLiteral(type: Type): string {
   return selectRandomLiteral(type);
+}
+
+function genId(type: Type, env: Env): string {
+  if (!env.vars.has(type)) {
+    env.vars.set(type, []);
+  }
+
+  var varList = env.vars.get(type);
+  if (varList.length > 0 && Math.random() < 0.5) {
+    // use existing variable
+    var index = Math.floor(Math.random() * varList.length);
+    return varList[index];
+  } else {
+    // gen new variable
+    var idName: string;
+    if (type.tag == "class") {
+      idName = `${type.name}${varList.length}`;
+    } else {
+      idName = `${type.tag}${varList.length}`;
+    }
+    varList.push(idName);
+    return idName;
+  }
 }
 
 function genBinOp(op: string): string {
@@ -315,16 +495,23 @@ function genBinOp(op: string): string {
   }
 }
 
-export function genProgram(): Array<string> {
+export function genProgram(): string {
   initDefaultProbs();
+  var env = new Env();
   const level = 0;
-  var program: Array<string> = [];
-  while (true) {
-    //generate something
-    if (Math.random() > 0.9) {
-      break;
-    }
-    program = program.concat(genStmt(0));
+  var program: Program;
+  //generate something
+
+  const body = genBody(0, env);
+  program.program = program.program.concat(body.program);
+
+  //do this after genBody since we need to know about all the functions/variables
+  program.program = genDecls(env).concat(program.program);
+
+  program.stmt = body.stmt;
+  if (program.stmt === "expr") {
+    program.program[program.program.length - 1] =
+      "print(" + program.program[program.program.length - 1] + ")";
   }
-  return program;
+  return program.program.join("\n");
 }
