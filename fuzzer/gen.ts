@@ -1,4 +1,4 @@
-import { Stmt, Expr, Literal, Type, BinOp } from "../ast";
+import { Type } from "../ast";
 
 const indent: string = "    ";
 const rangeMax: number = 1;
@@ -21,6 +21,17 @@ var CorrectProbs: Array<ProbPair>; // probability of generating something correc
 
 var VariableMap: Map<Type, Array<string>>;
 
+const initTypeProbs = [
+  { key: "number", prob: 0.6 },
+  { key: "bool", prob: 0.9 },
+  { key: "none", prob: 1 },
+];
+
+const initCorrectProbs = [
+  { key: "correct", prob: 1 },
+  { key: "incorrect", prob: 1 }, //start by generating only correct statements
+];
+
 const initStmtProbs = [
   { key: "expr", prob: 1 },
   { key: "assign", prob: 1 },
@@ -34,7 +45,7 @@ const initStmtProbs = [
 const initExprProbs = [
   { key: "literal", prob: 0.5 },
   { key: "id", prob: 0.5 },
-  { key: "binop", prob: 1 },
+  { key: "binop", prob: 0.9 },
   { key: "uniop", prob: 1 },
   { key: "builtin1", prob: 1 },
   { key: "builtin2", prob: 1 },
@@ -52,17 +63,6 @@ const initNumberLiteralProbs = [
 const initBoolLiteralProbs = [
   { key: "True", prob: 0.5 },
   { key: "False", prob: 1 },
-];
-
-const initTypeProbs = [
-  { key: "number", prob: 0.6 },
-  { key: "bool", prob: 0.9 },
-  { key: "none", prob: 1 },
-];
-
-const initCorrectProbs = [
-  { key: "correct", prob: 1 },
-  { key: "incorrect", prob: 1 }, //start by generating only correct statements
 ];
 
 const initNumberBinopProbs = [
@@ -148,7 +148,20 @@ function selectRandomBinOp(type: Type): string {
     case "none":
       return "Is"; // TODO probabilities
     default:
-      throw new Error(`Unknown type from selectRandomBinOp: ${type}`);
+      throw new Error(`Unknown type from selectRandomBinOp: ${type.tag}`);
+  }
+}
+
+function selectRandomUniOp(type: Type): string {
+  switch (type.tag) {
+    case "number":
+      return "Neg";
+    case "bool":
+      return "Not";
+    case "none":
+      return "";
+    default:
+      throw new Error(`Unknown type from selectRandomUniOp: ${type.tag}`);
   }
 }
 
@@ -244,6 +257,19 @@ function genExpr(type: Type): string {
           rightType = { tag: "none" };
       }
       return genExpr(leftType) + " " + genBinOp(op) + " " + genExpr(rightType);
+    case "uniop":
+      var op = selectRandomUniOp(type);
+      var expr = genExpr(type);
+      switch (op) {
+        case "Neg":
+          return `-${expr}`;
+        case "Not":
+          return `not ${expr}`;
+        case "": // if type is not number or bool, just return result of genExpr
+          return expr;
+        default:
+          throw new Error(`Unknown uniop: ${op}`);
+      }
     default:
       throw new Error(`Unknown expr in genExpr: ${whichExpr}`);
   }
