@@ -3,4 +3,3 @@ build
 cli
 *.sw*
 mochawesome-report
-*.kate-swp
