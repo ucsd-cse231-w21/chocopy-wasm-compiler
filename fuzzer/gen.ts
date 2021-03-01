@@ -1,13 +1,15 @@
+import { type } from "os";
 import { DEFAULT_MAX_VERSION } from "tls";
 import { forEachChild } from "typescript";
-import { Parameter, VarInit, Type } from "../ast";
+import { Type } from "../ast";
 
 const indent: string = "  ";
 
-type FunDef<A> = {
-  a?: A;
+type Parameter = { name: string; type: Type };
+
+type FunDef = {
   name: string;
-  parameters: Array<Parameter<A>>;
+  parameters: Array<Parameter>;
   ret: Type;
 };
 
@@ -22,8 +24,8 @@ type Program = {
 };
 
 class Env {
-  vars: Map<Type, Array<string>>;
-  funcs: Map<Type, Array<FunDef<any>>>;
+  vars: Map<string, Array<string>>;
+  funcs: Map<string, Array<FunDef>>;
 
   constructor() {
     this.vars = new Map();
@@ -31,11 +33,15 @@ class Env {
   }
 
   addVar(name: string, type: Type) {
-    this.vars.get(type).push(name);
+    var typeString = typeToTypeString(type);
+    if (!this.vars.has(typeString)) {
+      this.vars.set(typeString, []);
+    }
+    this.vars.get(typeString).push(name);
   }
 
   delVar(varName: string) {
-    this.vars.forEach((names: Array<string>, type: Type) => {
+    this.vars.forEach((names: Array<string>, type: string) => {
       this.vars.set(
         type,
         names.filter(function (name) {
@@ -45,27 +51,47 @@ class Env {
     });
   }
 
-  addFunc(func: FunDef<any>) {
-    if(!this.funcs.has(func.ret)){
-      this.funcs.set(func.ret, []);
+  getVars(type: Type) {
+    var typeString: string = typeToTypeString(type);
+    return this.vars.get(typeString);
+  }
+
+  addFunc(func: FunDef) {
+    var typeString: string = typeToTypeString(func.ret);
+    if (!this.funcs.has(typeString)) {
+      this.funcs.set(typeString, []);
     }
-    this.funcs.get(func.ret).push(func);
+    this.funcs.get(typeString).push(func);
   }
 
   copyEnv(): Env {
     var newEnv = new Env();
-    newEnv.vars = new Map(this.vars);
-    newEnv.funcs = new Map(this.funcs);
+
+    var newVars = new Map();
+    this.vars.forEach((value: Array<string>, key: string) => {
+      newVars.set(key, [...value]);
+    });
+
+    var newFuncs = new Map();
+    this.funcs.forEach((value: Array<FunDef>, key: string) => {
+      newFuncs.set(key, [...value]);
+    });
+
+    newEnv.vars = newVars;
+    newEnv.funcs = newFuncs;
     return newEnv;
   }
 
-  selectRandomFunc(ty: Type) : FunDef<any> {
-    if(!this.funcs.has(ty)){
+  selectRandomFunc(type: Type): FunDef {
+    var typeString = typeToTypeString(type);
+    if (!this.funcs.has(typeString)) {
       return undefined; //sentinel value for no possible fundef
     }
-    const tyFuncs = this.funcs.get(ty);
-    if(tyFuncs.length == 0){
-      throw new Error("Attempting to select random function from list of size 0"); //should never get here
+    const tyFuncs = this.funcs.get(typeString);
+    if (tyFuncs.length == 0) {
+      throw new Error(
+        "Attempting to select random function from list of size 0"
+      ); //should never get here
     }
     return tyFuncs[Math.floor(Math.random() * tyFuncs.length)];
   }
@@ -110,13 +136,13 @@ const initStmtProbs = [
 ];
 
 const initExprProbs = [
-  { key: "literal", prob: 0.5 },
+  { key: "literal", prob: 0.3 },
   { key: "id", prob: 0.5 },
-  { key: "binop", prob: 0.9 },
-  { key: "uniop", prob: 1 },
+  { key: "binop", prob: 0.7 },
+  { key: "uniop", prob: 0.8 },
+  { key: "call", prob: 1 },
   { key: "builtin1", prob: 1 },
   { key: "builtin2", prob: 1 },
-  { key: "call", prob: 1 },
   { key: "lookup", prob: 1 },
   { key: "method-call", prob: 1 },
   { key: "construct", prob: 1 },
@@ -153,9 +179,9 @@ const initBoolBinopProbs = [
 ];
 
 const initNewProbs = [
-  { key: "new", prob: 0.8 },
-  { key: "existing", prob: 1},
-]
+  { key: "new", prob: 0.1 },
+  { key: "existing", prob: 1 },
+];
 
 function initDefaultProbs() {
   StmtProbs = [...initStmtProbs];
@@ -178,8 +204,30 @@ function convertTypeFromKey(key: string): Type {
     case "none":
       return { tag: "none" };
     default:
+      //TODO add class
       throw new Error(`Unknown type from key: ${key}`);
   }
+}
+
+function convertTypeToPythonType(type: Type): string {
+  switch (type.tag) {
+    case "number":
+      return "int";
+    case "bool":
+      return "bool";
+    case "none":
+      throw new Error(`Unknown type from key: ${type.tag}`);
+    case "class":
+      return type.name;
+  }
+}
+
+function typeToTypeString(type: Type): string {
+  var typeString: string = type.tag;
+  if (type.tag == "class") {
+    typeString = type.name;
+  }
+  return typeString;
 }
 
 function selectKey(probTable: Array<ProbPair>): string {
@@ -242,9 +290,9 @@ function selectRandomType(): Type {
   return convertTypeFromKey(selectKey(TypeProbs));
 }
 
-function selectFuncSig(ty: Type, env: Env) : FunDef {
+function selectFuncSig(ty: Type, env: Env): FunDef {
   var toGen = selectKey(newProbs);
-  switch(toGen){
+  switch (toGen) {
     case "new":
       const newSig = genFuncSig(ty, env);
       env.addFunc(newSig);
@@ -252,7 +300,7 @@ function selectFuncSig(ty: Type, env: Env) : FunDef {
     case "existing":
       return env.selectRandomFunc(ty);
     default:
-      throw new Error(`Selected unknown action in selectFuncSig: ${toGen}` );
+      throw new Error(`Selected unknown action in selectFuncSig: ${toGen}`);
   }
 }
 
@@ -266,24 +314,28 @@ function genClassDef(level: number, env: Env): Array<string> {
 
 function genFuncName(env: Env, retType: Type): string {
   //add func to env
-  if (!env.funcs.has(retType)) {
-    env.funcs.set(retType, []);
+  var retTypeString = typeToTypeString(retType);
+  if (!env.funcs.has(retTypeString)) {
+    env.funcs.set(retTypeString, []);
   }
-  var funcList = env.funcs.get(retType);
+  var funcList = env.funcs.get(retTypeString);
   return `func_${retType.tag}${funcList.length}`;
 }
 
-function genParam(env: Env): Parameter<any> {
-  return { name: "", type: { tag: "none" } }; //TODO generate unique parameter name
+function genParam(paramName: string): Parameter {
+  var paramType = selectRandomType();
+  while (paramType.tag === "none") paramType = selectRandomType();
+  return { name: paramName, type: paramType }; //TODO generate unique parameter name
 }
 
-function genFuncSig(ty: Type, env: Env): FunDef<any> {
+function genFuncSig(ty: Type, env: Env): FunDef {
   var paramList = [];
   var retType = ty; //fixed function return type
   var funcName = genFuncName(env, retType);
   var funcHeader = "def " + funcName + "(";
   var funcEnv = env.copyEnv();
   var first = true;
+  var paramIndex = 0;
   while (true) {
     if (first) {
       first = false;
@@ -293,9 +345,10 @@ function genFuncSig(ty: Type, env: Env): FunDef<any> {
     if (Math.random() > PARAM_CHANCE) {
       break;
     }
-    const param = genParam(env);
+    const param = genParam(`${funcName}_${paramIndex}`);
     paramList.push(param);
     funcHeader += param.name;
+    paramIndex++;
   }
   funcHeader += "):";
   //augment funcEnv with params
@@ -303,56 +356,63 @@ function genFuncSig(ty: Type, env: Env): FunDef<any> {
     funcEnv.delVar(param.name);
     funcEnv.addVar(param.name, param.type);
   });
-  
+
   return {
     name: funcName,
     parameters: paramList,
     ret: retType,
+  };
+}
+
+function genVarDef(name: string, type: Type): string {
+  switch (type.tag) {
+    case "number":
+      return `${name}:int = 1`;
+    case "bool":
+      return `${name}:bool = False`;
+    case "none":
+      throw new Error(`Variable cannot be decl as none type`);
+    case "class":
+      return `${name}:${type.name} = None`;
   }
- 
 }
 
 function genFuncDef(
   level: number,
   env: Env,
+  sig: FunDef,
   className?: string
 ): Array<string> {
+  var currIndent = indent.repeat(level);
   var funcStrings = [];
-  var paramList = [];
-  var retType = selectRandomType();
-  var funcName = genFuncName(env, retType);
-  var funcHeader = "def " + funcName + "(";
+  var paramList = sig.parameters;
+  var retType = sig.ret;
+  var funcName = sig.name;
+  var funcHeader = currIndent + "def " + funcName + "(";
   var funcEnv = env.copyEnv();
   var first = true;
-  while (true) {
+
+  for (var i = 0; i < paramList.length; i++) {
     if (first) {
       first = false;
     } else {
       funcHeader += ", ";
     }
-    if (Math.random() > PARAM_CHANCE) {
-      break;
-    }
-    const param = genParam(env);
-    paramList.push(param);
-    funcHeader += param.name;
+    funcHeader +=
+      paramList[i].name + ": " + convertTypeToPythonType(paramList[i].type);
   }
   funcHeader += "):";
   funcStrings.push(funcHeader);
+
   //augment funcEnv with params
   paramList.forEach(function (param) {
     funcEnv.delVar(param.name);
     funcEnv.addVar(param.name, param.type);
   });
 
-  var funcList = env.funcs.get(retType);
-  funcList.push({
-    name: funcName,
-    parameters: paramList,
-    ret: retType,
-  });
-
   var body = genBody(level + 1, funcEnv);
+  var decls = genDecl(funcEnv, env, level + 1);
+  funcStrings = funcStrings.concat(decls);
   funcStrings = funcStrings.concat(body.program);
   return funcStrings; //TODO
 }
@@ -406,8 +466,30 @@ function genBody(level: number, env: Env): Program {
   return { program: stmtList, stmt: stmt };
 }
 
-function genDecl(env: Env): Array<string> {
-  return [];
+function genDecl(env: Env, upperEnv: Env, level: number): Array<string> {
+  var varDecls: Array<string> = [];
+  var currIndent = indent.repeat(level);
+  env.vars.forEach((names: Array<string>, type: string) => {
+    names.forEach((name: string) => {
+      if (!upperEnv.vars.has(type) || !upperEnv.vars.get(type).includes(name)) {
+        varDecls.push(currIndent + genVarDef(name, convertTypeFromKey(type)));
+      }
+    });
+  });
+
+  var funcDecls: Array<string> = [];
+  env.funcs.forEach((funcDefs: Array<FunDef>, type: string) => {
+    funcDefs.forEach((funcDef: FunDef) => {
+      if (
+        !upperEnv.funcs.has(type) ||
+        !upperEnv.funcs.get(type).includes(funcDef)
+      ) {
+        funcDecls = funcDecls.concat(genFuncDef(level, env, funcDef));
+      }
+    });
+  });
+
+  return varDecls.concat(funcDecls);
 }
 
 function genStmt(level: number, env: Env): Program {
@@ -415,7 +497,8 @@ function genStmt(level: number, env: Env): Program {
   const whichStmt: string = selectRandomStmt();
   switch (whichStmt) {
     case "assign":
-      const assignType: Type = selectRandomType();
+      var assignType: Type = selectRandomType();
+      while (assignType.tag == "none") assignType = selectRandomType();
       var name = genId(assignType, env);
       var expr = genExpr(assignType, env);
       return { program: [currIndent + name + " = " + expr], stmt: "assign" };
@@ -445,6 +528,7 @@ function genExpr(type: Type, env: Env): string {
     case "literal":
       return genLiteral(type);
     case "id":
+      if (type.tag == "none") return genExpr(type, env); // hacky
       return genId(type, env);
     case "binop":
       var op = selectRandomBinOp(type);
@@ -498,9 +582,23 @@ function genExpr(type: Type, env: Env): string {
         default:
           throw new Error(`Unknown uniop: ${op}`);
       }
-    case "call":
+    case "call": //TODO: sometimes incorrect return types make it into the environment
       //roll for existing or new function
       const funcSig = selectFuncSig(type, env);
+      if (funcSig === undefined) {
+        //something went wrong, reroll the entire expr
+        return genExpr(type, env);
+      }
+      var callString = funcSig.name + "(";
+      for (var i = 0; i < funcSig.parameters.length; i++) {
+        if (i > 0) {
+          callString += ", ";
+        }
+        callString += funcSig.parameters[i].name;
+      }
+      callString += ")";
+      return callString;
+
     default:
       throw new Error(`Unknown expr in genExpr: ${whichExpr}`);
   }
@@ -512,11 +610,12 @@ function genLiteral(type: Type): string {
 }
 
 function genId(type: Type, env: Env): string {
-  if (!env.vars.has(type)) {
-    env.vars.set(type, []);
+  var typeString = typeToTypeString(type);
+  if (!env.vars.has(typeString)) {
+    env.vars.set(typeString, []);
   }
 
-  var varList = env.vars.get(type);
+  var varList = env.vars.get(typeString);
   if (varList.length > 0 && Math.random() < 0.5) {
     // use existing variable
     var index = Math.floor(Math.random() * varList.length);
@@ -573,14 +672,17 @@ export function genProgram(): string {
   initDefaultProbs();
   var env = new Env();
   const level = 0;
-  var program: Program;
+  var program: Program = {
+    program: [],
+    stmt: "",
+  };
   //generate something
 
   const body = genBody(0, env);
-  program.program = program.program.concat(body.program);
+  program.program = body.program;
 
   //do this after genBody since we need to know about all the functions/variables
-  program.program = genDecls(env).concat(program.program);
+  program.program = genDecl(env, new Env(), level).concat(program.program);
 
   program.stmt = body.stmt;
   if (program.stmt === "expr") {
