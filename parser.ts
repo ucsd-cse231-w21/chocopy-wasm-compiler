@@ -360,6 +360,10 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       }
     case "PassStatement":
       return { tag: "pass" }
+    case "ContinueStatement":
+      return { tag: "continue" }
+    case "BreakStatement":
+      return { tag: "break" }
     case "ForStatement":
       c.firstChild(); // Focus on for
       c.nextSibling(); // Focus on variable name
