@@ -101,7 +101,9 @@ export function augmentTEnv(env : GlobalTypeEnv, program : Program<null>) : Glob
   return { globals: newGlobs, functions: newFuns, classes: newClasses };
 }
 
-export function tc(env : GlobalTypeEnv, program : Program<null>) : [Program<Type>, GlobalTypeEnv] {
+// changed Program<null> to Program<any> in the signature, so that TC can accept partially typed programs
+// generated from the infer.ts file
+export function tc(env : GlobalTypeEnv, program : Program<any>) : [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
   const tInits = program.inits.map(init => tcInit(env, init));
