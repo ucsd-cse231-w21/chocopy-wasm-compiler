@@ -94,7 +94,7 @@ describe('tc', () => {
       self.x = x
       self.y = y
       return self
-  
+
   c : C = None
   c = C().new(3, 4)
   c.x`, NUM);

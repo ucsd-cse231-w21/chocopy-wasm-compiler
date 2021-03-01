@@ -31,7 +31,7 @@ export class KeyboardInterrupt extends Error {
         const trueProto = new.target.prototype;
         super(message);
         this.name = "KeyboardInterrupt";
-        
+
         // Maintains proper stack trace for where our error was thrown (only available on V8)
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, KeyboardInterrupt);

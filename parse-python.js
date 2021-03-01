@@ -11,4 +11,3 @@ do {
   console.log(cursor.node.type.name);
   console.log(input.substring(cursor.node.from, cursor.node.to));
 } while(cursor.next());
-

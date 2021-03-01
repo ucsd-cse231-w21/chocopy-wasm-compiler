@@ -8,9 +8,9 @@ import wabt from 'wabt';
 import { wasm } from 'webpack';
 import * as compiler from './compiler';
 import {parse} from './parser';
-import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
-import { Type, Value } from './ast';
-import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
+import { GlobalTypeEnv, tc } from  './type-check';
+import { Value } from './ast';
+import { PyValue, NONE } from "./utils";
 
 export type Config = {
   importObject: any;
@@ -54,7 +54,7 @@ export async function run(source : string, config: Config) : Promise<[Value, com
   if(progTyp !== NONE) {
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)"
-  } 
+  }
   let globalsBefore = (config.env.globals as Map<string, number>).size;
   const compiled = compiler.compile(tprogram, config.env);
   let globalsAfter = compiled.newEnv.globals.size;
