@@ -1,7 +1,6 @@
 import {BasicREPL} from './repl';
 import { Type, Value } from './ast';
-import { defaultTypeEnv } from './type-check';
-import { NUM, BOOL, NONE } from './utils';
+import { NUM, BOOL, NONE, unhandledTag } from './utils';
 
 import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
@@ -19,6 +18,8 @@ function stringify(typ: Type, arg: any) : string {
       return "None";
     case "class":
       return typ.name;
+    default:
+      unhandledTag(typ);
   }
 }
 
@@ -77,8 +78,7 @@ function webStart() {
       const replCodeElement = document.getElementById("next-code") as HTMLTextAreaElement;
       replCodeElement.addEventListener("keypress", (e) => {
 
-        if(e.shiftKey && e.key === "Enter") {
-        } else if (e.key === "Enter") {
+        if (!e.shiftKey && e.key === "Enter") {
           e.preventDefault();
           const output = document.createElement("div");
           const prompt = document.createElement("span");

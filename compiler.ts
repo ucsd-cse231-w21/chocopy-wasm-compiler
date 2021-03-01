@@ -1,5 +1,5 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE } from "./utils";
+import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 
 // https://learnxinyminutes.com/docs/wasm/
@@ -7,16 +7,16 @@ import * as BaseException from "./error";
 // Numbers are offsets into global memory
 export type GlobalEnv = {
   globals: Map<string, number>;
-  classes: Map<string, Map<string, [number, Literal]>>;  
+  classes: Map<string, Map<string, [number, Literal]>>;
   locals: Set<string>;
   offset: number;
 }
 
-export const emptyEnv : GlobalEnv = { 
-  globals: new Map(), 
+export const emptyEnv : GlobalEnv = {
+  globals: new Map(),
   classes: new Map(),
   locals: new Set(),
-  offset: 0 
+  offset: 0
 };
 
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
@@ -55,7 +55,7 @@ type CompileResult = {
 //         definedVars.add(s.name);
 //         break;
 //     }
-//   }); 
+//   });
 //   return definedVars;
 // }
 
@@ -70,7 +70,7 @@ export function makeLocals(locals: Set<string>) : Array<string> {
 
 export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   const withDefines = augmentEnv(env, ast);
-  
+
   const definedVars : Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
   definedVars.forEach(env.locals.add, env.locals);
@@ -84,7 +84,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   const inits = ast.inits.map(init => codeGenInit(init, withDefines)).flat();
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(inits.concat([].concat.apply([], commandGroups)));
+  const commands = localDefines.concat(inits.concat(...commandGroups));
   withDefines.locals.clear();
   return {
     functions: allFuns,
@@ -106,7 +106,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
     //   stmt.parameters.forEach(p => definedVars.delete(p.name));
     //   definedVars.forEach(env.locals.add, env.locals);
     //   stmt.parameters.forEach(p => env.locals.add(p.name));
-      
+
     //   const localDefines = makeLocals(definedVars);
     //   const locals = localDefines.join("\n");
     //   var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
@@ -123,11 +123,11 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
       valStmts.push("return");
       return valStmts;
     case "assignment":
-      throw new Error("Destructured assignment not implemented");  
+      throw new Error("Destructured assignment not implemented");
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]); 
+        return valStmts.concat([`(local.set $${stmt.name})`]);
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
         return locationToStore.concat(valStmts).concat([`(i32.store)`]);
@@ -161,13 +161,15 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv) : Array<string> {
         ...valStmts,
         `(i32.store)`
       ];
+    default:
+      unhandledTag(stmt);
   }
 }
 
 function codeGenInit(init : VarInit<Type>, env : GlobalEnv) : Array<string> {
-  const value = codeGenLiteral(init.value, env);
+  const value = codeGenLiteral(init.value);
   if (env.locals.has(init.name)) {
-    return [...value, `(local.set $${init.name})`]; 
+    return [...value, `(local.set $${init.name})`];
   } else {
     const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; ${init.name}`];
     return locationToStore.concat(value).concat([`(i32.store)`]);
@@ -223,7 +225,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       const rightStmts = codeGenExpr(expr.right, env);
       return [...leftStmts, ...rightStmts, `(call $${expr.name})`]
     case "literal":
-      return codeGenLiteral(expr.value, env);
+      return codeGenLiteral(expr.value);
     case "id":
       if (env.locals.has(expr.name)) {
         return [`(local.get $${expr.name})`];
@@ -241,6 +243,8 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
           return [`(i32.const 0)`, ...exprStmts, `(i32.sub)`];
         case UniOp.Not:
           return [`(i32.const 0)`, ...exprStmts, `(i32.eq)`];
+        default:
+          return unreachable(expr)
       }
     case "call":
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
@@ -248,11 +252,11 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       return valStmts;
     case "construct":
       var stmts : Array<string> = [];
-      env.classes.get(expr.name).forEach(([offset, initVal], field) => 
+      env.classes.get(expr.name).forEach(([offset, initVal], field) =>
         stmts.push(...[
           `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
           `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
-          ...codeGenLiteral(initVal, env),              // Initialize field
+          ...codeGenLiteral(initVal),              // Initialize field
           "(i32.store)"                            // Put the default field value on the heap
         ]));
       return stmts.concat([
@@ -291,10 +295,12 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
         `(i32.add (i32.const ${offset * 4}))`,
         `(i32.load)`
       ];
+    default:
+      unhandledTag(expr)
   }
 }
 
-function codeGenLiteral(literal : Literal, env: GlobalEnv) : Array<string> {
+function codeGenLiteral(literal : Literal) : Array<string> {
   switch(literal.tag) {
     case "num":
       return ["(i32.const " + literal.value + ")"];
@@ -302,6 +308,8 @@ function codeGenLiteral(literal : Literal, env: GlobalEnv) : Array<string> {
       return [`(i32.const ${Number(literal.value)})`];
     case "none":
       return [`(i32.const 0)`];
+    default:
+      unhandledTag(literal)
   }
 }
 

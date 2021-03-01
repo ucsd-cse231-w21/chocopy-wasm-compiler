@@ -530,7 +530,7 @@ export function traverseDefs(c : TreeCursor, s : string) : [Array<VarInit<null>>
 
 }
 
-export function isVarInit(c : TreeCursor, s : string) : Boolean {
+export function isVarInit(c : TreeCursor, s : string) : boolean {
   if (c.type.name === "AssignStatement") {
     c.firstChild(); // Focus on lhs
     c.nextSibling(); // go to : type
@@ -543,11 +543,11 @@ export function isVarInit(c : TreeCursor, s : string) : Boolean {
   }
 }
 
-export function isFunDef(c : TreeCursor, s : string) : Boolean {
+export function isFunDef(c : TreeCursor, s : string) : boolean {
   return c.type.name === "FunctionDefinition";
 }
 
-export function isClassDef(c : TreeCursor, s : string) : Boolean {
+export function isClassDef(c : TreeCursor, s : string) : boolean {
   return c.type.name === "ClassDefinition";
 }
 
