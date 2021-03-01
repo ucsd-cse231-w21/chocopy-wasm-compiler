@@ -1,0 +1,47 @@
+{
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    // "plugin:prettier/recommended",
+    "prettier"
+  ],
+  "rules": {
+    // Only give warnings about using `var name = value` syntax
+    "no-var": "warn",
+    "prefer-const": "warn",
+    "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "no-case-declarations": "off",
+    "no-constant-condition": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/switch-exhaustiveness-check": "error",
+    "@typescript-eslint/no-unused-vars": ["warn", {"varsIgnorePattern": "^_|BaseException", "args": "none"}]
+    // "sort-imports": [
+    //   "error",
+    //   {
+    //     "ignoreDeclarationSort": true,
+    //     "ignoreMemberSort": false,
+    //     "allowSeparatedGroups": false
+    //   }
+    // ]
+  },
+  "overrides": [
+    {
+      "files": ["*.test.ts"],
+      "rules": {
+        "@typescript-eslint/no-unused-vars": "off",
+        "@typescript-eslint/no-empty-function": "off"
+      }
+    }
+  ]
+}
