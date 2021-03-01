@@ -7,8 +7,6 @@ import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
 import "codemirror/mode/python/python"
 import "codemirror/addon/hint/show-hint"
-
-
 import "./style.scss";
 
 function stringify(typ: Type, arg: any) : string {
@@ -112,6 +110,9 @@ function webStart() {
       resetRepl();
       repl.run(source.value).then((r) => { renderResult(r); console.log ("run finished") })
           .catch((e) => { renderError(e); console.log("run failed", e) });;
+      var ele = document.querySelector(".CodeMirror")  as any;
+      var editor = ele.CodeMirror; 
+      console.log("TEST",editor);
     });
     setupRepl();
   });
@@ -138,7 +139,6 @@ function webStart() {
           return;
       }
       editor.showHint({
-          // hint: pythonHint
       });
   });
   });
