@@ -24,6 +24,8 @@ Use instanceof to get additional properties of each Error type.
     |   +-- UnicodeError
 */
 
+import { Location } from "./ast"
+
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class KeyboardInterrupt extends Error {
     __proto__: Error
@@ -43,11 +45,14 @@ export class KeyboardInterrupt extends Error {
 }
 
 export class Exception extends Error {
-    __proto__: Error
-    constructor(message?: string, name = "Exception") {
+    __proto__: Error;
+    loc: Location
+
+    constructor(message?: string, name = "Exception", loc?: Location) {
         const trueProto = new.target.prototype;
         super(message);
         this.name = name;
+        this.loc = loc;
 
         // Maintains proper stack trace for where our error was thrown (only available on V8)
         if (Error.captureStackTrace) {
@@ -229,3 +234,4 @@ export class UnicodeError extends ValueError {
         }
     }
 }
+
