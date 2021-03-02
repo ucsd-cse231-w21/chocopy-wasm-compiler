@@ -93,15 +93,13 @@ export class Header {
     return x;
   }
 
-  setSize(size: bigint): bigint {
+  setSize(size: bigint) {
     // WASM stores integers in little-endian:
     //   LSB at the smallest address
     for (let i = 0; i < 4; i++) {
       const b = BigInt.asUintN(8, size >> BigInt(8 * i));
       this.memory[this.headerStart + HEADER_OFFSET_SIZE + i] = Number(b);
     }
-
-    return x;
   }
 
   alloc() {
