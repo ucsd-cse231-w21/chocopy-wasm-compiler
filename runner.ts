@@ -81,6 +81,8 @@ export async function run(source : string, config: Config) : Promise<[Value, com
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    (func $$big_add (import "imports" "__big_num_add") (param i32) (param i32) (result i32))
+    (func $$big_sub (import "imports" "__big_num_sub") (param i32) (param i32) (result i32))
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}

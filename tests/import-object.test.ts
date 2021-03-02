@@ -1,6 +1,5 @@
 import { Type } from "../ast";
 import { stringify } from "../utils";
-import { nTagBits } from "../compiler";
 import { Value } from "../ast";
 
 function print(val: Value) {
