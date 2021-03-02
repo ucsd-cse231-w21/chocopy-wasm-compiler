@@ -258,6 +258,7 @@ function tcDestructure(
   if (!destruct.isDestructured) {
     let target = tcTarget(destruct.targets[0], value);
     return {
+      valueType: value,
       isDestructured: false,
       targets: [target],
     };
