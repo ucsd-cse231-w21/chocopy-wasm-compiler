@@ -1,4 +1,5 @@
 import * as H from "./heap";
+import { Block, NULL_BLOCK } from "./heap";
 
 // Untagged pointer (32-bits)
 export type Pointer = bigint;
@@ -98,14 +99,206 @@ export interface MarkableAllocator extends H.Allocator {
   // size: size of object (NOT including header/metadata)
   // tag: heap object tag to know how to traverse the object
   //
-  // returns an untagged pointer to the start of the object's memory (not the header)
-  gcalloc: (tag: HeapTag, size: bigint) => bigint,
+  // Allocators memory of the requested size
+  //   May also allocate additional memory to store GC metadata, tag, and size
+  //
+  // Returns an untagged pointer to the start of the object's memory (not the header)
+  // Returns the null pointer (0x0) if memory allocation failed
+  gcalloc: (tag: HeapTag, size: bigint) => Pointer,
 
-  mark: (roots: Array<Pointer>) => void,
   collect: () => void,
 }
 
 export class MnS {
   // heap: Segregator<500, Segregator<100, BitMappedBlocks<100>, BitMappedBlocks<500>>, AllocList>;
   heap: H.Segregator<500n, H.Segregator<100n, H.BumpAllocator, H.BumpAllocator>, H.BumpAllocator>;
+}
+
+/// ==========================================
+/// GC-able wrappers for allocator combinators
+/// ==========================================
+///
+/// NOTE(alex): copy/paste because we don't have typeclasses Q.Q
+
+export class MarkableSwitch<P extends MarkableAllocator, F extends MarkableAllocator> implements MarkableAllocator {
+  allocator: H.Switch<P, F>;
+
+  constructor(p: P, f: F) {
+    this.allocator = new H.Switch(p, f);
+  }
+
+  alloc(size: Pointer): Block {
+    return this.allocator.alloc(size);
+  }
+
+  free2(ptr: Pointer) {
+    return this.allocator.free2(ptr);
+  }
+
+  owns(ptr: Pointer): boolean {
+    return this.allocator.owns(ptr);
+  }
+
+  description(): string {
+    return this.allocator.description();
+  }
+
+  setFlag(f: boolean) {
+    this.allocator.setFlag(f);
+  }
+
+  toggleFlag() {
+    this.allocator.toggleFlag();
+  }
+
+  getHeader(ptr: Pointer): Header {
+    if (this.allocator.primary.owns(ptr)) {
+      return this.allocator.primary.getHeader(ptr);
+    } else {
+      return this.allocator.fallback.getHeader(ptr);
+    }
+  }
+
+  gcalloc(tag: HeapTag, size: bigint): Pointer {
+    if (this.allocator.flag) {
+      return this.allocator.fallback.gcalloc(tag, size);
+    } else {
+      return this.allocator.primary.gcalloc(tag, size);
+    }
+  }
+
+  collect(): void {
+    this.allocator.primary.collect();
+    this.allocator.fallback.collect();
+  }
+}
+
+export class MarkableSegregator<N extends bigint, S extends MarkableAllocator, L extends MarkableAllocator>
+  implements MarkableAllocator {
+  allocator: H.Segregator<N, S, L>;
+
+  constructor(sizeLimit: N, s: S, l: L) {
+    this.allocator = new H.Segregator(sizeLimit, s, l);
+  }
+
+  alloc(size: Pointer): Block {
+    return this.allocator.alloc(size);
+  }
+
+  free2(ptr: Pointer) {
+    return this.allocator.free2(ptr);
+  }
+
+  owns(ptr: Pointer): boolean {
+    return this.allocator.owns(ptr);
+  }
+
+  description(): string {
+    return this.allocator.description();
+  }
+
+  getHeader(ptr: Pointer): Header {
+    if (this.allocator.small.owns(ptr)) {
+      return this.allocator.small.getHeader(ptr);
+    } else {
+      return this.allocator.large.getHeader(ptr);
+    }
+  }
+
+  gcalloc(tag: HeapTag, size: bigint): Pointer {
+    if (size <= this.allocator.sizeLimit) {
+      return this.allocator.small.gcalloc(tag, size);
+    } else {
+      return this.allocator.large.gcalloc(tag, size);
+    }
+  }
+
+  collect(): void {
+    this.allocator.small.collect();
+    this.allocator.large.collect();
+  }
+}
+
+export class MarkableDescriber<A extends MarkableAllocator> implements MarkableAllocator {
+  allocator: H.Describer<A>;
+
+  constructor(a: A, d: string) {
+    this.allocator = new H.Describer(a, d);
+  }
+
+  alloc(size: bigint): Block {
+    return this.allocator.alloc(size);
+  }
+
+  free2(ptr: bigint) {
+    this.allocator.free2(ptr);
+  }
+
+  owns(ptr: bigint): boolean {
+    return this.allocator.owns(ptr);
+  }
+
+  description(): string {
+    return this.allocator.description();
+  }
+
+  getHeader(ptr: Pointer): Header {
+    return this.allocator.allocator.getHeader(ptr);
+  }
+
+  gcalloc(tag: HeapTag, size: bigint): Pointer {
+    return this.allocator.allocator.gcalloc(tag, size);
+  }
+
+  collect(): void {
+    this.allocator.allocator.collect();
+  }
+}
+
+export class MarkableFallback<P extends MarkableAllocator, F extends MarkableAllocator>
+  implements MarkableAllocator {
+
+  allocator: H.Fallback<P, F>;
+
+  constructor(primary: P, fallback: F) {
+    this.allocator = new H.Fallback(primary, fallback);
+  }
+
+  alloc(size: Pointer): Block {
+    return this.allocator.alloc(size);
+  }
+
+  free2(ptr: Pointer) {
+    return this.allocator.free2(ptr);
+  }
+
+  owns(ptr: Pointer): boolean {
+    return this.allocator.owns(ptr);
+  }
+
+  description(): string {
+    return this.allocator.description();
+  }
+
+  getHeader(ptr: Pointer): Header {
+    if (this.allocator.primary.owns(ptr)) {
+      return this.allocator.primary.getHeader(ptr);
+    } else {
+      return this.allocator.fallback.getHeader(ptr);
+    }
+  }
+
+  gcalloc(tag: HeapTag, size: bigint): Pointer {
+    const b1 = this.allocator.primary.gcalloc(tag, size);
+    if (b1 === 0x0n) {
+      return this.allocator.fallback.gcalloc(tag, size);
+    }
+
+    return b1;
+  }
+
+  collect(): void {
+    this.allocator.primary.collect();
+    this.allocator.fallback.collect();
+  }
 }

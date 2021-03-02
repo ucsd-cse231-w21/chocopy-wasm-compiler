@@ -14,7 +14,7 @@ export interface Block {
   size: bigint;
 }
 
-const NULL_BLOCK: Block = {
+export const NULL_BLOCK: Block = {
   ptr: 0n,
   size: 0n,
 };
