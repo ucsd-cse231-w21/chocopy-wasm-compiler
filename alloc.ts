@@ -72,7 +72,7 @@ export class MemoryManager {
 //   * `0` => pointer
 //   * `1` => primitive value
 export function isPointer(value: bigint): boolean {
-  return Boolean((value & 0x1n) === 0x1n);
+  return Boolean((value & 0x1n) === 0x0n);
 }
 
 // taggedPtr: 32-bit bigint
