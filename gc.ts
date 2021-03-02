@@ -1,6 +1,10 @@
 import * as H from "./heap";
 import { Block, NULL_BLOCK } from "./heap";
-import { Pointer } from "./alloc";
+import {
+  extractPointer,
+  isPointer,
+  Pointer
+} from "./alloc";
 
 export type HeapTag =
   | typeof TAG_CLASS
@@ -21,26 +25,6 @@ const HEADER_OFFSET_SIZE   = 0x1;
 const HEADER_OFFSET_GC     = HEADER_OFFSET_TAG + HEADER_OFFSET_SIZE;
 
 export const HEADER_SIZE_BYTES    = 8;
-
-// value: 32-bit bigint
-// Uses the least significant bit as a tag:
-//   * `0` => pointer
-//   * `1` => primitive value
-function isPointer(value: bigint): boolean {
-  return Boolean((value & 0x1n) === 0x1n);
-}
-
-// taggedPtr: 32-bit bigint
-// Tagged as a pointer
-//
-// NOTE(alex): NOP
-//   * Assumes that all heap allocations are aligned properly such
-//     that the LSB of all pointers is always `0`
-//
-function extractPointer(taggedPtr: bigint): Pointer {
-  // nop
-  return taggedPtr;
-}
 
 //
 // Proxy for constructed GC object headers
