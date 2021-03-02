@@ -145,12 +145,4 @@ No specific memory layout is needed to implement the iterator. But some indicato
 
 1. Full implementation of while loop
 2. Full implementation of **continue, break,** and **pass**.
-3. Start implementing Range() function 
-
-
-
-
-
-
-
-
+3. Start implementing Range() function
