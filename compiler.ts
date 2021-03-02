@@ -184,11 +184,11 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
     if (objTyp.tag === "class") {
       const className = objTyp.name;
       const classFields = env.classes.get(className).values();
-
       // Collect every assignStmt
       destruct.targets.forEach((target) => {
         const assignTarget = target.target;
         const [offset, _] = classFields.next().value;
+        // The WASM code value that we extracted from the object at this current offset
         const fieldValue = [value, `(i32.add (i32.const ${offset * 4}))`];
 
         switch (assignTarget.tag) {
@@ -201,6 +201,17 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
             }
             break;
           case "lookup":
+            const lookupObjStmts = codeGenExpr(assignTarget.obj, env);
+            const lookupObjTyp = assignTarget.obj.a;
+            if (lookupObjTyp.tag !== "class") {
+              // I don't think this error can happen
+              throw new Error(
+                "Report this as a bug to the compiler developer, this shouldn't happen " + lookupObjTyp.tag
+              );
+            }
+            const lookupClassName = lookupObjTyp.name;
+            const [lookupOffset, _] = env.classes.get(lookupClassName).get(assignTarget.field);
+            assignStmts.concat([...lookupObjStmts, `(i32.add (i32.const ${lookupOffset * 4}))`, ...fieldValue, `(i32.store)`]);
             break;
           default:
             // Force type error if assignable is added without implementation
