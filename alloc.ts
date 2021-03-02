@@ -1,5 +1,5 @@
-import * as Heap from './heap';
-import * as GC from './gc';
+import * as Heap from "./heap";
+import * as GC from "./gc";
 
 class MemoryManager {
   globalAllocator: Heap.BumpAllocator;

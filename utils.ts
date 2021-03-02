@@ -12,6 +12,8 @@ export function PyValue(typ: Type, result: number): Value {
       return PyNone();
     case "list":
       return PyObj(typ.tag + `<${typ.content_type.tag}>`, result);
+    default:
+      unhandledTag(typ);
   }
 }
 
@@ -32,12 +34,31 @@ export function PyNone(): Value {
   return { tag: "none" };
 }
 
-export function isTagged<A extends string[], V extends {tag: string}, T extends {tag: A[number]}>(val: V | T, set: readonly [...A]): val is T {
+export function isTagged<
+  A extends string[],
+  V extends { tag: string },
+  T extends { tag: A[number] }
+>(val: V | T, set: readonly [...A]): val is T {
   return set.includes(val.tag);
 }
 
-export const NUM : Type = {tag: "number"};
-export const BOOL : Type = {tag: "bool"};
-export const NONE : Type = {tag: "none"};
-export function CLASS(name : string) : Type {return {tag: "class", name}};
+
+export function unreachable(arg: never): never {
+  throw new Error(`Hit unreachable state. Got value ${JSON.stringify(arg)}`);
+}
+
+/**
+ * Throw an error when an object is not handled in a switch statement
+ * @param arg Tagged object which is not handled
+ */
+export function unhandledTag(arg: { tag: string }): never {
+  throw new Error(`Node tagged with ${arg.tag} is not handled.\n\n${JSON.stringify(arg)}`);
+}
+
+export const NUM: Type = { tag: "number" };
+export const BOOL: Type = { tag: "bool" };
+export const NONE: Type = { tag: "none" };
 export function LIST(type : Type) : Type {return {tag: "list", content_type: type}};
+export function CLASS(name: string): Type {
+  return { tag: "class", name };
+}
