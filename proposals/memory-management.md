@@ -209,8 +209,10 @@ New files:
     * `forceCollect()`: manually invoke the GC (stop-the-world)
     * `getTag(ptr)`: get heap object tag
     * `getSize(ptr)`: get heap object size (excluding header info)
-    * `addRoot(ptr)`: add a pointer to the root set
-    * `removeRoot(ptr)`: remove a pointer to the root set
+    * `addRoot(value)`: attempt to add a 32-bit pointer to the root set
+      * Uses tagging to determine whether a pointer or a primitive value
+    * `removeRoot(value)`: remove a pointer from the root set
+      * Uses tagging to determine whether a pointer or a value
     * `staticAlloc(size: BigInt32)`: allocates static memory (not expected to ever be freed for the duration of the program) and returns a pointer to the start of the object
 * `heap.ts`: defines all allocator implementations/interfaces
   * `Allocator`: common interface for heap allocators
@@ -236,6 +238,7 @@ Changed files:
   * Need to augment any heap allocation code to call the allocators/GC for memory
   * Need to track local variables and global variables for GC roots (and generate code to inform the GC) in `augmentEnv()` and `makeLocals()`
   * In `augmentEnv()`, we also need to generate code that sends type info to the GC for tracing
+  * ANY global/local variable updates need to be guarded with `removeRoot()` and `addRoot()` calls (remove potential old pointers from the root set and add potential new pointers)
 
 ## Value Representation/Layouts
 No new values are being added but value representations need to be modified to somehow track pointers.
