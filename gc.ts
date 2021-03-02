@@ -54,9 +54,10 @@ function extractPointer(taggedPtr: bigint): Pointer {
 //   * P: n-bit padding
 //
 // GC metadata:
-//   MSB [XXXX_XXXM] LSB
+//   MSB [XXXX_XXMA] LSB
 //
-//     * M: markbit
+//     * A: alloc'd bit
+//     * M: mark bit
 //     * X: unassigned
 //
 export class Header {
@@ -90,7 +91,7 @@ export class Header {
   mark() {
     const offset = this.headerStart + HEADER_OFFSET_GC;
     const b = this.memory[offset];
-    const nb = b | 0x1;
+    const nb = b | 0x2;
     this.memory[offset] = nb;
   }
 
@@ -98,7 +99,7 @@ export class Header {
   unmark() {
     const offset = this.headerStart + HEADER_OFFSET_GC;
     const b = this.memory[offset];
-    const nb = b & ~0x1;
+    const nb = b & ~0x2;
     this.memory[offset] = nb;
   }
 
@@ -106,7 +107,7 @@ export class Header {
   isMarked(): boolean {
     const offset = this.headerStart + HEADER_OFFSET_GC;
     const b = this.memory[offset];
-    return Boolean((b & 0x1) === 0x1);
+    return Boolean((b & 0x2) === 0x2);
   }
 }
 
