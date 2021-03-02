@@ -1,5 +1,5 @@
 import { Type } from "../ast";
-import { NUM, BOOL, NONE } from "../utils";
+import { NUM, BOOL, NONE, unhandledTag } from "../utils";
 
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
@@ -11,6 +11,8 @@ function stringify(typ: Type, arg: any): string {
       return "None";
     case "class":
       return typ.name;
+    default:
+      unhandledTag(typ);
   }
 }
 
