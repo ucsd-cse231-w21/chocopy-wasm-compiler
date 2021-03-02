@@ -209,6 +209,9 @@ New files:
     * `forceCollect()`: manually invoke the GC (stop-the-world)
     * `getTag(ptr)`: get heap object tag
     * `getSize(ptr)`: get heap object size (excluding header info)
+    * `addRoot(ptr)`: add a pointer to the root set
+    * `removeRoot(ptr)`: remove a pointer to the root set
+    * `staticAlloc(size: BigInt32)`: allocates static memory (not expected to ever be freed for the duration of the program) and returns a pointer to the start of the object
 * `heap.ts`: defines all allocator implementations/interfaces
   * `Allocator`: common interface for heap allocators
   * `BumpAllocator`: bump allocator heap implementation
