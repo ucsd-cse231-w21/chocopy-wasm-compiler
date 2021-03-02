@@ -413,6 +413,10 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeCheckError("method calls require an object");
       }
+    case "dict":
+      throw new TypeCheckError("Typecheck for dict not implemented");
+    case "bracket-lookup":
+      throw new TypeCheckError("Typecheck for bracket-lookup not implemented");
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }

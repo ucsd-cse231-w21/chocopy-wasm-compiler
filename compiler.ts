@@ -305,6 +305,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
+    case "dict":
+      throw new Error("Code gen for dict not implemented");
+    case "bracket-lookup":
+      throw new Error("Code gen for bracket-lookup not implemented");
     default:
       unhandledTag(expr);
   }
