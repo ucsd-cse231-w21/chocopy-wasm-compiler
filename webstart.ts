@@ -116,17 +116,90 @@ function webStart() {
       // but because we only have one codemirror instance, this is fine
       var ele = document.querySelector(".CodeMirror")  as any;
       var editor = ele.CodeMirror; 
-      console.log("TEST",editor);
       highlightLine(editor, 2);
-
-      // Code to change editor theme
-      // editor.setOption("theme", "dracula");
 
     });
     setupRepl();
   });
 
   window.addEventListener('load', (event) => {
+    const themeList = ["3024-day",
+    "3024-night",
+    "abcdef",
+    "ambiance-mobile",
+    "ambiance",
+    "ayu-dark",
+    "ayu-mirage",
+    "base16-dark",
+    "base16-light",
+    "bespin",
+    "blackboard",
+    "cobalt",
+    "colorforth",
+    "darcula",
+    "dracula",
+    "duotone-dark",
+    "duotone-light",
+    "eclipse",
+    "elegant",
+    "erlang-dark",
+    "gruvbox-dark",
+    "hopscotch",
+    "icecoder",
+    "idea",
+    "isotope",
+    "lesser-dark",
+    "liquibyte",
+    "lucario",
+    "material-darker",
+    "material-ocean",
+    "material-palenight",
+    "material",
+    "mbo",
+    "mdn-like",
+    "midnight",
+    "monokai",
+    "moxer",
+    "neat",
+    "neo",
+    "night",
+    "nord",
+    "oceanic-next",
+    "panda-syntax",
+    "paraiso-dark",
+    "paraiso-light",
+    "pastel-on-dark",
+    "railscasts",
+    "rubyblue",
+    "seti",
+    "shadowfox",
+    "solarized",
+    "ssms",
+    "the-matrix",
+    "tomorrow-night-bright",
+    "tomorrow-night-eighties",
+    "ttcn",
+    "twilight",
+    "vibrant-ink",
+    "xq-dark",
+    "xq-light",
+    "yeti",
+    "yonce",
+    "zenburn"];
+
+    const dropdown = document.createElement("select");
+    dropdown.setAttribute("class", "theme-dropdown");
+    dropdown.setAttribute("id", "theme-dropdown");
+
+    for (const theme of themeList){
+      var option = document.createElement("option");
+      option.value = theme;
+      option.text = theme;
+      dropdown.appendChild(option);
+    }
+
+
+    document.getElementById("editor").appendChild(dropdown)
     const textarea = document.getElementById("user-code") as HTMLTextAreaElement;
     const editor = CodeMirror.fromTextArea(textarea, {
         mode: "python",
@@ -151,7 +224,16 @@ function webStart() {
         // hint: 
       });
     });
+
+    var themeDropDown = document.getElementById("theme-dropdown") as HTMLSelectElement;
+    themeDropDown.addEventListener("change", (event) => {
+      var ele = document.querySelector(".CodeMirror") as any;
+      var editor = ele.CodeMirror; 
+      editor.setOption("theme", themeDropDown.value);
+    });
   });
+
+
 }
 // Simple helper to highlight line given line number
 function highlightLine(editor : any , actualLineNumber: number) : void {
@@ -168,7 +250,6 @@ function makeMarker(msg:any) : any {
   error.innerHTML = msg;
   error.classList.add('error-message');
   marker.appendChild(error);
-  console.log("error",error)
 
   return marker;
 }
