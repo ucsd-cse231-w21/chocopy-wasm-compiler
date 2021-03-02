@@ -182,6 +182,12 @@ export class MnS<A extends MarkableAllocator> {
   heap: A;
   roots: Set<Pointer>;
 
+  constructor(memory: Uint8Array, heap: A) {
+    this.memory = memory;
+    this.heap = heap;
+    this.roots = new Set();
+  }
+
   // roots: array of root pointers to trace
   //
   // NOTE(alex): assumes that the caller has already pruned primitive values
