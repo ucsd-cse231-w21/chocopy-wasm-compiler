@@ -202,6 +202,13 @@ None to add.
 ## Codebase Changes
 
 New files:
+* `alloc.ts`: defines the main allocator interface for runtime/compiler code
+  * `ObjectTag`: defines possible heap object types
+  * `MemoryManager`: class that composes the GC and heap implementations into a coherent unit
+    * `gcalloc(tag: ObjectTag, size: BigInt32)`: allocates a new object in the GC heap and returns a pointer to the start of the object (not the header); may invoke the GC (stop-the-world)
+    * `forceCollect()`: manually invoke the GC (stop-the-world)
+    * `getTag(ptr)`: get heap object tag
+    * `getSize(ptr)`: get heap object size (excluding header info)
 * `heap.ts`: defines all allocator implementations/interfaces
   * `Allocator`: common interface for heap allocators
   * `BumpAllocator`: bump allocator heap implementation
@@ -212,13 +219,12 @@ New files:
   * `Describer`: heap combinator that can give more debug info to allocators
   * `Fallback`: heap combinator uses a primary allocator and switches to a fallback allocator when the primary fails
 * `gc.ts`: defines all the GC implementations/interfaces
+  * `Header`: proxy object for an object header
   * `MSGc`: class that defines a mark-and-sweep GC
   * `CopyingGc`: class that defines a copying GC
   * `MarkableAllocator`: interface for heaps that can be used by `MSGc`
   * `MarkableBitMappedBlocks`: class that wraps a `BitMappedBlocks` heap to provide a `MarkableAllocator` implementation (used to allocate/access object headers)
   * `MarkableAllocList`: class that wraps an `AllocList` heap to provide a `MarkableAllocator` implementation (used to allocate/access object headers)
-* `alloc.ts`: defines the main allocator interface
-  * `MemoryManager`: class that composes the GC and heap implementations into a coherent unit
 * `tests/gc-unit-tests.test.ts`: defines the GC unit tests
 * `tests/gc-int-tests.test.ts`: defines the GC integration tests
 
