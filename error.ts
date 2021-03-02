@@ -24,6 +24,8 @@ Use instanceof to get additional properties of each Error type.
     |   +-- UnicodeError
 */
 
+import { Location } from "./ast"
+
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class KeyboardInterrupt extends Error {
   __proto__: Error;
@@ -43,11 +45,19 @@ export class KeyboardInterrupt extends Error {
 }
 
 export class Exception extends Error {
-  __proto__: Error;
-  constructor(message?: string, name = "Exception") {
-    const trueProto = new.target.prototype;
-    super(message);
-    this.name = name;
+    __proto__: Error;
+    loc: Location
+
+    constructor(message?: string, name = "Exception", loc?: Location) {
+        const trueProto = new.target.prototype;
+        super(message);
+        this.name = name;
+        this.loc = loc;
+
+        // Maintains proper stack trace for where our error was thrown (only available on V8)
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, Exception);
+        }
 
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
@@ -60,28 +70,31 @@ export class Exception extends Error {
 }
 
 export class StopIteration extends Exception {
-  constructor(message?: string, name = "StopIteration") {
-    super(message, name);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "StopIteration") {
+        super(message, name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, StopIteration);
+        }
     }
   }
 }
 
 export class ArithmeticError extends Exception {
-  constructor(message?: string, name = "ArithmeticError") {
-    super(message, name);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "ArithmeticError") {
+        super(message, name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, ArithmeticError);
+        }
     }
   }
 }
 
 export class OverflowError extends ArithmeticError {
-  constructor(message?: string, name = "OverflowError") {
-    super(message, name);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "OverflowError") {
+        super(message, name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, OverflowError);
+        }
     }
   }
 }
@@ -97,148 +110,114 @@ export class ZeroDivisionError extends ArithmeticError {
 
 // If an object does not support attribute references or attribute assignment at all, TypeError is raised.
 export class AttributeError extends Exception {
-  constructor(message?: string, name = "AttributeError") {
-    super(message, name);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "AttributeError") {
+        super(message, name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, AttributeError);
+        }
     }
   }
 }
 
 export class LookupError extends Exception {
-  constructor(message?: string, name = "LookupError") {
-    super(message, name);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "LookupError") {
+        super(message, name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, LookupError);
+        }
     }
   }
 }
 
 // If an index is not an integer, TypeError is raised.
 export class IndexError extends LookupError {
-  constructor(message?: string, name = "IndexError") {
-    super(message, name);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "IndexError") {
+        super(message, name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, IndexError);
+        }
     }
   }
 }
 
 export class KeyError extends LookupError {
-  constructor(message?: string, name = "KeyError") {
-    super(message, name);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "KeyError") {
+        super(message, name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, KeyError);
+        }
     }
   }
 }
 
 export class MemoryError extends Exception {
-  constructor(message?: string, name = "MemoryError") {
-    super(message, name);
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "MemoryError") {
+        super(message, name);
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, MemoryError);
+        }
     }
   }
 }
 
 export class NameError extends Exception {
-<<<<<<< HEAD
-    constructor(varName : string, message?: string, name = "NameError") {
-        super(`name '${varName}' is not defined`, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
-        }
-=======
   constructor(message?: string, name = "NameError") {
     super(message, name);
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ZeroDivisionError);
->>>>>>> 9c11897805b3332a460b774c95c9b73f91f5a89a
     }
   }
 }
 
 export class UnboundLocalError extends NameError {
-<<<<<<< HEAD
-    constructor(varName: string, message?: string, name = "UnboundLocalError") {
-        super(`local variable '${varName}' referenced before assignment`, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
-        }
-=======
   constructor(message?: string, name = "UnboundLocalError") {
     super(message, name);
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, ZeroDivisionError);
->>>>>>> 9c11897805b3332a460b774c95c9b73f91f5a89a
     }
   }
 }
 
 export class RuntimeError extends Exception {
-  constructor(message?: string, name = "RuntimeError") {
-    super(message);
-    this.name = name;
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
+    constructor(message?: string, name = "RuntimeError") {
+        super(message);
+        this.name = name;
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, RuntimeError);
+        }
     }
   }
 }
 
 export class RecursionError extends RuntimeError {
-<<<<<<< HEAD
     constructor(message?: string, name = "RecursionError") {
         super("maximum recursion depth exceeded");
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, RecursionError);
         }
-=======
-  constructor(message?: string, name = "RecursionError") {
-    super(message);
-    this.name = name;
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
->>>>>>> 9c11897805b3332a460b774c95c9b73f91f5a89a
     }
   }
 }
 
 export class SyntaxError extends Exception {
-<<<<<<< HEAD
     constructor(message?: string, name = "SyntaxError") {
         super(`invalid syntax`);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, SyntaxError);
         }
-=======
-  constructor(message?: string, name = "SyntaxError") {
-    super(message);
-    this.name = name;
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
->>>>>>> 9c11897805b3332a460b774c95c9b73f91f5a89a
     }
   }
 }
 
 export class IndentationError extends SyntaxError {
-<<<<<<< HEAD
     constructor(message?: string, name = "IndentationError") {
         super(`unexpected indent`);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, IndentationError);
         }
-=======
-  constructor(message?: string, name = "IndentationError") {
-    super(message);
-    this.name = name;
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
->>>>>>> 9c11897805b3332a460b774c95c9b73f91f5a89a
     }
   }
 }
@@ -264,22 +243,11 @@ export class ValueError extends Exception {
 }
 
 export class UnicodeError extends ValueError {
-<<<<<<< HEAD
     constructor(codec: string, character: string, pos: number, message?: string, name = "UnicodeError") {
         super(`'${codec}' codec can't encode character '${character}' in position ${pos}`);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ZeroDivisionError);
+            Error.captureStackTrace(this, UnicodeError);
         }
     }
 }
-=======
-  constructor(message?: string, name = "UnicodeError") {
-    super(message);
-    this.name = name;
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ZeroDivisionError);
-    }
-  }
-}
->>>>>>> 9c11897805b3332a460b774c95c9b73f91f5a89a
