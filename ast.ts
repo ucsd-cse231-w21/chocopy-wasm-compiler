@@ -64,6 +64,8 @@ export type Expr<A> =
   | {  a?: A, tag: "lambda", args: Array<string>, ret: Expr<A> }
   | {  a?: A, tag: "comprehension", expr: Expr<A>, field: string, iter: Expr<A>, cond?: Expr<A> }
   | {  a?: A, tag: "block", block: Array<Stmt<A>>, expr: Expr<A> }
+  | {  a?: A, tag: "call_expr", name: Expr<A>, arguments: Array<Expr<A>> } 
+
 
 export type Literal = 
     { tag: "num", value: BigInt }

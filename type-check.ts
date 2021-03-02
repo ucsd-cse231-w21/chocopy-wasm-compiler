@@ -4,6 +4,7 @@ import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Clas
 import { NUM, BOOL, NONE, CLASS } from './utils';
 import { emptyEnv } from './compiler';
 import * as BaseException from "./error";
+import { TypeOfExpression } from 'typescript';
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -26,6 +27,7 @@ export type GlobalTypeEnv = {
 export type LocalTypeEnv = {
   vars: Map<string, Type>,
   expectedRet: Type,
+  functions: Map<string, [Array<Type>, Type]>,
   topLevel: Boolean
 }
 
@@ -54,6 +56,7 @@ export function emptyLocalTypeEnv() : LocalTypeEnv {
   return {
     vars: new Map(),
     expectedRet: NONE,
+    functions: new Map(),
     topLevel: true
   };
 }
@@ -65,8 +68,22 @@ export type TypeError = {
 export function equalType(t1: Type, t2: Type) {
   return (
     t1 === t2 ||
-    (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name)
+    (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
+    (t1.tag === "callable" && t2.tag === "callable" && equalCallabale(t1, t2))
   );
+}
+
+export function equalCallabale(t1: Type, t2: Type) : boolean {
+  if ( t1.tag === "callable" && t2.tag === "callable" ) {
+    if (t1.args.length !== t2.args.length) { return false; }
+    for (var i = 0 ; i < t1.args.length; i ++ ) {
+      if (!equalType(t1.args[i], t2.args[i])) {
+        return false
+      }
+    }
+    return equalType(t1.ret, t2.ret);
+  }
+  return false;
 }
 
 export function isNoneOrClass(t: Type) {
@@ -74,7 +91,9 @@ export function isNoneOrClass(t: Type) {
 }
 
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || t1.tag === "none" && t2.tag === "class" 
+  return equalType(t1, t2)
+        || (t1.tag === "none" && t2.tag === "class")
+        || (t1.tag === "none" && t2.tag === "callable")
 }
 
 export function isAssignable(env : GlobalTypeEnv, t1 : Type, t2 : Type) : boolean {
@@ -89,13 +108,24 @@ export function augmentTEnv(env : GlobalTypeEnv, program : Program<null>) : Glob
   const newGlobs = new Map(env.globals);
   const newFuns = new Map(env.functions);
   const newClasses = new Map(env.classes);
-  program.inits.forEach(init => newGlobs.set(init.name, init.type));
-  program.funs.forEach(fun => newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
+  program.inits.forEach(init => 
+    { if (newGlobs.has(init.name)) { throw new TypeCheckError(`Duplicate variable ${init.name}`); }
+      newGlobs.set(init.name, init.type)} );
+  program.funs.forEach(fun => 
+    { newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]);
+      if (newGlobs.has(fun.name)) { throw new TypeCheckError(`Duplicate variable ${fun.name}`)}
+      newGlobs.set(fun.name, {tag: "callable", args: fun.parameters.map(p => p.type), ret: fun.ret})});
+
   program.classes.forEach(cls => {
     const fields = new Map();
     const methods = new Map();
-    cls.fields.forEach(field => fields.set(field.name, field.type));
-    cls.methods.forEach(method => methods.set(method.name, [method.parameters.map(p => p.type), method.ret]));
+    cls.fields.forEach(field => 
+      { if (fields.has(field.name)) {throw new TypeCheckError(`Duplicate variable ${field.name}`)}
+        fields.set(field.name, field.type)});
+    cls.methods.forEach(method => 
+      { methods.set(method.name, [method.parameters.map(p => p.type), method.ret])
+        if (fields.has(method.name)) { throw new TypeCheckError(`Duplicate variable ${method.name}`)}
+        fields.set(method.name, {tag: "callable", args: method.parameters.map(p => p.type), ret: method.ret})});
     newClasses.set(cls.name, [fields, methods]);
   });
   return { globals: newGlobs, functions: newFuns, classes: newClasses };
@@ -104,6 +134,7 @@ export function augmentTEnv(env : GlobalTypeEnv, program : Program<null>) : Glob
 export function tc(env : GlobalTypeEnv, program : Program<null>) : [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
+  console.log(newEnv)
   const tInits = program.inits.map(init => tcInit(env, init));
   const tDefs = program.funs.map(fun => tcDef(newEnv, fun));
   const tClasses = program.classes.map(cls => tcClass(newEnv, cls));
@@ -140,11 +171,55 @@ export function tcDef(env : GlobalTypeEnv, fun : FunDef<null>) : FunDef<Type> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
-  fun.parameters.forEach(p => locals.vars.set(p.name, p.type));
-  fun.inits.forEach(init => locals.vars.set(init.name, tcInit(env, init).type));
   
+  fun.parameters.forEach(p => 
+    { if (locals.vars.has(p.name)) { throw new TypeCheckError(`Duplicate variable ${p.name}`) }
+      locals.vars.set(p.name, p.type)});
+  fun.inits.forEach(init => 
+    { if (locals.vars.has(init.name)) { throw new TypeCheckError(`Duplicate variable ${init.name}`) }
+      locals.vars.set(init.name, tcInit(env, init).type)});
+  fun.decls.forEach(decl => { throw new Error(`Invalid Nonlocal Variable ${decl.name}`) })
+  fun.funs.forEach(func => 
+    { locals.functions.set(func.name, [func.parameters.map(p => p.type), func.ret])
+      if (locals.vars.has(func.name)) { throw new TypeCheckError(`Duplicate variable ${func.name}`) }
+      locals.vars.set(func.name, {tag: "callable", args: func.parameters.map(p => p.type), ret: func.ret}) });
+  
+  console.log(`Local Env:  !!!!`)
+  console.log(locals);
+  // const tDefs : FunDef<Type>[] = null;
+  const tDefs = fun.funs.map(fun => tcNestDef(env, locals, fun));
   const tBody = tcBlock(env, locals, fun.body);
-  return {...fun, a: NONE, body: tBody};
+  return {...fun, a: NONE, funs: tDefs, body: tBody};
+}
+
+export function tcNestDef(env : GlobalTypeEnv, nestEnv : LocalTypeEnv, fun : FunDef<null>) : FunDef<Type> {
+  var locals = emptyLocalTypeEnv();
+  locals.expectedRet = fun.ret;
+  locals.topLevel = false;
+    
+  fun.parameters.forEach(p => 
+    { if (locals.vars.has(p.name)) { throw new TypeCheckError(`Duplicate variable ${p.name}`) }
+      locals.vars.set(p.name, p.type)});
+  fun.inits.forEach(init => 
+    { if (locals.vars.has(init.name)) { throw new TypeCheckError(`Duplicate variable ${init.name}`) }
+      locals.vars.set(init.name, tcInit(env, init).type)});
+  fun.decls.forEach(decl => 
+    { if (locals.vars.has(decl.name) || !nestEnv.vars.has(decl.name)) {
+      throw new Error(`Invalid Nonlocal Variable ${decl.name}`);}});
+
+  fun.funs.forEach(func => 
+    { locals.functions.set(func.name, [func.parameters.map(p => p.type), func.ret])
+      if (locals.vars.has(func.name)) { throw new TypeCheckError(`Duplicate variable ${func.name}`) }
+      locals.vars.set(func.name, {tag: "callable", args: func.parameters.map(p => p.type), ret: func.ret}) });
+  
+  console.log(`Nested Env:  !!!!`)
+  console.log(locals)
+  nestEnv.vars.forEach((vtype, vname) => { if (!locals.vars.has(vname)) {locals.vars.set(vname, vtype) }});
+  nestEnv.functions.forEach((vtype, vname) => { if (!locals.functions.has(vname)) {locals.functions.set(vname, vtype) }});
+
+  const tDefs = fun.funs.map(fun => tcNestDef(env, locals, fun));
+  const tBody = tcBlock(env, locals, fun.body);
+  return {...fun, a: NONE, funs: tDefs, body: tBody};
 }
 
 export function tcClass(env: GlobalTypeEnv, cls : Class<null>) : Class<Type> {
@@ -157,10 +232,22 @@ export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Arra
   return stmts.map(stmt => tcStmt(env, locals, stmt));
 }
 
+export function tcLambda(locals : LocalTypeEnv, expr : Expr<null>, expected : Type ) {
+  if (expr.tag === "lambda" && expected.tag === "callable") {
+    var args = expr.args;
+    if (args.length === expected.args.length) {
+      for (var i = 0; i < args.length; i++) {
+        locals.vars.set(args[i], expected.args[i])
+      }
+    } else {
+      throw new TypeError("Function call type mismatch: Lambda" );
+    }
+  }
+} 
+
 export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<null>) : Stmt<Type> {
   switch(stmt.tag) {
     case "assign":
-      const tValExpr = tcExpr(env, locals, stmt.value);
       var nameTyp;
       if (locals.vars.has(stmt.name)) {
         nameTyp = locals.vars.get(stmt.name);
@@ -169,6 +256,23 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       } else {
         throw new TypeCheckError("Unbound id: " + stmt.name);
       }
+
+      if (stmt.value.tag === "lambda") {
+        tcLambda(locals, stmt.value, nameTyp);
+      }
+      // if (nameTyp.tag === "callable" && stmt.value.tag === "lambda") {
+      //   var args = stmt.value.args
+      //   var ret = stmt.value.ret
+      //   if (args.length === nameTyp.args.length) {
+      //     for (var i = 0; i < args.length; i++) {
+      //       locals.vars.set(args[i], nameTyp.args[i])
+      //     }
+      //   } else {
+      //     throw new TypeError("Function call type mismatch: " + stmt.name);
+      //   }
+      // }
+
+      const tValExpr = tcExpr(env, locals, stmt.value);
       if(!isAssignable(env, tValExpr.a, nameTyp)) 
         throw new TypeCheckError("Non-assignable types");
       return {a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr};
@@ -189,6 +293,19 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
     case "return":
       if (locals.topLevel)
         throw new TypeCheckError("cannot return outside of functions");
+      
+      if (stmt.value.tag === "lambda" && locals.expectedRet.tag === "callable") {
+          var args = stmt.value.args
+          var ret = stmt.value.ret
+          if (args.length === locals.expectedRet.args.length) {
+            for (var i = 0; i < args.length; i++) {
+              locals.vars.set(args[i], locals.expectedRet.args[i])
+            }
+          } else {
+            throw new TypeError("Function call type mismatch: Lambda" );
+          }
+      } 
+
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
         throw new TypeCheckError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
@@ -203,7 +320,7 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       return {a: NONE, tag: stmt.tag};
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
-      const tVal = tcExpr(env, locals, stmt.value);
+    
       if (tObj.a.tag !== "class") 
         throw new TypeCheckError("field assignments require an object");
       if (!env.classes.has(tObj.a.name)) 
@@ -211,6 +328,11 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       const [fields, _] = env.classes.get(tObj.a.name);
       if (!fields.has(stmt.field)) 
         throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
+
+      if (stmt.value.tag === "lambda") {
+        tcLambda(locals, stmt.value, fields.get(stmt.field));
+      }
+      const tVal = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
         throw new TypeCheckError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
       return {...stmt, a: NONE, obj: tObj, value: tVal};
@@ -300,6 +422,27 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       } else {
         throw new TypeError("Undefined function: " + expr.name);
       }
+    case "lambda":
+      var args : Type[]= []
+      expr.args.forEach(arg => args.push(locals.vars.get(arg)));
+      var callable : Type = {tag: "callable", args, ret: tcExpr(env, locals, expr.ret).a}
+      return {...expr, a: callable}
+    case "call_expr":
+      var innercall = tcExpr(env, locals, expr.name);
+      if (innercall.a.tag === "callable") {
+        const [args, ret] = [innercall.a.args, innercall.a.ret]
+        const tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
+
+        if(args.length === expr.arguments.length &&
+          //  tArgs.every((tArg, i) => tArg.a === argTypes[i])) {
+             tArgs.every((tArg, i) => isAssignable(env, tArg.a, args[i]))) {
+             return {...expr, a: ret, arguments: expr.arguments};
+           } else {
+            throw new TypeError("Function call type mismatch: " + expr.name);
+           }
+      } else {
+        throw new TypeError("Undefined function: " + expr.name);
+      }
     case "call":
       if(env.classes.has(expr.name)) {
         // surprise surprise this is actually a constructor
@@ -315,12 +458,32 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
         } else {
           return tConstruct;
         }
-      } else if(env.functions.has(expr.name)) {
-        const [argTypes, retType] = env.functions.get(expr.name);
+      // } else if(env.functions.has(expr.name) || locals.functions.has(expr.name)) {
+      } else if(env.globals.has(expr.name) || locals.vars.has(expr.name)) {
+        var argTypes : Type[];
+        var retType : Type;
+        // if (locals.functions.has(expr.name)) {
+        //   [argTypes, retType] = locals.functions.get(expr.name);
+        // } else {
+        //   [argTypes, retType] = env.functions.get(expr.name);
+        // }
+        if (locals.vars.has(expr.name)) {
+          var temp = locals.vars.get(expr.name);
+          if (temp.tag === "callable") { // should always be true
+            [argTypes, retType] = [temp.args, temp.ret];
+          }
+        } else {
+          var temp = env.globals.get(expr.name);
+          if (temp.tag === "callable") {
+            [argTypes, retType] = [temp.args, temp.ret];
+          }
+        }
+
         const tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
 
         if(argTypes.length === expr.arguments.length &&
-           tArgs.every((tArg, i) => tArg.a === argTypes[i])) {
+          //  tArgs.every((tArg, i) => tArg.a === argTypes[i])) {
+             tArgs.every((tArg, i) => isAssignable(env, tArg.a, argTypes[i]))) {
              return {...expr, a: retType, arguments: expr.arguments};
            } else {
             throw new TypeError("Function call type mismatch: " + expr.name);
@@ -349,10 +512,23 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       var tArgs = expr.arguments.map(arg => tcExpr(env, locals, arg));
       if (tObj.a.tag === "class") {
         if (env.classes.has(tObj.a.name)) {
-          const [_, methods] = env.classes.get(tObj.a.name);
-          if (methods.has(expr.method)) {
-            const [methodArgs, methodRet] = methods.get(expr.method);
-            const realArgs = [tObj].concat(tArgs);
+          const [fields, methods] = env.classes.get(tObj.a.name);
+          // if (methods.has(expr.method)) {
+            // const [methodArgs, methodRet] = methods.get(expr.method);
+            // const realArgs = [tObj].concat(tArgs);
+          
+          var methodArgs : Type[];
+          var methodRet : Type;
+          if (fields.has(expr.method)) {
+            var temp = fields.get(expr.method)
+            if (temp.tag === "callable") { // should always be true
+              [methodArgs, methodRet] = [temp.args, temp.ret];
+            }
+            
+            var realArgs : Expr<Type>[] = tArgs;
+            if (methods.has(expr.method)) {
+              realArgs = [tObj].concat(tArgs);
+            } 
             if(methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))) {
                 return {...expr, a: methodRet, obj: tObj, arguments: tArgs};
