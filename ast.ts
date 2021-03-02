@@ -102,6 +102,7 @@ export type Expr<A> =
   | { a?: A; tag: "lambda"; args: Array<string>; ret: Expr<A> }
   | { a?: A; tag: "comprehension"; expr: Expr<A>; field: string; iter: Expr<A>; cond?: Expr<A> }
   | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
+  | { a?: A; tag: "call_expr"; name: Expr<A>; arguments: Array<Expr<A>> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
   | { a?: A; tag: "string_slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
