@@ -1,6 +1,3 @@
-import { type } from "os";
-import { DEFAULT_MAX_VERSION } from "tls";
-import { forEachChild } from "typescript";
 import { Type } from "../ast";
 
 const indent: string = "  ";
@@ -319,7 +316,7 @@ function genFuncName(env: Env, retType: Type): string {
     env.funcs.set(retTypeString, []);
   }
   var funcList = env.funcs.get(retTypeString);
-  return `func_${retType.tag}${funcList.length}`;
+  return `func_${retType.tag}_${funcList.length}`;
 }
 
 function genParam(paramName: string): Parameter {
@@ -332,30 +329,19 @@ function genFuncSig(ty: Type, env: Env): FunDef {
   var paramList = [];
   var retType = ty; //fixed function return type
   var funcName = genFuncName(env, retType);
-  var funcHeader = "def " + funcName + "(";
-  var funcEnv = env.copyEnv();
   var first = true;
   var paramIndex = 0;
   while (true) {
     if (first) {
       first = false;
-    } else {
-      funcHeader += ", ";
     }
     if (Math.random() > PARAM_CHANCE) {
       break;
     }
-    const param = genParam(`${funcName}_${paramIndex}`);
+    const param = genParam(`${funcName}_param_${paramIndex}`);
     paramList.push(param);
-    funcHeader += param.name;
     paramIndex++;
   }
-  funcHeader += "):";
-  //augment funcEnv with params
-  paramList.forEach(function (param) {
-    funcEnv.delVar(param.name);
-    funcEnv.addVar(param.name, param.type);
-  });
 
   return {
     name: funcName,
@@ -574,9 +560,9 @@ function genExpr(type: Type, env: Env): string {
       var expr = genExpr(type, env);
       switch (op) {
         case "Neg":
-          return `-${expr}`;
+          return `(-${expr})`;
         case "Not":
-          return `not ${expr}`;
+          return `(not ${expr})`;
         case "": // if type is not number or bool, just return result of genExpr
           return expr;
         default:
@@ -594,7 +580,7 @@ function genExpr(type: Type, env: Env): string {
         if (i > 0) {
           callString += ", ";
         }
-        callString += funcSig.parameters[i].name;
+        callString += genExpr(funcSig.parameters[i].type, env);
       }
       callString += ")";
       return callString;
@@ -624,9 +610,9 @@ function genId(type: Type, env: Env): string {
     // gen new variable
     var idName: string;
     if (type.tag == "class") {
-      idName = `${type.name}${varList.length}`;
+      idName = `${type.name}_${varList.length}`;
     } else {
-      idName = `${type.tag}${varList.length}`;
+      idName = `${type.tag}_${varList.length}`;
     }
     varList.push(idName);
     return idName;
