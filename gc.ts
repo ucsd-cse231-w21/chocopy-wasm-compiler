@@ -151,6 +151,7 @@ export interface MarkableAllocator extends H.Allocator {
   // Returns the null pointer (0x0) if memory allocation failed
   gcalloc: (tag: HeapTag, size: bigint) => Pointer,
 
+  // Scans the allocated objects for unmarked, allocated objects and frees them
   sweep: () => void,
 }
 
