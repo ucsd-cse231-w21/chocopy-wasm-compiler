@@ -87,6 +87,7 @@ export async function run(source : string, config: Config) : Promise<[Value, com
       ${returnExpr}
     )
   )`;
+  console.info(wasmSource)
   console.log(wasmSource);
   const result = await runWat(wasmSource, importObject);
 
