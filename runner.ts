@@ -3,14 +3,12 @@
 // - https://github.com/AssemblyScript/wabt.js/
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
-import { checkServerIdentity } from "tls";
 import wabt from "wabt";
-import { wasm } from "webpack";
 import * as compiler from "./compiler";
 import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
 import { Value } from "./ast";
-import { PyValue, NONE } from "./utils";
+import { NONE, PyValue } from "./utils";
 
 export type Config = {
   importObject: any;
@@ -49,25 +47,24 @@ export async function run(
   source: string,
   config: Config
 ): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
-
   // One approach to create built-in Range class and range function, by Comprehension team
   if (!config.typeEnv.classes.has("Range")) {
     const builtin = `
 class Range:
     curr : int = 0
     end : int = 0
-        
+
     def new(self: Range, start: int, end: int) -> Range:
         self.curr = start
         self.end = end
         return self
-        
+
     def next(self: Range) -> int:
         temp : int = 0
         temp = self.curr
         self.curr = self.curr + 1
         return temp
-        
+
     def has_next(self: Range) -> bool:
         return self.curr < self.end
 
@@ -75,12 +72,13 @@ def range(start: int, end: int) -> Range:
     return Range().new(start, end)
 `;
 
+    // Note: We're trimming the start of source in order to prevent incorrect indendation
+    // issues with our built-in Range class and range function
     source = `
 ${builtin}
 
-${source}
+${source.trimStart()}
 `;
-
   }
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
