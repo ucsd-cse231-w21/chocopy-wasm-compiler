@@ -241,8 +241,8 @@ Options:
 2. Box every object and place a special function in the vtable that tells the GC which fields are poiners.
 
 Decision as of 2/25/2021: option 1 with 32 bit values, using the least significant bit as the tag.
-* Primitives are tagged with `0`
-* Pointers are tagged with `1`
+* Primitives are tagged with `1`
+* Pointers are tagged with `0`
 
 ## March 4 Milestone Plan
 We plan to target programs 1 and 2 such that they execute properly.
