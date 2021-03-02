@@ -149,7 +149,11 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     case "while":
       var wcondExpr = codeGenExpr(stmt.cond, env);
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      return [`(block (loop (br_if 1 ${wcondExpr.join("\n")}\n(i32.eqz)) ${bodyStmts.join("\n")} (br 0) ))`];
+      return [
+        `(block (loop (br_if 1 ${wcondExpr.join("\n")}\n(i32.eqz)) ${bodyStmts.join(
+          "\n"
+        )} (br 0) ))`,
+      ];
     case "pass":
       return [];
     case "field-assign":
