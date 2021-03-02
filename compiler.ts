@@ -180,25 +180,42 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
   let assignStmts: string[] = [];
 
   if (destruct.isDestructured) {
-    throw new Error("Destructuring not yet supported in compiler");
+    const objTyp = destruct.valueType;
+    if (objTyp.tag === "class") {
+      const className = objTyp.name;
+      const classFields = env.classes.get(className).values();
+      // Collect every assignStmt
+
+      assignStmts = destruct.targets.flatMap(({ target }) => {
+        const [offset, _] = classFields.next().value;
+        // The WASM code value that we extracted from the object at this current offset
+        const addressOffset = offset * 4;
+        const fieldValue = [`(i32.add ${value} (i32.const ${addressOffset}))`, `(i32.load)`];
+
+        return codeGenAssignable(target, fieldValue, env);
+      });
+    } else {
+      // Currently assumes that the valueType of our destructure is an object
+      throw new Error("Destructuring not supported yet for types other than 'class'");
+    }
   } else {
     const target = destruct.targets[0];
     if (!target.ignore) {
-      assignStmts = codeGenAssignable(target.target, value, env);
+      assignStmts = codeGenAssignable(target.target, [value], env);
     }
   }
 
   return assignStmts;
 }
 
-function codeGenAssignable(target: Assignable<Type>, value: string, env: GlobalEnv): string[] {
+function codeGenAssignable(target: Assignable<Type>, value: string[], env: GlobalEnv): string[] {
   switch (target.tag) {
     case "id": // Variables
       if (env.locals.has(target.name)) {
-        return [value, `(local.set $${target.name})`];
+        return [...value, `(local.set $${target.name})`];
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, target.name)}) ;; ${target.name}`];
-        return [...locationToStore, value, "(i32.store)"];
+        return [...locationToStore, ...value, "(i32.store)"];
       }
     case "lookup": // Field lookup
       const objStmts = codeGenExpr(target.obj, env);
@@ -211,7 +228,7 @@ function codeGenAssignable(target: Assignable<Type>, value: string, env: GlobalE
       }
       const className = objTyp.name;
       const [offset, _] = env.classes.get(className).get(target.field);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, value, `(i32.store)`];
+      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...value, `(i32.store)`];
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
