@@ -227,14 +227,15 @@ export function traverseArguments(c: TreeCursor, s: string): Array<Expr<null>> {
 function traverseAssignment(c: TreeCursor, s: string): AssignTarget<null> {
   let target = null;
   let starred = false;
-  if (c.name === "*") { // Check for "splat" starred operator
+  if (c.name === "*") {
+    // Check for "splat" starred operator
     starred = true;
     c.nextSibling();
   }
   try {
     target = traverseExpr(c, s);
   } catch (e) {
-    throw new Error(`Expected assignment expression, got ${s.substring(c.from,  c.to)}`);
+    throw new Error(`Expected assignment expression, got ${s.substring(c.from, c.to)}`);
   }
   if (!isTagged(target, ASSIGNABLE_TAGS)) {
     throw new Error(`Unknown target ${target.tag} while parsing assignment`);
@@ -243,7 +244,7 @@ function traverseAssignment(c: TreeCursor, s: string): AssignTarget<null> {
   return {
     target,
     ignore,
-    starred
+    starred,
   };
 }
 
@@ -254,10 +255,12 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
   c.nextSibling();
   let isSimple = true;
   let haveStarredTarget = targets[0].starred;
-  while (c.name !== "AssignOp") { // While we haven't hit "=" and we have values remaining
+  while (c.name !== "AssignOp") {
+    // While we haven't hit "=" and we have values remaining
     isSimple = false; // If we have more than one target, it isn't simple.
     c.nextSibling();
-    if (c.name === "AssignOp") // Assignment list ends with comma, e.g. x, y, = (1, 2)
+    if (c.name === "AssignOp")
+      // Assignment list ends with comma, e.g. x, y, = (1, 2)
       break;
     let target = traverseAssignment(c, s);
     if (target.starred) {
@@ -269,13 +272,14 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
     c.nextSibling(); // move to =
   }
   // Fun fact, "*z, = 1," is valid but "*z = 1," is not.
-  if (isSimple && haveStarredTarget) // We aren't allowed to have a starred target if we only have one target
+  if (isSimple && haveStarredTarget)
+    // We aren't allowed to have a starred target if we only have one target
     throw new Error("Starred assignment target must be in a list or tuple");
   c.prevSibling(); // Move back to previous for parsing to continue
   return {
     targets,
-    isDestructured: !isSimple
-  }
+    isDestructured: !isSimple,
+  };
 }
 
 export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
