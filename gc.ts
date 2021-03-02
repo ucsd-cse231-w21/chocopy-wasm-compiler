@@ -1,8 +1,6 @@
 import * as H from "./heap";
 import { Block, NULL_BLOCK } from "./heap";
-
-// Untagged pointer (32-bits)
-export type Pointer = bigint;
+import { Pointer } from "./alloc";
 
 export type HeapTag =
   | typeof TAG_CLASS

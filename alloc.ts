@@ -1,7 +1,10 @@
 import * as Heap from "./heap";
 import * as GC from "./gc";
 
-class MemoryManager {
+// Untagged pointer (32-bits)
+export type Pointer = bigint;
+
+export class MemoryManager {
   globalAllocator: Heap.BumpAllocator;
   // In the future, we can do something like
   // globalAllocator: Fallback<BumpAllocator, Generic>

@@ -1,16 +1,18 @@
+import { Pointer } from "./alloc";
+
 export interface Allocator {
   alloc: (size: bigint) => Block;
 
   // NOTE: this probably should take a Block
-  free2: (ptr: bigint) => void;
+  free2: (ptr: Pointer) => void;
 
-  owns: (ptr: bigint) => boolean;
+  owns: (ptr: Pointer) => boolean;
 
   description: () => string;
 }
 
 export interface Block {
-  ptr: bigint;
+  ptr: Pointer;
   size: bigint;
 }
 
@@ -51,11 +53,11 @@ export class BumpAllocator implements Allocator {
     };
   }
 
-  free2(ptr: bigint) {
+  free2(ptr: Pointer) {
     // noop
   }
 
-  owns(ptr: bigint): boolean {
+  owns(ptr: Pointer): boolean {
     return ptr >= this.absStart && ptr < this.absEnd;
   }
 
@@ -101,7 +103,7 @@ export class Switch<P extends Allocator, F extends Allocator> implements Allocat
     }
   }
 
-  free2(ptr: bigint) {
+  free2(ptr: Pointer) {
     if (this.primary.owns(ptr)) {
       this.primary.free2(ptr);
     } else {
@@ -109,7 +111,7 @@ export class Switch<P extends Allocator, F extends Allocator> implements Allocat
     }
   }
 
-  owns(ptr: bigint): boolean {
+  owns(ptr: Pointer): boolean {
     return this.primary.owns(ptr) || this.fallback.owns(ptr);
   }
 
@@ -150,7 +152,7 @@ export class Segregator<N extends bigint, S extends Allocator, L extends Allocat
     }
   }
 
-  free2(ptr: bigint) {
+  free2(ptr: Pointer) {
     if (this.small.owns(ptr)) {
       this.small.free2(ptr);
     } else {
@@ -158,7 +160,7 @@ export class Segregator<N extends bigint, S extends Allocator, L extends Allocat
     }
   }
 
-  owns(ptr: bigint): boolean {
+  owns(ptr: Pointer): boolean {
     return this.small.owns(ptr) || this.large.owns(ptr);
   }
 
@@ -180,11 +182,11 @@ export class Describer<A extends Allocator> implements Allocator {
     return this.allocator.alloc(size);
   }
 
-  free2(ptr: bigint) {
+  free2(ptr: Pointer) {
     this.allocator.free2(ptr);
   }
 
-  owns(ptr: bigint): boolean {
+  owns(ptr: Pointer): boolean {
     return this.allocator.owns(ptr);
   }
 
@@ -211,7 +213,7 @@ export class Fallback<P extends Allocator, F extends Allocator> implements Alloc
     return b1;
   }
 
-  free2(ptr: bigint) {
+  free2(ptr: Pointer) {
     if (this.primary.owns(ptr)) {
       this.primary.free2(ptr);
     } else if (this.fallback.owns(ptr)) {
@@ -223,7 +225,7 @@ export class Fallback<P extends Allocator, F extends Allocator> implements Alloc
     }
   }
 
-  owns(ptr: bigint): boolean {
+  owns(ptr: Pointer): boolean {
     return this.primary.owns(ptr) || this.fallback.owns(ptr);
   }
 
