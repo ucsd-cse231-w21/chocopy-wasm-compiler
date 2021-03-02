@@ -7,6 +7,7 @@ import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
 import "codemirror/mode/python/python"
 import "codemirror/addon/hint/show-hint"
+import "codemirror/addon/lint/lint"
 import "./style.scss";
 
 function stringify(typ: Type, arg: any) : string {
@@ -110,9 +111,14 @@ function webStart() {
       resetRepl();
       repl.run(source.value).then((r) => { renderResult(r); console.log ("run finished") })
           .catch((e) => { renderError(e); console.log("run failed", e) });;
+      
+      // CODE TO RETRIEVE CODEMIRROR INSTANCE. This only retrieves the first element
+      // but because we only have one codemirror instance, this is fine
       var ele = document.querySelector(".CodeMirror")  as any;
       var editor = ele.CodeMirror; 
       console.log("TEST",editor);
+      highlightLine(editor, 2);
+
     });
     setupRepl();
   });
@@ -124,6 +130,8 @@ function webStart() {
         theme: "neo",
         lineNumbers: true,
         autoCloseBrackets: true,
+        lint: true,
+        gutters: ["CodeMirror-lint-markers"],
         extraKeys: {
           "cmd+Space" : "autocomplete"
         }
@@ -139,9 +147,14 @@ function webStart() {
           return;
       }
       editor.showHint({
+        // hint: 
       });
   });
   });
 }
-
+// Simple helper to highlight line given line number
+function highlightLine(editor : any , actualLineNumber: number) : void {
+  //Set line CSS class to the line number & affecting the background of the line with the css class of line-error
+  editor.addLineClass(actualLineNumber, 'background', 'line-error');
+}
 webStart();

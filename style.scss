@@ -1,6 +1,7 @@
 @import "codemirror/lib/codemirror.css";
 @import "codemirror/theme/neo.css";
 @import "codemirror/addon/hint/show-hint.css";
+@import "codemirror/addon/lint/lint.css";
 
 .editor {
   float: left;
@@ -8,6 +9,12 @@
   margin: 0;
   padding: 0;
   height: 100%;
+
+
+  .line-error {
+    background: #FBC2C4 !important;
+    color: #8a1f11 !important;
+  }
 }
 .user-code {
   width: 100%;
