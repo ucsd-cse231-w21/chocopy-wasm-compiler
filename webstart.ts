@@ -10,7 +10,6 @@ import "codemirror/mode/python/python"
 import "./style.scss";
 import { toEditorSettings } from 'typescript';
 
-var editorReference : any;
 function stringify(typ: Type, arg: any) : string {
   switch(typ.tag) {
     case "number":
@@ -119,8 +118,10 @@ function webStart() {
       //resets environment
       repl = new BasicREPL(importObject);
       //clear editor
-      editorReference.setValue("");
-      editorReference.clearHistory();
+      var element = document.querySelector(".CodeMirror")  as any;
+      var editor = element.CodeMirror;
+      editor.setValue("");
+      editor.clearHistory();
     })
     setupRepl();
   });
@@ -139,7 +140,6 @@ function webStart() {
     editor.on("change", (cm, change) => {
         textarea.value = editor.getValue();
     })
-    editorReference = editor;
   });
 }
 
