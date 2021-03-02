@@ -187,43 +187,43 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       };
     case "MemberExpression":
       c.firstChild(); // Focus on object
-      var objExpr = traverseExpr(c, s);     //object name
+      var objExpr = traverseExpr(c, s); //object name
       //branch off to class member look up or bracket (dict or list) look-up based on next sibling
-      c.nextSibling();   //will have . or [
-      if(s.substring(c.from, c.to) == ".")   //class member lookup; example: ctr.n
-      {   
+      c.nextSibling(); //will have . or [
+      if (s.substring(c.from, c.to) == ".") {
+        //class member lookup; example: ctr.n
         c.nextSibling(); // Focus on property
         var propName = s.substring(c.from, c.to);
         c.parent();
         return {
           tag: "lookup",
           obj: objExpr,
-          field: propName
-        }
-      }
-      else              //dictionary or list lookup; example: d[5]
-      {
-        c.nextSibling();    //focus on expression inside the brackets
+          field: propName,
+        };
+      } //dictionary or list lookup; example: d[5]
+      else {
+        c.nextSibling(); //focus on expression inside the brackets
         var bracketExpr = traverseExpr(c, s);
-        c.nextSibling();    //focus on }
-        c.parent();         //go back to MemberExpression
+        c.nextSibling(); //focus on }
+        c.parent(); //go back to MemberExpression
         return {
           tag: "bracket-lookup",
           obj: objExpr,
-          key: bracketExpr
-        }
+          key: bracketExpr,
+        };
       }
     case "self":
       return {
         tag: "id",
         name: "self",
       };
-    case "DictionaryExpression":  
+    case "DictionaryExpression":
       // entries: Array<[Expr<A>, Expr<A>]>
-      let keyValuePairs: Array<[Expr<null>, Expr<null>]> = []; 
+      let keyValuePairs: Array<[Expr<null>, Expr<null>]> = [];
       c.firstChild(); // Focus on "{"
-      while(c.nextSibling()) {  
-        if(s.substring(c.from, c.to) === "}") { // check for empty dict
+      while (c.nextSibling()) {
+        if (s.substring(c.from, c.to) === "}") {
+          // check for empty dict
           break;
         }
         let key = traverseExpr(c, s);
@@ -232,12 +232,12 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         let value = traverseExpr(c, s);
         keyValuePairs.push([key, value]);
         c.nextSibling(); // Focus on } or ,
-        }    
+      }
       c.parent(); // Pop to DictionaryExpression
       return {
-        tag: "dict", 
-        entries: keyValuePairs
-      }
+        tag: "dict",
+        entries: keyValuePairs,
+      };
 
     default:
       throw new Error(
@@ -435,25 +435,28 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
   }
 }
 
-export function traverseType(c : TreeCursor, s : string) : Type {
-  switch(c.type.name) {
+export function traverseType(c: TreeCursor, s: string): Type {
+  switch (c.type.name) {
     case "VariableName":
       let name = s.substring(c.from, c.to);
-      switch(name) {
-        case "int": return NUM;
-        case "bool": return BOOL;
-        default: return CLASS(name);
+      switch (name) {
+        case "int":
+          return NUM;
+        case "bool":
+          return BOOL;
+        default:
+          return CLASS(name);
       }
     case "ArrayExpression":
       c.firstChild(); // Focus on [
       c.nextSibling();
       let keytype = traverseType(c, s);
       c.nextSibling(); //Could be , or ]
-      if(s.substring(c.from, c.to) === ","){
+      if (s.substring(c.from, c.to) === ",") {
         c.nextSibling();
         let valtype = traverseType(c, s);
         c.parent();
-        return {tag:"dict", key:keytype, value:valtype };
+        return { tag: "dict", key: keytype, value: valtype };
       }
       c.parent();
       throw new Error("Invalid type " + s.substring(c.from, c.to));
