@@ -1,4 +1,10 @@
 import { Pointer } from "./alloc";
+import {
+  Header,
+  HeapTag,
+  HEADER_SIZE_BYTES,
+  MarkableAllocator,
+} from "./gc";
 
 export interface Allocator {
   alloc: (size: bigint) => Block;
@@ -21,17 +27,24 @@ export const NULL_BLOCK: Block = {
   size: 0n,
 };
 
-// NOTE: No deallocation
-// [counter, usableMemory...]
-export class BumpAllocator implements Allocator {
+// Bump allocator implementation
+// * Deallocation is a NOP
+export class BumpAllocator implements MarkableAllocator {
+  memory: Uint8Array;
   counter: bigint;
   absStart: bigint;
   absEnd: bigint;
 
-  constructor(s: bigint, endExclusive: bigint) {
+  constructor(memory: Uint8Array, s: bigint, endExclusive: bigint) {
+    this.memory = memory;
     this.absStart = s;
     this.counter = s;
     this.absEnd = endExclusive;
+
+    // Ensure allocations are always aligned on an even boundary
+    if (s % 2n !== 0n) {
+      this.counter += 1n;
+    }
 
     if (endExclusive <= s) {
       throw new Error(
@@ -47,6 +60,12 @@ export class BumpAllocator implements Allocator {
 
     const ptr = this.counter;
     this.counter += size;
+
+    // Ensure allocations are always aligned on an even boundary
+    if (this.counter !== 0n) {
+      this.counter += 1n;
+    }
+
     return {
       ptr: ptr,
       size: size,
@@ -63,6 +82,33 @@ export class BumpAllocator implements Allocator {
 
   description(): string {
     return `Bump { counter: ${this.counter}, start: ${this.absStart}, end: ${this.absEnd} } `;
+  }
+
+  getHeader(ptr: Pointer): Header {
+    const headerPtr = ptr - BigInt(HEADER_SIZE_BYTES);
+    return new Header(this.memory, headerPtr);
+  }
+
+  gcalloc(tag: HeapTag, size: bigint): Pointer {
+    const allocSize = size + BigInt(HEADER_SIZE_BYTES);
+    // Try to allocate the requested size + GC headers
+    const block = this.alloc(allocSize);
+    if (block === NULL_BLOCK) {
+      return 0x0n;
+    }
+
+    const header = new Header(this.memory, block.ptr);
+    header.alloc();
+    header.setSize(size);
+    header.setTag(tag);
+
+    return block.ptr + BigInt(HEADER_SIZE_BYTES);
+  }
+
+  // BumpAllocator only releases memory when the entire allocator is released
+  // Any garbage will accumulate but since it is unreachable, we do not care
+  sweep() {
+    // NOP
   }
 }
 
