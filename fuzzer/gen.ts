@@ -654,7 +654,7 @@ function genBinOp(op: string): string {
   }
 }
 
-export function genProgram(): string {
+export function genProgram(): {to_python: string, to_repl: string} {
   initDefaultProbs();
   var env = new Env();
   const level = 0;
@@ -669,11 +669,16 @@ export function genProgram(): string {
 
   //do this after genBody since we need to know about all the functions/variables
   program.program = genDecl(env, new Env(), level).concat(program.program);
-
+  
+  var toReturn = {
+    to_repl: program.program.join("\n"),
+    to_python: "",
+  }
   program.stmt = body.stmt;
   if (program.stmt === "expr") {
     program.program[program.program.length - 1] =
       "print(" + program.program[program.program.length - 1] + ")";
   }
-  return program.program.join("\n");
+  toReturn.to_python = program.program.join("\n");
+  return toReturn;
 }
