@@ -1,5 +1,5 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
+import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 
 // https://learnxinyminutes.com/docs/wasm/
@@ -150,6 +150,46 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var wcondExpr = codeGenExpr(stmt.cond, env);
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
+    case "for":
+      var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
+      //var iter = codeGenExpr(stmt.iterable, env);
+
+      var Expr_cur:Expr<Type> = { a: CLASS("Range"), tag: "lookup", obj: stmt.iterable, field: "cur" }
+      var Code_cur = codeGenExpr(Expr_cur, env);
+
+      var Expr_stop:Expr<Type> = { a: CLASS("Range"), tag: "lookup", obj: stmt.iterable, field: "stop" }
+      var Code_stop = codeGenExpr(Expr_stop, env);
+
+      var Expr_step:Expr<Type> = { a: CLASS("Range"), tag: "lookup", obj: stmt.iterable, field: "step" }
+      var Code_step = codeGenExpr(Expr_step, env);
+
+      // name = cur
+      var ass:Stmt<Type> = { a: NONE, tag: "assign", name: stmt.name, value: Expr_cur };
+      var Code_ass = codeGenStmt(ass, env);
+
+      // add step to cur
+      var ncur:Expr<Type> =  { a: NUM, tag: "binop", op: BinOp.Plus, left: Expr_cur, right: Expr_step };
+      var step:Stmt<Type> = { a: NONE, tag: "field-assign", obj: stmt.iterable, field: "cur", value: ncur }
+      var Code_step = codeGenStmt(step, env);
+
+      // stop condition cur<step
+      var Expr_cond:Expr<Type> = { a: BOOL, tag: "binop", op: BinOp.Lt, left: Expr_cur, right: Expr_stop };
+      var Code_cond = codeGenExpr(Expr_cond, env);
+      
+      // if have index
+      if (stmt.index) {
+      }
+
+      // iterable should be a Range object
+      return [
+        `(loop 
+          (br_if 0 ${Code_cond}) (br 1)
+
+          ${Code_ass}
+          ${bodyStmts.join("\n")}
+          ${Code_step}
+        )`
+      ]
     case "pass":
       return [];
     case "field-assign":

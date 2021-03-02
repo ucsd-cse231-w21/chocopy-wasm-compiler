@@ -1,7 +1,7 @@
 import { run, Config } from "./runner";
 import { GlobalEnv } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
-import { Value, Type } from "./ast";
+import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
 
 interface REPL {
@@ -28,7 +28,17 @@ export class BasicREPL {
       locals: new Set(),
       offset: 1,
     };
+
+    // initialization for range() calss and its constructor.
+    const classFields:Map<string, [number, Literal]> = new Map();
+    classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);
+    classFields.set("stop", [1, { tag: "num", value: BigInt(0) }]);
+    classFields.set("step", [2, { tag: "num", value: BigInt(1) }]);
+    this.currentEnv.classes.set("Range", classFields);
+
     this.currentTypeEnv = defaultTypeEnv;
+    
+    
     this.functions = "";
   }
   async run(source: string): Promise<Value> {

@@ -32,12 +32,22 @@ defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
+defaultGlobalFunctions.set("range", [[NUM], CLASS("Range")]);
+
+const defaultGlobalClasses = new Map();
+// Range initialization
+const dfields = new Map();
+dfields.set("cur", NUM);
+dfields.set("stop", NUM);
+dfields.set("step", NUM);
+defaultGlobalClasses.set("Range", [dfields, new Map()]);
 
 export const defaultTypeEnv = {
   globals: new Map(),
   functions: defaultGlobalFunctions,
-  classes: new Map(),
+  classes: defaultGlobalClasses,
 };
+
 
 export function emptyGlobalTypeEnv(): GlobalTypeEnv {
   return {
