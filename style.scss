@@ -4,9 +4,9 @@
 
 .editor {
   float: left;
-  width: 49%;
+  width: 50%;
   margin: 0;
-  padding: 0;
+  padding: 0px;
   height: 100%;
 }
 .user-code {
@@ -17,23 +17,31 @@
   font-family: monospace;
 }
 .interactions {
-  float: right;
-  width: 49%;
-  margin-left: 1em;
-  padding: 0;
+  float: left;
+  width: 50%;
+  //margin-left: 1em;
+  padding: 0px;
   height: 100%;
 }
 .repl-code {
   height: 2em;
-  width: 30em;
+  width: 90%;
   text-align: left;
   font-family: monospace;
 }
 .prompt {
+  height: 2em;
+  width:5%;
   vertical-align: middle;
+  text-align: center;
 }
 .output pre {
   max-width: 100%;
   white-space: break-spaces;
   line-break: anywhere;
+}
+@media only screen and (max-width: 800px) {
+  .interactions, .editor{
+    width: 100%;
+  }
 }
