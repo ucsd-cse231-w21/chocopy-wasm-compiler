@@ -6,7 +6,7 @@ import { NUM, BOOL, NONE } from './utils';
 import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
 import "codemirror/mode/python/python"
-
+import "codemirror/addon/hint/show-hint"
 import "./style.scss";
 
 function stringify(typ: Type, arg: any) : string {
@@ -50,6 +50,7 @@ function webStart() {
       if(result === undefined) { console.log("skip"); return; }
       if (result.tag === "none") return;
       const elt = document.createElement("pre");
+      elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
       switch (result.tag) {
         case "num":
@@ -109,6 +110,9 @@ function webStart() {
       resetRepl();
       repl.run(source.value).then((r) => { renderResult(r); console.log ("run finished") })
           .catch((e) => { renderError(e); console.log("run failed", e) });;
+      var ele = document.querySelector(".CodeMirror")  as any;
+      var editor = ele.CodeMirror; 
+      console.log("TEST",editor);
     });
     setupRepl();
   });
@@ -120,6 +124,9 @@ function webStart() {
         theme: "neo",
         lineNumbers: true,
         autoCloseBrackets: true,
+        extraKeys: {
+          "cmd+Space" : "autocomplete"
+        }
     });
 
     console.log(editor)
@@ -127,6 +134,13 @@ function webStart() {
     editor.on("change", (cm, change) => {
         textarea.value = editor.getValue();
     })
+    editor.on('inputRead', function onChange(editor, input) {
+      if (input.text[0] === ';' || input.text[0] === ' ' || input.text[0] === ":") {
+          return;
+      }
+      editor.showHint({
+      });
+  });
   });
 }
 
