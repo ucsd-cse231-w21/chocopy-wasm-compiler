@@ -143,8 +143,8 @@ export class MemoryError extends Exception {
 }
 
 export class NameError extends Exception {
-    constructor(message?: string, name = "NameError") {
-        super(message, name);
+    constructor(varName : string, message?: string, name = "NameError") {
+        super(`name '${varName}' is not defined`, name);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ZeroDivisionError);
         }
@@ -152,8 +152,8 @@ export class NameError extends Exception {
 }
 
 export class UnboundLocalError extends NameError {
-    constructor(message?: string, name = "UnboundLocalError") {
-        super(message, name);
+    constructor(varName: string, message?: string, name = "UnboundLocalError") {
+        super(`local variable '${varName}' referenced before assignment`, name);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ZeroDivisionError);
         }
@@ -172,7 +172,7 @@ export class RuntimeError extends Exception {
 
 export class RecursionError extends RuntimeError {
     constructor(message?: string, name = "RecursionError") {
-        super(message);
+        super("maximum recursion depth exceeded");
         this.name = name;
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ZeroDivisionError);
@@ -182,7 +182,7 @@ export class RecursionError extends RuntimeError {
 
 export class SyntaxError extends Exception {
     constructor(message?: string, name = "SyntaxError") {
-        super(message);
+        super(`invalid syntax`);
         this.name = name;
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ZeroDivisionError);
@@ -192,7 +192,7 @@ export class SyntaxError extends Exception {
 
 export class IndentationError extends SyntaxError {
     constructor(message?: string, name = "IndentationError") {
-        super(message);
+        super(`unexpected indent`);
         this.name = name;
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ZeroDivisionError);
@@ -221,8 +221,8 @@ export class ValueError extends Exception {
 }
 
 export class UnicodeError extends ValueError {
-    constructor(message?: string, name = "UnicodeError") {
-        super(message);
+    constructor(codec: string, character: string, pos: number, message?: string, name = "UnicodeError") {
+        super(`'${codec}' codec can't encode character '${character}' in position ${pos}`);
         this.name = name;
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ZeroDivisionError);
