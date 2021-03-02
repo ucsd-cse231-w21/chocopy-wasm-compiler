@@ -1,7 +1,7 @@
 @import "codemirror/lib/codemirror.css";
-@import "codemirror/theme/neo.css";
 @import "codemirror/addon/hint/show-hint.css";
 @import "codemirror/addon/lint/lint.css";
+@import "sass/theme_import.scss";
 
 .editor {
   float: left;
@@ -21,19 +21,23 @@
     background-color: #ff0000;
   }
   
-  .error-marker .error-message {
-    display: none;
-    position: absolute;
-    background-color: #ddd;
-    border: 1px solid #999;
-    padding: 6px;
-    width: 140px;
-    left: 15px;
-    top: -1em;
+  .error-marker{
+    .error-message {
+      display: none;
+      position: absolute;
+      background-color: #ddd;
+      border: 1px solid #999;
+      padding: 6px;
+      width: 140px;
+      left: 15px;
+      top: -1em;
+    }
   }
   
-  .error-marker:hover .error-message {
-    display: block;
+  .error-marker:hover{
+    .error-message {
+      display: block;
+    }
   }
 }
 .user-code {

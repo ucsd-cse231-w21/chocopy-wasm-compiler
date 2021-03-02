@@ -119,6 +119,9 @@ function webStart() {
       console.log("TEST",editor);
       highlightLine(editor, 2);
 
+      // Code to change editor theme
+      // editor.setOption("theme", "dracula");
+
     });
     setupRepl();
   });
