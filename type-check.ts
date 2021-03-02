@@ -452,7 +452,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       }
 
       // expr
-      const newExpr = tcExpr(env, locals, expr.expr);
+      const newExpr = tcExpr(newEnv, locals, expr.expr);
       if (newExpr.a.tag !== "number") {
         throw new TypeCheckError("only numbers are supported for now");
       }
