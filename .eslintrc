@@ -24,7 +24,7 @@
     "no-case-declarations": "off",
     "no-constant-condition": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",
-    "@typescript-eslint/switch-exhaustiveness-check": "error",
+    "@typescript-eslint/switch-exhaustiveness-check": "warn",
     "@typescript-eslint/no-unused-vars": ["warn", {"varsIgnorePattern": "^_", "args": "none"}]
     // "sort-imports": [
     //   "error",
