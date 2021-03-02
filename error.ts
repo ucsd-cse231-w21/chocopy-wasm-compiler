@@ -59,12 +59,6 @@ export class Exception extends Error {
 		if (Error.captureStackTrace) {
 				Error.captureStackTrace(this, Exception);
 		}
-
-		// Maintains proper stack trace for where our error was thrown (only available on V8)
-		if (Error.captureStackTrace) {
-				Error.captureStackTrace(this, Exception);
-		}
-
 		// Alternatively use Object.setPrototypeOf if you have an ES6 environment.
 		this.__proto__ = trueProto;
 	}
