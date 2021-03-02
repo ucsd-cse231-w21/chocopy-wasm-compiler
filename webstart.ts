@@ -221,10 +221,13 @@ function webStart() {
         lint: true,
         gutters: ["error"], 
         extraKeys: {
-          "Cmd+Space" : "autocomplete"
-        }
+          "Ctrl+Space" : "autocomplete"
+        },
+        hintOptions: {
+          alignWithWord: false,
+          completeSingle: false,
+        },
     });
-
 
     editor.on("change", (cm, change) => {
         textarea.value = editor.getValue();
@@ -249,7 +252,9 @@ function webStart() {
 
 }
 // Simple helper to highlight line given line number
-function highlightLine(editor : any , actualLineNumber: number) : void {
+function highlightLine(actualLineNumber: number) : void {
+  var ele = document.querySelector(".CodeMirror") as any;
+  var editor = ele.CodeMirror; 
   //Set line CSS class to the line number & affecting the background of the line with the css class of line-error
   editor.setGutterMarker(actualLineNumber, 'error', makeMarker("test error message"));
   editor.addLineClass(actualLineNumber, 'background', 'line-error');
