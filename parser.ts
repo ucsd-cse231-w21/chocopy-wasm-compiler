@@ -223,43 +223,63 @@ export function traverseArguments(c: TreeCursor, s: string): Array<Expr<null>> {
   return args;
 }
 
+// Traverse the next target of an assignment and return it
+function traverseAssignment(c: TreeCursor, s: string): AssignTarget<null> {
+  let target = null;
+  let starred = false;
+  if (c.name === "*") {
+    // Check for "splat" starred operator
+    starred = true;
+    c.nextSibling();
+  }
+  try {
+    target = traverseExpr(c, s);
+  } catch (e) {
+    throw new Error(`Expected assignment expression, got ${s.substring(c.from, c.to)}`);
+  }
+  if (!isTagged(target, ASSIGNABLE_TAGS)) {
+    throw new Error(`Unknown target ${target.tag} while parsing assignment`);
+  }
+  let ignore = target.tag === "id" && target.name === "_"; // Underscores are ignored
+  return {
+    target,
+    ignore,
+    starred,
+  };
+}
+
 // Traverse the lhs of assign operations and return the assignment targets
 function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
   // TODO: Actually support destructured assignment
-  const targets: AssignTarget<null>[] = [];
-  const target = traverseExpr(c, s);
+  const targets: AssignTarget<null>[] = [traverseAssignment(c, s)]; // We need to traverse initial assign target
+  c.nextSibling();
   let isSimple = true;
-  if (!isTagged(target, ASSIGNABLE_TAGS)) {
-    target.tag;
-    throw new Error("Unknown target while parsing assignment");
+  let haveStarredTarget = targets[0].starred;
+  while (c.name !== "AssignOp") {
+    // While we haven't hit "=" and we have values remaining
+    isSimple = false; // If we have more than one target, it isn't simple.
+    c.nextSibling();
+    if (c.name === "AssignOp")
+      // Assignment list ends with comma, e.g. x, y, = (1, 2)
+      break;
+    let target = traverseAssignment(c, s);
+    if (target.starred) {
+      if (haveStarredTarget)
+        throw new Error("Cannot have multiple starred expressions in assignment");
+      haveStarredTarget = true;
+    }
+    targets.push(target);
+    c.nextSibling(); // move to =
   }
-  targets.push({
-    target,
-    ignore: false,
-    starred: false,
-  });
-  c.nextSibling(); // move to =
-  if (c.name !== "AssignOp") {
-    isSimple = false;
-    throw new Error(
-      `Multiple assignment currently not supported. Expected "=", got "${s.substring(
-        c.from,
-        c.to
-      )}"`
-    );
-  }
+  // Fun fact, "*z, = 1," is valid but "*z = 1," is not.
+  if (isSimple && haveStarredTarget)
+    // We aren't allowed to have a starred target if we only have one target
+    throw new Error("Starred assignment target must be in a list or tuple");
   c.prevSibling(); // Move back to previous for parsing to continue
-
-  if (targets.length === 1 && isSimple) {
-    return {
-      isDestructured: false,
-      targets,
-    };
-  } else if (targets.length === 0) {
-    throw new Error("No assignment targets found");
-  } else {
-    throw new Error("Unsupported non-simple assignment");
-  }
+  return {
+    targets,
+    isDestructured: !isSimple,
+  };
 }
 
 export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
@@ -281,7 +301,6 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       c.nextSibling(); // go to value
       var value = traverseExpr(c, s);
       c.parent();
-
       return {
         tag: "assignment",
         destruct,

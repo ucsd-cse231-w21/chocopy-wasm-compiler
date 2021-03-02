@@ -12,6 +12,7 @@ import {
   Destructure,
   Assignable,
   ASSIGNABLE_TAGS,
+  AssignTarget,
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
 import * as BaseException from "./error";
@@ -235,42 +236,71 @@ function tcDestructure(
   destruct: Destructure<null>,
   value: Type
 ): Destructure<Type> {
-  let values: Type[];
-
-  if (destruct.isDestructured) {
-    throw new TypeCheckError("Destructured assignment not implemented");
-  } else if (destruct.targets.length === 1) {
-    values = [value];
-  } else {
-    throw new TypeCheckError(
-      `Non-destructured assignment must have 1 target. Got ${destruct.targets.length}`
-    );
-  }
-
-  const tTargets = destruct.targets.map(({ target, ignore, starred }, i) => {
-    const tValue = values[i];
+  /**
+   * Type check an AssignTarget<null>. Ensures that the target is valid and that its type is compatible with the
+   * value being assignment
+   * @param {AssignTarget<null>} aTarget - The target to be type checked
+   * @param {Type} valueType - The type of the value being assigned to the target
+   */
+  function tcTarget(aTarget: AssignTarget<null>, valueType: Type): AssignTarget<Type> {
+    let { target, starred, ignore } = aTarget;
     const tTarget = tcAssignable(env, locals, target);
-    if (starred) {
-      throw new TypeCheckError("Starred values not supported");
-    }
     const targetType = tTarget.a;
-
-    if (!isAssignable(env, tValue, targetType)) {
-      throw new TypeCheckError(`Non-assignable types: Cannot assign ${tValue} to ${targetType}`);
-    }
-
+    if (!isAssignable(env, valueType, targetType))
+      throw new TypeCheckError(`Non-assignable types: Cannot assign ${valueType} to ${targetType}`);
     return {
       starred,
       ignore,
       target: tTarget,
     };
-  });
+  }
 
-  return {
-    isDestructured: destruct.isDestructured,
-    targets: tTargets,
-    valueType: value,
-  };
+  if (!destruct.isDestructured) {
+    let target = tcTarget(destruct.targets[0], value);
+    return {
+      valueType: value,
+      isDestructured: false,
+      targets: [target],
+    };
+  }
+
+  let types: Type[] = [];
+  if (value.tag === "class") {
+    // This is a temporary hack to get destructuring working (reuse for tuples later?)
+    let cls = env.classes.get(value.name);
+    if (cls === undefined)
+      throw new Error(
+        `Class ${value.name} not found in global environment. This is probably a parsing bug.`
+      );
+    let attrs = cls[0];
+    attrs.forEach((val) => types.push(val));
+    let starOffset = 0;
+    let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
+      if (i >= types.length)
+        throw new Error(
+          `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+        );
+      if (target.starred) {
+        starOffset = types.length - targets.length; // How many values will be assigned to the starred target
+        throw new TypeCheckError("Starred values not supported");
+      }
+      let valueType = types[i + starOffset];
+      return tcTarget(target, valueType);
+    });
+
+    if (types.length > destruct.targets.length + starOffset)
+      throw new Error(
+        `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      );
+
+    return {
+      isDestructured: destruct.isDestructured,
+      targets: tTargets,
+      valueType: value,
+    };
+  } else {
+    throw new TypeCheckError(`Type ${value.tag} cannot be destructured`);
+  }
 }
 
 function tcAssignable(
