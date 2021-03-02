@@ -218,188 +218,194 @@ function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
   return result.flat();
 }
 
-function codeGenListCopy(concat : boolean) : Array<string> {
-  var stmts : Array<string> = [];
-  var loopstmts : Array<string> = [];
-  var condstmts : Array<string> = [];
+function codeGenListCopy(concat: boolean): Array<string> {
+  var stmts: Array<string> = [];
+  var loopstmts: Array<string> = [];
+  var condstmts: Array<string> = [];
   var listType = 10;
-  stmts.push(...[
-    `(local.set $$temp)`,                            
-  ]) //store first adress to local var
-  stmts.push(...[
-    `(i32.load (i32.const 0))`,               
-    "(i32.const " + listType + ")",                
-    "(i32.store)"                            
-  ])  //create a new list with type
+  stmts.push(...[`(local.set $$temp)`]); //store first adress to local var
+  stmts.push(...[`(i32.load (i32.const 0))`, "(i32.const " + listType + ")", "(i32.store)"]); //create a new list with type
 
-  stmts.push(...[
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 4))`,   
-    `(local.get $$temp)`,    
-    `(i32.add (i32.const 4))`,
-    `(i32.load)`,      
-    `(i32.store)`                            
-  ])  //add size to location 1
+  stmts.push(
+    ...[
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 4))`,
+      `(local.get $$temp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(i32.store)`,
+    ]
+  ); //add size to location 1
 
-  stmts.push(...[
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 8))`,   
-    `(local.get $$temp)`,    
-    `(i32.add (i32.const 8))`,    
-    `(i32.load)`,            
-    "(i32.store)"                            
-  ])  //add bound to location 2
+  stmts.push(
+    ...[
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 8))`,
+      `(local.get $$temp)`,
+      `(i32.add (i32.const 8))`,
+      `(i32.load)`,
+      "(i32.store)",
+    ]
+  ); //add bound to location 2
 
-  condstmts.push(...[
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 4))`,  
-    `(i32.load)`,   
-    `(local.get $$temp1)`,    
-    `(i32.eq)`                     
-  ])  //condition for loop
+  condstmts.push(
+    ...[
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.get $$temp1)`,
+      `(i32.eq)`,
+    ]
+  ); //condition for loop
 
-  loopstmts.push(...[
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 12))`,  
-    `(local.get $$temp1)`,  
-    `(i32.mul (i32.const 4))`, 
-    `(i32.add)`,
-    `(local.get $$temp)`,               
-    `(i32.add (i32.const 12))`,  
-    `(local.get $$temp1)`,  
-    `(i32.mul (i32.const 4))`, 
-    `(i32.add)`,
-    `(i32.load)`,    
-    `(i32.store)`, 
-    `(local.get $$temp1)`,
-    `(i32.add (i32.const 1))`,
-    `(local.set $$temp1)`,
+  loopstmts.push(
+    ...[
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 12))`,
+      `(local.get $$temp1)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(local.get $$temp)`,
+      `(i32.add (i32.const 12))`,
+      `(local.get $$temp1)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(i32.load)`,
+      `(i32.store)`,
+      `(local.get $$temp1)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$temp1)`,
+    ]
+  ); //condition for loop
 
-  ])  //condition for loop
-  
-  stmts.push(...[
-    `(i32.const 0)`,
-    `(local.set $$temp1)`, 
-    `(block`,               
-    `(loop`,   
-    `(br_if 1 ${condstmts.join("\n")})`,
-    `${loopstmts.join("\n")}`, 
-    `(br 0)`,    
-    `)`,               
-    `)`                            
-  ])
-  if(concat)
-    return stmts;
+  stmts.push(
+    ...[
+      `(i32.const 0)`,
+      `(local.set $$temp1)`,
+      `(block`,
+      `(loop`,
+      `(br_if 1 ${condstmts.join("\n")})`,
+      `${loopstmts.join("\n")}`,
+      `(br 0)`,
+      `)`,
+      `)`,
+    ]
+  );
+  if (concat) return stmts;
 
   return stmts.concat([
-    "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
-    "(i32.const 0)",                                                  // Address for our upcoming store instruction
-    "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
-    `(local.get $$temp)`,    
+    "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
+    "(i32.const 0)", // Address for our upcoming store instruction
+    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+    `(local.get $$temp)`,
     `(i32.add (i32.const 8))`,
     `(i32.load)`,
     `(i32.add (i32.const 12))`,
     `(i32.add)`,
-    "(i32.store)",                                                    // Save the new heap offset
+    "(i32.store)", // Save the new heap offset
   ]);
 }
 
-function codeGenListConcat() : Array<string> {
-  var stmts : Array<string> = [];
-  var loopstmts : Array<string> = [];
-  var condstmts : Array<string> = [];
-  stmts.push(...[
-    `(local.set $$temp)`,                            
-  ]) //store first adress to local var
+function codeGenListConcat(): Array<string> {
+  var stmts: Array<string> = [];
+  var loopstmts: Array<string> = [];
+  var condstmts: Array<string> = [];
+  stmts.push(...[`(local.set $$temp)`]); //store first adress to local var
 
+  condstmts.push(
+    ...[
+      `(local.get $$temp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.get $$temp1)`,
+      `(i32.eq)`,
+    ]
+  ); //condition for loop
 
+  loopstmts.push(
+    ...[
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 12))`,
+      `(local.get $$temp1)`,
+      `(i32.add (local.get $$temp2))`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(local.get $$temp)`,
+      `(i32.add (i32.const 12))`,
+      `(local.get $$temp1)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(i32.load)`,
+      `(i32.store)`,
+      `(local.get $$temp1)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$temp1)`,
+    ]
+  ); //condition for loop
 
-  condstmts.push(...[
-    `(local.get $$temp)`,               
-    `(i32.add (i32.const 4))`,  
-    `(i32.load)`,   
-    `(local.get $$temp1)`,    
-    `(i32.eq)`                     
-  ])  //condition for loop
+  stmts.push(
+    ...[
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.set $$temp2)`,
+      `(i32.const 0)`,
+      `(local.set $$temp1)`,
+      `(block`,
+      `(loop`,
+      `(br_if 1 ${condstmts.join("\n")})`,
+      `${loopstmts.join("\n")}`,
+      `(br 0)`,
+      `)`,
+      `)`,
+    ]
+  );
 
-  loopstmts.push(...[
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 12))`,  
-    `(local.get $$temp1)`,  
-    `(i32.add (local.get $$temp2))`,
-    `(i32.mul (i32.const 4))`, 
-    `(i32.add)`,
-    `(local.get $$temp)`,               
-    `(i32.add (i32.const 12))`,  
-    `(local.get $$temp1)`,  
-    `(i32.mul (i32.const 4))`, 
-    `(i32.add)`,
-    `(i32.load)`,    
-    `(i32.store)`, 
-    `(local.get $$temp1)`,
-    `(i32.add (i32.const 1))`,
-    `(local.set $$temp1)`,
+  stmts.push(
+    ...[
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.get $$temp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(i32.add)`,
+      `(i32.store)`,
+    ]
+  ); //add size to location 1
 
-  ])  //condition for loop
-  
-  stmts.push(...[
+  stmts.push(
+    ...[
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 8))`,
+      `(i32.load (i32.const 0))`,
+      `(i32.add (i32.const 8))`,
+      `(i32.load)`,
+      `(local.get $$temp)`,
+      `(i32.add (i32.const 8))`,
+      `(i32.load)`,
+      `(i32.add)`,
+      `(i32.store)`,
+    ]
+  ); //add bound to location 2
+
+  return stmts.concat([
+    "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
+    "(i32.const 0)", // Address for our upcoming store instruction
+    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
     `(i32.load (i32.const 0))`,
-    `(i32.add (i32.const 4))`,
-    `(i32.load)`,
-    `(local.set $$temp2)`, 
-    `(i32.const 0)`,
-    `(local.set $$temp1)`,
-    `(block`,               
-    `(loop`,   
-    `(br_if 1 ${condstmts.join("\n")})`,
-    `${loopstmts.join("\n")}`, 
-    `(br 0)`,    
-    `)`,               
-    `)`                            
-  ])
-
-  stmts.push(...[
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 4))`,  
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 4))`,   
-    `(i32.load)`, 
-    `(local.get $$temp)`,    
-    `(i32.add (i32.const 4))`,
-    `(i32.load)`,      
-    `(i32.add)`,      
-    `(i32.store)`                            
-  ])  //add size to location 1
-
-  stmts.push(...[
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 8))`,  
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 8))`,   
-    `(i32.load)`, 
-    `(local.get $$temp)`,    
     `(i32.add (i32.const 8))`,
-    `(i32.load)`,      
-    `(i32.add)`,      
-    `(i32.store)`                             
-  ])  //add bound to location 2
-  
-
-  return stmts.concat([
-    "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
-    "(i32.const 0)",                                                  // Address for our upcoming store instruction
-    "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
-    `(i32.load (i32.const 0))`,               
-    `(i32.add (i32.const 8))`,  
     `(i32.load)`,
     `(i32.add (i32.const 12))`,
     `(i32.add)`,
-    "(i32.store)",                                                    // Save the new heap offset
+    "(i32.store)", // Save the new heap offset
   ]);
 }
 
-function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
-  switch(expr.tag) {
+function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
+  switch (expr.tag) {
     case "builtin1":
       const argTyp = expr.a;
       const argStmts = codeGenExpr(expr.arg, env);
@@ -427,9 +433,9 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
     case "binop":
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
-      if(typeof expr.left.a !== 'undefined' && expr.left.a.tag === "list")
-        return [...rhsStmts,...lhsStmts,...codeGenListCopy(true),...codeGenListConcat()]
-      return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
+      if (typeof expr.left.a !== "undefined" && expr.left.a.tag === "list")
+        return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(true), ...codeGenListConcat()];
+      return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)];
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
       switch (expr.op) {
@@ -489,11 +495,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       }
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
-      return [
-        ...objStmts,
-        `(i32.add (i32.const ${offset * 4}))`,
-        `(i32.load)`
-      ];
+      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
     case "bracket-lookup":
       var objStmts = codeGenExpr(expr.obj, env);
       //This should eval to a number
@@ -502,52 +504,57 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       //Add 3 to keyStmts to jump over type + size + bound
       //Add that to objStmts base address
       //Load from there
-      return objStmts.concat(
-        keyStmts,
-        [
+      return objStmts.concat(keyStmts, [
         `(i32.mul (i32.const 4))`,
         `(i32.add (i32.const 12))`,
         `(i32.add)`,
-        `(i32.load)`
+        `(i32.load)`,
       ]);
     case "list-expr":
-      var stmts : Array<string> = [];
+      var stmts: Array<string> = [];
       var listType = 10;
       var listSize = expr.contents.length;
       var listBound = (expr.contents.length + 10) * 2;
-      let listHeader = [listType,listSize,listBound]
-      var listindex = 0
-      expr.contents.slice().reverse().forEach( lexpr => {
-        stmts.push(...[ ...codeGenExpr(lexpr,env) ])
+      let listHeader = [listType, listSize, listBound];
+      var listindex = 0;
+      expr.contents
+        .slice()
+        .reverse()
+        .forEach((lexpr) => {
+          stmts.push(...[...codeGenExpr(lexpr, env)]);
+        });
+
+      listHeader.forEach((val) => {
+        stmts.push(
+          ...[
+            `(i32.load (i32.const 0))`,
+            `(i32.add (i32.const ${listindex * 4}))`,
+            "(i32.const " + val + ")",
+            "(i32.store)",
+          ]
+        );
+        listindex += 1;
       });
 
-      listHeader.forEach( val => {
-        stmts.push(...[
-          `(i32.load (i32.const 0))`,               
-          `(i32.add (i32.const ${listindex * 4}))`,   
-          "(i32.const " + val + ")",                
-          "(i32.store)"                            
-        ])
-        listindex += 1
+      expr.contents.forEach((lexpr) => {
+        stmts.push(
+          ...[
+            `(local.set $$temp)`,
+            `(i32.load (i32.const 0))`,
+            `(i32.add (i32.const ${listindex * 4}))`,
+            `(local.get $$temp)`,
+            "(i32.store)",
+          ]
+        );
+        listindex += 1;
       });
-      
-      expr.contents.forEach( lexpr => {
-        stmts.push(...[
-          `(local.set $$temp)`,
-          `(i32.load (i32.const 0))`,               
-          `(i32.add (i32.const ${listindex * 4}))`,   
-          `(local.get $$temp)`,              
-          "(i32.store)"                            
-        ])
-        listindex += 1
-      });
-      
+
       return stmts.concat([
-        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
-        "(i32.const 0)",                                                  // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
-        `(i32.add (i32.const ${ (listBound+3) * 4}))`,   // Move heap head beyond the two words we just created for fields
-        "(i32.store)",                                                    // Save the new heap offset
+        "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
+        "(i32.const 0)", // Address for our upcoming store instruction
+        "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+        `(i32.add (i32.const ${(listBound + 3) * 4}))`, // Move heap head beyond the two words we just created for fields
+        "(i32.store)", // Save the new heap offset
       ]);
     default:
       unhandledTag(expr);
@@ -598,7 +605,4 @@ function codeGenBinOp(op: BinOp): string {
     case BinOp.Or:
       return "(i32.or)";
   }
-
-  
-    
 }

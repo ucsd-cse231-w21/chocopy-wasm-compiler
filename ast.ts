@@ -83,9 +83,9 @@ export const ASSIGNABLE_TAGS = ["id", "lookup", "bracket-lookup"] as const;
  * Subset of Expr types which are valid as assign targets
  */
 export type Assignable<A> =
-  | {  a?: A, tag: "id", name: string }
-  | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
-  | {  a?: A, tag: "bracket-lookup", obj:Expr<A>, key:Expr<A> }
+  | { a?: A; tag: "id"; name: string }
+  | { a?: A; tag: "lookup"; obj: Expr<A>; field: string }
+  | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
 
 export type Expr<A> =
   | { a?: A; tag: "literal"; value: Literal }
@@ -95,7 +95,6 @@ export type Expr<A> =
   | { a?: A; tag: "builtin2"; name: string; left: Expr<A>; right: Expr<A> }
   | { a?: A; tag: "call"; name: string; arguments: Array<Expr<A>> }
   // ASSIGNABLE EXPRS
-
   | { a?: A; tag: "id"; name: string }
   | { a?: A; tag: "lookup"; obj: Expr<A>; field: string }
   // END ASSIGNABLE EXPRS
@@ -114,7 +113,6 @@ export type Literal =
   | { tag: "bool"; value: boolean }
   | { tag: "string"; value: string }
   | { tag: "none" };
-
 
 // TODO: should we split up arithmetic ops from bool ops?
 export enum BinOp {

@@ -42,7 +42,6 @@ export function isTagged<
   return set.includes(val.tag);
 }
 
-
 export function unreachable(arg: never): never {
   throw new Error(`Hit unreachable state. Got value ${JSON.stringify(arg)}`);
 }
@@ -58,7 +57,9 @@ export function unhandledTag(arg: { tag: string }): never {
 export const NUM: Type = { tag: "number" };
 export const BOOL: Type = { tag: "bool" };
 export const NONE: Type = { tag: "none" };
-export function LIST(type : Type) : Type {return {tag: "list", content_type: type}};
+export function LIST(type: Type): Type {
+  return { tag: "list", content_type: type };
+}
 export function CLASS(name: string): Type {
   return { tag: "class", name };
 }

@@ -59,11 +59,11 @@ export type TypeError = {
   message: string;
 };
 
-export function equalType(t1: Type, t2: Type) : boolean {
+export function equalType(t1: Type, t2: Type): boolean {
   return (
     t1 === t2 ||
     (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
-    (t1.tag === "list" && t2.tag === "list" && equalType(t1.content_type,t2.content_type) )
+    (t1.tag === "list" && t2.tag === "list" && equalType(t1.content_type, t2.content_type))
   );
 }
 
@@ -72,7 +72,7 @@ export function isNoneOrClass(t: Type) {
 }
 
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || t1.tag === "none" && (t2.tag === "class" || t2.tag === "list") 
+  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list"));
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -243,11 +243,13 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       const tBin = { ...expr, left: tLeft, right: tRight };
       switch (expr.op) {
         case BinOp.Plus:
-          if(tLeft.a.tag === "list" && equalType(tLeft.a, tRight.a) ) { return {a: tLeft.a, ...tBin}}
         case BinOp.Minus:
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
+          if (expr.op == BinOp.Plus && tLeft.a.tag === "list" && equalType(tLeft.a, tRight.a)) {
+            return { a: tLeft.a, ...tBin };
+          }
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
             return { a: NUM, ...tBin };
           } else {
@@ -390,14 +392,12 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       var tObj = tcExpr(env, locals, expr.obj);
       var tKey = tcExpr(env, locals, expr.key);
       if (tObj.a.tag === "list") {
-        if(tKey.a.tag === "number") {
-          return {...expr, a: tObj.a.content_type, obj: tObj, key: tKey }
-        }
-        else {
+        if (tKey.a.tag === "number") {
+          return { ...expr, a: tObj.a.content_type, obj: tObj, key: tKey };
+        } else {
           throw new TypeCheckError("list lookups require a number as index");
         }
-      }
-      else {
+      } else {
         throw new TypeCheckError("list lookups require a list");
       }
     case "method-call":
@@ -433,29 +433,29 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         throw new TypeCheckError("method calls require an object");
       }
     case "list-expr":
-        var commonType = null;
-        const listExpr = expr.contents.map(content => tcExpr(env, locals, content));
-        if(listExpr.length == 0) {
-          commonType = NONE;
-        } else {
-          commonType = listExpr[0].a;
-          for(var i = 1; i < listExpr.length; ++i) { //takecare of nested list
-            var lexprType = listExpr[i].a
-            if( !equalType(lexprType,commonType)) {
-              if( equalType(commonType,NONE) && isNoneOrClass(lexprType) ){
-                commonType = lexprType
-              } else if( !(equalType(lexprType,NONE) && isNoneOrClass(commonType)) ) {
-                throw new TypeCheckError(`list expr type mismatch: ${lexprType}, expect type: ${commonType}` );
-              } 
-            } 
+      var commonType = null;
+      const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
+      if (listExpr.length == 0) {
+        commonType = NONE;
+      } else {
+        commonType = listExpr[0].a;
+        for (var i = 1; i < listExpr.length; ++i) {
+          //takecare of nested list
+          var lexprType = listExpr[i].a;
+          if (!equalType(lexprType, commonType)) {
+            if (equalType(commonType, NONE) && isNoneOrClass(lexprType)) {
+              commonType = lexprType;
+            } else if (!(equalType(lexprType, NONE) && isNoneOrClass(commonType))) {
+              throw new TypeCheckError(
+                `list expr type mismatch: ${lexprType}, expect type: ${commonType}`
+              );
+            }
           }
         }
-        return {...expr, a: { tag: "list", content_type: commonType }, contents: listExpr};
-        
+      }
+      return { ...expr, a: { tag: "list", content_type: commonType }, contents: listExpr };
 
-     
-
-    default: 
+    default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
 }

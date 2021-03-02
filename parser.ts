@@ -189,19 +189,18 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       c.firstChild(); // Focus on object
       var objExpr = traverseExpr(c, s);
       c.nextSibling(); // Focus on .
-      const memberChar = s.substring(c.from,c.to);
+      const memberChar = s.substring(c.from, c.to);
       //Check if "." or "["
-      if(memberChar === ".") {
+      if (memberChar === ".") {
         c.nextSibling(); // Focus on property
         var propName = s.substring(c.from, c.to);
         c.parent();
         return {
           tag: "lookup",
           obj: objExpr,
-          field: propName
-        }
-      }
-      else if(memberChar === "[") {
+          field: propName,
+        };
+      } else if (memberChar === "[") {
         c.nextSibling(); // Focus on property
         //Parse Expr used as index
         var propExpr = traverseExpr(c, s);
@@ -209,10 +208,9 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         return {
           tag: "bracket-lookup",
           obj: objExpr,
-          key: propExpr
-        }
-      }
-      else {
+          key: propExpr,
+        };
+      } else {
         throw new Error("Could not parse MemberExpression char");
       }
     case "self":
@@ -221,22 +219,21 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         name: "self",
       };
     case "ArrayExpression":
-      let listExpr : Array<Expr<null>> = []
+      let listExpr: Array<Expr<null>> = [];
       c.firstChild();
       c.nextSibling();
-      while(s.substring(c.from, c.to).trim() !== "]")
-      {
+      while (s.substring(c.from, c.to).trim() !== "]") {
         listExpr.push(traverseExpr(c, s));
         c.nextSibling(); // Focuses on either "," or ")"
         c.nextSibling(); // Focuses on a VariableName
       }
-      
+
       c.parent();
       return {
         tag: "list-expr",
-        contents: listExpr
-      }
-     
+        contents: listExpr,
+      };
+
     default:
       throw new Error(
         "Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)
@@ -320,31 +317,31 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       const target = destruct.targets[0].target;
 
       // TODO: The new assign syntax should hook in here
-      switch(target.tag) {
+      switch (target.tag) {
         case "lookup":
           return {
             tag: "field-assign",
             obj: target.obj,
             field: target.field,
-            value: value
-          }
+            value: value,
+          };
         case "bracket-lookup":
           return {
             tag: "bracket-assign",
             obj: target.obj,
             key: target.key,
-            value: value
-          }
+            value: value,
+          };
         case "id":
           return {
             tag: "assign",
             name: target.name,
-            value: value
-          }  
+            value: value,
+          };
         default:
           throw new Error("Unknown target while parsing assignment");
       }
-      /*
+    /*
       if (target.tag === "lookup") {
         return {
           tag: "field-assign",
@@ -459,33 +456,32 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
   }
 }
 
-export function traverseBracketType(c : TreeCursor, s : string) : Type {
+export function traverseBracketType(c: TreeCursor, s: string): Type {
   // For now, always a VariableName
   let bracketTypes = [];
   c.firstChild();
-  while(c.nextSibling())
-  {
-    bracketTypes.push(traverseType(c,s))
-    c.nextSibling()
+  while (c.nextSibling()) {
+    bracketTypes.push(traverseType(c, s));
+    c.nextSibling();
   }
-  c.parent()
-  if(bracketTypes.length == 1) { //List 
-    return LIST(bracketTypes[0])
-  } else if(bracketTypes.length == 2) { 
+  c.parent();
+  if (bracketTypes.length == 1) {
+    //List
+    return LIST(bracketTypes[0]);
+  } else if (bracketTypes.length == 2) {
     //Dict?
+  } else {
+    throw new Error(
+      "Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to
+    );
   }
-  else{
-    throw new Error("Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to);
-  }
-
 }
 
 export function traverseType(c: TreeCursor, s: string): Type {
   // For now, always a VariableName
-  
+
   let name = s.substring(c.from, c.to);
-  if(name.includes("["))
-    return traverseBracketType(c,s)
+  if (name.includes("[")) return traverseBracketType(c, s);
   switch (name) {
     case "int":
       return NUM;
