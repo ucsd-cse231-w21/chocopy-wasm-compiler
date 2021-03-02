@@ -10,11 +10,16 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '14'
 
       # Make use of npm install cache
       - uses: actions/cache@v2
         with:
-          path: ~/.npm
+          path: |
+            ~/.npm
+            ~/.cache/Cypress
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
