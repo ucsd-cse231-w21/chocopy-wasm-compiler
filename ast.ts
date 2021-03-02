@@ -59,7 +59,8 @@ export type Stmt<A> =
  * The first assigns `a = 1` while the second results in `a = (1,)`
  */
 export interface Destructure<A> {
-  a?: A;
+  // Info about the value that is being destructured
+  valueType?: A;
   isDestructured: boolean;
   targets: AssignTarget<A>[];
 }
