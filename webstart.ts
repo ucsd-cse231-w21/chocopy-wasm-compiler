@@ -1,7 +1,7 @@
 import {BasicREPL} from './repl';
 import { Type, Value } from './ast';
 import { defaultTypeEnv } from './type-check';
-import { NUM, BOOL, NONE, PyValue } from './utils';
+import { stringify } from './utils';
 
 import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
@@ -9,27 +9,10 @@ import "codemirror/mode/python/python"
 
 import "./style.scss";
 
-function stringify(result: Value) : string {
-  switch(result.tag) {
-    case "num":
-      return result.value.toString();
-    case "bool":
-      return (result.value) ? "True" : "False";
-    case "none":
-      return "None";
-    case "object":
-      return `<${result.name} object at ${result.address}`;
-    default: throw new Error(`Could not render value: ${result}`);
-  }
-}
-
-function print(typ: Type, arg : number, mem: any) : any {
-  console.log("Logging from WASM: ", arg);
+function print(val : Value) {
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
-  const val = PyValue(typ, arg, mem);
   elt.innerText = stringify(val); // stringify(typ, arg, mem);
-  return arg;
 }
 
 
@@ -37,10 +20,7 @@ function webStart() {
   document.addEventListener("DOMContentLoaded", function() {
     var importObject = {
       imports: {
-        print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_num: (arg: number) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_bool: (arg: number) => print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_none: (arg: number) => print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print: print,
         abs: Math.abs,
         min: Math.min,
         max: Math.max,

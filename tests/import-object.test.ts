@@ -1,29 +1,11 @@
 import { Type } from "../ast";
-import { NUM, BOOL, NONE } from "../utils";
+import { stringify } from "../utils";
 import { nTagBits } from "../compiler";
+import { Value } from "../ast";
 
-function stringify(typ: Type, arg: any): string {
-  switch (typ.tag) {
-    case "number":
-      var num : number = arg as number;
-      if (num & 1) { // literals are tagged with 1 in the LSB
-        return (num >> nTagBits).toString();
-      } else {
-        return (num).toString(); // bigint case, num is an address
-      }
-    case "bool":
-      return ((arg as number) >> nTagBits) == 1 ? "True" : "False";
-    case "none":
-      return "None";
-    case "class":
-      return typ.name;
-  }
-}
-
-function print(typ: Type, arg: any): any {
-  importObject.output += stringify(typ, arg);
+function print(val: Value) {
+  importObject.output += stringify(val);
   importObject.output += "\n";
-  return arg;
 }
 
 export const importObject = {
@@ -32,10 +14,11 @@ export const importObject = {
     // the compiler easier, we define print so it logs to a string object.
     //  We can then examine output to see what would have been printed in the
     //  console.
-    print: (arg: any) => print(NUM, arg),
-    print_num: (arg: number) => print(NUM, arg),
-    print_bool: (arg: number) => print(BOOL, arg),
-    print_none: (arg: number) => print(NONE, arg),
+    print: print,
+    //print: (arg: any) => print(NUM, arg),
+    //print_num: (arg: number) => print(NUM, arg),
+    //print_bool: (arg: number) => print(BOOL, arg),
+    //print_none: (arg: number) => print(NONE, arg),
     abs: Math.abs,
     min: Math.min,
     max: Math.max,

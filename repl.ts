@@ -4,6 +4,7 @@ import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type } from "./ast";
 import { parse } from "./parser";
 import { bignumfunctions } from "./bignumfunctions";
+import { NUM, BOOL, NONE, PyValue } from "./utils"
 
 interface REPL {
   run(source : string) : Promise<any>;
@@ -29,6 +30,14 @@ export class BasicREPL {
       locals: new Set(),
       offset: 1
     };
+    this.importObject.imports.__internal_print =
+        (arg: any) => {console.log("Logging from WASM: ", arg); this.importObject.imports.print(PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))); return arg;}
+    this.importObject.imports.__internal_print_num =
+        (arg: number) => {console.log("Logging from WASM: ", arg); this.importObject.imports.print(PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))); return arg;}
+    this.importObject.imports.__internal_print_bool =
+        (arg: number) => {console.log("Logging from WASM: ", arg); this.importObject.imports.print(PyValue(BOOL, arg, null)); return arg;}
+    this.importObject.imports.__internal_print_none =
+        (arg: number) => {console.log("Logging from WASM: ", arg); this.importObject.imports.print(PyValue(NONE, arg, null)); return arg;}
     this.currentTypeEnv = defaultTypeEnv;
     this.functions = bignumfunctions;
   }
