@@ -71,6 +71,12 @@ export class BumpAllocator implements Allocator {
 //   }
 // BitMappedBlocks: [infomap, bucket1, bucket2, bucket3...]
 
+
+/// ==================================
+/// Allocator combinators
+/// ==================================
+
+
 // flag === true => fallback
 // flag === false => primary
 //
