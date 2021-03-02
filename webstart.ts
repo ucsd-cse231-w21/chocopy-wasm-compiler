@@ -7,6 +7,7 @@ import "codemirror/addon/edit/closebrackets"
 import "codemirror/mode/python/python"
 import "codemirror/addon/hint/show-hint"
 import "./style.scss";
+import { toEditorSettings } from 'typescript';
 
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
@@ -130,6 +131,18 @@ function webStart() {
           console.log("run failed", e);
         });
     });
+
+    document.getElementById("reset").addEventListener("click", function(e){
+      //clears repl output
+      resetRepl();
+      //resets environment
+      repl = new BasicREPL(importObject);
+      //clear editor
+      var element = document.querySelector(".CodeMirror")  as any;
+      var editor = element.CodeMirror;
+      editor.setValue("");
+      editor.clearHistory();
+    })
     setupRepl();
   });
 
