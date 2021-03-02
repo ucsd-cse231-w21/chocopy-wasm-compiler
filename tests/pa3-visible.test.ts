@@ -40,7 +40,7 @@ else:
     `
   class C(object):
     x : int = 123
-  
+
   c : C = None
   c = C()
   c.x `,
@@ -52,7 +52,7 @@ else:
     `
   class C(object):
     x : int = 123
-    
+
   c : C = None
   c = C()
   c.x = 42
@@ -102,21 +102,35 @@ else:
   ]);
   // 10
   asserts("alias-obj", [
-    [`
+    [
+      `
     class C(object):
-      x : int = 1`, PyNone()],
-    [`
+      x : int = 1`,
+      PyNone(),
+    ],
+    [
+      `
     c1 : C = None
-    c2 : C = None`, PyNone()],
-    [`
+    c2 : C = None`,
+      PyNone(),
+    ],
+    [
+      `
     c1 = C()
-    c2 = c1`, PyNone()],
-    [`
+    c2 = c1`,
+      PyNone(),
+    ],
+    [
+      `
     c1.x = 123
-    c2.x`, PyInt(123)],
-  ])
+    c2.x`,
+      PyInt(123),
+    ],
+  ]);
   // 11
-  assertPrint("chained-method-calls", `
+  assertPrint(
+    "chained-method-calls",
+    `
   class C(object):
     x : int = 123
     def new(self: C, x: int) -> C:
@@ -126,84 +140,123 @@ else:
       return self
     def clear(self: C) -> C:
       return self.new(123)
-  
-  C().new(42).clear()`, ["123", "42", "42", "123"])
+
+  C().new(42).clear()`,
+    ["123", "42", "42", "123"]
+  );
   // 12
-  assertFail("no-fields-for-none", `
+  assertFail(
+    "no-fields-for-none",
+    `
   class C(object):
     x : int = 0
-    
+
   c : C = None
-  c.x`);
+  c.x`
+  );
   // 13
-  assert("constructor-non-none", `
+  assert(
+    "constructor-non-none",
+    `
   class C(object):
     x : int = 0
-  not (C() is None)`, PyBool(true));
+  not (C() is None)`,
+    PyBool(true)
+  );
   // 14
-  assertTC("non-literal-condition", `
-  x : int = 1
-  y : int = 2
-  if x < y:
-    pass
-  else:
-    x = -x
-  x`, NUM);
+  assertTC(
+    "non-literal-condition",
+    `
+x : int = 1
+y : int = 2
+if x < y:
+  pass
+else:
+  x = -x
+x`,
+    NUM
+  );
   // 15
-  assertTC("tc-two-classes", `
+  assertTC(
+    "tc-two-classes",
+    `
   class C(object):
     d : D = None
-    
+
   class D(object):
     c : C = None
   c : C = None
   c.d
-  `, CLASS("D"));
+  `,
+    CLASS("D")
+  );
   // 16
-  assertTC("tc-two-classes-methods", `
+  assertTC(
+    "tc-two-classes-methods",
+    `
   class C(object):
     d : D = None
     def new(self: C, d : D) -> C:
       self.d = d
       return self
-      
+
   class D(object):
     c : C = None
     def new(self: D, c: C) -> D:
       self.c = c
       return self
-      
+
   c : C = None
   d : D = None
   c = C().new(d)
-  c.d.c`, CLASS("C"));
+  c.d.c`,
+    CLASS("C")
+  );
   // 17
-  assertTC("none-assignable-to-object", `
+  assertTC(
+    "none-assignable-to-object",
+    `
   class C(object):
     x : int = 1
     def clear(self: C) -> C:
       return None
-  
+
   c : C = None
   c = C().clear()
-  c`, CLASS("C"));
+  c`,
+    CLASS("C")
+  );
   // 18
-  assertTC("constructor-type", `
+  assertTC(
+    "constructor-type",
+    `
   class C(object):
     x : int = 0
-    
-  C()`, CLASS("C"));
+
+  C()`,
+    CLASS("C")
+  );
   // 19
-  assertTCFail("tc-literal", `
-  x : int = None`);
+  assertTCFail(
+    "tc-literal",
+    `
+  x : int = None`
+  );
   // 20
-  assertTC("assign-none", `
+  assertTC(
+    "assign-none",
+    `
   class C(object):
     x : int = 0
   c : C = None
-  c = None`, PyNone());
+  c = None`,
+    PyNone()
+  );
 
-  assertFail("missing-else", `
+  assertFail(
+    "missing-else",
+    `
 if True:
-  pass`)
+  pass`
+  );
 });
