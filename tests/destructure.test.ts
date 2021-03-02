@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { parse } from "../parser";
 import { PyInt, PyBool, PyNone, PyObj, NUM, CLASS, BOOL } from "../utils";
-import { asserts, assertTC, assertTCFail } from "./utils.test";
+import { assert, asserts, assertTC, assertTCFail } from "./utils.test";
 
 describe("Destructure integration (class based. to be converted to tuples)", () => {
   // NOTE: Assigning from class fields is a temporary measure
@@ -73,7 +73,7 @@ y: bool = True
 y, x = Tuple()`
   );
 
-  asserts("basic-compile-tests", [
+  asserts("field-assign-compile-tests", [
     [`class Tuple(object):\n  one: int = 0\n  two: bool = False`, PyNone()],
     [`t: Tuple = None\nx: Tuple = None\nx = Tuple()\nt = Tuple()`, PyNone()],
     [`t.one = 4\nt.two = True`, PyNone()],
@@ -81,6 +81,19 @@ y, x = Tuple()`
     [`x.one`, PyInt(4)],
     [`x.two`, PyBool(true)],
   ]);
+
+  assert(
+    "basic-compile-tests",
+    `
+class Tuple(object):
+  one: int = 9
+  two: bool = False
+x: int = 0
+y: bool = True
+x, y = Tuple()
+x`,
+    PyInt(9)
+  );
 });
 
 describe("traverseDestructure()", () => {

@@ -185,48 +185,14 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
       const className = objTyp.name;
       const classFields = env.classes.get(className).values();
       // Collect every assignStmt
-      destruct.targets.forEach((target) => {
-        const assignTarget = target.target;
+
+      assignStmts = destruct.targets.flatMap(({ target }) => {
         const [offset, _] = classFields.next().value;
         // The WASM code value that we extracted from the object at this current offset
-        const fieldValue = [value, `(i32.add (i32.const ${offset * 4}))`];
+        const addressOffset = offset * 4;
+        const fieldValue = [`(i32.add ${value} (i32.const ${addressOffset}))`, `(i32.load)`];
 
-        switch (assignTarget.tag) {
-          case "id":
-            if (env.locals.has(assignTarget.name)) {
-              assignStmts.concat([...fieldValue, `(local.set $${assignTarget.name})`]);
-            } else {
-              const locationToStore = [
-                `(i32.const ${envLookup(env, assignTarget.name)}) ;; ${assignTarget.name}`,
-              ];
-              assignStmts.concat([...locationToStore, ...fieldValue, "(i32.store)"]);
-            }
-            break;
-          case "lookup":
-            const lookupObjStmts = codeGenExpr(assignTarget.obj, env);
-            const lookupObjTyp = assignTarget.obj.a;
-            if (lookupObjTyp.tag !== "class") {
-              // I don't think this error can happen
-              throw new Error(
-                "Report this as a bug to the compiler developer, this shouldn't happen " +
-                  lookupObjTyp.tag
-              );
-            }
-            const lookupClassName = lookupObjTyp.name;
-            const [lookupOffset, _] = env.classes.get(lookupClassName).get(assignTarget.field);
-            assignStmts.concat([
-              ...lookupObjStmts,
-              `(i32.add (i32.const ${lookupOffset * 4}))`,
-              ...fieldValue,
-              `(i32.store)`,
-            ]);
-            break;
-          default:
-            // Force type error if assignable is added without implementation
-            // At the very least, there should be a stub
-            const err: never = assignTarget;
-            throw new Error(`Unknown target ${JSON.stringify(err)} (compiler)`);
-        }
+        return codeGenAssignable(target, fieldValue, env);
       });
     } else {
       // Currently assumes that the valueType of our destructure is an object
@@ -235,21 +201,21 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
   } else {
     const target = destruct.targets[0];
     if (!target.ignore) {
-      assignStmts = codeGenAssignable(target.target, value, env);
+      assignStmts = codeGenAssignable(target.target, [value], env);
     }
   }
 
   return assignStmts;
 }
 
-function codeGenAssignable(target: Assignable<Type>, value: string, env: GlobalEnv): string[] {
+function codeGenAssignable(target: Assignable<Type>, value: string[], env: GlobalEnv): string[] {
   switch (target.tag) {
     case "id": // Variables
       if (env.locals.has(target.name)) {
-        return [value, `(local.set $${target.name})`];
+        return [...value, `(local.set $${target.name})`];
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, target.name)}) ;; ${target.name}`];
-        return [...locationToStore, value, "(i32.store)"];
+        return [...locationToStore, ...value, "(i32.store)"];
       }
     case "lookup": // Field lookup
       const objStmts = codeGenExpr(target.obj, env);
@@ -262,7 +228,7 @@ function codeGenAssignable(target: Assignable<Type>, value: string, env: GlobalE
       }
       const className = objTyp.name;
       const [offset, _] = env.classes.get(className).get(target.field);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, value, `(i32.store)`];
+      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...value, `(i32.store)`];
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
