@@ -20,6 +20,8 @@ const HEADER_OFFSET_TAG    = 0x0;
 const HEADER_OFFSET_SIZE   = 0x1;
 const HEADER_OFFSET_GC     = HEADER_OFFSET_TAG + HEADER_OFFSET_SIZE;
 
+export const HEADER_SIZE_BYTES    = 8;
+
 // value: 32-bit bigint
 // Uses the least significant bit as a tag:
 //   * `0` => pointer
@@ -51,7 +53,7 @@ function extractPointer(taggedPtr: bigint): Pointer {
 //   * T: 8 bit tag field
 //   * S: 32-bit size field
 //   * G: 8-bit GC metadata
-//   * P: n-bit padding
+//   * P: 16-bit padding
 //
 // GC metadata:
 //   MSB [XXXX_XXMA] LSB
@@ -74,6 +76,10 @@ export class Header {
     return this.memory[this.headerStart + HEADER_OFFSET_TAG] as HeapTag;
   }
 
+  setTag(tag: HeapTag) {
+    this.memory[this.headerStart + HEADER_OFFSET_TAG] = tag;
+  }
+
   getSize(): bigint {
     let x = BigInt.asUintN(32, 0x0n);
 
@@ -85,6 +91,37 @@ export class Header {
     }
 
     return x;
+  }
+
+  setSize(size: bigint): bigint {
+    // WASM stores integers in little-endian:
+    //   LSB at the smallest address
+    for (let i = 0; i < 4; i++) {
+      const b = BigInt.asUintN(8, size >> BigInt(8 * i));
+      this.memory[this.headerStart + HEADER_OFFSET_SIZE + i] = Number(b);
+    }
+
+    return x;
+  }
+
+  alloc() {
+    const offset = this.headerStart + HEADER_OFFSET_GC;
+    const b = this.memory[offset];
+    const nb = b | 0x1;
+    this.memory[offset] = nb;
+  }
+
+  unalloc() {
+    const offset = this.headerStart + HEADER_OFFSET_GC;
+    const b = this.memory[offset];
+    const nb = b & ~0x1;
+    this.memory[offset] = nb;
+  }
+
+  isAlloced() {
+    const offset = this.headerStart + HEADER_OFFSET_GC;
+    const b = this.memory[offset];
+    return Boolean((b & 0x1) === 0x1);
   }
 
   // NOTE(alex): assumes single-threaded to not need to lock the GC byte
