@@ -8,7 +8,9 @@ import "codemirror/addon/edit/closebrackets"
 import "codemirror/mode/python/python"
 
 import "./style.scss";
+import { toEditorSettings } from 'typescript';
 
+var editorReference : any;
 function stringify(typ: Type, arg: any) : string {
   switch(typ.tag) {
     case "number":
@@ -110,6 +112,16 @@ function webStart() {
       repl.run(source.value).then((r) => { renderResult(r); console.log ("run finished") })
           .catch((e) => { renderError(e); console.log("run failed", e) });;
     });
+
+    document.getElementById("reset").addEventListener("click", function(e){
+      //clears repl output
+      resetRepl();
+      //resets environment
+      repl = new BasicREPL(importObject);
+      //clear editor
+      editorReference.setValue("");
+      editorReference.clearHistory();
+    })
     setupRepl();
   });
 
@@ -127,6 +139,7 @@ function webStart() {
     editor.on("change", (cm, change) => {
         textarea.value = editor.getValue();
     })
+    editorReference = editor;
   });
 }
 
