@@ -180,7 +180,7 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
   let assignStmts: string[] = [];
 
   if (destruct.isDestructured) {
-    throw new Error("Destructuring not yet supported in compiler");
+
   } else {
     const target = destruct.targets[0];
     if (!target.ignore) {
