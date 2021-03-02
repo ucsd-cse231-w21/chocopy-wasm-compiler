@@ -239,17 +239,18 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       const argStmts = codeGenExpr(expr.arg, env);
       var callName = expr.name;
       if (expr.name === "print" && argTyp === NUM) {
-        callName = "print_num";
+        return argStmts.concat([`(call $print_num)`]);
       } else if (expr.name === "print" && argTyp === BOOL) {
-        callName = "print_bool";
+        return argStmts.concat([`(call $print_bool)`]);
       } else if (expr.name === "print" && argTyp === NONE) {
-        callName = "print_none";
+        return argStmts.concat([`(call $print_none)`]);
       }
-      return argStmts.concat([`(call $${callName})`]);
+      return argStmts.concat([...decodeLiteral,`(call $${callName})`,...encodeLiteral]);
     case "builtin2":
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
-      return [...leftStmts, ...rightStmts, `(call $${expr.name})`];
+      // we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
+      return [...leftStmts, ...decodeLiteral, ...rightStmts, ...decodeLiteral, `(call $${expr.name})`, ...encodeLiteral];
     case "literal":
       return codeGenLiteral(expr.value);
     case "id":
