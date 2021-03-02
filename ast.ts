@@ -100,7 +100,14 @@ export type Expr<A> =
   | { a?: A; tag: "method-call"; obj: Expr<A>; method: string; arguments: Array<Expr<A>> }
   | { a?: A; tag: "construct"; name: string }
   | { a?: A; tag: "lambda"; args: Array<string>; ret: Expr<A> }
-  | { a?: A; tag: "comprehension"; expr: Expr<A>; field: Assignable<A>, iter: Expr<A>, cond?: Expr<A> } // Need to change field to Assignable since lst = [t.n for t.n in range(10)] runs correctly, if the type of t has n.
+  | {
+      a?: A;
+      tag: "comprehension";
+      expr: Expr<A>;
+      field: Assignable<A>;
+      iter: Expr<A>;
+      cond?: Expr<A>;
+    } // Need to change field to Assignable since lst = [t.n for t.n in range(10)] runs correctly, if the type of t has n.
   | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
   | { a?: A; tag: "string_slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
