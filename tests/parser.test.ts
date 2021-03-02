@@ -3,10 +3,10 @@
 // import { parser } from 'lezer-python';
 // import { traverseExpr, traverseStmt, traverse, parse } from '../parser';
 
-// // We write tests for each function in parser.ts here. Each function gets its 
+// // We write tests for each function in parser.ts here. Each function gets its
 // // own describe statement. Each it statement represents a single test. You
 // // should write enough unit tests for each function until you are confident
-// // the parser works as expected. 
+// // the parser works as expected.
 // describe('traverseExpr(c, s) function', () => {
 //   it('parses a number in the beginning', () => {
 //     const source = "987";
@@ -38,7 +38,7 @@
 //   it('parse a number', () => {
 //     const parsed = parse("987");
 //     expect(parsed).to.deep.equal([{tag: "expr", expr: {tag: "num", value: 987}}]);
-//   });  
+//   });
 
 //   // TODO: add additional tests here to ensure parse works as expected
 // });
