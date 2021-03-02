@@ -1,11 +1,38 @@
 import { Value, Type } from "./ast";
 
-export function PyValue(typ: Type, result: number): Value {
+export function stringify(result: Value) : string {
+    switch(result.tag) {
+        case "num":
+            return result.value.toString();
+        case "string":
+            return result.value;
+        case "bool":
+            return (result.value) ? "True" : "False";
+        case "none":
+            return "None";
+        case "object":
+            return `<${result.name} object at ${result.address}>`;
+        default: throw new Error(`Could not render value: ${result}`);
+    }
+}
+
+export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "number":
       return PyInt(result);
     case "string":
-      return PyObj("String", result);
+      if (result == -1) throw new Error("String index out of bounds");
+      result = result + 4;
+      let ascii_val = mem[result / 4];
+      var i = 1;
+      var full_string = "";
+      while (ascii_val != 0) {
+        var char = String.fromCharCode(ascii_val);
+        full_string += char;
+        ascii_val = mem[result / 4 + i];
+        i += 1;
+      }
+      return PyString(full_string);
     case "bool":
       return PyBool(Boolean(result));
     case "class":
@@ -15,6 +42,10 @@ export function PyValue(typ: Type, result: number): Value {
     default:
       unhandledTag(typ);
   }
+}
+
+export function PyString(s: string): Value {
+  return { tag: "string", value: s };
 }
 
 export function PyInt(n: number): Value {
