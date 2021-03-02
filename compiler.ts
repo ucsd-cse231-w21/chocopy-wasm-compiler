@@ -180,7 +180,39 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
   let assignStmts: string[] = [];
 
   if (destruct.isDestructured) {
+    const objTyp = destruct.valueType;
+    if (objTyp.tag === "class") {
+      const className = objTyp.name;
+      const classFields = env.classes.get(className).values();
 
+      // Collect every assignStmt
+      destruct.targets.forEach((target) => {
+        const assignTarget = target.target;
+        const [offset, _] = classFields.next().value;
+        const fieldValue = [value, `(i32.add (i32.const ${offset * 4}))`];
+
+        switch (assignTarget.tag) {
+          case "id":
+            if (env.locals.has(assignTarget.name)) {
+              assignStmts.concat([...fieldValue, `(local.set $${assignTarget.name})`]);
+            } else {
+              const locationToStore = [`(i32.const ${envLookup(env, assignTarget.name)}) ;; ${assignTarget.name}`];
+              assignStmts.concat([...locationToStore, ...fieldValue, "(i32.store)"]);
+            }
+            break;
+          case "lookup":
+            break;
+          default:
+            // Force type error if assignable is added without implementation
+            // At the very least, there should be a stub
+            const err: never = assignTarget;
+            throw new Error(`Unknown target ${JSON.stringify(err)} (compiler)`);
+        }
+      });
+    } else {
+      // Currently assumes that the valueType of our destructure is an object
+      throw new Error("Destructuring not supported yet for types other than 'class'")
+    }
   } else {
     const target = destruct.targets[0];
     if (!target.ignore) {
