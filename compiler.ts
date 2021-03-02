@@ -12,19 +12,11 @@ export type GlobalEnv = {
   offset: number;
 };
 
-<<<<<<< HEAD
-export const emptyEnv : GlobalEnv = {
-  globals: new Map(),
-  classes: new Map(),
-  locals: new Set(),
-  offset: 0
-=======
 export const emptyEnv: GlobalEnv = {
   globals: new Map(),
   classes: new Map(),
   locals: new Set(),
   offset: 0,
->>>>>>> upstream/main
 };
 
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
@@ -268,16 +260,6 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
     case "construct":
-<<<<<<< HEAD
-      var stmts : Array<string> = [];
-      env.classes.get(expr.name).forEach(([offset, initVal], field) =>
-        stmts.push(...[
-          `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
-          `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
-          ...codeGenLiteral(initVal),              // Initialize field
-          "(i32.store)"                            // Put the default field value on the heap
-        ]));
-=======
       var stmts: Array<string> = [];
       env.classes.get(expr.name).forEach(([offset, initVal], field) =>
         stmts.push(
@@ -289,7 +271,6 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           ]
         )
       );
->>>>>>> upstream/main
       return stmts.concat([
         "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
         "(i32.load (i32.const 0))", // Get address for the object (this is the return value)

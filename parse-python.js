@@ -11,8 +11,4 @@ do {
   //  console.log(cursor.node);
   console.log(cursor.node.type.name);
   console.log(input.substring(cursor.node.from, cursor.node.to));
-<<<<<<< HEAD
-} while(cursor.next());
-=======
 } while (cursor.next());
->>>>>>> upstream/main

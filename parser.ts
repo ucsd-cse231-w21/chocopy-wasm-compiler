@@ -47,13 +47,8 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
     case "None":
       return {
         tag: "literal",
-<<<<<<< HEAD
-        value: traverseLiteral(c, s)
-      }
-=======
         value: traverseLiteral(c, s),
       };
->>>>>>> upstream/main
     case "VariableName":
       return {
         tag: "id",
@@ -224,11 +219,7 @@ export function traverseArguments(c: TreeCursor, s: string): Array<Expr<null>> {
     c.nextSibling(); // Focuses on either "," or ")"
     c.nextSibling(); // Focuses on a VariableName
   }
-<<<<<<< HEAD
-  c.parent();       // Pop to ArgList
-=======
   c.parent(); // Pop to ArgList
->>>>>>> upstream/main
   return args;
 }
 
@@ -274,18 +265,11 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
 export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
   switch (c.node.type.name) {
     case "ReturnStatement":
-<<<<<<< HEAD
-      c.firstChild();  // Focus return keyword
-
-      var value : Expr<null>;
-      if (c.nextSibling()) // Focus expression
-=======
       c.firstChild(); // Focus return keyword
 
       var value: Expr<null>;
       if (c.nextSibling())
         // Focus expression
->>>>>>> upstream/main
         value = traverseExpr(c, s);
       else value = { tag: "literal", value: { tag: "none" } };
       c.parent();
@@ -312,13 +296,8 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
         return {
           tag: "assign",
           name: target.name,
-<<<<<<< HEAD
-          value: value
-        }
-=======
           value: value,
         };
->>>>>>> upstream/main
       } else {
         throw new Error("Unknown target while parsing assignment");
       }
@@ -406,7 +385,6 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
         body,
       };
     case "PassStatement":
-<<<<<<< HEAD
       return { tag: "pass" }
     case "ContinueStatement":
       return { tag: "continue" }
@@ -438,9 +416,6 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
         return { tag: "for", name: name, index: index, iterable: iter, body: body}
       }
       return { tag: "for", name: name, iterable: iter, body: body}
-=======
-      return { tag: "pass" };
->>>>>>> upstream/main
     default:
       throw new Error(
         "Could not parse stmt at " +
@@ -483,11 +458,7 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
     c.parent();
     c.nextSibling(); // Move on to comma or ")" or "="
     nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now
-<<<<<<< HEAD
-    if(nextTagName === "AssignOp") {
-=======
     if (nextTagName === "AssignOp") {
->>>>>>> upstream/main
       c.nextSibling();
       let val = traverseLiteral(c, s);
       parameters.push({ name, type: typ, value: val });
@@ -559,11 +530,7 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
   // console.log("Before pop to body: ", c.type.name);
   c.parent(); // Pop to Body
   // console.log("Before pop to def: ", c.type.name);
-<<<<<<< HEAD
-  c.parent();      // Pop to FunctionDefinition
-=======
   c.parent(); // Pop to FunctionDefinition
->>>>>>> upstream/main
 
   // TODO: Closure group: fill decls and funs to make things work
   const decls: Scope<null>[] = [];
@@ -594,11 +561,7 @@ export function traverseClass(c: TreeCursor, s: string): Class<null> {
   c.parent();
   c.parent();
 
-<<<<<<< HEAD
-  if (!methods.find(method => method.name === "__init__")) {
-=======
   if (!methods.find((method) => method.name === "__init__")) {
->>>>>>> upstream/main
     methods.push({
       name: "__init__",
       parameters: [{ name: "self", type: CLASS(className) }],
