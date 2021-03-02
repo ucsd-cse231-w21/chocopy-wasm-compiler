@@ -123,7 +123,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       valStmts.push("return");
       return valStmts;
     case "assignment":
-      throw new Error("Destructured assignment not implemented");
+      throw new BaseException.Exception("Destructured assignment not implemented");
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
@@ -155,7 +155,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var objTyp = stmt.obj.a;
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new Error(
+        throw new BaseException.Exception(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
@@ -284,7 +284,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var objTyp = expr.obj.a;
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new Error(
+        throw new BaseException.Exception(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
@@ -296,7 +296,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var objTyp = expr.obj.a;
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new Error(
+        throw new BaseException.Exception(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }

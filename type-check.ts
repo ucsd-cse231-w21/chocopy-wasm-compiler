@@ -2,18 +2,6 @@ import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Clas
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 
-// I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
-export class TypeCheckError extends Error {
-  __proto__: Error;
-  constructor(message?: string) {
-    const trueProto = new.target.prototype;
-    super(message);
-
-    // Alternatively use Object.setPrototypeOf if you have an ES6 environment.
-    this.__proto__ = trueProto;
-  }
-}
-
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
   functions: Map<string, [Array<Type>, Type]>;
@@ -54,10 +42,6 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
     topLevel: true,
   };
 }
-
-export type TypeError = {
-  message: string;
-};
 
 export function equalType(t1: Type, t2: Type) {
   return t1 === t2 || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name);
@@ -378,25 +362,23 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             ) {
               return { ...expr, a: methodRet, obj: tObj, arguments: tArgs };
             } else {
-              throw new TypeCheckError(
+              throw new BaseException.Exception(
                 `Method call type mismatch: ${expr.method} --- callArgs: ${JSON.stringify(
                   realArgs
                 )}, methodArgs: ${JSON.stringify(methodArgs)}`
               );
             }
           } else {
-            throw new TypeCheckError(
-              `could not found method ${expr.method} in class ${tObj.a.name}`
-            );
+            throw new BaseException.AttributeError(tObj.a.name, expr.method);
           }
         } else {
-          throw new TypeCheckError("method call on an unknown class");
+          throw new BaseException.NameError(tObj.a.name);
         }
       } else {
-        throw new TypeCheckError("method calls require an object");
+        throw new BaseException.AttributeError(tObj.a.tag, expr.method);
       }
     default:
-      throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
+      throw new BaseException.Exception(`unimplemented type checking for expr: ${expr}`);
   }
 }
 

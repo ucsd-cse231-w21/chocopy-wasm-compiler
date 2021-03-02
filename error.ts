@@ -22,6 +22,7 @@ Use instanceof to get additional properties of each Error type.
     +-- TypeError
     +-- ValueError
     |   +-- UnicodeError
+    +-- TypeMismatchError -> This error class is for TypeError that is allowed in Python but not in our project
 */
 
 import { Location } from "./ast"
@@ -165,8 +166,8 @@ export class MemoryError extends Exception {
 
 
 export class NameError extends Exception {
-	constructor(message?: string, name = "NameError") {
-		super(message, name);
+	constructor(varName: string, name = "NameError") {
+		super(`name '${varName}' is not defined`, name);
 		if (Error.captureStackTrace) {
 			Error.captureStackTrace(this, NameError);
 		}
@@ -174,8 +175,8 @@ export class NameError extends Exception {
 }
 
 export class UnboundLocalError extends NameError {
-	constructor(message?: string, name = "UnboundLocalError") {
-		super(message, name);
+	constructor(varName: string, name = "UnboundLocalError") {
+		super(`local variable '${varName}' referenced before assignment`, name);
 		if (Error.captureStackTrace) {
 			Error.captureStackTrace(this, UnboundLocalError);
 		}
