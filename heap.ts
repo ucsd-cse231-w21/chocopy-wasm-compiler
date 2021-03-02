@@ -1,17 +1,17 @@
 export interface Allocator {
-  alloc: (size: bigint) => Block,
+  alloc: (size: bigint) => Block;
 
   // NOTE: this probably should take a Block
-  free2: (ptr: bigint) => void,
+  free2: (ptr: bigint) => void;
 
-  owns: (ptr: bigint) => boolean,
+  owns: (ptr: bigint) => boolean;
 
-  description: () => string,
+  description: () => string;
 }
 
 export interface Block {
-  ptr: bigint,
-  size: bigint,
+  ptr: bigint;
+  size: bigint;
 }
 
 const NULL_BLOCK: Block = {
@@ -32,7 +32,9 @@ export class BumpAllocator implements Allocator {
     this.absEnd = endExclusive;
 
     if (endExclusive <= s) {
-      throw new Error(`Error: end (${endExclusive.toString()})<= start of memory (${s.toString()})`);
+      throw new Error(
+        `Error: end (${endExclusive.toString()})<= start of memory (${s.toString()})`
+      );
     }
   }
 
@@ -68,8 +70,6 @@ export class BumpAllocator implements Allocator {
 //      next: bigint,
 //   }
 // BitMappedBlocks: [infomap, bucket1, bucket2, bucket3...]
-
-
 
 // flag === true => fallback
 // flag === false => primary
@@ -108,7 +108,9 @@ export class Switch<P extends Allocator, F extends Allocator> implements Allocat
   }
 
   description(): string {
-    return `Switch { flag: ${this.flag}, primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`
+    return `Switch { flag: ${
+      this.flag
+    }, primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`;
   }
 
   setFlag(f: boolean) {
@@ -122,7 +124,8 @@ export class Switch<P extends Allocator, F extends Allocator> implements Allocat
 
 // Allocation sizes <= sizeLimit go to the small allocator
 // sizeLimit is in BYTES
-export class Segregator<N extends bigint, S extends Allocator, L extends Allocator> implements Allocator {
+export class Segregator<N extends bigint, S extends Allocator, L extends Allocator>
+  implements Allocator {
   sizeLimit: N;
   small: S;
   large: L;
@@ -154,7 +157,7 @@ export class Segregator<N extends bigint, S extends Allocator, L extends Allocat
   }
 
   description(): string {
-    return `Segregator { limit: ${this.sizeLimit.toString()}, small: ${this.small.description()}, large: ${this.large.description()}}`
+    return `Segregator { limit: ${this.sizeLimit.toString()}, small: ${this.small.description()}, large: ${this.large.description()}}`;
   }
 }
 
@@ -208,7 +211,9 @@ export class Fallback<P extends Allocator, F extends Allocator> implements Alloc
     } else if (this.fallback.owns(ptr)) {
       this.fallback.free2(ptr);
     } else {
-      throw new Error(`Attempting to free pointer (${ptr.toString()}) through allocators that do not own it: ${this.description()}`);
+      throw new Error(
+        `Attempting to free pointer (${ptr.toString()}) through allocators that do not own it: ${this.description()}`
+      );
     }
   }
 

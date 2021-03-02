@@ -12,7 +12,7 @@ function stringify(typ: Type, arg: any): string {
     case "class":
       return typ.name;
     default:
-      unhandledTag(typ)
+      unhandledTag(typ);
   }
 }
 
