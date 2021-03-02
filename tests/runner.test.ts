@@ -261,4 +261,9 @@ f(2)`, PyInt(2));
     
   c : C = None
   c`, PyNone());
+
+  assert("function-with-default-arg", `
+  def add_default_10(x : int, y : int = 10) -> int:
+	  return x + y
+  `, PyNone());
 });
