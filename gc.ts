@@ -145,10 +145,10 @@ export interface MarkableAllocator extends H.Allocator {
   // tag: heap object tag to know how to traverse the object
   //
   // Allocates memory of the requested size
-  //   May also allocate additional memory to store GC metadata, tag, and size
+  //   * Allocates additional memory to store GC metadata, tag, and size
   //
   // Returns an untagged pointer to the start of the object's memory (not the header)
-  // Returns the null pointer (0x0) if memory allocation failed
+  // Returns the null pointer (0x0) if allocation failed
   gcalloc: (tag: HeapTag, size: bigint) => Pointer,
 
   // Scans the allocated objects for unmarked, allocated objects and frees them

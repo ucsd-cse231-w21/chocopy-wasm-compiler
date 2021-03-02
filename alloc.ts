@@ -47,6 +47,22 @@ export class MemoryManager {
     }
   }
 
+  // size: size of object in bytes (NOT including header/metadata)
+  // tag: heap object tag to know how to traverse the object
+  //
+  // Allocates memory of the requested size
+  //   * Allocates additional memory to store GC metadata, tag, and size
+  //
+  // Returns an untagged pointer to the start of the object's memory (not the header)
+  // Throws 'Out of memory' if allocation failed after the GC ran
+  gcalloc(tag: GC.HeapTag, size: bigint): Pointer {
+    const result = this.gc.gcalloc(tag, size);
+    if (result == 0x0n) {
+      throw new Error(`Out of memory`);
+    }
+    return result;
+  }
+
   // For data that will never be freed
   // Ex:
   //   1) Class descriptors
