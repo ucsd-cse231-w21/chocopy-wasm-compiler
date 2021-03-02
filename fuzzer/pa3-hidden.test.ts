@@ -399,10 +399,7 @@ class LinkedList(object):
       PyNone(),
     ],
     [`l: LinkedList = None`, PyNone()],
-    [
-      `l = LinkedList().new(1, LinkedList().new(2, LinkedList().new(3, None)))`,
-      PyNone(),
-    ],
+    [`l = LinkedList().new(1, LinkedList().new(2, LinkedList().new(3, None)))`, PyNone()],
     [`l.sum()`, PyInt(6)],
     [`l.next.sum()`, PyInt(5)],
   ]);
