@@ -74,10 +74,12 @@ def range(start: int, end: int) -> Range:
     return Range().new(start, end)
 `;
 
+    // Note: We are trimming the start of the source to prevent indendation conflict issues
+    // with the built-in range function and Range class definitions above.
     source = `
 ${builtin}
 
-${source}
+${source.trimStart()}
 `;
   }
   const parsed = parse(source);
