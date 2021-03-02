@@ -131,13 +131,11 @@ function webStart() {
         lineNumbers: true,
         autoCloseBrackets: true,
         lint: true,
-        gutters: ["CodeMirror-lint-markers"],
+        gutters: ["error"], 
         extraKeys: {
-          "cmd+Space" : "autocomplete"
+          "Cmd+Space" : "autocomplete"
         }
     });
-
-    console.log(editor)
 
     editor.on("change", (cm, change) => {
         textarea.value = editor.getValue();
@@ -149,12 +147,26 @@ function webStart() {
       editor.showHint({
         // hint: 
       });
-  });
+    });
   });
 }
 // Simple helper to highlight line given line number
 function highlightLine(editor : any , actualLineNumber: number) : void {
   //Set line CSS class to the line number & affecting the background of the line with the css class of line-error
+  editor.setGutterMarker(actualLineNumber, 'error', makeMarker("test error message"));
   editor.addLineClass(actualLineNumber, 'background', 'line-error');
+}
+function makeMarker(msg:any) : any {
+  const marker = document.createElement('div');
+  marker.classList.add('error-marker');
+  marker.innerHTML = '&nbsp;';
+
+  const error = document.createElement('div');
+  error.innerHTML = msg;
+  error.classList.add('error-message');
+  marker.appendChild(error);
+  console.log("error",error)
+
+  return marker;
 }
 webStart();

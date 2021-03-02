@@ -15,6 +15,26 @@
     background: #FBC2C4 !important;
     color: #8a1f11 !important;
   }
+  .error-marker {
+    color: black;
+    width: 10px !important;
+    background-color: #ff0000;
+  }
+  
+  .error-marker .error-message {
+    display: none;
+    position: absolute;
+    background-color: #ddd;
+    border: 1px solid #999;
+    padding: 6px;
+    width: 140px;
+    left: 15px;
+    top: -1em;
+  }
+  
+  .error-marker:hover .error-message {
+    display: block;
+  }
 }
 .user-code {
   width: 100%;
