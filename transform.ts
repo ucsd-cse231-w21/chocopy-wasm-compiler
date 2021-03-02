@@ -30,9 +30,8 @@ export function transformComprehension(comprehension: Expr<Type>): Expr<Type> {
       // so we just return an empty range: "range(0, 0)"
       return {
         a: {
-          tag: "callable",
-          args: [{ tag: "number" }, { tag: "number" }],
-          ret: { tag: "class", name: "Range" },
+          tag: "class",
+          name: "Range",
         },
         tag: "call",
         name: "range",

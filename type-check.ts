@@ -1,6 +1,7 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
+import { transformComprehension } from "./transform";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -202,10 +203,10 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       if (!isAssignable(env, tRet.a, locals.expectedRet))
         throw new TypeCheckError(
           "expected return type `" +
-            (locals.expectedRet as any).name +
-            "`; got type `" +
-            (tRet.a as any).name +
-            "`"
+          (locals.expectedRet as any).name +
+          "`; got type `" +
+          (tRet.a as any).name +
+          "`"
         );
       return { a: tRet.a, tag: stmt.tag, value: tRet };
     case "while":
@@ -227,8 +228,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
       if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
         throw new TypeCheckError(
-          `could not assign value of type: ${tVal.a}; field ${
-            stmt.field
+          `could not assign value of type: ${tVal.a}; field ${stmt.field
           } expected type: ${fields.get(stmt.field)}`
         );
       return { ...stmt, a: NONE, obj: tObj, value: tVal };
@@ -468,23 +468,23 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           throw new TypeCheckError("condition must be boolean");
         }
 
-        return {
+        return transformComprehension({
           a: { tag: "class", name: "Range" },
           tag: "comprehension",
           expr: newExpr,
           field: expr.field,
           iter,
           cond,
-        };
+        });
       }
 
-      return {
+      return transformComprehension({
         a: { tag: "class", name: "Range" },
         tag: "comprehension",
         expr: newExpr,
         field: expr.field,
         iter,
-      };
+      });
 
     // return {
     //   a: { tag: "list", content_type: newExpr.a },

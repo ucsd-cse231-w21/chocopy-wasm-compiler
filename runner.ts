@@ -49,6 +49,39 @@ export async function run(
   source: string,
   config: Config
 ): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
+
+  // One approach to create built-in Range class and range function, by Comprehension team
+  if (!config.typeEnv.classes.has("Range")) {
+    const builtin = `
+class Range:
+    curr : int = 0
+    end : int = 0
+        
+    def new(self: Range, start: int, end: int) -> Range:
+        self.curr = start
+        self.end = end
+        return self
+        
+    def next(self: Range) -> int:
+        temp : int = 0
+        temp = self.curr
+        self.curr = self.curr + 1
+        return temp
+        
+    def has_next(self: Range) -> bool:
+        return self.curr < self.end
+
+def range(start: int, end: int) -> Range:
+    return Range().new(start, end)
+`;
+
+    source = `
+${builtin}
+
+${source}
+`;
+
+  }
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const progTyp = tprogram.a;
