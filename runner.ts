@@ -3,12 +3,14 @@
 // - https://github.com/AssemblyScript/wabt.js/
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
+import { checkServerIdentity } from "tls";
 import wabt from "wabt";
+import { wasm } from "webpack";
 import * as compiler from "./compiler";
 import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
 import { Value } from "./ast";
-import { NONE, PyValue } from "./utils";
+import { PyValue, NONE } from "./utils";
 
 export type Config = {
   importObject: any;
@@ -72,8 +74,6 @@ def range(start: int, end: int) -> Range:
     return Range().new(start, end)
 `;
 
-    // Note: We're trimming the start of source in order to prevent incorrect indendation
-    // issues with our built-in Range class and range function
     source = `
 ${builtin}
 
