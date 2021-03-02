@@ -114,7 +114,8 @@ export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
   if (isAssignable(env, valTyp, init.type)) {
     return { ...init, a: NONE };
   } else {
-    throw new BaseException.TypeError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
+    throw new BaseException.TypeMismatchError(init.type.tag, valTyp.tag);
+    // throw new BaseException.TypeError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
   }
 }
 
@@ -170,22 +171,26 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
       if (tCond.a !== BOOL) 
-        throw new BaseException.TypeError("Condition Expression Must be a bool");
+        throw new BaseException.ConditionTypeError(tCond.a.tag);
+        // throw new BaseException.TypeError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
-        throw new BaseException.TypeError("Types of then and else branches must match");
+        throw new BaseException.SyntaxError("Types of then and else branches must match");
       return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls};
     case "return":
       if (locals.topLevel)
-        throw new BaseException.SyntaxError("cannot return outside of functions");
+        throw new BaseException.OutsideFunctionError("return");
+        // throw new BaseException.SyntaxError("cannot return outside of functions");
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
-        throw new BaseException.TypeError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
+        throw new BaseException.TypeMismatchError((locals.expectedRet as any).name, (tRet.a as any).name);
+        // throw new BaseException.TypeError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
       return {a: tRet.a, tag: stmt.tag, value:tRet};
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
       if (!equalType(tCond.a, BOOL)) 
-        throw new BaseException.TypeError("Condition Expression Must be a bool");
+        throw new BaseException.ConditionTypeError(tCond.a.tag);
+        // throw new BaseException.TypeError("Condition Expression Must be a bool");
       return {a: NONE, tag:stmt.tag, cond: tCond, body: tBody};
     case "pass":
       return { a: NONE, tag: stmt.tag };
@@ -207,7 +212,8 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       }
       if (!isAssignable(env, tVal.a, fields.get(stmt.field))) {
         //throw new TypeCheckError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
-        throw new BaseException.TypeError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
+        throw new BaseException.TypeMismatchError(fields.get(stmt.field).tag, tVal.a.tag)
+        // throw new BaseException.TypeError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
       }
       return {...stmt, a: NONE, obj: tObj, value: tVal};
   }

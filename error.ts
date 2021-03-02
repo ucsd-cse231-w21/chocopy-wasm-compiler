@@ -205,10 +205,18 @@ export class RecursionError extends RuntimeError {
 
 export class SyntaxError extends Exception {
 	constructor(message?: string, name = "SyntaxError") {
-		super(`invalid syntax`);
-		this.name = name;
+		super(`invalid syntax`, name);
 		if (Error.captureStackTrace) {
 			Error.captureStackTrace(this, SyntaxError);
+		}
+	}
+}
+
+export class OutsideFunctionError extends Exception {
+	constructor(keyword: string, message?: string, name = "SyntaxError") {
+		super(`'${keyword}' outside function`, name);
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, OutsideFunctionError);
 		}
 	}
 }
@@ -225,8 +233,7 @@ export class IndentationError extends SyntaxError {
 
 export class TypeError extends Exception {
 	constructor(message?: string, name = "TypeError") {
-		super(message);
-		this.name = name;
+		super(message, name);
 		if (Error.captureStackTrace) {
 			Error.captureStackTrace(this, TypeError);
 		}
@@ -243,10 +250,18 @@ export class TypeMismatchError extends Exception {
 	} 
 }
 
+export class ConditionTypeError extends Exception {
+	constructor(got: string, message?: string, name = "TypeError") {
+		super(`Condition Expression Cannot be of type '${got}'`, name);
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, ConditionTypeError);
+		}
+	} 
+}
+
 export class ValueError extends Exception {
 	constructor(message?: string, name = "ValueError") {
-		super(message);
-		this.name = name;
+		super(message, name);
 		if (Error.captureStackTrace) {
 			Error.captureStackTrace(this, ValueError);
 		}
@@ -255,8 +270,7 @@ export class ValueError extends Exception {
 
 export class UnicodeError extends ValueError {
 	constructor(codec: string, character: string, pos: number, message?: string, name = "UnicodeError") {
-		super(`'${codec}' codec can't encode character '${character}' in position ${pos}`);
-		this.name = name;
+		super(`'${codec}' codec can't encode character '${character}' in position ${pos}`, name);
 		if (Error.captureStackTrace) {
 			Error.captureStackTrace(this, UnicodeError);
 		}
