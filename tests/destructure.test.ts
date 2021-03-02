@@ -73,15 +73,14 @@ y: bool = True
 y, x = Tuple()`
   );
 
-  // FIXME: feature to work on. Enable with compilers code
-  // asserts("basic-compile-tests", [
-  //   [`class Tuple(object):\n  one: int = 0\n  two: bool = False`, PyNone()],
-  //   [`t: Tuple = None\nx: Tuple = None\nx = Tuple()\nt = Tuple()`, PyNone()],
-  //   [`t.one = 4\nt.two = True`, PyNone()],
-  //   [`x.one, x.two = t`, PyNone()],
-  //   [`x.one`, PyInt(4)],
-  //   [`x.two`, PyBool(true)],
-  // ]);
+  asserts("basic-compile-tests", [
+    [`class Tuple(object):\n  one: int = 0\n  two: bool = False`, PyNone()],
+    [`t: Tuple = None\nx: Tuple = None\nx = Tuple()\nt = Tuple()`, PyNone()],
+    [`t.one = 4\nt.two = True`, PyNone()],
+    [`x.one, x.two = t`, PyNone()],
+    [`x.one`, PyInt(4)],
+    [`x.two`, PyBool(true)],
+  ]);
 });
 
 describe("traverseDestructure()", () => {

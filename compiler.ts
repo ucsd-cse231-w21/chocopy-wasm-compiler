@@ -196,7 +196,9 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
             if (env.locals.has(assignTarget.name)) {
               assignStmts.concat([...fieldValue, `(local.set $${assignTarget.name})`]);
             } else {
-              const locationToStore = [`(i32.const ${envLookup(env, assignTarget.name)}) ;; ${assignTarget.name}`];
+              const locationToStore = [
+                `(i32.const ${envLookup(env, assignTarget.name)}) ;; ${assignTarget.name}`,
+              ];
               assignStmts.concat([...locationToStore, ...fieldValue, "(i32.store)"]);
             }
             break;
@@ -206,12 +208,18 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
             if (lookupObjTyp.tag !== "class") {
               // I don't think this error can happen
               throw new Error(
-                "Report this as a bug to the compiler developer, this shouldn't happen " + lookupObjTyp.tag
+                "Report this as a bug to the compiler developer, this shouldn't happen " +
+                  lookupObjTyp.tag
               );
             }
             const lookupClassName = lookupObjTyp.name;
             const [lookupOffset, _] = env.classes.get(lookupClassName).get(assignTarget.field);
-            assignStmts.concat([...lookupObjStmts, `(i32.add (i32.const ${lookupOffset * 4}))`, ...fieldValue, `(i32.store)`]);
+            assignStmts.concat([
+              ...lookupObjStmts,
+              `(i32.add (i32.const ${lookupOffset * 4}))`,
+              ...fieldValue,
+              `(i32.store)`,
+            ]);
             break;
           default:
             // Force type error if assignable is added without implementation
@@ -222,7 +230,7 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
       });
     } else {
       // Currently assumes that the valueType of our destructure is an object
-      throw new Error("Destructuring not supported yet for types other than 'class'")
+      throw new Error("Destructuring not supported yet for types other than 'class'");
     }
   } else {
     const target = destruct.targets[0];
