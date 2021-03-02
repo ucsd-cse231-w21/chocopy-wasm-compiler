@@ -55,6 +55,14 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
   };
 }
 
+function copyEnv(env: GlobalTypeEnv): GlobalTypeEnv {
+  return {
+    globals: new Map(env.globals),
+    functions: new Map(env.functions),
+    classes: new Map(env.classes),
+  };
+}
+
 export type TypeError = {
   message: string;
 };
@@ -413,6 +421,70 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeCheckError("method calls require an object");
       }
+    case "comprehension":
+      /*
+       * Since this is implemented before lists/iterators, we are making a mockup version.
+       * See milestone doc for details.
+       * The mockups will be replaced next week by the commented code.
+       */
+
+      // iter
+      const iter = tcExpr(env, locals, expr.iter);
+      if (iter.a.tag !== "class" || iter.a.name !== "Range") {
+        throw new TypeCheckError("Only mockup Range is supported for now");
+      }
+
+      // if (iter.a.tag !== 'list') { // TODO: add check for iterator type
+      //   throw new TypeCheckError(`${iter.a.tag} object is not iterable`);
+      // }
+
+      // field
+      const newEnv = copyEnv(env);
+      if (expr.field.tag === "id") {
+        newEnv.globals.set(expr.field.name, NUM);
+        // newEnv.globals.set(expr.field.name, iter.a.content_type);
+      } else {
+        //* Right now, we don't know if we (or the for loop team) will support this special case.
+        // Need to check if the field exists in the object, and whether it is a number.
+        if (tcExpr(env, locals, expr.field).a.tag !== "number") {
+          throw new TypeCheckError("only numbers are supported for now");
+        }
+      }
+
+      // expr
+      const newExpr = tcExpr(env, locals, expr.expr);
+      if (newExpr.a.tag !== "number") {
+        throw new TypeCheckError("only numbers are supported for now");
+      }
+
+      //const typ: Type = {tag: "list", content_type: newExpr.a}
+
+      // cond
+      //*Notice that in regular Python, cond can be of any type. We make this restriction here to make life easier :)
+      if (expr.cond) {
+        const cond = tcExpr(newEnv, locals, expr.cond);
+
+        if (cond.a.tag !== "bool") {
+          throw new TypeCheckError("condition must be boolean");
+        }
+
+        return {
+          a: { tag: "class", name: "Range" },
+          tag: "comprehension",
+          expr: newExpr,
+          field: expr.field,
+          iter,
+          cond,
+        };
+      }
+
+      return {
+        a: { tag: "class", name: "Range" },
+        tag: "comprehension",
+        expr: newExpr,
+        field: expr.field,
+        iter,
+      };
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
