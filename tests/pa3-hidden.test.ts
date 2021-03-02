@@ -38,13 +38,13 @@ else:
   class C(object):
     def none(self: C) -> C:
       return None
-      
+
   C().none()`, CLASS("C"));
 
   assertTC("none-field-assign", `
   class C(object):
     box : C = None
-    
+
   c : C = None
   c = C()
   c.box = None`, PyNone());
@@ -55,19 +55,19 @@ else:
     def f(self: C) -> int:
       return 1
       return False`);
-  
+
   assertTCFail("tc-error-after-return", `
   class C(object):
     def f(self: C) -> int:
       return 1
       1 - True`);
-  
+
   assertTCFail("no-return-just-expr", `
   class C(object):
     def f(self: C) -> int:
       1`);
-  
-  
+
+
   // What's the type of a block? (function without return should err)
   assertTC("top-level-type-none", `
   x : int = 0
@@ -76,13 +76,13 @@ else:
   assertTC("top-level-class", `
   class C(object):
     x : int = 0`, PyNone());
-  
+
   assertTCFail("return-id", `
   class C(object):
     x : int = 0
     def f(self: C) -> int:
       x`);
-  
+
   // Return in one branch of if but not the other
   assertTCFail("return-in-one-branch", `
   class C(object):
@@ -105,7 +105,7 @@ else:
   assert("none-is-none", `
   None is None`, PyBool(true));
 
-  /*assertTC("void-is-none-tc", `    
+  /*assertTC("void-is-none-tc", `
   class C(object):
     def new(self: C, other: C) -> C:
       return other
@@ -114,19 +114,19 @@ else:
 
   C().new(None).f()`, NONE);
 
-  assert("void-is-none", `    
+  assert("void-is-none", `
   class C(object):
     def new(self: C) -> C:
       return self
     def f(self: C):
-      return 
+      return
 
   C().new().f() is None`, PyBool(true)); */
 
   assert("alias-is-same", `
   class C(object):
     x : int = 0
-    
+
   c1 : C = None
   c2 : C = None
   c1 = C()
@@ -154,7 +154,7 @@ else:
     other : C = None
     def f(self:C, other: C):
       other.f()
-    
+
   c : C = None
   c = c()
   c.f(None)`);
@@ -166,7 +166,7 @@ else:
     x : int = 0
   class C2(object):
     x : int = 0
-    
+
   C1() is C2()`, BOOL);
 
   assertTCFail("is-num", `
@@ -194,7 +194,7 @@ else:
   class C(object):
     def f(x : int) -> int:
       return 0
-      
+
   C().f(True)`);
 
   // Type-check method calls in general
@@ -214,7 +214,7 @@ else:
     n : int = 0
     def __init__(self: C, n : int):
       self.n = n`);
-  
+
   assertTCFail("init-ret-type-1", `
   class C(object):
     n : int = 0
@@ -232,7 +232,7 @@ else:
     n : int = 0
     def __init__(self: C):
       self.n = 1
-      
+
   C().n`, PyInt(1));
 
 
@@ -244,7 +244,7 @@ else:
         return 1
       else:
         return n * self.fib(n-1)
-  
+
   C().fib(5)`, NUM);
 
   assertTCFail("recursive-call-tc-fails", `
@@ -254,7 +254,7 @@ else:
         return 1
       else:
         return n * self.fib(n-1)
-  
+
   C().fib(5)`);
 
   asserts("recursive-call", [
@@ -325,7 +325,7 @@ l.next.sum()`, NUM);
         return 0
       else:
         1`);
-  
+
   assert("many-ifs", `
   class C(object):
     def f(self: C):

@@ -220,5 +220,3 @@ export class Fallback<P extends Allocator, F extends Allocator> implements Alloc
     return `Fallback { primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`;
   }
 }
-
-

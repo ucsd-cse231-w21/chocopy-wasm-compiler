@@ -40,7 +40,7 @@ else:
     `
   class C(object):
     x : int = 123
-  
+
   c : C = None
   c = C()
   c.x `,
@@ -52,7 +52,7 @@ else:
     `
   class C(object):
     x : int = 123
-    
+
   c : C = None
   c = C()
   c.x = 42
@@ -126,13 +126,13 @@ else:
       return self
     def clear(self: C) -> C:
       return self.new(123)
-  
+
   C().new(42).clear()`, ["123", "42", "42", "123"])
   // 12
   assertFail("no-fields-for-none", `
   class C(object):
     x : int = 0
-    
+
   c : C = None
   c.x`);
   // 13
@@ -142,18 +142,18 @@ else:
   not (C() is None)`, PyBool(true));
   // 14
   assertTC("non-literal-condition", `
-  x : int = 1
-  y : int = 2
-  if x < y:
-    pass
-  else:
-    x = -x
-  x`, NUM);
+x : int = 1
+y : int = 2
+if x < y:
+  pass
+else:
+  x = -x
+x`, NUM);
   // 15
   assertTC("tc-two-classes", `
   class C(object):
     d : D = None
-    
+
   class D(object):
     c : C = None
   c : C = None
@@ -166,13 +166,13 @@ else:
     def new(self: C, d : D) -> C:
       self.d = d
       return self
-      
+
   class D(object):
     c : C = None
     def new(self: D, c: C) -> D:
       self.c = c
       return self
-      
+
   c : C = None
   d : D = None
   c = C().new(d)
@@ -183,7 +183,7 @@ else:
     x : int = 1
     def clear(self: C) -> C:
       return None
-  
+
   c : C = None
   c = C().clear()
   c`, CLASS("C"));
@@ -191,7 +191,7 @@ else:
   assertTC("constructor-type", `
   class C(object):
     x : int = 0
-    
+
   C()`, CLASS("C"));
   // 19
   assertTCFail("tc-literal", `
