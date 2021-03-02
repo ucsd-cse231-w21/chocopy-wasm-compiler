@@ -92,6 +92,13 @@ export class Header {
 
 // Allocator operations required by a mark-and-sweep GC
 export interface MarkableAllocator extends H.Allocator {
+  // ptr: 32-bit address of the START of the object (NOT the header)
+  //
+  // NOTE: The allocator MUST OWN ptr. To not do so is a logic error
+  //
+  // Returns the object's corresponding Header
+  //
+  // Throws an error if the allocator does not own ptr
   getHeader: (ptr: Pointer) => Header,
 
   // size: size of object (NOT including header/metadata)
@@ -150,6 +157,9 @@ export class MarkableSwitch<P extends MarkableAllocator, F extends MarkableAlloc
   }
 
   getHeader(ptr: Pointer): Header {
+    if (!this.allocator.owns(ptr)) {
+      throw new Error(`${this.allocator.description()} does not own pointer: ${ptr.toString(16)}`);
+    }
     if (this.allocator.primary.owns(ptr)) {
       return this.allocator.primary.getHeader(ptr);
     } else {
@@ -196,6 +206,9 @@ export class MarkableSegregator<N extends bigint, S extends MarkableAllocator, L
   }
 
   getHeader(ptr: Pointer): Header {
+    if (!this.allocator.owns(ptr)) {
+      throw new Error(`${this.allocator.description()} does not own pointer: ${ptr.toString(16)}`);
+    }
     if (this.allocator.small.owns(ptr)) {
       return this.allocator.small.getHeader(ptr);
     } else {
@@ -241,6 +254,9 @@ export class MarkableDescriber<A extends MarkableAllocator> implements MarkableA
   }
 
   getHeader(ptr: Pointer): Header {
+    if (!this.allocator.owns(ptr)) {
+      throw new Error(`${this.allocator.description()} does not own pointer: ${ptr.toString(16)}`);
+    }
     return this.allocator.allocator.getHeader(ptr);
   }
 
@@ -279,6 +295,9 @@ export class MarkableFallback<P extends MarkableAllocator, F extends MarkableAll
   }
 
   getHeader(ptr: Pointer): Header {
+    if (!this.allocator.owns(ptr)) {
+      throw new Error(`${this.allocator.description()} does not own pointer: ${ptr.toString(16)}`);
+    }
     if (this.allocator.primary.owns(ptr)) {
       return this.allocator.primary.getHeader(ptr);
     } else {
