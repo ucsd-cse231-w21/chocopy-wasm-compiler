@@ -191,11 +191,15 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
     case "if":
+      // loop_depth used for potential for loop breaks insiede this if
+      locals.loop_depth += 1;
       var tCond = tcExpr(env, locals, stmt.cond);
       const tThn = tcBlock(env, locals, stmt.thn);
       const thnTyp = tThn[tThn.length - 1].a;
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
+      // restore loop depth
+      locals.loop_depth -= 1;
       if (tCond.a !== BOOL) throw new TypeCheckError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
         throw new TypeCheckError("Types of then and else branches must match");
