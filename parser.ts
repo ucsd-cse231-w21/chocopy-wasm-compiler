@@ -251,6 +251,7 @@ function traverseAssignment(c: TreeCursor, s: string): AssignTarget<null> {
 function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
   // TODO: Actually support destructured assignment
   const targets: AssignTarget<null>[] = [traverseAssignment(c, s)]; // We need to traverse initial assign target
+  c.nextSibling();
   let isSimple = true;
   let haveStarredTarget = targets[0].starred;
   while (c.name !== "AssignOp") { // While we haven't hit "=" and we have values remaining
