@@ -247,6 +247,8 @@ export function tcLambda(locals : LocalTypeEnv, expr : Expr<null>, expected : Ty
 
 export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<null>) : Stmt<Type> {
   switch(stmt.tag) {
+    case "assignment":
+      throw new TypeCheckError("Destructured assignment not implemented");
     case "assign":
       var nameTyp;
       if (locals.vars.has(stmt.name)) {
