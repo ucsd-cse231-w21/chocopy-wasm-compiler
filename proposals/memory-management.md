@@ -205,7 +205,7 @@ New files:
 * `alloc.ts`: defines the main allocator interface for runtime/compiler code
   * `ObjectTag`: defines possible heap object types
   * `MemoryManager`: class that composes the GC and heap implementations into a coherent unit
-    * `gcalloc(tag: ObjectTag, size: BigInt32)`: allocates a new object in the GC heap and returns a pointer to the start of the object (not the header); may invoke the GC (stop-the-world)
+    * `gcalloc(tag: ObjectTag, size: BigInt32)`: allocates a new object in the GC heap of the specified size in bytes and returns a pointer to the start of the object (not the header); may invoke the GC (stop-the-world)
     * `forceCollect()`: manually invoke the GC (stop-the-world)
     * `getTag(ptr)`: get heap object tag
     * `getSize(ptr)`: get heap object size (excluding header info)
