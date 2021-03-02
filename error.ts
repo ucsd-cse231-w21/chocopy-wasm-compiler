@@ -45,19 +45,19 @@ export class KeyboardInterrupt extends Error {
 }
 
 export class Exception extends Error {
-    __proto__: Error;
-    loc: Location
+  __proto__: Error;
+  loc: Location
 
-    constructor(message?: string, name = "Exception", loc?: Location) {
-        const trueProto = new.target.prototype;
-        super(message);
-        this.name = name;
-        this.loc = loc;
+  constructor(message?: string, name = "Exception", loc?: Location) {
+    const trueProto = new.target.prototype;
+    super(message);
+    this.name = name;
+    this.loc = loc;
 
-        // Maintains proper stack trace for where our error was thrown (only available on V8)
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, Exception);
-        }
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, Exception);
+    }
 
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
@@ -70,31 +70,28 @@ export class Exception extends Error {
 }
 
 export class StopIteration extends Exception {
-    constructor(message?: string, name = "StopIteration") {
-        super(message, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, StopIteration);
-        }
+  constructor(message?: string, name = "StopIteration") {
+    super(message, name);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, StopIteration);
     }
   }
 }
 
 export class ArithmeticError extends Exception {
-    constructor(message?: string, name = "ArithmeticError") {
-        super(message, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ArithmeticError);
-        }
+  constructor(message?: string, name = "ArithmeticError") {
+    super(message, name);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ArithmeticError);
     }
   }
 }
 
 export class OverflowError extends ArithmeticError {
-    constructor(message?: string, name = "OverflowError") {
-        super(message, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, OverflowError);
-        }
+  constructor(message?: string, name = "OverflowError") {
+    super(message, name);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, OverflowError);
     }
   }
 }
@@ -110,52 +107,47 @@ export class ZeroDivisionError extends ArithmeticError {
 
 // If an object does not support attribute references or attribute assignment at all, TypeError is raised.
 export class AttributeError extends Exception {
-    constructor(message?: string, name = "AttributeError") {
-        super(message, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, AttributeError);
-        }
+  constructor(message?: string, name = "AttributeError") {
+    super(message, name);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, AttributeError);
     }
   }
 }
 
 export class LookupError extends Exception {
-    constructor(message?: string, name = "LookupError") {
-        super(message, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, LookupError);
-        }
+  constructor(message?: string, name = "LookupError") {
+    super(message, name);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, LookupError);
     }
   }
 }
 
 // If an index is not an integer, TypeError is raised.
 export class IndexError extends LookupError {
-    constructor(message?: string, name = "IndexError") {
-        super(message, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, IndexError);
-        }
+  constructor(message?: string, name = "IndexError") {
+    super(message, name);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, IndexError);
     }
   }
 }
 
 export class KeyError extends LookupError {
-    constructor(message?: string, name = "KeyError") {
-        super(message, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, KeyError);
-        }
+  constructor(message?: string, name = "KeyError") {
+    super(message, name);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, KeyError);
     }
   }
 }
 
 export class MemoryError extends Exception {
-    constructor(message?: string, name = "MemoryError") {
-        super(message, name);
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, MemoryError);
-        }
+  constructor(message?: string, name = "MemoryError") {
+    super(message, name);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, MemoryError);
     }
   }
 }
@@ -179,45 +171,41 @@ export class UnboundLocalError extends NameError {
 }
 
 export class RuntimeError extends Exception {
-    constructor(message?: string, name = "RuntimeError") {
-        super(message);
-        this.name = name;
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, RuntimeError);
-        }
+  constructor(message?: string, name = "RuntimeError") {
+    super(message);
+    this.name = name;
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, RuntimeError);
     }
   }
 }
 
 export class RecursionError extends RuntimeError {
-    constructor(message?: string, name = "RecursionError") {
-        super("maximum recursion depth exceeded");
-        this.name = name;
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, RecursionError);
-        }
+  constructor(message?: string, name = "RecursionError") {
+    super("maximum recursion depth exceeded");
+    this.name = name;
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, RecursionError);
     }
   }
 }
 
 export class SyntaxError extends Exception {
-    constructor(message?: string, name = "SyntaxError") {
-        super(`invalid syntax`);
-        this.name = name;
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, SyntaxError);
-        }
+  constructor(message?: string, name = "SyntaxError") {
+    super(`invalid syntax`);
+    this.name = name;
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, SyntaxError);
     }
   }
 }
 
 export class IndentationError extends SyntaxError {
-    constructor(message?: string, name = "IndentationError") {
-        super(`unexpected indent`);
-        this.name = name;
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, IndentationError);
-        }
+  constructor(message?: string, name = "IndentationError") {
+    super(`unexpected indent`);
+    this.name = name;
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, IndentationError);
     }
   }
 }
@@ -243,11 +231,11 @@ export class ValueError extends Exception {
 }
 
 export class UnicodeError extends ValueError {
-    constructor(codec: string, character: string, pos: number, message?: string, name = "UnicodeError") {
-        super(`'${codec}' codec can't encode character '${character}' in position ${pos}`);
-        this.name = name;
-        if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, UnicodeError);
-        }
+  constructor(codec: string, character: string, pos: number, message?: string, name = "UnicodeError") {
+    super(`'${codec}' codec can't encode character '${character}' in position ${pos}`);
+    this.name = name;
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, UnicodeError);
     }
+  }
 }
