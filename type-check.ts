@@ -132,7 +132,7 @@ export function tcInit(env: GlobalTypeEnv, init : VarInit<null>) : VarInit<Type>
   if (isAssignable(env, valTyp, init.type)) {
     return {...init, a: NONE};
   } else {
-    throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
+    throw new BaseException.TypeError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
   }
 }
 
@@ -160,7 +160,7 @@ export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Arra
 export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<null>) : Stmt<Type> {
   switch(stmt.tag) {
     case "assignment":
-      throw new TypeCheckError("Destructured assignment not implemented");
+      throw new BaseException.Exception("Destructured assignment not implemented");
     case "assign":
       const tValExpr = tcExpr(env, locals, stmt.value);
       var nameTyp;
@@ -169,10 +169,10 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       } else if (env.globals.has(stmt.name)) {
         nameTyp = env.globals.get(stmt.name);
       } else {
-        throw new TypeCheckError("Unbound id: " + stmt.name);
+        throw new BaseException.NameError(stmt.name);
       }
       if(!isAssignable(env, tValExpr.a, nameTyp)) 
-        throw new TypeCheckError("Non-assignable types");
+        throw new BaseException.Exception("Non-assignable types");
       return {a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr};
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
@@ -184,37 +184,45 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
       if (tCond.a !== BOOL) 
-        throw new TypeCheckError("Condition Expression Must be a bool");
+        throw new BaseException.TypeError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
-        throw new TypeCheckError("Types of then and else branches must match");
+        throw new BaseException.TypeError("Types of then and else branches must match");
       return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls};
     case "return":
       if (locals.topLevel)
-        throw new TypeCheckError("cannot return outside of functions");
+        throw new BaseException.SyntaxError("cannot return outside of functions");
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
-        throw new TypeCheckError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
+        throw new BaseException.TypeError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
       return {a: tRet.a, tag: stmt.tag, value:tRet};
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
       if (!equalType(tCond.a, BOOL)) 
-        throw new TypeCheckError("Condition Expression Must be a bool");
+        throw new BaseException.TypeError("Condition Expression Must be a bool");
       return {a: NONE, tag:stmt.tag, cond: tCond, body: tBody};
     case "pass":
       return {a: NONE, tag: stmt.tag};
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
-      if (tObj.a.tag !== "class") 
-        throw new TypeCheckError("field assignments require an object");
-      if (!env.classes.has(tObj.a.name)) 
-        throw new TypeCheckError("field assignment on an unknown class");
+      if (tObj.a.tag !== "class") {
+        //throw new BaseException.TypeError("field assignments require an object");
+        throw new BaseException.AttributeError(tObj.a.tag, stmt.field);  
+      }
+      if (!env.classes.has(tObj.a.name)) {
+        //throw new TypeCheckError("field assignment on an unknown class");
+        throw new BaseException.NameError(tObj.a.name);
+      }
       const [fields, _] = env.classes.get(tObj.a.name);
-      if (!fields.has(stmt.field)) 
-        throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
-      if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
-        throw new TypeCheckError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
+      if (!fields.has(stmt.field)) {
+        //throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
+        throw new BaseException.AttributeError(tObj.a.name, stmt.field);  
+      }
+      if (!isAssignable(env, tVal.a, fields.get(stmt.field))) {
+        //throw new TypeCheckError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
+        throw new BaseException.TypeError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
+      }
       return {...stmt, a: NONE, obj: tObj, value: tVal};
   }
 }
@@ -234,24 +242,24 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
         case BinOp.IDiv:
         case BinOp.Mod:
           if(equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return {a: NUM, ...tBin}}
-          else { throw new TypeCheckError("Type mismatch for numeric op" + expr.op); }
+          else { throw new BaseException.TypeError("Type mismatch for numeric op" + expr.op); }
         case BinOp.Eq:
         case BinOp.Neq:
           if(equalType(tLeft.a, tRight.a)) { return {a: BOOL, ...tBin} ; }
-          else { throw new TypeCheckError("Type mismatch for op" + expr.op)}
+          else { throw new BaseException.TypeError("Type mismatch for op" + expr.op)}
         case BinOp.Lte:
         case BinOp.Gte:
         case BinOp.Lt:
         case BinOp.Gt:
           if(equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return {a: BOOL, ...tBin} ; }
-          else { throw new TypeCheckError("Type mismatch for op" + expr.op) }
+          else { throw new BaseException.TypeError("Type mismatch for op" + expr.op) }
         case BinOp.And:
         case BinOp.Or:
           if(equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) { return {a: BOOL, ...tBin} ; }
-          else { throw new TypeCheckError("Type mismatch for boolean op" + expr.op); }
+          else { throw new BaseException.TypeError("Type mismatch for boolean op" + expr.op); }
         case BinOp.Is:
           if(!isNoneOrClass(tLeft.a) || !isNoneOrClass(tRight.a))
-            throw new TypeCheckError("is operands must be objects");
+            throw new BaseException.TypeError("is operands must be objects");
           return {a: BOOL, ...tBin};
       }
     case "uniop":
@@ -260,10 +268,10 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       switch(expr.op) {
         case UniOp.Neg:
           if(equalType(tExpr.a, NUM)) { return tUni }
-          else { throw new TypeCheckError("Type mismatch for op" + expr.op);}
+          else { throw new BaseException.TypeError("Type mismatch for op" + expr.op);}
         case UniOp.Not:
           if(equalType(tExpr.a, BOOL)) { return tUni }
-          else { throw new TypeCheckError("Type mismatch for op" + expr.op);}
+          else { throw new BaseException.TypeError("Type mismatch for op" + expr.op);}
       }
     case "id":
       if (locals.vars.has(expr.name)) {
@@ -271,7 +279,8 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       } else if (env.globals.has(expr.name)) {
         return {a: env.globals.get(expr.name), ...expr};
       } else {
-        throw new TypeCheckError("Unbound id: " + expr.name);
+        //throw new TypeCheckError("Unbound id: " + expr.name);
+        throw new BaseException.NameError(expr.name);
       }
     case "builtin1":
       if (expr.name === "print") {
@@ -284,10 +293,11 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
         if(isAssignable(env, tArg.a, expectedArgTyp)) {
           return {...expr, a: retTyp, arg: tArg};
         } else {
-          throw new TypeError("Function call type mismatch: " + expr.name);
+          throw new BaseException.TypeError("Function call type mismatch: " + expr.name);
         }
       } else {
-        throw new TypeError("Undefined function: " + expr.name);
+        //throw new TypeError("Undefined function: " + expr.name);
+        throw new BaseException.NameError(expr.name);
       }
     case "builtin2":
       if(env.functions.has(expr.name)) {
@@ -297,10 +307,10 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
         if(isAssignable(env, leftTyp, tLeftArg.a) && isAssignable(env, rightTyp, tRightArg.a)) {
           return {...expr, a: retTyp, left: tLeftArg, right: tRightArg};
         } else {
-          throw new TypeError("Function call type mismatch: " + expr.name);
+          throw new BaseException.TypeError("Function call type mismatch: " + expr.name);
         }
       } else {
-        throw new TypeError("Undefined function: " + expr.name);
+        throw new BaseException.NameError(expr.name);
       }
     case "call":
       if(env.classes.has(expr.name)) {
@@ -310,9 +320,11 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
         if (methods.has("__init__")) {
           const [initArgs, initRet] = methods.get("__init__");
           if (expr.arguments.length !== initArgs.length - 1)
-            throw new TypeCheckError("__init__ didn't receive the correct number of arguments from the constructor");
-          if (initRet !== NONE) 
-            throw new TypeCheckError("__init__  must have a void return type");
+            throw new BaseException.TypeError("__init__ didn't receive the correct number of arguments from the constructor");
+          if (initRet !== NONE) {
+            //throw new TypeCheckError("__init__  must have a void return type");
+            throw new BaseException.TypeError(`__init__() should return None, not '${initRet}'`);
+          }
           return tConstruct;
         } else {
           return tConstruct;
@@ -325,10 +337,10 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
            tArgs.every((tArg, i) => tArg.a === argTypes[i])) {
              return {...expr, a: retType, arguments: expr.arguments};
            } else {
-            throw new TypeError("Function call type mismatch: " + expr.name);
+            throw new BaseException.TypeError("Function call type mismatch: " + expr.name);
            }
       } else {
-        throw new TypeError("Undefined function: " + expr.name);
+        throw new BaseException.NameError(expr.name);
       }
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
@@ -338,13 +350,16 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
           if (fields.has(expr.field)) {
             return {...expr, a: fields.get(expr.field), obj: tObj};
           } else {
-            throw new TypeCheckError(`could not found field ${expr.field} in class ${tObj.a.name}`);
+            //throw new TypeCheckError(`could not found field ${expr.field} in class ${tObj.a.name}`);
+            throw new BaseException.AttributeError(tObj.a.name, expr.field); 
           }
         } else {
-          throw new TypeCheckError("field lookup on an unknown class");
+          //throw new TypeCheckError("field lookup on an unknown class");
+          throw new BaseException.NameError(tObj.a.name);
         }
       } else {
-        throw new TypeCheckError("field lookups require an object");
+        //throw new TypeCheckError("field lookups require an object");
+        throw new BaseException.AttributeError(tObj.a.tag, expr.field); 
       }
     case "method-call":
       var tObj = tcExpr(env, locals, expr.obj);

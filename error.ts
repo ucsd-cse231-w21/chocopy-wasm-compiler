@@ -65,8 +65,8 @@ export class Exception extends Error {
 }
 
 export class StopIteration extends Exception {
-    constructor(message?: string, name = "StopIteration") {
-        super(message, name);
+    constructor(message?: string, name = "StopIteration", loc?: Location) {
+        super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, StopIteration);
         }
@@ -74,26 +74,28 @@ export class StopIteration extends Exception {
 }
 
 export class ArithmeticError extends Exception {
-    constructor(message?: string, name = "ArithmeticError") {
-        super(message, name);
+    constructor(message?: string, name = "ArithmeticError", loc?: Location) {
+        super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ArithmeticError);
         }
     }
 }
 
+// e.g. math.exp(1000)
 export class OverflowError extends ArithmeticError {
-    constructor(message?: string, name = "OverflowError") {
-        super(message, name);
+    constructor(message?: string, name = "OverflowError", loc?: Location) {
+        super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, OverflowError);
         }
     }
 }
 
+// e.g. 7/0
 export class ZeroDivisionError extends ArithmeticError {
-    constructor(message?: string, name = "ZeroDivisionError") {
-        super(message, name);
+    constructor({message = "division by zero", name = "ZeroDivisionError", loc}: {message?: string, name: string, loc?: Location}) {
+        super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ZeroDivisionError);
         }
@@ -102,8 +104,9 @@ export class ZeroDivisionError extends ArithmeticError {
 
 // If an object does not support attribute references or attribute assignment at all, TypeError is raised.
 export class AttributeError extends Exception {
-    constructor(message?: string, name = "AttributeError") {
-        super(message, name);
+    constructor(obj: string, attr: string, name = "AttributeError", loc?: Location) {
+        var message = `'${obj}' object has no attribute '${attr}'`;
+        super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, AttributeError);
         }
@@ -111,8 +114,8 @@ export class AttributeError extends Exception {
 }
 
 export class LookupError extends Exception {
-    constructor(message?: string, name = "LookupError") {
-        super(message, name);
+    constructor(message?: string, name = "LookupError", loc?: Location) {
+        super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, LookupError);
         }
@@ -121,8 +124,8 @@ export class LookupError extends Exception {
 
 // If an index is not an integer, TypeError is raised.
 export class IndexError extends LookupError {
-    constructor(message?: string, name = "IndexError") {
-        super(message, name);
+    constructor({message = "list index out of range", name = "IndexError", loc}: {message?: string, name: string, loc?: Location}) {
+        super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, IndexError);
         }
@@ -130,8 +133,8 @@ export class IndexError extends LookupError {
 }
 
 export class KeyError extends LookupError {
-    constructor(message?: string, name = "KeyError") {
-        super(message, name);
+    constructor(keyName: string, name = "KeyError", loc?: Location) {
+        super(`'${keyName}'`, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, KeyError);
         }
@@ -139,8 +142,8 @@ export class KeyError extends LookupError {
 }
 
 export class MemoryError extends Exception {
-    constructor(message?: string, name = "MemoryError") {
-        super(message, name);
+    constructor(message?: string, name = "MemoryError", loc?: Location) {
+        super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, MemoryError);
         }

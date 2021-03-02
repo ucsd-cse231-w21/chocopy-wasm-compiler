@@ -94,7 +94,8 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
 }
 
 function envLookup(env : GlobalEnv, name : string) : number {
-  if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
+  //if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
+  if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new BaseException.NameError(name); }
   return (env.globals.get(name) * 4); // 4-byte values
 }
 
