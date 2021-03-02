@@ -485,6 +485,15 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         field: expr.field,
         iter,
       };
+
+    // return {
+    //   a: { tag: "list", content_type: newExpr.a },
+    //   tag: "comprehension",
+    //   expr: newExpr,
+    //   field: expr.field,
+    //   iter,
+    //   cond,
+    // };
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
