@@ -9,24 +9,24 @@ export function traverseLiteral(c : TreeCursor, s : string) : Literal {
     case "Number":
       return {
         tag: "num",
-        value: BigInt(s.substring(c.from, c.to))
-      }
+        value: BigInt(s.substring(c.from, c.to)),
+      };
     case "String":
       const str = s.substring(c.from,c.to);
       const str_trimmed = str.substring(1,str.length-1)
       return{
         tag:"string",
-        value: str_trimmed
-      }
+        value: str_trimmed,
+      };
     case "Boolean":
       return {
         tag: "bool",
-        value: s.substring(c.from, c.to) === "True"
-      }
+        value: s.substring(c.from, c.to) === "True",
+      };
     case "None":
       return {
-        tag: "none"
-      }
+        tag: "none",
+      };
     default:
       throw new Error("Not literal")
   }
