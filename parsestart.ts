@@ -1,4 +1,4 @@
-import {parse} from "./parser";
+import { parse } from "./parser";
 
 // var result = parse(`
 // def f(x : int):
@@ -21,6 +21,6 @@ import {parse} from "./parser";
 
 var result = parse(`
 while True:
-  pass`)
+  pass`);
 
 console.log(JSON.stringify(result, null, 4));

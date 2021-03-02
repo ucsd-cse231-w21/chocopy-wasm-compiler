@@ -28,12 +28,12 @@ import { Location } from "./ast"
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class KeyboardInterrupt extends Error {
-    __proto__: Error
+    __proto__: Error;
     constructor(message?: string) {
         const trueProto = new.target.prototype;
         super(message);
         this.name = "KeyboardInterrupt";
-        
+
         // Maintains proper stack trace for where our error was thrown (only available on V8)
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, KeyboardInterrupt);
@@ -59,6 +59,11 @@ export class Exception extends Error {
             Error.captureStackTrace(this, Exception);
         }
 
+        // Maintains proper stack trace for where our error was thrown (only available on V8)
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, Exception);
+        }
+
         // Alternatively use Object.setPrototypeOf if you have an ES6 environment.
         this.__proto__ = trueProto;
     }
@@ -73,6 +78,7 @@ export class StopIteration extends Exception {
     }
 }
 
+
 export class ArithmeticError extends Exception {
     constructor(message?: string, name = "ArithmeticError", loc?: Location) {
         super(message, name, loc);
@@ -81,6 +87,7 @@ export class ArithmeticError extends Exception {
         }
     }
 }
+
 
 // e.g. math.exp(1000)
 export class OverflowError extends ArithmeticError {
@@ -92,15 +99,17 @@ export class OverflowError extends ArithmeticError {
     }
 }
 
+
 // e.g. 7/0
 export class ZeroDivisionError extends ArithmeticError {
-    constructor({message = "division by zero", name = "ZeroDivisionError", loc}: {message?: string, name: string, loc?: Location}) {
+    constructor({ message = "division by zero", name = "ZeroDivisionError", loc }: { message?: string, name: string, loc?: Location }) {
         super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, ZeroDivisionError);
         }
     }
 }
+
 
 // If an object does not support attribute references or attribute assignment at all, TypeError is raised.
 export class AttributeError extends Exception {
@@ -113,6 +122,7 @@ export class AttributeError extends Exception {
     }
 }
 
+
 export class LookupError extends Exception {
     constructor(message?: string, name = "LookupError", loc?: Location) {
         super(message, name, loc);
@@ -122,15 +132,17 @@ export class LookupError extends Exception {
     }
 }
 
+
 // If an index is not an integer, TypeError is raised.
 export class IndexError extends LookupError {
-    constructor({message = "list index out of range", name = "IndexError", loc}: {message?: string, name: string, loc?: Location}) {
+    constructor({ message = "list index out of range", name = "IndexError", loc }: { message?: string, name: string, loc?: Location }) {
         super(message, name, loc);
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, IndexError);
         }
     }
 }
+
 
 export class KeyError extends LookupError {
     constructor(keyName: string, name = "KeyError", loc?: Location) {
@@ -141,6 +153,7 @@ export class KeyError extends LookupError {
     }
 }
 
+
 export class MemoryError extends Exception {
     constructor(message?: string, name = "MemoryError", loc?: Location) {
         super(message, name, loc);
@@ -150,11 +163,12 @@ export class MemoryError extends Exception {
     }
 }
 
+
 export class NameError extends Exception {
     constructor(message?: string, name = "NameError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, NameError);
+            Error.captureStackTrace(this, ZeroDivisionError);
         }
     }
 }
@@ -163,7 +177,7 @@ export class UnboundLocalError extends NameError {
     constructor(message?: string, name = "UnboundLocalError") {
         super(message, name);
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, UnboundLocalError);
+            Error.captureStackTrace(this, ZeroDivisionError);
         }
     }
 }
@@ -180,7 +194,7 @@ export class RuntimeError extends Exception {
 
 export class RecursionError extends RuntimeError {
     constructor(message?: string, name = "RecursionError") {
-        super(message);
+        super("maximum recursion depth exceeded");
         this.name = name;
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, RecursionError);
@@ -190,7 +204,7 @@ export class RecursionError extends RuntimeError {
 
 export class SyntaxError extends Exception {
     constructor(message?: string, name = "SyntaxError") {
-        super(message);
+        super(`invalid syntax`);
         this.name = name;
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, SyntaxError);
@@ -200,7 +214,7 @@ export class SyntaxError extends Exception {
 
 export class IndentationError extends SyntaxError {
     constructor(message?: string, name = "IndentationError") {
-        super(message);
+        super(`unexpected indent`);
         this.name = name;
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, IndentationError);
@@ -213,7 +227,7 @@ export class TypeError extends Exception {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, TypeError);
+            Error.captureStackTrace(this, ZeroDivisionError);
         }
     }
 }
@@ -223,18 +237,17 @@ export class ValueError extends Exception {
         super(message);
         this.name = name;
         if (Error.captureStackTrace) {
-            Error.captureStackTrace(this, ValueError);
+            Error.captureStackTrace(this, ZeroDivisionError);
         }
     }
 }
 
 export class UnicodeError extends ValueError {
-    constructor(message?: string, name = "UnicodeError") {
-        super(message);
+    constructor(codec: string, character: string, pos: number, message?: string, name = "UnicodeError") {
+        super(`'${codec}' codec can't encode character '${character}' in position ${pos}`);
         this.name = name;
         if (Error.captureStackTrace) {
             Error.captureStackTrace(this, UnicodeError);
         }
     }
 }
-
