@@ -264,6 +264,45 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
 
 export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
   switch (c.node.type.name) {
+    case "ImportStatement":{
+      c.firstChild(); //go into the import statement, landing at the "import" keyword
+
+      let importStatement: Stmt<null> = {tag: "import", isFromStmt: false, target: undefined, compName: undefined, alias: undefined};
+      
+      if(s.substring(c.from, c.to).trim() === "from"){
+        c.nextSibling(); //goes to the target module
+
+        const targetModule = s.substring(c.from, c.to);
+
+        c.nextSibling(); //land on the "import" keyword
+        c.nextSibling(); //land on component name to import
+
+        const componentName = s.substring(c.from, c.to);
+
+        importStatement.isFromStmt = true;
+        importStatement.target = targetModule;
+        importStatement.compName = componentName;
+      }
+      else{
+        c.nextSibling(); //goes to the target module
+
+        const targetModule = s.substring(c.from, c.to);
+        importStatement.isFromStmt = false;
+        importStatement.target = targetModule;
+      }
+
+      if(c.nextSibling()){
+        //we're currently in the "as" keyword
+
+        c.nextSibling(); //goes to the alias name
+
+        importStatement.alias = s.substring(c.from, c.to);
+      }
+
+
+      c.parent(); //go back to parent
+      return importStatement;
+    }
     case "ReturnStatement":
       c.firstChild(); // Focus return keyword
 
