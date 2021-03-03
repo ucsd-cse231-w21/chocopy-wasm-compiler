@@ -1,5 +1,6 @@
 import { Type } from "../ast";
 import { NUM, BOOL, NONE, unhandledTag } from "../utils";
+import { MemoryManager } from "../alloc";
 
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
@@ -39,4 +40,5 @@ export const importObject = {
   },
 
   output: "",
+  memoryManager: undefined as (undefined | MemoryManager),
 };
