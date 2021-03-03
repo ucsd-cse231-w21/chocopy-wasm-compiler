@@ -11,7 +11,7 @@ import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
 import { Value } from "./ast";
 import { PyValue, NONE } from "./utils";
-import { MemoryManager } from "./alloc";
+import { importMemoryManager, MemoryManager } from "./alloc";
 
 export type Config = {
   importObject: any;
@@ -72,12 +72,15 @@ export async function run(
     const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
     importObject.js = { memory: memory };
   }
-
-  const view = new Int32Array(importObject.js.memory.buffer);
-  let offsetBefore = view[0];
-  console.log("before updating: ", offsetBefore);
-  view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
-  console.log("after updating: ", view[0]);
+  if (!importObject.memoryManager) {
+    const memory = importObject.js.memory;
+    const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
+      staticStorage: 512n,
+      total: 2000n,
+    });
+    importObject.memoryManager = memoryManager;
+    importMemoryManager(importObject, memoryManager);
+  }
 
   const wasmSource = `(module
     (import "js" "memory" (memory 1))

@@ -10,24 +10,25 @@ export type GlobalEnv = {
   globals: Map<string, number>;
   classes: Map<string, Map<string, [number, Literal]>>;
   locals: Set<string>;
-  offset: number;
 };
 
 export const emptyEnv: GlobalEnv = {
   globals: new Map(),
   classes: new Map(),
   locals: new Set(),
-  offset: 0,
 };
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
+export function augmentEnv(env: GlobalEnv, prog: Program<Type>, mm: MemoryManager): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
 
-  var newOffset = env.offset;
   prog.inits.forEach((v) => {
-    newGlobals.set(v.name, newOffset);
-    newOffset += 1;
+    // Allocate static memory for the global variable
+    // NOTE(alex:mm) assumes that allocations return a 32-bit address
+    const globalAddr = mm.staticAlloc(4n);
+    console.log(`global var '${v.name}' addr: ${globalAddr.toString()}`);
+    newGlobals.set(v.name, Number(globalAddr));
+    mm.addGlobal(globalAddr);
   });
   prog.classes.forEach((cls) => {
     const classFields = new Map();
@@ -38,7 +39,6 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     globals: newGlobals,
     classes: newClasses,
     locals: env.locals,
-    offset: newOffset,
   };
 }
 
@@ -69,7 +69,7 @@ export function makeLocals(locals: Set<string>): Array<string> {
 }
 
 export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): CompileResult {
-  const withDefines = augmentEnv(env, ast);
+  const withDefines = augmentEnv(env, ast, mm);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");

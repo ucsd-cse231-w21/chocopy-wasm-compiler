@@ -21,10 +21,6 @@ export class BasicREPL {
     if (!importObject.js) {
       const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
 
-      // TODO(alex:mm): remove this
-      const view = new Int32Array(memory.buffer);
-      view[0] = 4;
-
       this.importObject.js = { memory: memory };
     }
 
@@ -41,7 +37,6 @@ export class BasicREPL {
       globals: new Map(),
       classes: new Map(),
       locals: new Set(),
-      offset: 1,
     };
     this.currentTypeEnv = defaultTypeEnv;
     this.functions = "";
