@@ -1,7 +1,7 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { MemoryManager } from "./alloc";
+import { MemoryManager, TAG_CLASS } from "./alloc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -273,14 +273,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         )
       );
       return stmts.concat([
-        "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
-        "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
-        "(i32.const 0)", // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-        `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the two words we just created for fields
-        "(i32.store)", // Save the new heap offset
+        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
+        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
+        `(call $gcalloc)`,
         `(call $${expr.name}$__init__)`, // call __init__
-        "(drop)",
       ]);
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
