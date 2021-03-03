@@ -198,15 +198,15 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       var objExpr = traverseExpr(c, s);
       c.nextSibling(); // Focus on . or [
       var symbol = s.substring(c.from, c.to);
-      if(symbol == "["){
+      if (symbol == "[") {
         var start_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(0) } };
         var end_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(-1) } };
         var stride_value: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(1) } };
         var slice_items = "";
         c.nextSibling();
         //Seeing how many exprs are inside the []. For eg: a[1:2:3] has 3 expr, a[1:2] has 2 expr
-        while (s.substring( c.from, c.to ) != "]") {
-          slice_items += s.substring(c.from, c.to)
+        while (s.substring(c.from, c.to) != "]") {
+          slice_items += s.substring(c.from, c.to);
           c.nextSibling();
         }
         c.parent();
@@ -217,11 +217,10 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
           throw new Error("Need to have some value inside the brackets");
         }
         var sliced_list = slice_items.split(":");
-        if (sliced_list.length > 3)
-          throw new Error("Too many arguments to process inside bracket");          
+        if (sliced_list.length > 3) throw new Error("Too many arguments to process inside bracket");          
         if (sliced_list[0] != "") {
           start_index = traverseExpr(c, s);
-          console.log("First case "+s.substring(c.from, c.to));
+          console.log("First case " + s.substring(c.from, c.to));
           if (sliced_list.length == 1) {
             end_index = start_index;
           }
@@ -234,7 +233,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
             c.nextSibling();
           }
         if (c.nextSibling())
-          if (sliced_list[2]!="") {
+          if (sliced_list[2] != "") {
             stride_value = traverseExpr(c, s);
             console.log("Third case " + s.substring(c.from, c.to));
             c.nextSibling();
@@ -255,8 +254,8 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
           tag: "lookup",
           obj: objExpr,
           field: propName,
-        }
-      };
+        };
+      }
     case "self":
       return {
         tag: "id",
