@@ -48,7 +48,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
 
       console.log(callExpr)
       console.log()
-      if (callExpr.tag === "call") {
+      if (callExpr.tag === "call" || callExpr.tag === "method-call") {
         return {
           tag: "call_expr", 
           name: callExpr,
