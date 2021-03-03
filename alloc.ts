@@ -106,8 +106,13 @@ export class MemoryManager {
   // Ex:
   //   1) Class descriptors
   //   2) Global variables
+  //
+  // Throws `Out of static storage` if allocation fails
   staticAlloc(size: bigint): Pointer {
     const block = this.staticAllocator.alloc(size);
+    if (block.ptr === 0n) {
+      throw new Error(`Out of static storage`);
+    }
     return block.ptr;
   }
 
