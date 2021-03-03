@@ -132,7 +132,7 @@ export class BitMappedBlocks implements MarkableAllocator {
     this.end = end;
     this.blockSize = blockSize + (blockSize % 2n);
     this.metadataSize = metadataSize + 1n; // 1(bitmap) + object header size
-    
+
     this.numBlocks = (end - start)/blockSize;
 
     // one byte for free/used, n bytes for header
