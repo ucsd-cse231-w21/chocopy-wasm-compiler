@@ -121,7 +121,7 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram = { a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody };
+  const aprogram = { a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody , loc: program.loc };
   return [aprogram, newEnv];
 }
 
@@ -145,10 +145,11 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   return { ...fun, a: NONE, body: tBody };
 }
 
+
 export function tcClass(env: GlobalTypeEnv, cls: Class<null>): Class<Type> {
   const tFields = cls.fields.map((field) => tcInit(env, field));
   const tMethods = cls.methods.map((method) => tcDef(env, method));
-  return { a: NONE, name: cls.name, fields: tFields, methods: tMethods };
+  return {a: NONE, name: cls.name, fields: tFields, methods: tMethods, loc: cls.loc};
 }
 
 export function tcBlock(
@@ -174,10 +175,10 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         throw new TypeCheckError("Unbound id: " + stmt.name);
       }
       if (!isAssignable(env, tValExpr.a, nameTyp)) throw new TypeCheckError("Non-assignable types");
-      return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr };
+      return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr , loc: stmt.loc };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
-      return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
+      return { a: tExpr.a, tag: stmt.tag, expr: tExpr , loc: stmt.loc };
     case "if":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tThn = tcBlock(env, locals, stmt.thn);
@@ -187,7 +188,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       if (tCond.a !== BOOL) throw new TypeCheckError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
         throw new TypeCheckError("Types of then and else branches must match");
-      return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
+      return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls , loc: stmt.loc };
     case "return":
       if (locals.topLevel) throw new TypeCheckError("cannot return outside of functions");
       const tRet = tcExpr(env, locals, stmt.value);
@@ -199,15 +200,15 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
             (tRet.a as any).name +
             "`"
         );
-      return { a: tRet.a, tag: stmt.tag, value: tRet };
+      return { a: tRet.a, tag: stmt.tag, value: tRet , loc: stmt.loc };
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
       if (!equalType(tCond.a, BOOL))
         throw new TypeCheckError("Condition Expression Must be a bool");
-      return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
+      return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody , loc: stmt.loc };
     case "pass":
-      return { a: NONE, tag: stmt.tag };
+      return { a: NONE, tag: stmt.tag , loc: stmt.loc };
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
@@ -337,7 +338,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
     case "call":
       if (env.classes.has(expr.name)) {
         // surprise surprise this is actually a constructor
-        const tConstruct: Expr<Type> = { a: CLASS(expr.name), tag: "construct", name: expr.name };
+        const tConstruct: Expr<Type> = { a: CLASS(expr.name), tag: "construct", name: expr.name , loc: expr.loc };
         const [_, methods] = env.classes.get(expr.name);
         if (methods.has("__init__")) {
           const [initArgs, initRet] = methods.get("__init__");
