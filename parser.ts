@@ -217,7 +217,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
           throw new Error("Need to have some value inside the brackets");
         }
         var sliced_list = slice_items.split(":");
-        if (sliced_list.length > 3) throw new Error("Too many arguments to process inside bracket");          
+        if (sliced_list.length > 3) throw new Error("Too many arguments to process inside bracket");       
         if (sliced_list[0] != "") {
           start_index = traverseExpr(c, s);
           console.log("First case " + s.substring(c.from, c.to));
