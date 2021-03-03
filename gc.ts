@@ -377,11 +377,11 @@ export class MarkableSwitch<P extends MarkableAllocator, F extends MarkableAlloc
   }
 }
 
-export class MarkableSegregator<N extends bigint, S extends MarkableAllocator, L extends MarkableAllocator>
+export class MarkableSegregator<S extends MarkableAllocator, L extends MarkableAllocator>
   implements MarkableAllocator {
-  allocator: H.Segregator<N, S, L>;
+  allocator: H.Segregator<S, L>;
 
-  constructor(sizeLimit: N, s: S, l: L) {
+  constructor(sizeLimit: bigint, s: S, l: L) {
     this.allocator = new H.Segregator(sizeLimit, s, l);
   }
 

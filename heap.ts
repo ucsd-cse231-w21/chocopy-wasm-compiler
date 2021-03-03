@@ -62,7 +62,7 @@ export class BumpAllocator implements MarkableAllocator {
     this.counter += size;
 
     // Ensure allocations are always aligned on an even boundary
-    if (this.counter !== 0n) {
+    if (this.counter % 2n !== 0n) {
       this.counter += 1n;
     }
 
@@ -178,13 +178,13 @@ export class Switch<P extends Allocator, F extends Allocator> implements Allocat
 
 // Allocation sizes <= sizeLimit go to the small allocator
 // sizeLimit is in BYTES
-export class Segregator<N extends bigint, S extends Allocator, L extends Allocator>
+export class Segregator<S extends Allocator, L extends Allocator>
   implements Allocator {
-  sizeLimit: N;
+  sizeLimit: bigint;
   small: S;
   large: L;
 
-  constructor(sizeLimit: N, s: S, l: L) {
+  constructor(sizeLimit: bigint, s: S, l: L) {
     this.sizeLimit = sizeLimit;
     this.small = s;
     this.large = l;
