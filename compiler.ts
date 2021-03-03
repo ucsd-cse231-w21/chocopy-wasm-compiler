@@ -248,7 +248,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral]
       }
-      else if (expr.op == BinOp.Plus || expr.op == BinOp.Minus) {
+      else if (expr.op == BinOp.Plus || expr.op == BinOp.Minus || expr.op == BinOp.Mul || expr.op == BinOp.IDiv || expr.op == BinOp.Mod) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
       } else {
         return [...lhsStmts, ...decodeLiteral, ...rhsStmts, ...decodeLiteral, codeGenBinOp(expr.op), ...encodeLiteral]
@@ -370,11 +370,11 @@ function codeGenBinOp(op : BinOp) : string {
     case BinOp.Minus:
       return "(call $$sub)"
     case BinOp.Mul:
-      return "(i32.mul)"
+      return "(call $$mul)"
     case BinOp.IDiv:
-      return "(i32.div_s)"
+      return "(call $$div)"
     case BinOp.Mod:
-      return "(i32.rem_s)"
+      return "(call $$mod)"
     case BinOp.Eq:
       return "(i32.eq)"
     case BinOp.Neq:

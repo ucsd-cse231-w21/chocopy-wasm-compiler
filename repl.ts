@@ -41,6 +41,9 @@ export class BasicREPL {
 
     this.importObject.imports.__big_num_add = (x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x+y})
     this.importObject.imports.__big_num_sub = (x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x-y})
+    this.importObject.imports.__big_num_mul = (x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x*y})
+    this.importObject.imports.__big_num_div = (x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x/y})
+    this.importObject.imports.__big_num_mod = (x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x%y})
 
     this.currentTypeEnv = defaultTypeEnv;
     this.functions = bignumfunctions;
