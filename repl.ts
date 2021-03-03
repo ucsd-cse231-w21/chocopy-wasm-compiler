@@ -20,19 +20,21 @@ export class BasicREPL {
     this.importObject = importObject;
     if (!importObject.js) {
       const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
-      const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
-        staticStorage: 512n,
-        total: 2000n,
-      });
 
       // TODO(alex:mm): remove this
       const view = new Int32Array(memory.buffer);
       view[0] = 4;
 
       this.importObject.js = { memory: memory };
+    }
 
+    if (!importObject.memoryManager) {
+      const memory = this.importObject.js.memory;
+      const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
+        staticStorage: 512n,
+        total: 2000n,
+      });
       this.memoryManager = memoryManager;
-
       importMemoryManager(this.importObject, memoryManager);
     }
     this.currentEnv = {
