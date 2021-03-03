@@ -65,25 +65,11 @@ export class Header {
   }
 
   getSize(): bigint {
-    let x = BigInt.asUintN(32, 0x0n);
-
-    // WASM stores integers in little-endian:
-    //   LSB at the smallest address
-    for (let i = 0; i < 4; i++) {
-      const b = BigInt(this.memory[this.headerStart + HEADER_OFFSET_SIZE + i]);
-      x = x + (b << BigInt(8 * i));
-    }
-
-    return x;
+    return readI32(this.memory, this.headerStart + HEADER_OFFSET_SIZE);
   }
 
   setSize(size: bigint) {
-    // WASM stores integers in little-endian:
-    //   LSB at the smallest address
-    for (let i = 0; i < 4; i++) {
-      const b = BigInt.asUintN(8, size >> BigInt(8 * i));
-      this.memory[this.headerStart + HEADER_OFFSET_SIZE + i] = Number(b);
-    }
+    writeI32(this.memory, this.headerStart + HEADER_OFFSET_SIZE, size);
   }
 
   alloc() {
@@ -513,5 +499,27 @@ export class MarkableFallback<P extends MarkableAllocator, F extends MarkableAll
   sweep(): void {
     this.allocator.primary.sweep();
     this.allocator.fallback.sweep();
+  }
+}
+
+function readI32(memory: Uint8Array, start: number): bigint {
+  let x = BigInt.asUintN(32, 0x0n);
+
+  // WASM stores integers in little-endian:
+  //   LSB at the smallest address
+  for (let i = 0; i < 4; i++) {
+    const b = BigInt(memory[start + i]);
+    x = x + (b << BigInt(8 * i));
+  }
+
+  return x;
+}
+
+function writeI32(memory: Uint8Array, start: number, value: bigint) {
+  // WASM stores integers in little-endian:
+  //   LSB at the smallest address
+  for (let i = 0; i < 4; i++) {
+    const b = BigInt.asUintN(8, value >> BigInt(8 * i));
+    memory[start + i] = Number(b);
   }
 }
