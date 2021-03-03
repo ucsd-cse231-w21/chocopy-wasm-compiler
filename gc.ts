@@ -13,11 +13,11 @@ export type HeapTag =
   | typeof TAG_DICT
   | typeof TAG_BIGINT;
 
-export const TAG_CLASS   = 0x1;
-export const TAG_LIST    = 0x2;
-export const TAG_STRING  = 0x3;
-export const TAG_DICT    = 0x4;
-export const TAG_BIGINT  = 0x5;
+export const TAG_CLASS   = 0x1n;
+export const TAG_LIST    = 0x2n;
+export const TAG_STRING  = 0x3n;
+export const TAG_DICT    = 0x4n;
+export const TAG_BIGINT  = 0x5n;
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG    = 0x0;
@@ -57,11 +57,12 @@ export class Header {
 
   getTag(): HeapTag {
     // NOTE(alex): Enforce tag correctness in object construction API
-    return this.memory[this.headerStart + HEADER_OFFSET_TAG] as HeapTag;
+    const b = this.memory[this.headerStart + HEADER_OFFSET_TAG];
+    return BigInt.asUintN(8, BigInt(b)) as HeapTag;
   }
 
   setTag(tag: HeapTag) {
-    this.memory[this.headerStart + HEADER_OFFSET_TAG] = tag;
+    this.memory[this.headerStart + HEADER_OFFSET_TAG] = Number(tag);
   }
 
   getSize(): bigint {
