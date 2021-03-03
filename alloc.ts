@@ -34,11 +34,11 @@ export function importMemoryManager(importObject: any, mm: MemoryManager) {
   importObject.imports.captureTemps = function() { mm.captureTemps() };
   importObject.imports.releaseTemps = function() { mm.releaseTemps() };
 
-  importObject.imports.addLocal = function(value: bigint) {
-    mm.addLocal(value);
+  importObject.imports.addLocal = function(value: number) {
+    mm.addLocal(BigInt(value));
   };
-  importObject.imports.removeLocal = function(value: bigint) {
-    mm.removeLocal(value);
+  importObject.imports.removeLocal = function(value: number) {
+    mm.removeLocal(BigInt(value));
   };
   importObject.imports.releaseLocals = function() { mm.releaseLocals() };
 
