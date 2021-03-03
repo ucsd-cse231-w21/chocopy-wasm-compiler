@@ -193,11 +193,17 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         (i32.store)
         (block
           (loop
-            (br_if 0 ${Code_cond.join("\n")}) (br 1)
+            ${Code_cur.join("\n")}
+            (call $print_num)
+
+            ${Code_stop.join("\n")}
+            (call $print_num)
 
             ${Code_ass.join("\n")}
             ${bodyStmts.join("\n")}
             ${Code_step.join("\n")}
+            
+            (br_if 0 ${Code_cond.join("\n")}) (br 1)           
         ))`
       ]
     case "pass":
