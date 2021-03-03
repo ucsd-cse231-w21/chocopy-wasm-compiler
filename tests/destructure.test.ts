@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { parse } from "../parser";
 import { PyInt, PyBool, PyNone, PyObj, NUM, CLASS, BOOL } from "../utils";
-import { assert, asserts, assertTC, assertTCFail } from "./utils.test";
+import {assert, assertFail, asserts, assertTC, assertTCFail} from "./utils.test";
 
 describe("Destructure integration (class based. to be converted to tuples)", () => {
   // NOTE: Assigning from class fields is a temporary measure
@@ -94,6 +94,41 @@ x, y = Tuple()
 x`,
     PyInt(9)
   );
+
+  asserts("march-4-test-case-1", [
+    [`
+class OtherObject(object):
+  q: int = 3
+class Tuple(object):
+  one: int = 10
+  two: bool = True
+  three: OtherObject = None
+x: int = 0
+y: bool = False
+z: OtherObject = None
+t: Tuple = None
+t = Tuple()
+t.three = OtherObject()
+x, y, z = t
+    `, PyNone()
+    ],
+    ["x", PyInt(10)],
+    ["y", PyBool(true)],
+    ["z is t.three", PyBool(true)]
+  ]);
+
+  assertTCFail("march-4-test-case-2", `
+class OtherObject(object):
+  q: int = 3
+class Tuple(object):
+  one: int = 10
+  two: bool = True
+  three: OtherObject = None
+x: int = 0
+y: bool = False
+z: OtherObject = None
+y, z, x = Tuple()
+  `);
 });
 
 describe("traverseDestructure()", () => {
