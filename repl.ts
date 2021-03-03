@@ -3,6 +3,7 @@ import { GlobalEnv } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type } from "./ast";
 import { parse } from "./parser";
+import { importMemoryManager, MemoryManager } from "./alloc";
 
 interface REPL {
   run(source: string): Promise<any>;
@@ -14,13 +15,25 @@ export class BasicREPL {
   functions: string;
   importObject: any;
   memory: any;
+  memoryManager: MemoryManager;
   constructor(importObject: any) {
     this.importObject = importObject;
     if (!importObject.js) {
       const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+      const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
+        staticStorage: 512n,
+        total: 2000n,
+      });
+
+      // TODO(alex:mm): remove this
       const view = new Int32Array(memory.buffer);
       view[0] = 4;
+
       this.importObject.js = { memory: memory };
+
+      this.memoryManager = memoryManager;
+
+      importMemoryManager(this.importObject, memoryManager);
     }
     this.currentEnv = {
       globals: new Map(),
@@ -37,6 +50,7 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      memoryManager: this.memoryManager,
     };
     const [result, newEnv, newTypeEnv, newFunctions] = await run(source, config);
     this.currentEnv = newEnv;
@@ -50,6 +64,7 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      memoryManager: this.memoryManager,
     };
     const parsed = parse(source);
     const [result, _] = await tc(this.currentTypeEnv, parsed);

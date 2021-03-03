@@ -1,6 +1,7 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
+import { MemoryManager } from "./alloc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -67,7 +68,7 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
-export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
+export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): CompileResult {
   const withDefines = augmentEnv(env, ast);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);

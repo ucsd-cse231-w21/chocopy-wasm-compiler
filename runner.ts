@@ -11,12 +11,14 @@ import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
 import { Value } from "./ast";
 import { PyValue, NONE } from "./utils";
+import { MemoryManager } from "./alloc";
 
 export type Config = {
   importObject: any;
   env: compiler.GlobalEnv;
   typeEnv: GlobalTypeEnv;
   functions: string; // prelude functions
+  memoryManager: MemoryManager;
 };
 
 // NOTE(joe): This is a hack to get the CLI Repl to run. WABT registers a global
@@ -62,7 +64,7 @@ export async function run(
     returnExpr = "(local.get $$last)";
   }
   let globalsBefore = (config.env.globals as Map<string, number>).size;
-  const compiled = compiler.compile(tprogram, config.env);
+  const compiled = compiler.compile(tprogram, config.env, config.memoryManager);
   let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;
@@ -86,6 +88,15 @@ export async function run(
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+
+    (func $gcalloc (import "imports" "gcalloc") (param i32) (param i32) (result i32))
+    (func $captureTemps (import "imports" "captureTemps"))
+    (func $releaseTemps (import "imports" "releaseTemps"))
+    (func $addLocal (import "imports" "addLocal") (param i32))
+    (func $removeLocal (import "imports" "removeLocal") (param i32))
+    (func $releaseLocals (import "imports" "releaseLocals"))
+    (func $forceCollect (import "imports" "forceCollect"))
+
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
