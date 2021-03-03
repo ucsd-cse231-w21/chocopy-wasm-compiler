@@ -62,7 +62,7 @@ export class BumpAllocator implements MarkableAllocator {
     this.counter += size;
 
     // Ensure allocations are always aligned on an even boundary
-    if (this.counter !== 0n) {
+    if (this.counter % 2n !== 0n) {
       this.counter += 1n;
     }
 
