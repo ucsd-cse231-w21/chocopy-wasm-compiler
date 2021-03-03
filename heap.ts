@@ -119,6 +119,167 @@ export class BumpAllocator implements MarkableAllocator {
 //   }
 // BitMappedBlocks: [infomap, bucket1, bucket2, bucket3...]
 
+export class BitMappedBlocks implements MarkableAllocator {
+  start: bigint;
+  end: bigint;
+  numBlocks: bigint;
+  blockSize: bigint;
+  metadataSize: bigint;
+  infomap: Uint8Array;
+
+  constructor(start: bigint, end: bigint, blockSize: bigint, metadataSize: bigint) {
+    this.start = start + (start % 2n); // Align at even boundary
+    this.end = end;
+    this.blockSize = blockSize + (blockSize % 2n);
+    this.metadataSize = metadataSize + 1n; // 1(bitmap) + object header size
+    
+    this.numBlocks = (end - start)/blockSize;
+
+    // one byte for free/used, n bytes for header
+    const totalNBytes = Number(this.metadataSize * this.numBlocks);
+    this.infomap = new Uint8Array(totalNBytes);
+  }
+
+  isFree (index: bigint): boolean {
+    return this.infomap[Number(this.metadataSize * index)] === 0
+  }
+
+  getNumFreeBlocks() {
+    let count = 0;
+    for(let index = 0n; index < this.numBlocks; ++index) {
+      if(this.isFree(index)) {
+        ++count;
+      }
+    }
+
+    return count;
+  }
+
+  // Returns the block index that can satisfy the requested `size`
+  // Returns -1 to indicate a failure
+  getBlockIndex (size: bigint): bigint {
+    // How many blocks are needed to satisfy the request
+    const blocksRequested = size/this.blockSize;
+
+    // Linearly Traverse the infomap to find blocks
+    // This can lead to fragmentation
+    // Can this be optimized further?
+    let index = 0n;
+    while(index < this.numBlocks) {
+
+      // Find the first free block
+      while(!this.isFree(index)) {
+        ++index;
+      }
+
+      // Hit the end
+      if(index + blocksRequested > this.numBlocks) {
+        return -1n;
+      }
+
+      let count = 1n; // Keep track of free blocks
+
+      while(count < blocksRequested && index < this.numBlocks) {
+        ++count;
+        ++index;
+      }
+
+      if(count == blocksRequested) {
+        return index;
+      }
+    }
+
+    return -1n;
+  }
+
+  alloc(size: bigint): Block {
+    // Search for a free block(or a group of contiguous free blocks)`
+    const blockIndex = this.getBlockIndex(size);
+    if(blockIndex === -1n) {
+      return NULL_BLOCK;
+    }
+
+    let nBlocks = size/this.blockSize;
+    if(size % this.blockSize !== 0n) {
+      nBlocks += 1n; // (Hack) in place of Math.ceil
+    }
+
+    // Set the bit(byte) as "used"
+    // Size is stored in header -  Useful when sweeping
+    // Edit: Store the number of blocks allocated instead of just 1 for the first block
+    this.infomap[Number(this.metadataSize*blockIndex)] = Number(nBlocks);
+    for(let index = blockIndex + 1n; index < blockIndex + nBlocks; ++index) {
+      this.infomap[Number(this.metadataSize*index)] = 1;
+    }
+
+    return {
+      ptr: this.start + BigInt(blockIndex) * this.blockSize,
+      size: size
+    }
+  }
+
+  free2(ptr: bigint) {
+    // mark "ptr" block as free
+    let index = (ptr - this.start)/this.blockSize;
+    let nBlocks = this.infomap[Number(this.metadataSize * index)];
+    while(nBlocks !== 0) {
+      this.infomap[Number(this.metadataSize * index)] = 0;
+      ++index;
+      --nBlocks;
+    }
+  }
+
+  owns(ptr: bigint): boolean {
+    return ptr >= this.start && ptr <= this.end;
+  }
+
+  description(): string {
+    return `BitMapped { Max blocks: ${this.numBlocks}, block size: ${this.blockSize}, free blocks: ${this.getNumFreeBlocks()} } `;
+  }
+
+  getHeader(ptr: Pointer): Header {
+    return new Header(this.infomap, (ptr - this.start)/this.blockSize + 1n);
+  }
+
+  gcalloc(tag: HeapTag, size: bigint): Pointer {
+    const block = this.alloc(size);
+
+    if(block === NULL_BLOCK) {
+      return 0x0n;
+    }
+
+    // Store header in the infomap
+    // TODO: Verify if this is right
+    // +1n to offset by byte for header
+    const header = this.getHeader(block.ptr);
+    header.alloc();
+    header.setSize(size);
+    header.setTag(tag);
+
+    return block.ptr;
+  }
+
+  sweep() {
+    let index = 0n
+    while(index < this.numBlocks) {
+      const header = new Header(this.infomap, BigInt(this.metadataSize * index + 1n));
+      if(!header.isMarked()) {
+        // Get number of blocks
+        let nBlocks = this.infomap[Number(this.metadataSize * index)];
+
+        while (nBlocks > 0 && index < this.numBlocks) {
+          this.infomap[Number(this.metadataSize * index)] = 0; // Free it!
+          ++index;
+          --nBlocks;
+        }
+      } else {
+        ++index;
+      }
+    }
+  }
+}
+
+
 
 /// ==================================
 /// Allocator combinators
