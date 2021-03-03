@@ -1,11 +1,13 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag } from "./utils";
+import { themeList_export } from "./themelist"
 
 import CodeMirror from "codemirror"
 import "codemirror/addon/edit/closebrackets"
 import "codemirror/mode/python/python"
 import "codemirror/addon/hint/show-hint"
+import "codemirror/addon/lint/lint"
 import "./style.scss";
 import { toEditorSettings } from 'typescript';
 
@@ -146,19 +148,37 @@ function webStart() {
     setupRepl();
   });
 
-  window.addEventListener("load", (event) => {
+  window.addEventListener('load', (event) => {
+    const themeList = themeList_export;
+    const dropdown = document.createElement("select");
+    dropdown.setAttribute("class", "theme-dropdown");
+    dropdown.setAttribute("id", "theme-dropdown");
+
+    for (const theme of themeList){
+      var option = document.createElement("option");
+      option.value = theme;
+      option.text = theme;
+      dropdown.appendChild(option);
+    }
+
+
+    document.getElementById("editor").appendChild(dropdown)
     const textarea = document.getElementById("user-code") as HTMLTextAreaElement;
     const editor = CodeMirror.fromTextArea(textarea, {
         mode: "python",
         theme: "neo",
         lineNumbers: true,
         autoCloseBrackets: true,
+        lint: true,
+        gutters: ["error"], 
         extraKeys: {
-          "cmd+Space" : "autocomplete"
-        }
+          "Ctrl+Space" : "autocomplete"
+        },
+        hintOptions: {
+          alignWithWord: false,
+          completeSingle: false,
+        },
     });
-
-    console.log(editor);
 
     editor.on("change", (cm, change) => {
         textarea.value = editor.getValue();
@@ -168,9 +188,38 @@ function webStart() {
           return;
       }
       editor.showHint({
+        // hint: 
       });
     });
-  });
-}
 
+    var themeDropDown = document.getElementById("theme-dropdown") as HTMLSelectElement;
+    themeDropDown.addEventListener("change", (event) => {
+      var ele = document.querySelector(".CodeMirror") as any;
+      var editor = ele.CodeMirror; 
+      editor.setOption("theme", themeDropDown.value);
+    });
+  });
+
+
+}
+// Simple helper to highlight line given line number
+function highlightLine(actualLineNumber: number) : void {
+  var ele = document.querySelector(".CodeMirror") as any;
+  var editor = ele.CodeMirror; 
+  //Set line CSS class to the line number & affecting the background of the line with the css class of line-error
+  editor.setGutterMarker(actualLineNumber, 'error', makeMarker("test error message"));
+  editor.addLineClass(actualLineNumber, 'background', 'line-error');
+}
+function makeMarker(msg:any) : any {
+  const marker = document.createElement('div');
+  marker.classList.add('error-marker');
+  marker.innerHTML = '&nbsp;';
+
+  const error = document.createElement('div');
+  error.innerHTML = msg;
+  error.classList.add('error-message');
+  marker.appendChild(error);
+
+  return marker;
+}
 webStart();
