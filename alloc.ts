@@ -34,6 +34,10 @@ export function importMemoryManager(importObject: any, mm: MemoryManager) {
   importObject.imports.captureTemps = function() { mm.captureTemps() };
   importObject.imports.releaseTemps = function() { mm.releaseTemps() };
 
+  importObject.imports.pushFrame = function() {
+    mm.pushFrame();
+  }
+
   importObject.imports.addLocal = function(value: number) {
     mm.addLocal(BigInt(value));
   };
@@ -98,6 +102,11 @@ export class MemoryManager {
     this.gc.roots.releaseTemps();
   }
 
+  // Pushes a new stack frame for tracking local variable roots
+  pushFrame() {
+    this.gc.roots.pushFrame();
+  }
+
   // value: potential pointer to a heap object
   //
   // Add a potential pointer to the local variable root set
@@ -111,7 +120,7 @@ export class MemoryManager {
     this.gc.roots.removeLocal(value);
   }
 
-  // Clear the set of local variable roots
+  // Pops the current stack frame
   releaseLocals() {
     this.gc.roots.releaseLocals();
   }

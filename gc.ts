@@ -156,10 +156,11 @@ export class RootSet {
   //   instead of relying on a copy of the value (ala local variable roots)
   globals: Set<Pointer>;
 
-  // VALUES of local variables that are pointers
+  // VALUES of local variables that are pointers arranged in a "stack frame"
+  //
   // Necessary b/c we have no way to directly scan the WASM stack
   // NOTE(alex): Whenever a local is updated, this may also need to be updated
-  locals: Set<Pointer>;
+  localsStack: Array<Set<Pointer>>;
 
   captureTempsFlag: boolean;
   // VALUES of temporaries that are pointers
@@ -171,7 +172,7 @@ export class RootSet {
     this.memory = memory;
 
     this.globals = new Set();
-    this.locals = new Set();
+    this.localsStack = new Array();
     this.temps = new Set();
 
     this.captureTempsFlag = false;
@@ -192,11 +193,15 @@ export class RootSet {
     this.temps = new Set();
   }
 
+  pushFrame() {
+    this.localsStack.push(new Set());
+  }
+
   addLocal(value: bigint) {
     if (isPointer(value)) {
       const ptr = extractPointer(value);
       if (ptr != 0x0n) {
-        this.locals.add(ptr);
+        this.localsStack[this.localsStack.length - 1].add(ptr);
       }
     }
   }
@@ -204,12 +209,14 @@ export class RootSet {
   removeLocal(value: bigint) {
     if (isPointer(value)) {
       const ptr = extractPointer(value);
-      this.locals.delete(ptr);
+      this.localsStack[this.localsStack.length - 1].delete(ptr);
     }
   }
 
   releaseLocals() {
-    this.locals = new Set();
+    if (this.localsStack.pop() === undefined) {
+      throw new Error("Popping an empty local root stack");
+    }
   }
 
   // ptr: pointer TO the global variable in linear memory
@@ -230,8 +237,10 @@ export class RootSet {
     });
 
     // Local set is already a set of pointers to heap values
-    this.locals.forEach(localPtrValue => {
-      callback(localPtrValue);
+    this.localsStack.forEach(frame => {
+      frame.forEach(localPtrValue => {
+        callback(localPtrValue);
+      });
     });
 
     // Temp set is already a set of pointers to heap values
