@@ -28,6 +28,10 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     newGlobals.set(v.name, newOffset);
     newOffset += 1;
   });
+  // for rg
+  newGlobals.set("rg", newOffset);
+  newOffset += 1;
+
   prog.classes.forEach((cls) => {
     const classFields = new Map();
     cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
@@ -152,15 +156,16 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
     case "for":
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      //var iter = codeGenExpr(stmt.iterable, env);
+      var iter = codeGenExpr(stmt.iterable, env);
 
-      var Expr_cur:Expr<Type> = { a: CLASS("Range"), tag: "lookup", obj: stmt.iterable, field: "cur" }
+      var rgExpr:Expr<Type> = { a: CLASS("Range"), tag: "id", name: "rg" }
+      var Expr_cur:Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "cur" }
       var Code_cur = codeGenExpr(Expr_cur, env);
 
-      var Expr_stop:Expr<Type> = { a: CLASS("Range"), tag: "lookup", obj: stmt.iterable, field: "stop" }
+      var Expr_stop:Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "stop" }
       var Code_stop = codeGenExpr(Expr_stop, env);
 
-      var Expr_step:Expr<Type> = { a: CLASS("Range"), tag: "lookup", obj: stmt.iterable, field: "step" }
+      var Expr_step:Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "step" }
       var Code_step = codeGenExpr(Expr_step, env);
 
       // name = cur
@@ -169,7 +174,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
       // add step to cur
       var ncur:Expr<Type> =  { a: NUM, tag: "binop", op: BinOp.Plus, left: Expr_cur, right: Expr_step };
-      var step:Stmt<Type> = { a: NONE, tag: "field-assign", obj: stmt.iterable, field: "cur", value: ncur }
+      var step:Stmt<Type> = { a: NONE, tag: "field-assign", obj: rgExpr, field: "cur", value: ncur }
       var Code_step = codeGenStmt(step, env);
 
       // stop condition cur<step
@@ -182,13 +187,18 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
       // iterable should be a Range object
       return [
-        `(loop 
-          (br_if 0 ${Code_cond.join("\n")}) (br 1)
+        `
+        (i32.const ${envLookup(env, "rg")})
+        ${iter.join("\n")}
+        (i32.store)
+        (block
+          (loop
+            (br_if 0 ${Code_cond.join("\n")}) (br 1)
 
-          ${Code_ass.join("\n")}
-          ${bodyStmts.join("\n")}
-          ${Code_step.join("\n")}
-        )`
+            ${Code_ass.join("\n")}
+            ${bodyStmts.join("\n")}
+            ${Code_step.join("\n")}
+        ))`
       ]
     case "pass":
       return [];
