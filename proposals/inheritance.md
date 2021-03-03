@@ -116,7 +116,7 @@ kit = cat()
 kit.run()
 ```
 
-The program is supposed to output 1 to represent it supports inheritance of a derived class.
+The program is supposed to output 5 to represent it supports inheritance of a derived class.
 
 ### 8.  Re-defined Methods
 
