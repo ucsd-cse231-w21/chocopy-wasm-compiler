@@ -60,7 +60,7 @@ export class MemoryManager {
     total: bigint,
   }) {
     this.memory = memory;
-    this.staticAllocator = new H.BumpAllocator(memory, 0n, cfg.staticStorage);
+    this.staticAllocator = new H.BumpAllocator(memory, 4n, cfg.staticStorage + 4n);
     const gcHeap = new H.BumpAllocator(memory, cfg.staticStorage, cfg.total);
     this.gc = new GC.MnS(memory, gcHeap);
   }

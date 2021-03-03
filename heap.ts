@@ -6,6 +6,8 @@ import {
   MarkableAllocator,
 } from "./gc";
 
+// NOTE(alex:mm): allocators should consider 0x0 as an invalid pointer
+//   * WASM initializes local variables to 0
 export interface Allocator {
   alloc: (size: bigint) => Block;
 

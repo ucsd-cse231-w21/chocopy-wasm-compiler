@@ -136,6 +136,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         // NOTE(alex:mm): removeLocal/addLocal calls are necessary b/c
         //   MemoryManager cannot scan the WASM stack directly and
         //   must maintain a list of local variable pointers
+        // Local i32's are always initialized to 0
+        //   * removeLocal/addLocal ignore 0x0 pointers
         // These functions do a runtime tag-check to distinguish pointers
         const result = [
           `(local.get $${stmt.name})`,

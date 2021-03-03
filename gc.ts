@@ -118,6 +118,10 @@ export class Header {
 }
 
 // Allocator operations required by a mark-and-sweep GC
+//// NOTE(alex:mm): allocators should consider 0x0 as an invalid pointer
+//   * WASM initializes local variables to 0
+//   * When adding local variable roots, we don't necessarily know if the
+//     variable has been initialized. Thus, if we see a 0x0 pointer, ignore it
 export interface MarkableAllocator extends H.Allocator {
   // ptr: 32-bit address of the START of the object (NOT the header)
   //
@@ -174,7 +178,9 @@ export class RootSet {
   }
 
   addTemp(ptr: bigint) {
-    this.temps.add(ptr);
+    if (ptr != 0x0n) {
+      this.temps.add(ptr);
+    }
   }
 
   captureTemps() {
@@ -189,7 +195,9 @@ export class RootSet {
   addLocal(value: bigint) {
     if (isPointer(value)) {
       const ptr = extractPointer(value);
-      this.locals.add(ptr);
+      if (ptr != 0x0n) {
+        this.locals.add(ptr);
+      }
     }
   }
 
