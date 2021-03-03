@@ -18,6 +18,9 @@ export const emptyEnv: GlobalEnv = {
   locals: new Set(),
 };
 
+const RELEASE_TEMPS: boolean = true;
+const HOLD_TEMPS: boolean = false;
+
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>, mm: MemoryManager): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
@@ -124,22 +127,27 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
       valStmts.push("return");
-      return valStmts;
+      return codeGenTempGuard(valStmts, HOLD_TEMPS);
     case "assignment":
       throw new Error("Destructured assignment not implemented");
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
+      // TODO(alex:mm): un/set local
       if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]);
+        return codeGenTempGuard(valStmts.concat([`(local.set $${stmt.name})`]),
+          RELEASE_TEMPS);
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
-        return locationToStore.concat(valStmts).concat([`(i32.store)`]);
+        return codeGenTempGuard(locationToStore.concat(valStmts).concat([`(i32.store)`]),
+          RELEASE_TEMPS);
       }
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
-      return exprStmts.concat([`(local.set $$last)`]);
+      return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]),
+        RELEASE_TEMPS);
     case "if":
-      var condExpr = codeGenExpr(stmt.cond, env);
+      // TODO(alex:mm): Are these temporary guards correct/minimal?
+      var condExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env), RELEASE_TEMPS);
       var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [
@@ -148,7 +156,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         )}))`,
       ];
     case "while":
-      var wcondExpr = codeGenExpr(stmt.cond, env);
+      var wcondExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env), RELEASE_TEMPS);
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
     case "pass":
@@ -165,7 +173,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(stmt.field);
       var valStmts = codeGenExpr(stmt.value, env);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      const result = [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      return codeGenTempGuard(result, RELEASE_TEMPS);
     default:
       unhandledTag(stmt);
   }
@@ -351,4 +360,17 @@ function codeGenBinOp(op: BinOp): string {
     case BinOp.Or:
       return "(i32.or)";
   }
+}
+
+// Required so that heap-allocated temporaries are considered rooted/reachable
+// Without the call to `captureTemps`, heap-allocated temporaries may be accidently
+//   freed
+// Necessary because cannot scan the WASM stack for pointers so the MemoryManager
+//   must maintain its own list of reachable objects
+function codeGenTempGuard(c: Array<string>, release: boolean): Array<string> {
+  if (release) {
+    return ["(call $captureTemps)"].concat(c).concat(["(call $releaseTemps)"]);
+  }
+
+  return ["(call $captureTemps)"].concat(c);
 }
