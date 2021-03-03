@@ -1,6 +1,7 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
+import { MemoryManager, TAG_CLASS } from "./alloc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -9,24 +10,25 @@ export type GlobalEnv = {
   globals: Map<string, number>;
   classes: Map<string, Map<string, [number, Literal]>>;
   locals: Set<string>;
-  offset: number;
 };
 
 export const emptyEnv: GlobalEnv = {
   globals: new Map(),
   classes: new Map(),
   locals: new Set(),
-  offset: 0,
 };
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
+export function augmentEnv(env: GlobalEnv, prog: Program<Type>, mm: MemoryManager): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
 
-  var newOffset = env.offset;
   prog.inits.forEach((v) => {
-    newGlobals.set(v.name, newOffset);
-    newOffset += 1;
+    // Allocate static memory for the global variable
+    // NOTE(alex:mm) assumes that allocations return a 32-bit address
+    const globalAddr = mm.staticAlloc(4n);
+    console.log(`global var '${v.name}' addr: ${globalAddr.toString()}`);
+    newGlobals.set(v.name, Number(globalAddr));
+    mm.addGlobal(globalAddr);
   });
   prog.classes.forEach((cls) => {
     const classFields = new Map();
@@ -37,7 +39,6 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     globals: newGlobals,
     classes: newClasses,
     locals: env.locals,
-    offset: newOffset,
   };
 }
 
@@ -67,8 +68,8 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
-export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
-  const withDefines = augmentEnv(env, ast);
+export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): CompileResult {
+  const withDefines = augmentEnv(env, ast, mm);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
@@ -272,14 +273,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         )
       );
       return stmts.concat([
-        "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
-        "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
-        "(i32.const 0)", // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-        `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the two words we just created for fields
-        "(i32.store)", // Save the new heap offset
+        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
+        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
+        `(call $gcalloc)`,
         `(call $${expr.name}$__init__)`, // call __init__
-        "(drop)",
       ]);
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);

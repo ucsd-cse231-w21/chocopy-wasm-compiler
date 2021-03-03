@@ -13,11 +13,11 @@ export type HeapTag =
   | typeof TAG_DICT
   | typeof TAG_BIGINT;
 
-export const TAG_CLASS   = 0x1;
-export const TAG_LIST    = 0x2;
-export const TAG_STRING  = 0x3;
-export const TAG_DICT    = 0x4;
-export const TAG_BIGINT  = 0x5;
+export const TAG_CLASS   = 0x1n;
+export const TAG_LIST    = 0x2n;
+export const TAG_STRING  = 0x3n;
+export const TAG_DICT    = 0x4n;
+export const TAG_BIGINT  = 0x5n;
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG    = 0x0;
@@ -57,33 +57,20 @@ export class Header {
 
   getTag(): HeapTag {
     // NOTE(alex): Enforce tag correctness in object construction API
-    return this.memory[this.headerStart + HEADER_OFFSET_TAG] as HeapTag;
+    const b = this.memory[this.headerStart + HEADER_OFFSET_TAG];
+    return BigInt.asUintN(8, BigInt(b)) as HeapTag;
   }
 
   setTag(tag: HeapTag) {
-    this.memory[this.headerStart + HEADER_OFFSET_TAG] = tag;
+    this.memory[this.headerStart + HEADER_OFFSET_TAG] = Number(tag);
   }
 
   getSize(): bigint {
-    let x = BigInt.asUintN(32, 0x0n);
-
-    // WASM stores integers in little-endian:
-    //   LSB at the smallest address
-    for (let i = 0; i < 4; i++) {
-      const b = BigInt(this.memory[this.headerStart + HEADER_OFFSET_SIZE + i]);
-      x = x + (b << BigInt(8 * i));
-    }
-
-    return x;
+    return readI32(this.memory, this.headerStart + HEADER_OFFSET_SIZE);
   }
 
   setSize(size: bigint) {
-    // WASM stores integers in little-endian:
-    //   LSB at the smallest address
-    for (let i = 0; i < 4; i++) {
-      const b = BigInt.asUintN(8, size >> BigInt(8 * i));
-      this.memory[this.headerStart + HEADER_OFFSET_SIZE + i] = Number(b);
-    }
+    writeI32(this.memory, this.headerStart + HEADER_OFFSET_SIZE, size);
   }
 
   alloc() {
@@ -155,6 +142,97 @@ export interface MarkableAllocator extends H.Allocator {
   sweep: () => void,
 }
 
+export class RootSet {
+
+  // Needed to prune global variables
+  memory: Uint8Array;
+
+  // Pointers TO global variables
+  // NOTE(alex): declared this way so the GC can check the global variable at mark-time
+  //   instead of relying on a copy of the value (ala local variable roots)
+  globals: Set<Pointer>;
+
+  // VALUES of local variables that are pointers
+  // Necessary b/c we have no way to directly scan the WASM stack
+  // NOTE(alex): Whenever a local is updated, this may also need to be updated
+  locals: Set<Pointer>;
+
+  captureTempsFlag: boolean;
+  // VALUES of temporaries that are pointers
+  // Necessary b/c we have no way to directly scan the WASM stack
+  // NOTE(alex): Whenever a local is updated, this may also need to be updated
+  temps: Set<Pointer>;
+
+  constructor(memory: Uint8Array) {
+    this.memory = memory;
+
+    this.globals = new Set();
+    this.locals = new Set();
+    this.temps = new Set();
+
+    this.captureTempsFlag = false;
+  }
+
+  addTemp(ptr: bigint) {
+    this.temps.add(ptr);
+  }
+
+  captureTemps() {
+    this.captureTempsFlag = true;
+  }
+
+  releaseTemps() {
+    this.captureTempsFlag = false;
+    this.temps = new Set();
+  }
+
+  addLocal(value: bigint) {
+    if (isPointer(value)) {
+      const ptr = extractPointer(value);
+      this.locals.add(ptr);
+    }
+  }
+
+  removeLocal(value: bigint) {
+    if (isPointer(value)) {
+      const ptr = extractPointer(value);
+      this.locals.delete(ptr);
+    }
+  }
+
+  releaseLocals() {
+    this.locals = new Set();
+  }
+
+  // ptr: pointer TO the global variable in linear memory
+  addGlobal(ptr: Pointer) {
+    this.globals.add(ptr);
+  }
+
+  // Iterate through all roots
+  // Global variables are pruned for pointers
+  forEach(callback: (heapObjPtr: Pointer) => void) {
+
+    // Scan global variables for pointers
+    this.globals.forEach(globalVarAddr => {
+      const globalVarValue = readI32(this.memory, Number(globalVarAddr));
+      if (isPointer(globalVarValue)) {
+        callback(extractPointer(globalVarValue));
+      }
+    });
+
+    // Local set is already a set of pointers to heap values
+    this.locals.forEach(localPtrValue => {
+      callback(localPtrValue);
+    });
+
+    // Temp set is already a set of pointers to heap values
+    this.temps.forEach(localPtrValue => {
+      callback(localPtrValue);
+    });
+  }
+}
+
 /// Mark-and-sweep GC implementation
 ///   * Stop-the-world
 ///
@@ -163,33 +241,12 @@ export interface MarkableAllocator extends H.Allocator {
 export class MnS<A extends MarkableAllocator> {
   memory: Uint8Array;
   heap: A;
-  roots: Set<Pointer>;
+  roots: RootSet;
 
   constructor(memory: Uint8Array, heap: A) {
     this.memory = memory;
     this.heap = heap;
-    this.roots = new Set();
-  }
-
-  // roots: array of root pointers to trace
-  //
-  // NOTE(alex): assumes that the caller has already pruned primitive values
-  //   from the list of pointers
-  //
-  addRoot(toAdd: Array<Pointer>) {
-    toAdd.forEach(item => {
-      this.roots.add(item);
-    });
-  }
-
-  // roots: array of root pointers to trace
-  //
-  // NOTE(alex): assumes that the caller has already pruned primitive values
-  //   from the list of pointers
-  removeRoot(toRemove: Array<Pointer>) {
-    toRemove.forEach(item => {
-      this.roots.delete(item);
-    });
+    this.roots = new RootSet(memory);
   }
 
   // Trace the object graph from roots, setting the 'Mark' bit of each reachable object
@@ -309,6 +366,12 @@ export class MnS<A extends MarkableAllocator> {
     if (result === 0x0n) {
       this.collect();
       result = this.heap.gcalloc(tag, size);
+    }
+
+    if (this.roots.captureTempsFlag) {
+      if (result !== 0x0n) {
+        this.roots.addTemp(result);
+      }
     }
 
     return result;
@@ -513,5 +576,27 @@ export class MarkableFallback<P extends MarkableAllocator, F extends MarkableAll
   sweep(): void {
     this.allocator.primary.sweep();
     this.allocator.fallback.sweep();
+  }
+}
+
+function readI32(memory: Uint8Array, start: number): bigint {
+  let x = BigInt.asUintN(32, 0x0n);
+
+  // WASM stores integers in little-endian:
+  //   LSB at the smallest address
+  for (let i = 0; i < 4; i++) {
+    const b = BigInt(memory[start + i]);
+    x = x + (b << BigInt(8 * i));
+  }
+
+  return x;
+}
+
+function writeI32(memory: Uint8Array, start: number, value: bigint) {
+  // WASM stores integers in little-endian:
+  //   LSB at the smallest address
+  for (let i = 0; i < 4; i++) {
+    const b = BigInt.asUintN(8, value >> BigInt(8 * i));
+    memory[start + i] = Number(b);
   }
 }
