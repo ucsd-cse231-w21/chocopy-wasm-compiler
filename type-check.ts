@@ -414,6 +414,15 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         throw new TypeCheckError("method calls require an object");
       }
     case "dict":
+      let entries = expr.entries
+      // check for the empty array, example: d = {}
+      if (!entries?.length) {
+        console.log("empty dict");
+      } else {  // the dict has one or more key-value pairs
+        //
+        console.log("dict with values");
+
+      }
       throw new TypeCheckError("Typecheck for dict not implemented");
     case "bracket-lookup":
       throw new TypeCheckError("Typecheck for bracket-lookup not implemented");
