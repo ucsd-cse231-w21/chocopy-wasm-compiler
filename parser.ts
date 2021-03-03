@@ -69,6 +69,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       return {
         tag: "literal",
         value: traverseLiteral(c, s),
+        loc: location
       };
     case "VariableName":
       return {
