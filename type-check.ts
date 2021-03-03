@@ -236,7 +236,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       switch(fIter.a.tag){
         case 'class':
           if(fIter.a.name === 'Range'){
-            locals.vars.set(stmt.name, {tag: 'number'});
+            //locals.vars.set(stmt.name, {tag: 'number'});
             break;
           }else{
             throw new TypeCheckError("for-loop cannot take " + fIter.a.name + ' class as iterator.');
@@ -246,7 +246,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
           // locals.vars.set(stmt.name, {tag: 'char'});
           throw new TypeCheckError('for-loop with strings are not implmented.');
         case 'list':
-          locals.vars.set(stmt.name, fIter.a.content_type);
+          //locals.vars.set(stmt.name, fIter.a.content_type);
           break;
         default:
           throw new TypeCheckError('Illegal iterating item in for-loop.');
@@ -258,7 +258,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       // go into body
       const fBody = tcBlock(env, locals, stmt.body);
       // delete the temp var information after finished the body, and restore last depth
-      locals.vars.delete(stmt.name);
+      //locals.vars.delete(stmt.name);
       locals.loop_depth = last_depth;
       
       return { a: NONE, tag: 'for', name: stmt.name, index: stmt.index, iterable: fIter, body: fBody };
