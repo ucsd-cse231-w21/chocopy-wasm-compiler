@@ -137,7 +137,13 @@ export class MemoryManager {
   // Throws `Out of static storage` if allocation fails
   staticAlloc(size: bigint): Pointer {
     const block = this.staticAllocator.alloc(size);
-    if (block.ptr === 0n) {
+    // NOTE(alex:mm): need to compare to the NULL_BLOCK b/c the pointer
+    //   may be address 0x0
+    if (block === H.NULL_BLOCK) {
+      console.error(`start: ${this.staticAllocator.absStart}`);
+      console.error(`end: ${this.staticAllocator.absEnd}`);
+      console.error(`counter: ${this.staticAllocator.counter}`);
+      console.error(`request: ${size.toString()}`);
       throw new Error(`Out of static storage`);
     }
     return block.ptr;
