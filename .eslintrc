@@ -1,0 +1,47 @@
+{
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "./tsconfig.json"
+  },
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:prettier/recommended",
+    "prettier"
+  ],
+  "rules": {
+    // TODO: Change no-var and prefer-const to warnings in the future
+    "no-var": "off",
+    "prefer-const": "off",
+    "@typescript-eslint/no-var-requires": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "no-case-declarations": "off",
+    "no-constant-condition": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/switch-exhaustiveness-check": "warn",
+    "@typescript-eslint/no-unused-vars": ["warn", {"varsIgnorePattern": "^_", "args": "none"}]
+    // "sort-imports": [
+    //   "error",
+    //   {
+    //     "ignoreDeclarationSort": true,
+    //     "ignoreMemberSort": false,
+    //     "allowSeparatedGroups": false
+    //   }
+    // ]
+  },
+  "overrides": [
+    {
+      "files": ["*.test.ts"],
+      "rules": {
+        "@typescript-eslint/no-unused-vars": "off",
+        "@typescript-eslint/no-empty-function": "off"
+      }
+    }
+  ]
+}

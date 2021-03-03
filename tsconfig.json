@@ -2,8 +2,8 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "noImplicitAny": true,
+    "target": "es2020",
     "sourceMap": true,
-    "target": "es2019",
     "allowJs": true,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
