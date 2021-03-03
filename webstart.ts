@@ -74,7 +74,7 @@ function webStart() {
       const elt = document.createElement("pre");
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
-      var text = `line ${result.loc.line}: ${source.split(/\r?\n/)[result.loc.line - 1].substring(result.loc.col - 1, result.loc.col - 1 + result.loc.length)}`;
+      var text = `line ${result.loc.line}: ${source.split(/\r?\n/)[result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
       elt.innerText = text.concat("\n").concat(String(result));
     }
 
