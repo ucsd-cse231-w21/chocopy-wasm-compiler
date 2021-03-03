@@ -12,25 +12,25 @@ export {
 // Untagged pointer (32-bits)
 export type Pointer = bigint;
 
-export function importMemoryManager(imports: any, mm: MemoryManager) {
-  imports.memoryManager = mm;
+export function importMemoryManager(importObject: any, mm: MemoryManager) {
+  importObject.imports.memoryManager = mm;
 
-  imports.js.$gcalloc = function(tag: GC.HeapTag, size: bigint): bigint {
+  importObject.imports.gcalloc = function(tag: GC.HeapTag, size: bigint): bigint {
     return mm.gcalloc(tag, size);
   };
 
-  imports.js.$captureTemps = function() { mm.captureTemps() };
-  imports.js.$releaseTemps = function() { mm.releaseTemps() };
+  importObject.imports.captureTemps = function() { mm.captureTemps() };
+  importObject.imports.releaseTemps = function() { mm.releaseTemps() };
 
-  imports.js.$addLocal = function(value: bigint) {
+  importObject.imports.addLocal = function(value: bigint) {
     mm.addLocal(value);
   };
-  imports.js.$removeLocal = function(value: bigint) {
+  importObject.imports.removeLocal = function(value: bigint) {
     mm.removeLocal(value);
   };
-  imports.js.$releaseLocals = function() { mm.releaseLocals() };
+  importObject.imports.releaseLocals = function() { mm.releaseLocals() };
 
-  imports.js.$forceCollect = function() { mm.forceCollect() };
+  importObject.imports.forceCollect = function() { mm.forceCollect() };
 
 }
 
