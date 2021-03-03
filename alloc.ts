@@ -127,6 +127,8 @@ export class MemoryManager {
     return result;
   }
 
+  // size: requested memory in bytes
+  //
   // For data that will never be freed
   // Ex:
   //   1) Class descriptors
