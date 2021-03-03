@@ -178,7 +178,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var Code_step = codeGenStmt(step, env);
 
       // stop condition cur<step
-      var Expr_cond:Expr<Type> = { a: BOOL, tag: "binop", op: BinOp.Lt, left: Expr_cur, right: Expr_stop };
+      var Expr_cond:Expr<Type> = { a: BOOL, tag: "binop", op: BinOp.Gte, left: Expr_cur, right: Expr_stop };
       var Code_cond = codeGenExpr(Expr_cond, env);
       
       // if have index
@@ -193,17 +193,16 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         (i32.store)
         (block
           (loop
-            ${Code_cur.join("\n")}
-            (call $print_num)
 
-            ${Code_stop.join("\n")}
-            (call $print_num)
+            (br_if 1 ${Code_cond.join("\n")})
 
             ${Code_ass.join("\n")}
             ${bodyStmts.join("\n")}
             ${Code_step.join("\n")}
-            
-            (br_if 0 ${Code_cond.join("\n")}) (br 1)           
+
+
+
+            (br 0)                    
         ))`
       ]
     case "pass":
@@ -275,6 +274,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
     case "builtin1":
       const argTyp = expr.a;
+      console.log(argTyp)
+      console.log(expr.name)
       const argStmts = codeGenExpr(expr.arg, env);
       var callName = expr.name;
       if (expr.name === "print" && argTyp === NUM) {
