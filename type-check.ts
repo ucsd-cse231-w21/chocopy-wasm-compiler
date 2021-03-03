@@ -115,7 +115,7 @@ export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
     return { ...init, a: NONE };
   } else {
     // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
-    throw new BaseException.TypeMismatchError(init.type.tag, valTyp.tag);
+    throw new BaseException.TypeMismatchError(init.type.tag, valTyp.tag, init.loc);
   }
 }
 
@@ -159,8 +159,10 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       } else {
         throw new BaseException.NameError(stmt.name);
       }
-      if (!isAssignable(env, tValExpr.a, nameTyp))
-        throw new BaseException.Exception("Non-assignable types");
+      if (!isAssignable(env, tValExpr.a, nameTyp)) {
+        //throw new BaseException.Exception("Non-assignable types");
+        throw new BaseException.TypeMismatchError(nameTyp.tag, tValExpr.a.tag);
+      }
       return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr, loc: stmt.loc };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
