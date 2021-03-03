@@ -58,5 +58,6 @@ export const bignumfunctions =
   )
   (local.get $x)
 )
+
 `
 ;
