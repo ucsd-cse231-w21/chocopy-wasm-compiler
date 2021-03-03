@@ -1,7 +1,7 @@
-import { BasicREPL} from './repl';
-import { Type, Value } from './ast';
-import { defaultTypeEnv } from './type-check';
-import { NUM, BOOL, NONE, PyValue, unhandledTag } from './utils';
+import { BasicREPL } from "./repl";
+import { Type, Value } from "./ast";
+import { defaultTypeEnv } from "./type-check";
+import { NUM, BOOL, NONE, PyValue, unhandledTag } from "./utils";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -9,17 +9,18 @@ import "codemirror/mode/python/python";
 
 import "./style.scss";
 
-function stringify(result: Value) : string {
-  switch(result.tag) {
+function stringify(result: Value): string {
+  switch (result.tag) {
     case "num":
       return result.value.toString();
     case "bool":
-      return (result.value) ? "True" : "False";
+      return result.value ? "True" : "False";
     case "none":
       return "None";
     case "object":
       return `<${result.name} object at ${result.address}>`;
-    default: throw new Error(`Could not render value: ${result}`);
+    default:
+      throw new Error(`Could not render value: ${result}`);
   }
 }
 

@@ -20,20 +20,17 @@ export const emptyEnv: GlobalEnv = {
 };
 
 export const nTagBits = 1;
-const INT_LITERAL_MAX = BigInt(2**(31 - nTagBits) - 1);
-const INT_LITERAL_MIN = BigInt(-(2**(31 - nTagBits)));
+const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
+const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
 
-const encodeLiteral : Array<string> = [  
+const encodeLiteral: Array<string> = [
   `(i32.const ${nTagBits})`,
   "(i32.shl)",
   "(i32.const 1)", // literals are tagged with a 1 in the LSB
-  "(i32.add)"
-]
+  "(i32.add)",
+];
 
-const decodeLiteral : Array<string> = [
-  `(i32.const ${nTagBits})`,
-  "(i32.shr_s)"
-]
+const decodeLiteral: Array<string> = [`(i32.const ${nTagBits})`, "(i32.shr_s)"];
 
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
   const newGlobals = new Map(env.globals);
@@ -155,12 +152,16 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       return exprStmts.concat([`(local.set $$last)`]);
     case "if":
       var condExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
-      var thnStmts = stmt.thn.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
-      var elsStmts = stmt.els.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
-      return [`${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join("\n")}))`]
+      var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
+      var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
+      return [
+        `${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join(
+          "\n"
+        )}))`,
+      ];
     case "while":
       var wcondExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
-      var bodyStmts = stmt.body.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
+      var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
     case "pass":
       return [];
@@ -240,12 +241,19 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       } else if (expr.name === "print" && argTyp === NONE) {
         return argStmts.concat([`(call $print_none)`]);
       }
-      return argStmts.concat([...decodeLiteral,`(call $${callName})`,...encodeLiteral]);
+      return argStmts.concat([...decodeLiteral, `(call $${callName})`, ...encodeLiteral]);
     case "builtin2":
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
       // we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
-      return [...leftStmts, ...decodeLiteral, ...rightStmts, ...decodeLiteral, `(call $${expr.name})`, ...encodeLiteral];
+      return [
+        ...leftStmts,
+        ...decodeLiteral,
+        ...rightStmts,
+        ...decodeLiteral,
+        `(call $${expr.name})`,
+        ...encodeLiteral,
+      ];
     case "literal":
       return codeGenLiteral(expr.value, env);
     case "id":
@@ -258,9 +266,16 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
       if (expr.op == BinOp.Is) {
-        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral]
+        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
       } else {
-        return [...lhsStmts, ...decodeLiteral, ...rhsStmts, ...decodeLiteral, codeGenBinOp(expr.op), ...encodeLiteral]
+        return [
+          ...lhsStmts,
+          ...decodeLiteral,
+          ...rhsStmts,
+          ...decodeLiteral,
+          codeGenBinOp(expr.op),
+          ...encodeLiteral,
+        ];
       }
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);

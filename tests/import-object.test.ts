@@ -5,14 +5,15 @@ import { nTagBits } from "../compiler";
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
     case "number":
-      var num : number = arg as number;
-      if (num & 1) { // literals are tagged with 1 in the LSB
+      var num: number = arg as number;
+      if (num & 1) {
+        // literals are tagged with 1 in the LSB
         return (num >> nTagBits).toString();
       } else {
-        return (num).toString(); // bigint case, num is an address
+        return num.toString(); // bigint case, num is an address
       }
     case "bool":
-      return ((arg as number) >> nTagBits) == 1 ? "True" : "False";
+      return (arg as number) >> nTagBits == 1 ? "True" : "False";
     case "none":
       return "None";
     case "class":
