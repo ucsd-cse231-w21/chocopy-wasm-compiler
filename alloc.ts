@@ -27,8 +27,8 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
 export function importMemoryManager(importObject: any, mm: MemoryManager) {
   importObject.imports.memoryManager = mm;
 
-  importObject.imports.gcalloc = function(tag: any, size: any): bigint {
-    return mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size));
+  importObject.imports.gcalloc = function(tag: number, size: number): number {
+    return Number(mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size)));
   };
 
   importObject.imports.captureTemps = function() { mm.captureTemps() };
