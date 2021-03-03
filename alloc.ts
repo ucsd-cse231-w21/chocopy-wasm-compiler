@@ -12,6 +12,28 @@ export {
 // Untagged pointer (32-bits)
 export type Pointer = bigint;
 
+export function importMemoryManager(imports: any, mm: MemoryManager) {
+  imports.memoryManager = mm;
+
+  imports.js.$gcalloc = function(tag: GC.HeapTag, size: bigint): bigint {
+    return mm.gcalloc(tag, size);
+  };
+
+  imports.js.$captureTemps = function() { mm.captureTemps() };
+  imports.js.$releaseTemps = function() { mm.releaseTemps() };
+
+  imports.js.$addLocal = function(value: bigint) {
+    mm.addLocal(value);
+  };
+  imports.js.$removeLocal = function(value: bigint) {
+    mm.removeLocal(value);
+  };
+  imports.js.$releaseLocals = function() { mm.releaseLocals() };
+
+  imports.js.$forceCollect = function() { mm.forceCollect() };
+
+}
+
 // Public API for memory allocation/GC
 export class MemoryManager {
   memory: Uint8Array;
