@@ -21,10 +21,13 @@ export class MemoryManager {
   // globalAllocator: Fallback<BumpAllocator, Generic>
   gc: GC.MnS<H.BumpAllocator>;
 
-  constructor(memory: Uint8Array, globalStorage: bigint, total: bigint) {
+  constructor(memory: Uint8Array, cfg: {
+    staticStorage: bigint,
+    total: bigint,
+  }) {
     this.memory = memory;
-    this.staticAllocator = new H.BumpAllocator(memory, 0n, globalStorage);
-    const gcHeap = new H.BumpAllocator(memory, globalStorage, total);
+    this.staticAllocator = new H.BumpAllocator(memory, 0n, cfg.staticStorage);
+    const gcHeap = new H.BumpAllocator(memory, cfg.staticStorage, cfg.total);
     this.gc = new GC.MnS(memory, gcHeap);
   }
 
