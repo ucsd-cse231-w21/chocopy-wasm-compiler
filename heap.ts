@@ -130,8 +130,8 @@ export class BitMappedBlocks implements MarkableAllocator {
   constructor(start: bigint, end: bigint, blockSize: bigint, metadataSize: bigint) {
     this.start = start + (start % 2n); // Align at even boundary
     this.end = end;
-    this.blockSize = blockSize;
-    this.metadataSize = metadataSize + 1n;
+    this.blockSize = blockSize + (blockSize % 2n);
+    this.metadataSize = metadataSize + 1n; // 1(bitmap) + object header size
     
     this.numBlocks = (end - start)/blockSize;
 
@@ -140,12 +140,8 @@ export class BitMappedBlocks implements MarkableAllocator {
     this.infomap = new Uint8Array(totalNBytes);
   }
 
-  getInfomapIndex (index: bigint): number {
-    return Number(this.metadataSize * index)
-  }
-
   isFree (index: bigint): boolean {
-    return this.infomap[this.getInfomapIndex(index)] === 0
+    return this.infomap[Number(this.metadataSize * index)] === 0
   }
 
   getNumFreeBlocks() {
@@ -210,7 +206,9 @@ export class BitMappedBlocks implements MarkableAllocator {
 
     // Set the bit(byte) as "used"
     // Size is stored in header -  Useful when sweeping
-    for(let index = blockIndex; index < blockIndex + nBlocks; ++index) {
+    // Edit: Store the number of blocks allocated instead of just 1 for the first block
+    this.infomap[Number(this.metadataSize*blockIndex)] = Number(nBlocks);
+    for(let index = blockIndex + 1n; index < blockIndex + nBlocks; ++index) {
       this.infomap[Number(this.metadataSize*index)] = 1;
     }
 
@@ -222,8 +220,13 @@ export class BitMappedBlocks implements MarkableAllocator {
 
   free2(ptr: bigint) {
     // mark "ptr" block as free
-    const index = (ptr - this.start)/this.blockSize;
-    this.infomap[this.getInfomapIndex(index)] = 0
+    let index = (ptr - this.start)/this.blockSize;
+    let nBlocks = this.infomap[Number(this.metadataSize * index)];
+    while(nBlocks !== 0) {
+      this.infomap[Number(this.metadataSize * index)] = 0;
+      ++index;
+      --nBlocks;
+    }
   }
 
   owns(ptr: bigint): boolean {
@@ -257,18 +260,15 @@ export class BitMappedBlocks implements MarkableAllocator {
   }
 
   sweep() {
-    let index = 0
+    let index = 0n
     while(index < this.numBlocks) {
-      const header = new Header(this.infomap, BigInt((HEADER_SIZE_BYTES + 1) * index + 1));
+      const header = new Header(this.infomap, BigInt(this.metadataSize * index + 1n));
       if(!header.isMarked()) {
-        // Collect the entire "set" of blocks
-        const size = header.getSize();
-        let nBlocks = size/this.blockSize;
-
-        if(size % this.blockSize !== 0n) nBlocks += 1n;
+        // Get number of blocks
+        let nBlocks = this.infomap[Number(this.metadataSize * index)];
 
         while (nBlocks > 0 && index < this.numBlocks) {
-          this.infomap[(1 + HEADER_SIZE_BYTES)*index] = 0; // Free it!
+          this.infomap[Number(this.metadataSize * index)] = 0; // Free it!
           ++index;
           --nBlocks;
         }
