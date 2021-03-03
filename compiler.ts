@@ -1,5 +1,5 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE } from "./utils";
+import { NUM, BOOL, NONE, INT_LITERAL_MAX, INT_LITERAL_MIN, nTagBits, bigintToWords } from "./utils";
 import * as BaseException from "./error";
 
 // https://learnxinyminutes.com/docs/wasm/
@@ -18,10 +18,6 @@ export const emptyEnv : GlobalEnv = {
   locals: new Set(),
   offset: 0 
 };
-
-export const nTagBits = 1;
-const INT_LITERAL_MAX = BigInt(2**(31 - nTagBits) - 1);
-const INT_LITERAL_MIN = BigInt(-(2**(31 - nTagBits)));
 
 export const encodeLiteral : Array<string> = [  
   `(i32.const ${nTagBits})`,
@@ -251,6 +247,9 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       const rhsStmts = codeGenExpr(expr.right, env);
       if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral]
+      }
+      else if (expr.op == BinOp.Plus || expr.op == BinOp.Minus) {
+        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
       } else {
         return [...lhsStmts, ...decodeLiteral, ...rhsStmts, ...decodeLiteral, codeGenBinOp(expr.op), ...encodeLiteral]
       }
@@ -316,21 +315,7 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
 
 function codeGenBigInt(num : bigint) : Array<string> {
   const WORD_SIZE = 4;
-  const mask = BigInt(0x7fffffff);
-  var sign = 1;
-  var size = 0;
-  // fields ? [(0, sign), (1, size)]
-  if (num < 0n) {
-    sign = 0
-    num *= -1n
-  }
-  var words : bigint[] = [];
-  do {
-    words.push(num & mask);
-    num >>= 31n;
-    size += 1
-  } while (num > 0n)
-  // size MUST be > 0
+  var [sign, size, words] = bigintToWords(num);
   var alloc = [
     // eventually we will be able to call something like alloc(size+2)
     "(i32.load (i32.const 0))", // Load dynamic heap head offset
@@ -381,9 +366,9 @@ function codeGenLiteral(literal : Literal) : Array<string> {
 function codeGenBinOp(op : BinOp) : string {
   switch(op) {
     case BinOp.Plus:
-      return "(i32.add)"
+      return "(call $$add)"
     case BinOp.Minus:
-      return "(i32.sub)"
+      return "(call $$sub)"
     case BinOp.Mul:
       return "(i32.mul)"
     case BinOp.IDiv:
