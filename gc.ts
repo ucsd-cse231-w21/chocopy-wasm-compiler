@@ -141,6 +141,93 @@ export interface MarkableAllocator extends H.Allocator {
   sweep: () => void,
 }
 
+export class RootSet {
+
+  // Needed to prune global variables
+  memory: Uint8Array;
+
+  // Pointers TO global variables
+  // NOTE(alex): declared this way so the GC can check the global variable at mark-time
+  //   instead of relying on a copy of the value (ala local variable roots)
+  globals: Set<Pointer>;
+
+  // VALUES of local variables that are pointers
+  // Necessary b/c we have no way to directly scan the WASM stack
+  // NOTE(alex): Whenever a local is updated, this may also need to be updated
+  locals: Set<Pointer>;
+
+  captureTempsFlag: boolean;
+  // VALUES of temporaries that are pointers
+  // Necessary b/c we have no way to directly scan the WASM stack
+  // NOTE(alex): Whenever a local is updated, this may also need to be updated
+  temps: Set<Pointer>;
+
+  constructor(memory: Uint8Array) {
+    this.memory = memory;
+
+    this.globals = new Set();
+    this.locals = new Set();
+    this.temps = new Set();
+
+    this.captureTempsFlag = false;
+  }
+
+  captureTemps() {
+    this.captureTempsFlag = true;
+  }
+
+  releaseTemps() {
+    this.captureTempsFlag = false;
+    this.temps = new Set();
+  }
+
+  addLocal(value: bigint) {
+    if (isPointer(value)) {
+      const ptr = extractPointer(value);
+      this.locals.add(ptr);
+    }
+  }
+
+  removeLocal(value: bigint) {
+    if (isPointer(value)) {
+      const ptr = extractPointer(value);
+      this.locals.delete(ptr);
+    }
+  }
+
+  releaseLocals() {
+    this.locals = new Set();
+  }
+
+  // ptr: pointer TO the global variable in linear memory
+  addGlobal(ptr: Pointer) {
+    this.globals.add(ptr);
+  }
+
+  // Iterate through all roots
+  // Global variables are pruned for pointers
+  forEach(callback: (heapObjPtr: Pointer) => void) {
+
+    // Scan global variables for pointers
+    this.globals.forEach(globalVarAddr => {
+      const globalVarValue = readI32(this.memory, Number(globalVarAddr));
+      if (isPointer(globalVarValue)) {
+        callback(extractPointer(globalVarValue));
+      }
+    });
+
+    // Local set is already a set of pointers to heap values
+    this.locals.forEach(localPtrValue => {
+      callback(localPtrValue);
+    });
+
+    // Temp set is already a set of pointers to heap values
+    this.temps.forEach(localPtrValue => {
+      callback(localPtrValue);
+    });
+  }
+}
+
 /// Mark-and-sweep GC implementation
 ///   * Stop-the-world
 ///
