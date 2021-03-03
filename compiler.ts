@@ -132,11 +132,24 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       throw new Error("Destructured assignment not implemented");
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
-      // TODO(alex:mm): un/set local
       if (env.locals.has(stmt.name)) {
-        return codeGenTempGuard(valStmts.concat([`(local.set $${stmt.name})`]),
-          RELEASE_TEMPS);
+        // NOTE(alex:mm): removeLocal/addLocal calls are necessary b/c
+        //   MemoryManager cannot scan the WASM stack directly and
+        //   must maintain a list of local variable pointers
+        // These functions do a runtime tag-check to distinguish pointers
+        const result = [
+          `(local.get $${stmt.name})`,
+          `(call $removeLocal)`,
+        ].concat(valStmts.concat([`(local.set $${stmt.name})`]))
+          .concat([
+            `(local.get $${stmt.name})`,
+            `(call $addLocal)`,
+          ]);
+
+        return codeGenTempGuard(result, RELEASE_TEMPS);
       } else {
+        // NOTE(alex:mm): all global variables in linear memory can be
+        //   scanned by MemoryManager for pointers
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
         return codeGenTempGuard(locationToStore.concat(valStmts).concat([`(i32.store)`]),
           RELEASE_TEMPS);
