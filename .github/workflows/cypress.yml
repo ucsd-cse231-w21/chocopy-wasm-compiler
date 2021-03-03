@@ -74,6 +74,7 @@ jobs:
   cypress-test:
     runs-on: ubuntu-latest
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2
         with:
@@ -85,13 +86,12 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
-      steps:
-        # Install using ONLY the package-lock.json
-        - name: Install dependencies
-          run: npm ci
-        - name: Start testing
-          uses: cypress-io/github-action@v2
-          with:
-            start: npm start
-            wait-on: 'http://localhost:8080'
-            command: npm run cypress:run
+      # Install using ONLY the package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Start testing
+        uses: cypress-io/github-action@v2
+        with:
+          start: npm start
+          wait-on: 'http://localhost:8080'
+          command: npm run cypress:run
