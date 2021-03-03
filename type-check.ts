@@ -114,8 +114,8 @@ export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
   if (isAssignable(env, valTyp, init.type)) {
     return { ...init, a: NONE };
   } else {
+    // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
     throw new BaseException.TypeMismatchError(init.type.tag, valTyp.tag);
-    // throw new BaseException.TypeError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
   }
 }
 
@@ -170,9 +170,10 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const thnTyp = tThn[tThn.length - 1].a;
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
-      if (tCond.a !== BOOL) 
+      if (tCond.a !== BOOL) {
+        // Python allows condition to be not bool. So we create this ConditionTypeError here, which does not exist in real python.
         throw new BaseException.ConditionTypeError(tCond.a.tag);
-        // throw new BaseException.TypeError("Condition Expression Must be a bool");
+      }
       else if (thnTyp !== elsTyp)
         throw new BaseException.SyntaxError("Types of then and else branches must match");
       return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls};
@@ -182,14 +183,12 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
         throw new BaseException.TypeMismatchError((locals.expectedRet as any).name, (tRet.a as any).name);
-        // throw new BaseException.TypeError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
       return {a: tRet.a, tag: stmt.tag, value:tRet};
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
       if (!equalType(tCond.a, BOOL)) 
         throw new BaseException.ConditionTypeError(tCond.a.tag);
-        // throw new BaseException.TypeError("Condition Expression Must be a bool");
       return {a: NONE, tag:stmt.tag, cond: tCond, body: tBody};
     case "pass":
       return { a: NONE, tag: stmt.tag };
@@ -197,22 +196,17 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
       if (tObj.a.tag !== "class") {
-        //throw new BaseException.TypeError("field assignments require an object");
         throw new BaseException.AttributeError(tObj.a.tag, stmt.field);
       }
       if (!env.classes.has(tObj.a.name)) {
-        //throw new TypeCheckError("field assignment on an unknown class");
         throw new BaseException.NameError(tObj.a.name);
       }
       const [fields, _] = env.classes.get(tObj.a.name);
       if (!fields.has(stmt.field)) {
-        //throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
         throw new BaseException.AttributeError(tObj.a.name, stmt.field);
       }
       if (!isAssignable(env, tVal.a, fields.get(stmt.field))) {
-        //throw new TypeCheckError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
         throw new BaseException.TypeMismatchError(fields.get(stmt.field).tag, tVal.a.tag)
-        // throw new BaseException.TypeError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
       }
       return { ...stmt, a: NONE, obj: tObj, value: tVal };
   }
@@ -227,7 +221,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       const tRight = tcExpr(env, locals, expr.right);
       const tBin = { ...expr, left: tLeft, right: tRight };
       switch (expr.op) {
-        // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
         case BinOp.Plus:
         case BinOp.Minus:
         case BinOp.Mul:
@@ -259,7 +252,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       const tUni = { ...expr, a: tExpr.a, expr: tExpr };
       switch (expr.op) {
         case UniOp.Neg:
-          // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
           if (equalType(tExpr.a, NUM)) { return tUni }
           else { throw new BaseException.TypeMismatchError("number", toObject(tExpr.a)); }
         case UniOp.Not:
@@ -272,7 +264,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else if (env.globals.has(expr.name)) {
         return { a: env.globals.get(expr.name), ...expr };
       } else {
-        //throw new TypeCheckError("Unbound id: " + expr.name);
         throw new BaseException.NameError(expr.name);
       }
     case "builtin1":
@@ -286,7 +277,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (isAssignable(env, tArg.a, expectedArgTyp)) {
           return { ...expr, a: retTyp, arg: tArg };
         } else {
-          // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
           throw new BaseException.TypeMismatchError(toObject(expectedArgTyp), toObject(tArg));
         }
       } else {
@@ -300,7 +290,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (isAssignable(env, leftTyp, tLeftArg.a) && isAssignable(env, rightTyp, tRightArg.a)) {
           return { ...expr, a: retTyp, left: tLeftArg, right: tRightArg };
         } else {
-          // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
           throw new BaseException.TypeMismatchError(toObject([leftTyp, rightTyp]), toObject([tLeftArg, tRightArg]));
         }
       } else {
@@ -335,7 +324,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           throw new BaseException.TypeError(`${expr.name} takes ${argTypes.length} positional arguments but ${expr.arguments.length} were given`);
         }
         else {
-          // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
           throw new BaseException.TypeMismatchError(toObject(argTypes), toObject(expr.arguments));
         }
       } else {
@@ -349,15 +337,12 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           if (fields.has(expr.field)) {
             return { ...expr, a: fields.get(expr.field), obj: tObj };
           } else {
-            //throw new TypeCheckError(`could not found field ${expr.field} in class ${tObj.a.name}`);
             throw new BaseException.AttributeError(tObj.a.name, expr.field);
           }
         } else {
-          //throw new TypeCheckError("field lookup on an unknown class");
           throw new BaseException.NameError(tObj.a.name);
         }
       } else {
-        //throw new TypeCheckError("field lookups require an object");
         throw new BaseException.AttributeError(tObj.a.tag, expr.field);
       }
     case "method-call":
@@ -379,7 +364,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               throw new BaseException.TypeError(`${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`);
             }
             else {
-              // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
               throw new BaseException.TypeMismatchError(toObject(methodArgs), toObject(realArgs));
             }
           } else {
