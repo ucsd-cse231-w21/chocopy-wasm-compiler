@@ -12,11 +12,23 @@ export {
 // Untagged pointer (32-bits)
 export type Pointer = bigint;
 
+export function toHeapTag(tag: bigint): GC.HeapTag {
+  if ((tag === GC.TAG_CLASS)
+    || (tag === GC.TAG_LIST)
+    || (tag === GC.TAG_STRING)
+    || (tag === GC.TAG_DICT)
+    || (tag === GC.TAG_BIGINT)) {
+    return tag;
+  }
+
+  throw new Error(`${tag.toString()} is not a valid heap tag`);
+}
+
 export function importMemoryManager(importObject: any, mm: MemoryManager) {
   importObject.imports.memoryManager = mm;
 
-  importObject.imports.gcalloc = function(tag: GC.HeapTag, size: bigint): bigint {
-    return mm.gcalloc(tag, size);
+  importObject.imports.gcalloc = function(tag: any, size: any): bigint {
+    return mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size));
   };
 
   importObject.imports.captureTemps = function() { mm.captureTemps() };
