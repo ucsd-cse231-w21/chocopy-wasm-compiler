@@ -206,15 +206,6 @@ export class SyntaxError extends Exception {
 	}
 }
 
-export class OutsideFunctionError extends Exception {
-	constructor(keyword: string, message?: string, name = "SyntaxError") {
-		super(`'${keyword}' outside function`, name);
-		if (Error.captureStackTrace) {
-			Error.captureStackTrace(this, OutsideFunctionError);
-		}
-	}
-}
-
 export class IndentationError extends SyntaxError {
 	constructor(message?: string, name = "IndentationError") {
 		super(`unexpected indent`);

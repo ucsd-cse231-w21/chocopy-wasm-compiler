@@ -170,26 +170,16 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const thnTyp = tThn[tThn.length - 1].a;
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
-<<<<<<< HEAD
       if (tCond.a !== BOOL) 
         throw new BaseException.ConditionTypeError(tCond.a.tag);
         // throw new BaseException.TypeError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
         throw new BaseException.SyntaxError("Types of then and else branches must match");
       return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls};
-=======
-      if (tCond.a !== BOOL)
-        throw new BaseException.TypeError("Condition Expression Must be a bool");
-      else if (thnTyp !== elsTyp)
-        throw new BaseException.TypeError("Types of then and else branches must match");
-      return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
->>>>>>> 7e51f8e63c87c92c2f62adab4503da4db13e4d18
     case "return":
       if (locals.topLevel)
-        throw new BaseException.OutsideFunctionError("return");
-        // throw new BaseException.SyntaxError("cannot return outside of functions");
+        throw new BaseException.SyntaxError("‘return’ outside of functions");
       const tRet = tcExpr(env, locals, stmt.value);
-<<<<<<< HEAD
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
         throw new BaseException.TypeMismatchError((locals.expectedRet as any).name, (tRet.a as any).name);
         // throw new BaseException.TypeError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
@@ -201,17 +191,6 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         throw new BaseException.ConditionTypeError(tCond.a.tag);
         // throw new BaseException.TypeError("Condition Expression Must be a bool");
       return {a: NONE, tag:stmt.tag, cond: tCond, body: tBody};
-=======
-      if (!isAssignable(env, tRet.a, locals.expectedRet))
-        throw new BaseException.TypeError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
-      return { a: tRet.a, tag: stmt.tag, value: tRet };
-    case "while":
-      var tCond = tcExpr(env, locals, stmt.cond);
-      const tBody = tcBlock(env, locals, stmt.body);
-      if (!equalType(tCond.a, BOOL))
-        throw new BaseException.TypeError("Condition Expression Must be a bool");
-      return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
->>>>>>> 7e51f8e63c87c92c2f62adab4503da4db13e4d18
     case "pass":
       return { a: NONE, tag: stmt.tag };
     case "field-assign":
