@@ -183,11 +183,11 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       // iterable should be a Range object
       return [
         `(loop 
-          (br_if 0 ${Code_cond}) (br 1)
+          (br_if 0 ${Code_cond.join("\n")}) (br 1)
 
-          ${Code_ass}
+          ${Code_ass.join("\n")}
           ${bodyStmts.join("\n")}
-          ${Code_step}
+          ${Code_step.join("\n")}
         )`
       ]
     case "pass":
