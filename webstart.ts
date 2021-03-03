@@ -70,11 +70,12 @@ function webStart() {
       }
     }
 
-    function renderError(result: any): void {
+    function renderError(result: any, source: string): void {
       const elt = document.createElement("pre");
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
-      elt.innerText = String(result);
+      var text = `line ${result.loc.line}: ${source.split(/\r?\n/)[result.loc.line - 1].substring(result.loc.col - 1, result.loc.col - 1 + result.loc.length)}`;
+      elt.innerText = text.concat("\n").concat(String(result));
     }
 
     function setupRepl() {
@@ -103,7 +104,7 @@ function webStart() {
               console.log("run finished");
             })
             .catch((e) => {
-              renderError(e);
+              renderError(e, source);
               console.log("run failed", e);
             });
         }
@@ -125,7 +126,7 @@ function webStart() {
           console.log("run finished");
         })
         .catch((e) => {
-          renderError(e);
+          renderError(e ,source.value);
           console.log("run failed", e);
         });
     });
