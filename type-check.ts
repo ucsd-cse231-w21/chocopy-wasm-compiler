@@ -158,9 +158,9 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       } else {
         throw new BaseException.NameError(stmt.name);
       }
-      if(!isAssignable(env, tValExpr.a, nameTyp)) 
+      if (!isAssignable(env, tValExpr.a, nameTyp))
         throw new BaseException.Exception("Non-assignable types");
-      return {a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr};
+      return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
@@ -170,17 +170,26 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const thnTyp = tThn[tThn.length - 1].a;
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
+<<<<<<< HEAD
       if (tCond.a !== BOOL) 
         throw new BaseException.ConditionTypeError(tCond.a.tag);
         // throw new BaseException.TypeError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
         throw new BaseException.SyntaxError("Types of then and else branches must match");
       return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls};
+=======
+      if (tCond.a !== BOOL)
+        throw new BaseException.TypeError("Condition Expression Must be a bool");
+      else if (thnTyp !== elsTyp)
+        throw new BaseException.TypeError("Types of then and else branches must match");
+      return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
+>>>>>>> 7e51f8e63c87c92c2f62adab4503da4db13e4d18
     case "return":
       if (locals.topLevel)
         throw new BaseException.OutsideFunctionError("return");
         // throw new BaseException.SyntaxError("cannot return outside of functions");
       const tRet = tcExpr(env, locals, stmt.value);
+<<<<<<< HEAD
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
         throw new BaseException.TypeMismatchError((locals.expectedRet as any).name, (tRet.a as any).name);
         // throw new BaseException.TypeError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
@@ -192,6 +201,17 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         throw new BaseException.ConditionTypeError(tCond.a.tag);
         // throw new BaseException.TypeError("Condition Expression Must be a bool");
       return {a: NONE, tag:stmt.tag, cond: tCond, body: tBody};
+=======
+      if (!isAssignable(env, tRet.a, locals.expectedRet))
+        throw new BaseException.TypeError("expected return type `" + (locals.expectedRet as any).name + "`; got type `" + (tRet.a as any).name + "`");
+      return { a: tRet.a, tag: stmt.tag, value: tRet };
+    case "while":
+      var tCond = tcExpr(env, locals, stmt.cond);
+      const tBody = tcBlock(env, locals, stmt.body);
+      if (!equalType(tCond.a, BOOL))
+        throw new BaseException.TypeError("Condition Expression Must be a bool");
+      return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
+>>>>>>> 7e51f8e63c87c92c2f62adab4503da4db13e4d18
     case "pass":
       return { a: NONE, tag: stmt.tag };
     case "field-assign":
@@ -199,7 +219,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const tVal = tcExpr(env, locals, stmt.value);
       if (tObj.a.tag !== "class") {
         //throw new BaseException.TypeError("field assignments require an object");
-        throw new BaseException.AttributeError(tObj.a.tag, stmt.field);  
+        throw new BaseException.AttributeError(tObj.a.tag, stmt.field);
       }
       if (!env.classes.has(tObj.a.name)) {
         //throw new TypeCheckError("field assignment on an unknown class");
@@ -208,14 +228,14 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const [fields, _] = env.classes.get(tObj.a.name);
       if (!fields.has(stmt.field)) {
         //throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
-        throw new BaseException.AttributeError(tObj.a.name, stmt.field);  
+        throw new BaseException.AttributeError(tObj.a.name, stmt.field);
       }
       if (!isAssignable(env, tVal.a, fields.get(stmt.field))) {
         //throw new TypeCheckError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
         throw new BaseException.TypeMismatchError(fields.get(stmt.field).tag, tVal.a.tag)
         // throw new BaseException.TypeError(`could not assign value of type: ${tVal.a}; field ${stmt.field} expected type: ${fields.get(stmt.field)}`);
       }
-      return {...stmt, a: NONE, obj: tObj, value: tVal};
+      return { ...stmt, a: NONE, obj: tObj, value: tVal };
   }
 }
 
@@ -228,42 +248,44 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       const tRight = tcExpr(env, locals, expr.right);
       const tBin = { ...expr, left: tLeft, right: tRight };
       switch (expr.op) {
+        // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
         case BinOp.Plus:
         case BinOp.Minus:
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
-          if(equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return {a: NUM, ...tBin}}
-          else { throw new BaseException.TypeError("Type mismatch for numeric op" + expr.op); }
+          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return { a: NUM, ...tBin } }
+          else { throw new BaseException.TypeMismatchError("number", toObject([tLeft.a, tRight.a])); }
         case BinOp.Eq:
         case BinOp.Neq:
-          if(equalType(tLeft.a, tRight.a)) { return {a: BOOL, ...tBin} ; }
-          else { throw new BaseException.TypeError("Type mismatch for op" + expr.op)}
+          if (equalType(tLeft.a, tRight.a)) { return { a: BOOL, ...tBin }; }
+          else { throw new BaseException.TypeMismatchError("bool", toObject([tLeft.a, tRight.a])) }
         case BinOp.Lte:
         case BinOp.Gte:
         case BinOp.Lt:
         case BinOp.Gt:
-          if(equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return {a: BOOL, ...tBin} ; }
-          else { throw new BaseException.TypeError("Type mismatch for op" + expr.op) }
+          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return { a: BOOL, ...tBin }; }
+          else { throw new BaseException.TypeMismatchError("bool", toObject([tLeft.a, tRight.a])) }
         case BinOp.And:
         case BinOp.Or:
-          if(equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) { return {a: BOOL, ...tBin} ; }
-          else { throw new BaseException.TypeError("Type mismatch for boolean op" + expr.op); }
+          if (equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) { return { a: BOOL, ...tBin }; }
+          else { throw new BaseException.TypeMismatchError("bool", toObject([tLeft.a, tRight.a])); }
         case BinOp.Is:
-          if(!isNoneOrClass(tLeft.a) || !isNoneOrClass(tRight.a))
-            throw new BaseException.TypeError("is operands must be objects");
-          return {a: BOOL, ...tBin};
+          if (!isNoneOrClass(tLeft.a) || !isNoneOrClass(tRight.a))
+            throw new BaseException.TypeMismatchError("object", toObject([tLeft.a, tRight.a]));
+          return { a: BOOL, ...tBin };
       }
     case "uniop":
       const tExpr = tcExpr(env, locals, expr.expr);
       const tUni = { ...expr, a: tExpr.a, expr: tExpr };
       switch (expr.op) {
         case UniOp.Neg:
-          if(equalType(tExpr.a, NUM)) { return tUni }
-          else { throw new BaseException.TypeError("Type mismatch for op" + expr.op);}
+          // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
+          if (equalType(tExpr.a, NUM)) { return tUni }
+          else { throw new BaseException.TypeMismatchError("number", toObject(tExpr.a)); }
         case UniOp.Not:
-          if(equalType(tExpr.a, BOOL)) { return tUni }
-          else { throw new BaseException.TypeError("Type mismatch for op" + expr.op);}
+          if (equalType(tExpr.a, BOOL)) { return tUni }
+          else { throw new BaseException.TypeMismatchError("bool", toObject(tExpr.a)); }
       }
     case "id":
       if (locals.vars.has(expr.name)) {
@@ -285,10 +307,10 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (isAssignable(env, tArg.a, expectedArgTyp)) {
           return { ...expr, a: retTyp, arg: tArg };
         } else {
-          throw new BaseException.TypeError("Function call type mismatch: " + expr.name);
+          // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
+          throw new BaseException.TypeMismatchError(toObject(expectedArgTyp), toObject(tArg));
         }
       } else {
-        //throw new TypeError("Undefined function: " + expr.name);
         throw new BaseException.NameError(expr.name);
       }
     case "builtin2":
@@ -299,7 +321,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (isAssignable(env, leftTyp, tLeftArg.a) && isAssignable(env, rightTyp, tRightArg.a)) {
           return { ...expr, a: retTyp, left: tLeftArg, right: tRightArg };
         } else {
-          throw new BaseException.TypeError("Function call type mismatch: " + expr.name);
+          // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
+          throw new BaseException.TypeMismatchError(toObject([leftTyp, rightTyp]), toObject([tLeftArg, tRightArg]));
         }
       } else {
         throw new BaseException.NameError(expr.name);
@@ -311,11 +334,11 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         const [_, methods] = env.classes.get(expr.name);
         if (methods.has("__init__")) {
           const [initArgs, initRet] = methods.get("__init__");
-          if (expr.arguments.length !== initArgs.length - 1)
-            throw new BaseException.TypeError("__init__ didn't receive the correct number of arguments from the constructor");
+          if (expr.arguments.length !== initArgs.length - 1) {
+            throw new BaseException.TypeError(`__init__() takes ${initArgs.length} positional arguments but ${expr.arguments.length + 1} were given`);
+          }
           if (initRet !== NONE) {
-            //throw new TypeCheckError("__init__  must have a void return type");
-            throw new BaseException.TypeError(`__init__() should return None, not '${initRet}'`);
+            throw new BaseException.TypeError(`__init__() should return None, not '${initRet.tag == "class" ? initRet.name : initRet.tag}'`);
           }
           return tConstruct;
         } else {
@@ -325,12 +348,17 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         const [argTypes, retType] = env.functions.get(expr.name);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
-        if(argTypes.length === expr.arguments.length &&
-           tArgs.every((tArg, i) => tArg.a === argTypes[i])) {
-             return {...expr, a: retType, arguments: expr.arguments};
-           } else {
-            throw new BaseException.TypeError("Function call type mismatch: " + expr.name);
-           }
+        if (argTypes.length === expr.arguments.length &&
+          tArgs.every((tArg, i) => tArg.a === argTypes[i])) {
+          return { ...expr, a: retType, arguments: expr.arguments };
+        } 
+        else if (argTypes.length != expr.arguments.length) {
+          throw new BaseException.TypeError(`${expr.name} takes ${argTypes.length} positional arguments but ${expr.arguments.length} were given`);
+        }
+        else {
+          // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
+          throw new BaseException.TypeMismatchError(toObject(argTypes), toObject(expr.arguments));
+        }
       } else {
         throw new BaseException.NameError(expr.name);
       }
@@ -343,7 +371,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             return { ...expr, a: fields.get(expr.field), obj: tObj };
           } else {
             //throw new TypeCheckError(`could not found field ${expr.field} in class ${tObj.a.name}`);
-            throw new BaseException.AttributeError(tObj.a.name, expr.field); 
+            throw new BaseException.AttributeError(tObj.a.name, expr.field);
           }
         } else {
           //throw new TypeCheckError("field lookup on an unknown class");
@@ -351,7 +379,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         }
       } else {
         //throw new TypeCheckError("field lookups require an object");
-        throw new BaseException.AttributeError(tObj.a.tag, expr.field); 
+        throw new BaseException.AttributeError(tObj.a.tag, expr.field);
       }
     case "method-call":
       var tObj = tcExpr(env, locals, expr.obj);
@@ -367,12 +395,13 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))
             ) {
               return { ...expr, a: methodRet, obj: tObj, arguments: tArgs };
-            } else {
-              throw new BaseException.Exception(
-                `Method call type mismatch: ${expr.method} --- callArgs: ${JSON.stringify(
-                  realArgs
-                )}, methodArgs: ${JSON.stringify(methodArgs)}`
-              );
+            }
+            else if (methodArgs.length != realArgs.length) {
+              throw new BaseException.TypeError(`${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`);
+            }
+            else {
+              // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
+              throw new BaseException.TypeMismatchError(toObject(methodArgs), toObject(realArgs));
             }
           } else {
             throw new BaseException.AttributeError(tObj.a.name, expr.method);
@@ -399,4 +428,12 @@ export function tcLiteral(literal: Literal) {
     default:
       unhandledTag(literal);
   }
+}
+
+export function toObject(obj: any) {
+  return JSON.stringify(obj, (key, value) =>
+      typeof value === 'bigint'
+          ? value.toString()
+          : value
+  );
 }
