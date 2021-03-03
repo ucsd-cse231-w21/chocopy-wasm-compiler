@@ -171,7 +171,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 }
 
 function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
-  const value = codeGenLiteral(init.value, env);
+  //const value = codeGenLiteral(init.value, env);
+  const value = codeGenExpr(init.value, env)
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`];
   } else {

@@ -2,6 +2,7 @@
 import { table } from 'console';
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class} from './ast';
 import { NUM, BOOL, NONE, UNSAT, FAILEDINFER, CLASS, STRING, LIST} from './utils';
+import { equalType } from './type-check'
 import { emptyEnv } from './compiler';
 import * as BaseException from "./error";
 
@@ -78,8 +79,14 @@ export function inferExprType(expr: Expr<any>, globEnv : GlobalTypeEnv, locEnv :
       typeTag = inferTypeLit(expr.value)
       return typeTag
 
+    case "builtin1": // TODO
+    case "builtin2": // TODO
+      throw new Error("Inference for built-ins not supported yet")
+    case "call":     // TODO
+      throw new Error("Inference for calls not supported yet")
     case "list-expr":
       throw new Error("Inference not implemented for lists yet")
+      
     
     case "id":  // Does a type look up in an environment (created at an earlier stage)
       if (locEnv.vars.has(expr.name)) {
@@ -90,6 +97,31 @@ export function inferExprType(expr: Expr<any>, globEnv : GlobalTypeEnv, locEnv :
         return FAILEDINFER
       }
 
+    case "uniop":
+      var exprType = inferExprType(expr.expr, globEnv, locEnv)
+      if (exprType === UNSAT) {
+        return UNSAT
+      }
+      if (exprType === FAILEDINFER) {
+        return FAILEDINFER
+      }
+
+      switch(expr.op) {
+        case UniOp.Neg:
+          if (exprType != NUM) {
+            return UNSAT
+          } else {
+            return NUM
+          }
+        case UniOp.Not:
+          if (exprType != BOOL) {
+            return UNSAT
+          } else {
+            return BOOL
+          }
+      }
+      
+      
     case "binop": 
       var leftType = inferExprType(expr.left, globEnv, locEnv)
       var rightType = inferExprType(expr.right, globEnv, locEnv)
@@ -122,10 +154,37 @@ export function inferExprType(expr: Expr<any>, globEnv : GlobalTypeEnv, locEnv :
             return UNSAT
           }
 
+        // three cases: num-compare, bool-compare, str-compare
         case BinOp.Eq:
+        case BinOp.Neq:
+          if (equalType(leftType, rightType)) { // properly handle classes later
+            return BOOL
+          } else {
+            return UNSAT
+          }
 
-          
-      }      
+        case BinOp.Gt:
+        case BinOp.Gte:
+        case BinOp.Lt:
+        case BinOp.Lte:
+          if (leftType === NUM && rightType === NUM) {
+            return BOOL
+          } else {
+            return UNSAT
+          }
+
+        case BinOp.Or:
+        case BinOp.And:
+          if (leftType === BOOL && rightType === BOOL) {
+            return BOOL
+          } else {
+            return UNSAT
+          }
+
+        case BinOp.Is:
+          throw new Error("Type Inference is not yet supported for 'is'")
+      }
+    
   }
 }
 

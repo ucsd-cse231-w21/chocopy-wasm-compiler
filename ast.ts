@@ -23,7 +23,7 @@ export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A
 
 export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods: Array<FunDef<A>>}
 
-export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
+export type VarInit<A> = { a?: A, name: string, declaredType: Type, value: Expr<A> }
 
 export type FunDef<A> = { 
   a?: A, 
