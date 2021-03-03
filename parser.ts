@@ -482,7 +482,7 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
   var hasChild = c.nextSibling();
 
   while (hasChild) {
-    if (isAssign(c, s)) {
+    if (isNewAssign(c, s)) {
       inits.push(traverseVarInit(c, s));
     } else {
       break;
@@ -518,7 +518,7 @@ export function traverseClass(c: TreeCursor, s: string): Class<null> {
   c.firstChild(); // Focus colon
   while (c.nextSibling()) {
     // Focuses first field
-    if (isAssign(c, s)) {
+    if (isNewAssign(c, s)) {
       fields.push(traverseVarInit(c, s));
     } else if (isFunDef(c, s)) {
       methods.push(traverseFunDef(c, s));
@@ -556,7 +556,7 @@ export function traverseDefs(
   const classes: Array<Class<null>> = [];
 
   while (true) {
-    if (isAssign(c, s)) {
+    if (isNewAssign(c, s)) {
       inits.push(traverseVarInit(c, s));
     } else if (isFunDef(c, s)) {
       funs.push(traverseFunDef(c, s));
@@ -583,8 +583,12 @@ export function isTypedAssign(c: TreeCursor, s: string): boolean {
   }
 }
 
-export function isAssign(c: TreeCursor, s: string): boolean {
-  return c.type.name === "AssignStatement"; 
+export function isNewAssign(c: TreeCursor, s: string): boolean {
+  var cond1 = c.type.name === "AssignStatement";
+  c.firstChild();
+  var cond2 = c.type.name === "MemberExpression"; 
+  c.parent();
+  return cond1 && !cond2
 }
 
 export function isFunDef(c: TreeCursor, s: string): boolean {
@@ -606,7 +610,7 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
       var hasChild = c.firstChild();
 
       while (hasChild) {
-         if (isAssign(c, s)) {
+         if (isNewAssign(c, s)) {
            var shouldAdd = true; 
            var potentialInit = traverseVarInit(c, s);
            inits.forEach(i => {
@@ -616,6 +620,8 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
            })
            if (shouldAdd) {
             inits.push(potentialInit);
+           } else { 
+             break;
            }
         } else if (isFunDef(c, s)) {
           funs.push(traverseFunDef(c, s));
