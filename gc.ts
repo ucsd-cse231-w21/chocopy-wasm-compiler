@@ -172,6 +172,10 @@ export class RootSet {
     this.captureTempsFlag = false;
   }
 
+  addTemp(ptr: bigint) {
+    this.temps.add(ptr);
+  }
+
   captureTemps() {
     this.captureTempsFlag = true;
   }
@@ -236,33 +240,12 @@ export class RootSet {
 export class MnS<A extends MarkableAllocator> {
   memory: Uint8Array;
   heap: A;
-  roots: Set<Pointer>;
+  roots: RootSet;
 
   constructor(memory: Uint8Array, heap: A) {
     this.memory = memory;
     this.heap = heap;
-    this.roots = new Set();
-  }
-
-  // roots: array of root pointers to trace
-  //
-  // NOTE(alex): assumes that the caller has already pruned primitive values
-  //   from the list of pointers
-  //
-  addRoot(toAdd: Array<Pointer>) {
-    toAdd.forEach(item => {
-      this.roots.add(item);
-    });
-  }
-
-  // roots: array of root pointers to trace
-  //
-  // NOTE(alex): assumes that the caller has already pruned primitive values
-  //   from the list of pointers
-  removeRoot(toRemove: Array<Pointer>) {
-    toRemove.forEach(item => {
-      this.roots.delete(item);
-    });
+    this.roots = new RootSet(memory);
   }
 
   // Trace the object graph from roots, setting the 'Mark' bit of each reachable object
@@ -382,6 +365,12 @@ export class MnS<A extends MarkableAllocator> {
     if (result === 0x0n) {
       this.collect();
       result = this.heap.gcalloc(tag, size);
+    }
+
+    if (this.roots.captureTempsFlag) {
+      if (result !== 0x0n) {
+        this.roots.addTemp(result);
+      }
     }
 
     return result;
