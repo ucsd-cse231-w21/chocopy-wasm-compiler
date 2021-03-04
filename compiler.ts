@@ -226,8 +226,10 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   return [
     `(func $${def.name} ${params} (result i32)
     ${locals}
+    (call $pushFrame)
     ${inits}
     ${stmtsBody}
+    (call $releaseLocals)
     (i32.const 0)
     (return))`,
   ];
