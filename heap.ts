@@ -262,6 +262,7 @@ export class BitMappedBlocks implements MarkableAllocator {
     while (index < this.numBlocks) {
       const header = new Header(this.infomap, BigInt(this.metadataSize * index + 1n));
       if (!header.isMarked()) {
+        header.unmark();
         // Get number of blocks
         let nBlocks = this.infomap[Number(this.metadataSize * index)];
 
