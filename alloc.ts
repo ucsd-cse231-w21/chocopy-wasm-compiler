@@ -27,18 +27,26 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
 export function importMemoryManager(importObject: any, mm: MemoryManager) {
   importObject.imports.memoryManager = mm;
 
-  importObject.imports.gcalloc = function(tag: any, size: any): bigint {
-    return mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size));
+  importObject.imports.gcalloc = function(tag: number, size: number): number {
+    return Number(mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size)));
   };
 
+  importObject.imports.addTemp = function(value: number): number {
+    mm.addTemp(BigInt(value))
+    return value;
+  };
   importObject.imports.captureTemps = function() { mm.captureTemps() };
   importObject.imports.releaseTemps = function() { mm.releaseTemps() };
 
-  importObject.imports.addLocal = function(value: bigint) {
-    mm.addLocal(value);
+  importObject.imports.pushFrame = function() {
+    mm.pushFrame();
+  }
+
+  importObject.imports.addLocal = function(value: number) {
+    mm.addLocal(BigInt(value));
   };
-  importObject.imports.removeLocal = function(value: bigint) {
-    mm.removeLocal(value);
+  importObject.imports.removeLocal = function(value: number) {
+    mm.removeLocal(BigInt(value));
   };
   importObject.imports.releaseLocals = function() { mm.releaseLocals() };
 
@@ -60,13 +68,21 @@ export class MemoryManager {
     total: bigint,
   }) {
     this.memory = memory;
-    this.staticAllocator = new H.BumpAllocator(memory, 0n, cfg.staticStorage);
+    this.staticAllocator = new H.BumpAllocator(memory, 4n, cfg.staticStorage + 4n);
     const gcHeap = new H.BumpAllocator(memory, cfg.staticStorage, cfg.total);
     this.gc = new GC.MnS(memory, gcHeap);
   }
 
   forceCollect() {
     this.gc.collect();
+  }
+
+  // Add a potential pointer to the set of temporary roots
+  //
+  // This function is necessary to allow pointers to escape into the caller's
+  //   temp. root frame.
+  addTemp(value: bigint) {
+    this.gc.roots.addTemp(value);
   }
 
   // All heap allocations after this call will be added to the set of temporary roots
@@ -98,6 +114,11 @@ export class MemoryManager {
     this.gc.roots.releaseTemps();
   }
 
+  // Pushes a new stack frame for tracking local variable roots
+  pushFrame() {
+    this.gc.roots.pushFrame();
+  }
+
   // value: potential pointer to a heap object
   //
   // Add a potential pointer to the local variable root set
@@ -111,7 +132,7 @@ export class MemoryManager {
     this.gc.roots.removeLocal(value);
   }
 
-  // Clear the set of local variable roots
+  // Pops the current stack frame
   releaseLocals() {
     this.gc.roots.releaseLocals();
   }

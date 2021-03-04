@@ -18,6 +18,9 @@ export const emptyEnv: GlobalEnv = {
   locals: new Set(),
 };
 
+const RELEASE_TEMPS: boolean = true;
+const HOLD_TEMPS: boolean = false;
+
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>, mm: MemoryManager): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
@@ -73,6 +76,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): 
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$allocPointer");           // Used to cache the result of `gcalloc`
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs: Array<string> = [];
@@ -123,23 +127,58 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     //     (return))`];
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
+
+      valStmts.push("(call $releaseLocals)");
+
+      // $addTemp tries to root the input value and returns it
+      //   to the top of the stack
+      valStmts.push("(call $addTemp)");
       valStmts.push("return");
+
+      // NOTE(alex:mm): We need to put temporaries and escaping pointers into
+      //   the calling statement's temp frame, not a new one.
+      //
+      // By placing them into the calling statement's temp frame, escaping pointers
+      //   have an opportunity to be rooted without fear of the GC cleaning it up
+      //
+      // TODO(alex:mm): instead of relying on escape analysis, we'll just try to
+      //   add the returned value to the parent temp frame
       return valStmts;
     case "assignment":
       throw new Error("Destructured assignment not implemented");
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]);
+        // NOTE(alex:mm): removeLocal/addLocal calls are necessary b/c
+        //   MemoryManager cannot scan the WASM stack directly and
+        //   must maintain a list of local variable pointers
+        // Local i32's are always initialized to 0
+        //   * removeLocal/addLocal ignore 0x0 pointers
+        // These functions do a runtime tag-check to distinguish pointers
+        const result = [
+          `(local.get $${stmt.name})`,
+          `(call $removeLocal)`,
+        ].concat(valStmts.concat([`(local.set $${stmt.name})`]))
+          .concat([
+            `(local.get $${stmt.name})`,
+            `(call $addLocal)`,
+          ]);
+
+        return codeGenTempGuard(result, RELEASE_TEMPS);
       } else {
+        // NOTE(alex:mm): all global variables in linear memory can be
+        //   scanned by MemoryManager for pointers
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
-        return locationToStore.concat(valStmts).concat([`(i32.store)`]);
+        return codeGenTempGuard(locationToStore.concat(valStmts).concat([`(i32.store)`]),
+          RELEASE_TEMPS);
       }
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
-      return exprStmts.concat([`(local.set $$last)`]);
+      return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]),
+        RELEASE_TEMPS);
     case "if":
-      var condExpr = codeGenExpr(stmt.cond, env);
+      // TODO(alex:mm): Are these temporary guards correct/minimal?
+      var condExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env), RELEASE_TEMPS);
       var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [
@@ -148,7 +187,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         )}))`,
       ];
     case "while":
-      var wcondExpr = codeGenExpr(stmt.cond, env);
+      // TODO(alex:mm): Are these temporary guards correct/minimal?
+      var wcondExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env), RELEASE_TEMPS);
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
     case "pass":
@@ -165,7 +205,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(stmt.field);
       var valStmts = codeGenExpr(stmt.value, env);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      const result = [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      return codeGenTempGuard(result, RELEASE_TEMPS);
     default:
       unhandledTag(stmt);
   }
@@ -185,6 +226,7 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
+  definedVars.add("$allocPointer");     // Used to cache the result of `gcalloc`
   // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach(env.locals.add, env.locals);
   def.parameters.forEach((p) => env.locals.add(p.name));
@@ -202,8 +244,10 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   return [
     `(func $${def.name} ${params} (result i32)
     ${locals}
+    (call $pushFrame)
     ${inits}
     ${stmtsBody}
+    (call $releaseLocals)
     (i32.const 0)
     (return))`,
   ];
@@ -261,11 +305,16 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
     case "construct":
-      var stmts: Array<string> = [];
+      var stmts: Array<string> = [
+       `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
+        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
+        `(call $gcalloc)`,
+        `(local.set $$allocPointer)`,
+      ];
       env.classes.get(expr.name).forEach(([offset, initVal], field) =>
         stmts.push(
           ...[
-            `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+            `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
             ...codeGenLiteral(initVal, env), // Initialize field
             "(i32.store)", // Put the default field value on the heap
@@ -273,10 +322,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         )
       );
       return stmts.concat([
-        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
-        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
-        `(call $gcalloc)`,
+        `(local.get $$allocPointer)`,
         `(call $${expr.name}$__init__)`, // call __init__
+        `(drop)`,
+        `(local.get $$allocPointer)`,
       ]);
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
@@ -351,4 +400,17 @@ function codeGenBinOp(op: BinOp): string {
     case BinOp.Or:
       return "(i32.or)";
   }
+}
+
+// Required so that heap-allocated temporaries are considered rooted/reachable
+// Without the call to `captureTemps`, heap-allocated temporaries may be accidently
+//   freed
+// Necessary because cannot scan the WASM stack for pointers so the MemoryManager
+//   must maintain its own list of reachable objects
+function codeGenTempGuard(c: Array<string>, release: boolean): Array<string> {
+  if (release) {
+    return ["(call $captureTemps)"].concat(c).concat(["(call $releaseTemps)"]);
+  }
+
+  return ["(call $captureTemps)"].concat(c);
 }
