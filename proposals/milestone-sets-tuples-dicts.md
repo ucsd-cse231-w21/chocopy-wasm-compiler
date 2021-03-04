@@ -14,4 +14,7 @@ By March 11, we aim to get all the examples mentioned in proposal working. We al
 
 ## Challenges faced in our week of implementation
 
-For implementing dictionary, we had to implement hashtable and we wrote 100-150 lines of assembly code which was time-taking but it finally worked out!
+We faced the following challenges during this week's implementation:
+- For implementing dictionary, we had to implement hashtable and we wrote 100-150 lines of assembly code which was time-taking but it finally worked out!
+- We had to keep track of our implementation with other teams: strings, lists, memory allocation and making sure it is compatible and modular enough so that it's easy to integrate.
+
