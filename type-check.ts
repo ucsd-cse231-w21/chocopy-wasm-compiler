@@ -243,7 +243,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
           );
         if (!isAssignable(env, valueType, tValue.a))
           throw new TypeCheckError(
-            "Expected value type `" + valueType.tag + "`; got value type `" + tValue.a.tag + "`"
+            "Expected value type `" + keyType.tag + "`; got value type `" + tValue.a.tag + "`"
           );
         return { ...stmt, a: NONE, obj: tObject, key: tKey, value: tValue };
       } else {
@@ -458,8 +458,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           let keyType = tcExpr(env, locals, entries[entryIndex][0]);
           let valueType = tcExpr(env, locals, entries[entryIndex][1]);
           entryTypes.push([keyType, valueType]);
-          keyTypes.add(keyType.a);
-          valueTypes.add(valueType.a);
+          keyTypes.add(JSON.stringify(keyType.a));
+          valueTypes.add(JSON.stringify(valueType.a));
         }
         if (keyTypes.size > 1) {
           throw new TypeCheckError("Heterogenous `Key` types aren't supported");
@@ -467,9 +467,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (valueTypes.size > 1) {
           throw new TypeCheckError("Heterogenous `Value` types aren't supported");
         }
-        let keyType = keyTypes.values().next().value;
-        let valueType = valueTypes.values().next().value;
-        dictType = { tag: "dict", key: keyType, value: valueType };
+        let keyType = tcExpr(env, locals, entries[0][0]);
+        let valueType = tcExpr(env, locals, entries[0][1]);
+        dictType = { tag: "dict", key: keyType.a, value: valueType.a };
         let dictAnnotated = { ...expr, a: dictType, entries: entryTypes };
         return dictAnnotated;
       }
