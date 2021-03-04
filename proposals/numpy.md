@@ -2,7 +2,11 @@
 
 This project implements a subset of Numpy with focus on the most popular scalar and matrix operations. Two alternative solutions will be explored:
 
-- Run commands in WASM via [Pyodide](https://github.com/iodide-project/pyodide), which interfaces compiled Numpy packages in WASM.
+- Run commands in WASM via [Pyodide](https://github.com/iodide-project/pyodide), which interfaces compiled Numpy packages in WASM. This solution was paused due to following reasons:
+
+	- Pyodide requires a large dependency. Even though it was possible to only import Numpy package as in [pyodide-node](https://github.com/gabrielfreire/pyodide-node), Python standard libraries are still required.
+	- Pyodide may cause conflicts when sharing the WASM linear memory with our compiler. One solution is to use multiprocessing, which however leads to communication overhead.
+	- Directly using Pyodide's compiled Numpy WASM package requires sophisticated designs of memory management and list syntax, which are still in progress.   
 
 - Run commands in JS via [NumJs](https://github.com/nicolaspanel/numjs), which emulates Numpy functionalities in JS.
 
