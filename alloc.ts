@@ -31,6 +31,10 @@ export function importMemoryManager(importObject: any, mm: MemoryManager) {
     return Number(mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size)));
   };
 
+  importObject.imports.addTemp = function(value: number): number {
+    mm.addTemp(BigInt(value))
+    return value;
+  };
   importObject.imports.captureTemps = function() { mm.captureTemps() };
   importObject.imports.releaseTemps = function() { mm.releaseTemps() };
 
@@ -71,6 +75,14 @@ export class MemoryManager {
 
   forceCollect() {
     this.gc.collect();
+  }
+
+  // Add a potential pointer to the set of temporary roots
+  //
+  // This function is necessary to allow pointers to escape into the caller's
+  //   temp. root frame.
+  addTemp(value: bigint) {
+    this.gc.roots.addTemp(value);
   }
 
   // All heap allocations after this call will be added to the set of temporary roots

@@ -188,9 +188,12 @@ export class RootSet {
     this.captureTempsFlag = false;
   }
 
-  addTemp(ptr: bigint) {
-    if (ptr != 0x0n) {
-      this.tempsStack[this.tempsStack.length - 1].add(ptr);
+  addTemp(value: bigint) {
+    if (isPointer(value)) {
+      const ptr = extractPointer(value);
+      if (ptr != 0x0n) {
+        this.tempsStack[this.tempsStack.length - 1].add(ptr);
+      }
     }
   }
 
