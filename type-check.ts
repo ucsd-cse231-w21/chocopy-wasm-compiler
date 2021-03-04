@@ -105,7 +105,14 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram = { a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody , loc: program.loc };
+  const aprogram = {
+    a: lastTyp,
+    inits: tInits,
+    funs: tDefs,
+    classes: tClasses,
+    stmts: tBody,
+    loc: program.loc,
+  };
   return [aprogram, newEnv];
 }
 
@@ -130,11 +137,10 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   return { ...fun, a: NONE, body: tBody };
 }
 
-
 export function tcClass(env: GlobalTypeEnv, cls: Class<null>): Class<Type> {
   const tFields = cls.fields.map((field) => tcInit(env, field));
   const tMethods = cls.methods.map((method) => tcDef(env, method));
-  return {a: NONE, name: cls.name, fields: tFields, methods: tMethods, loc: cls.loc};
+  return { a: NONE, name: cls.name, fields: tFields, methods: tMethods, loc: cls.loc };
 }
 
 export function tcBlock(
@@ -148,7 +154,11 @@ export function tcBlock(
 export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>): Stmt<Type> {
   switch (stmt.tag) {
     case "assignment":
-      throw new BaseException.Exception("Destructured assignment not implemented", undefined, stmt.loc);
+      throw new BaseException.Exception(
+        "Destructured assignment not implemented",
+        undefined,
+        stmt.loc
+      );
     case "assign":
       const tValExpr = tcExpr(env, locals, stmt.value);
       var nameTyp;
@@ -166,7 +176,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr, loc: stmt.loc };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
-      return { a: tExpr.a, tag: stmt.tag, expr: tExpr , loc: stmt.loc };
+      return { a: tExpr.a, tag: stmt.tag, expr: tExpr, loc: stmt.loc };
     case "if":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tThn = tcBlock(env, locals, stmt.thn);
@@ -176,28 +186,30 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       if (tCond.a !== BOOL) {
         // Python allows condition to be not bool. So we create this ConditionTypeError here, which does not exist in real python.
         throw new BaseException.ConditionTypeError(tCond.a.tag, tCond.loc);
-      }
-      else if (thnTyp !== elsTyp)
+      } else if (thnTyp !== elsTyp)
         throw new BaseException.SyntaxError("Types of then and else branches must match", stmt.loc);
-      return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls, loc: stmt.loc};
+      return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls, loc: stmt.loc };
     case "return":
       if (locals.topLevel)
         throw new BaseException.SyntaxError("‘return’ outside of functions", stmt.loc);
       const tRet = tcExpr(env, locals, stmt.value);
-      if (!isAssignable(env, tRet.a, locals.expectedRet)) 
+      if (!isAssignable(env, tRet.a, locals.expectedRet))
         throw new BaseException.TypeMismatchError(
-          locals.expectedRet.tag === "class" ? (locals.expectedRet as any).name : locals.expectedRet.tag, 
-          tRet.a.tag === "class" ? (tRet.a as any).name : tRet.a.tag, 
-          stmt.loc);
-      return {a: tRet.a, tag: stmt.tag, value:tRet, loc: stmt.loc};
+          locals.expectedRet.tag === "class"
+            ? (locals.expectedRet as any).name
+            : locals.expectedRet.tag,
+          tRet.a.tag === "class" ? (tRet.a as any).name : tRet.a.tag,
+          stmt.loc
+        );
+      return { a: tRet.a, tag: stmt.tag, value: tRet, loc: stmt.loc };
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
-      if (!equalType(tCond.a, BOOL)) 
+      if (!equalType(tCond.a, BOOL))
         throw new BaseException.ConditionTypeError(tCond.a.tag, tCond.loc);
-      return {a: NONE, tag:stmt.tag, cond: tCond, body: tBody, loc: stmt.loc};
+      return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody, loc: stmt.loc };
     case "pass":
-      return { a: NONE, tag: stmt.tag , loc: stmt.loc };
+      return { a: NONE, tag: stmt.tag, loc: stmt.loc };
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
@@ -212,7 +224,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         throw new BaseException.AttributeError(tObj.a.name, stmt.field, stmt.loc);
       }
       if (!isAssignable(env, tVal.a, fields.get(stmt.field))) {
-        throw new BaseException.TypeMismatchError(fields.get(stmt.field).tag, tVal.a.tag, stmt.loc)
+        throw new BaseException.TypeMismatchError(fields.get(stmt.field).tag, tVal.a.tag, stmt.loc);
       }
       return { ...stmt, a: NONE, obj: tObj, value: tVal };
   }
@@ -232,25 +244,57 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
-          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return { a: NUM, ...tBin } }
-          else { throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc); }
+          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
+            return { a: NUM, ...tBin };
+          } else {
+            throw new BaseException.UnsupportedOprandTypeError(
+              BinOp[expr.op],
+              [tLeft.a.tag, tRight.a.tag],
+              expr.loc
+            );
+          }
         case BinOp.Eq:
         case BinOp.Neq:
-          if (equalType(tLeft.a, tRight.a)) { return { a: BOOL, ...tBin }; }
-          else { throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc); }
+          if (equalType(tLeft.a, tRight.a)) {
+            return { a: BOOL, ...tBin };
+          } else {
+            throw new BaseException.UnsupportedOprandTypeError(
+              BinOp[expr.op],
+              [tLeft.a.tag, tRight.a.tag],
+              expr.loc
+            );
+          }
         case BinOp.Lte:
         case BinOp.Gte:
         case BinOp.Lt:
         case BinOp.Gt:
-          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return { a: BOOL, ...tBin }; }
-          else { throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc); }
+          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
+            return { a: BOOL, ...tBin };
+          } else {
+            throw new BaseException.UnsupportedOprandTypeError(
+              BinOp[expr.op],
+              [tLeft.a.tag, tRight.a.tag],
+              expr.loc
+            );
+          }
         case BinOp.And:
         case BinOp.Or:
-          if (equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) { return { a: BOOL, ...tBin }; }
-          else { throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc); }
+          if (equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) {
+            return { a: BOOL, ...tBin };
+          } else {
+            throw new BaseException.UnsupportedOprandTypeError(
+              BinOp[expr.op],
+              [tLeft.a.tag, tRight.a.tag],
+              expr.loc
+            );
+          }
         case BinOp.Is:
           if (!isNoneOrClass(tLeft.a) || !isNoneOrClass(tRight.a))
-            throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc);
+            throw new BaseException.UnsupportedOprandTypeError(
+              BinOp[expr.op],
+              [tLeft.a.tag, tRight.a.tag],
+              expr.loc
+            );
           return { a: BOOL, ...tBin };
       }
     case "uniop":
@@ -258,11 +302,25 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       const tUni = { ...expr, a: tExpr.a, expr: tExpr };
       switch (expr.op) {
         case UniOp.Neg:
-          if (equalType(tExpr.a, NUM)) { return tUni }
-          else { throw new BaseException.UnsupportedOprandTypeError(UniOp[expr.op], [tExpr.a.tag], expr.loc); }
+          if (equalType(tExpr.a, NUM)) {
+            return tUni;
+          } else {
+            throw new BaseException.UnsupportedOprandTypeError(
+              UniOp[expr.op],
+              [tExpr.a.tag],
+              expr.loc
+            );
+          }
         case UniOp.Not:
-          if (equalType(tExpr.a, BOOL)) { return tUni }
-          else { throw new BaseException.UnsupportedOprandTypeError(UniOp[expr.op], [tExpr.a.tag], expr.loc); }
+          if (equalType(tExpr.a, BOOL)) {
+            return tUni;
+          } else {
+            throw new BaseException.UnsupportedOprandTypeError(
+              UniOp[expr.op],
+              [tExpr.a.tag],
+              expr.loc
+            );
+          }
       }
     case "id":
       if (locals.vars.has(expr.name)) {
@@ -283,7 +341,11 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (isAssignable(env, tArg.a, expectedArgTyp)) {
           return { ...expr, a: retTyp, arg: tArg };
         } else {
-          throw new BaseException.TypeMismatchError(expectedArgTyp.tag === "class" ? expectedArgTyp.name: expectedArgTyp.tag, tArg.a.tag === "class" ? tArg.a.name : tArg.tag, expr.loc);
+          throw new BaseException.TypeMismatchError(
+            expectedArgTyp.tag === "class" ? expectedArgTyp.name : expectedArgTyp.tag,
+            tArg.a.tag === "class" ? tArg.a.name : tArg.tag,
+            expr.loc
+          );
         }
       } else {
         throw new BaseException.NameError(expr.name, expr.loc);
@@ -296,7 +358,11 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (isAssignable(env, leftTyp, tLeftArg.a) && isAssignable(env, rightTyp, tRightArg.a)) {
           return { ...expr, a: retTyp, left: tLeftArg, right: tRightArg };
         } else {
-          throw new BaseException.TypeMismatchError(toObject([leftTyp, rightTyp]), toObject([tLeftArg.a, tRightArg.a]), expr.loc);
+          throw new BaseException.TypeMismatchError(
+            toObject([leftTyp, rightTyp]),
+            toObject([tLeftArg.a, tRightArg.a]),
+            expr.loc
+          );
         }
       } else {
         throw new BaseException.NameError(expr.name, expr.loc);
@@ -304,15 +370,30 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
     case "call":
       if (env.classes.has(expr.name)) {
         // surprise surprise this is actually a constructor
-        const tConstruct: Expr<Type> = { a: CLASS(expr.name), tag: "construct", name: expr.name , loc: expr.loc };
+        const tConstruct: Expr<Type> = {
+          a: CLASS(expr.name),
+          tag: "construct",
+          name: expr.name,
+          loc: expr.loc,
+        };
         const [_, methods] = env.classes.get(expr.name);
         if (methods.has("__init__")) {
           const [initArgs, initRet] = methods.get("__init__");
           if (expr.arguments.length !== initArgs.length - 1) {
-            throw new BaseException.TypeError(`__init__() takes ${initArgs.length} positional arguments but ${expr.arguments.length + 1} were given`, expr.loc);
+            throw new BaseException.TypeError(
+              `__init__() takes ${initArgs.length} positional arguments but ${
+                expr.arguments.length + 1
+              } were given`,
+              expr.loc
+            );
           }
           if (initRet !== NONE) {
-            throw new BaseException.TypeError(`__init__() should return None, not '${initRet.tag == "class" ? initRet.name : initRet.tag}'`, expr.loc);
+            throw new BaseException.TypeError(
+              `__init__() should return None, not '${
+                initRet.tag == "class" ? initRet.name : initRet.tag
+              }'`,
+              expr.loc
+            );
           }
           return tConstruct;
         } else {
@@ -322,15 +403,26 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         const [argTypes, retType] = env.functions.get(expr.name);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
-        if (argTypes.length === expr.arguments.length &&
-          tArgs.every((tArg, i) => tArg.a === argTypes[i])) {
+        if (
+          argTypes.length === expr.arguments.length &&
+          tArgs.every((tArg, i) => tArg.a === argTypes[i])
+        ) {
           return { ...expr, a: retType, arguments: expr.arguments };
-        } 
-        else if (argTypes.length != expr.arguments.length) {
-          throw new BaseException.TypeError(`${expr.name} takes ${argTypes.length} positional arguments but ${expr.arguments.length} were given`, expr.loc);
-        }
-        else {
-          throw new BaseException.TypeMismatchError(toObject(argTypes), toObject(tArgs.map(s => {return s.a})), expr.loc);
+        } else if (argTypes.length != expr.arguments.length) {
+          throw new BaseException.TypeError(
+            `${expr.name} takes ${argTypes.length} positional arguments but ${expr.arguments.length} were given`,
+            expr.loc
+          );
+        } else {
+          throw new BaseException.TypeMismatchError(
+            toObject(argTypes),
+            toObject(
+              tArgs.map((s) => {
+                return s.a;
+              })
+            ),
+            expr.loc
+          );
         }
       } else {
         throw new BaseException.NameError(expr.name, expr.loc);
@@ -365,12 +457,21 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))
             ) {
               return { ...expr, a: methodRet, obj: tObj, arguments: tArgs };
-            }
-            else if (methodArgs.length != realArgs.length) {
-              throw new BaseException.TypeError(`${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`, expr.loc);
-            }
-            else {
-              throw new BaseException.TypeMismatchError(toObject(methodArgs), toObject(realArgs.map(s => {return s.a})), expr.loc);
+            } else if (methodArgs.length != realArgs.length) {
+              throw new BaseException.TypeError(
+                `${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`,
+                expr.loc
+              );
+            } else {
+              throw new BaseException.TypeMismatchError(
+                toObject(methodArgs),
+                toObject(
+                  realArgs.map((s) => {
+                    return s.a;
+                  })
+                ),
+                expr.loc
+              );
             }
           } else {
             throw new BaseException.AttributeError(tObj.a.name, expr.method, expr.loc);
@@ -382,7 +483,11 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         throw new BaseException.AttributeError(tObj.a.tag, expr.method, expr.loc);
       }
     default:
-      throw new BaseException.Exception(`unimplemented type checking for expr: ${expr}`, undefined, expr.loc);
+      throw new BaseException.Exception(
+        `unimplemented type checking for expr: ${expr}`,
+        undefined,
+        expr.loc
+      );
   }
 }
 
@@ -399,6 +504,10 @@ export function tcLiteral(literal: Literal) {
   }
 }
 
-export function toObject(types: Type[]) : string {
-  return `[${types.map(s => {return s.tag === "class"? s.name : s.tag }).join(",")}]`;
-} 
+export function toObject(types: Type[]): string {
+  return `[${types
+    .map((s) => {
+      return s.tag === "class" ? s.name : s.tag;
+    })
+    .join(",")}]`;
+}

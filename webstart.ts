@@ -76,7 +76,9 @@ function webStart() {
       elt.setAttribute("style", "color: red");
       var text = "";
       if (result.loc != undefined)
-        text = `line ${result.loc.line}: ${source.split(/\r?\n/)[result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
+        text = `line ${result.loc.line}: ${source
+          .split(/\r?\n/)
+          [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
       elt.innerText = text.concat("\n").concat(String(result));
     }
 
@@ -128,7 +130,7 @@ function webStart() {
           console.log("run finished");
         })
         .catch((e) => {
-          renderError(e ,source.value);
+          renderError(e, source.value);
           console.log("run failed", e.stack);
         });
     });
