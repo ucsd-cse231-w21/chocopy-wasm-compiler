@@ -333,7 +333,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
     case "bracket-lookup":
       switch (expr.obj.a.tag) {
         case "dict":
-          throw new Error("Code gen for bracket-lookup for dict not implemented");
+          return codeGenDictBracketLookup(expr.obj, expr.key, 10, env);
         case "list":
         case "string":
         default:
@@ -368,6 +368,22 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number
     `(i32.add (i32.const ${hashtableSize * 4}))`, // Increment heap offset according to hashtable size
     "(i32.store)", // Save the new heap offset
   ]);
+}
+
+function codeGenDictBracketLookup(
+  obj: Expr<Type>,
+  key: Expr<Type>,
+  hashtableSize: number,
+  env: GlobalEnv
+): Array<string> {
+  let dictKeyValStmts: Array<string> = [];
+  dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(obj, env));
+  dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
+  dictKeyValStmts = dictKeyValStmts.concat([
+    `(i32.const ${hashtableSize})`,
+    "(call $ha$htable$Lookup)",
+  ]);
+  return dictKeyValStmts.concat(["i32.load"]);
 }
 
 //Assumes that base address of dict is pushed onto the stack already
@@ -410,11 +426,89 @@ function dictUtilFuns(): Array<string> {
     ]
   );
 
+  //This function returns a memory address for the value of a key. It returns -1 if not found.
+  dictFunStmts.push(
+    ...[
+      "(func $ha$htable$Lookup (param $baseAddr i32) (param $key i32) (param $hashtablesize i32) (result i32)",
+      "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
+      "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(local $returnVal i32)",
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      "(i32.const 0)",
+      "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
+      "(local.get $baseAddr)",
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
+      "(i32.load)",
+      "(local.set $nodePtr)",
+      "(local.get $nodePtr)",
+      "(i32.const 0)", //None
+      "(i32.eq)",
+      "(if",
+      "(then", // if the literal in bucketAddress is None
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      ")", //close then
+      "(else",
+      "(block",
+      "(loop", // While loop till we find a node whose next is None
+      "(local.get $nodePtr)",
+      "(i32.load)", // Traversing to head of next node
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(local.get $key)",
+      "(i32.eq)", // if tag is same as the provided one
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.const 4)",
+      "(i32.add)", // Value
+      "(local.set $returnVal)",
+      "(i32.const 1)",
+      "(local.set $tagHitFlag)", // Set tagHitFlag to True
+      ")", // closing then
+      ")", // closing if
+      "(local.get $nodePtr)",
+      "(i32.const 8)",
+      "(i32.add)", // Next pointer
+      "(i32.load)",
+      "(local.set $nodePtr)",
+      ")", // Closing then
+      ")", // Closing if
+      "(br_if 0", // Opening br_if
+      "(local.get $nodePtr)",
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      "(local.get $tagHitFlag)",
+      "(i32.eqz)",
+      "(i32.and)",
+      ")", // Closing br_if
+      "(br 1)",
+      ")", // Closing loop
+      ")", // Closing Block
+      ")", //close else
+      ")", // close if
+      "(local.get $returnVal)",
+      "(return))",
+      "",
+    ]
+  );
+
   dictFunStmts.push(
     ...[
       "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
       "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
-      //"(local $keyMatch i32)", // Local variable to check if a key match is found in existing entries
+      "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(i32.const 0)",
+      "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
       "(local.get $baseAddr)",
       "(local.get $key)",
       "(local.get $hashtablesize)",
@@ -451,6 +545,33 @@ function dictUtilFuns(): Array<string> {
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Recomputed bucketAddress
       "(i32.load)", //Loading head of linkedList
+      "(i32.load)", //Loading the tag of head
+      "(local.get $key)",
+      "(i32.eq)",
+      "(if", // if tag is same as the provided one
+      "(then",
+      "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Recomputed bucketAddress
+      "(i32.load)", //Loading head of linkedList
+      "(i32.const 4)",
+      "(i32.add)", // Value
+      "(local.get $val)",
+      "(i32.store)", // Updating the value
+      "(i32.const 1)",
+      "(local.set $tagHitFlag)", // Set tagHitFlag to True
+      ")", // closing then
+      ")", // closing if
+      "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Recomputed bucketAddress
+      "(i32.load)", //Loading head of linkedList
       "(i32.const 8)",
       "(i32.add)", // Next pointer
       "(local.set $nodePtr)",
@@ -464,6 +585,23 @@ function dictUtilFuns(): Array<string> {
       "(then",
       "(local.get $nodePtr)",
       "(i32.load)", //Loading head of linkedList
+      "(i32.load)", //Loading the tag of head
+      "(local.get $key)",
+      "(i32.eq)", // if tag is same as the provided one
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(i32.const 4)",
+      "(i32.add)", // Value
+      "(local.get $val)",
+      "(i32.store)", // Updating the value
+      "(i32.const 1)",
+      "(local.set $tagHitFlag)", // Set tagHitFlag to True
+      ")", // closing then
+      ")", // closing if
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
       "(i32.const 8)",
       "(i32.add)", // Next pointer
       "(local.set $nodePtr)",
@@ -474,25 +612,15 @@ function dictUtilFuns(): Array<string> {
       "(i32.load)", // Traversing to head of next node
       "(i32.const 0)", //None
       "(i32.ne)", // If nodePtr not None
-      /*
-      "(if", //If not none check for key match
-      "(then",
-      "(local.get $nodePtr)",
-      "(i32.load)", // load the key in the node
-      "(local.get $key)",
-      "(i32.ne)",
-      "(local.set $keyMatch)",
-      ")" // Closing then
-      "(else",
-      "(local.set $keyMatch (i32.const 0))",
-      ")" // Closing else
-      ")" // Closing if
-      "(local.get $)"
-      */
       ")", // Closing br_if
       "(br 1)",
       ")", // Closing loop
       ")", // Closing Block
+      "(local.get $tagHitFlag)",
+      "(i32.const 0)",
+      "(i32.eq)", // Add a new node only if tag hit is false.
+      "(if",
+      "(then",
       "(local.get $key)",
       "(local.get $val)",
       "(call $ha$htable$CreateEntry)", //create node
@@ -504,6 +632,8 @@ function dictUtilFuns(): Array<string> {
       "(i32.const 12)",
       "(i32.add)",
       "(i32.store)", // Updating the empty space address in first block
+      ")", // Closing then inside else
+      ")", // Closing if inside else
       ")", // Closing else
       ")", // Closing if
       "(return))", //
