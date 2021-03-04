@@ -118,3 +118,11 @@ One of our challenges was determining the best way to type check a destructured 
 checking logic with starred assignments in mind was particularly tough, since you don't immediately know how many
 values will be assigned to the starred target. However, I feel like we eventually found a solution that is both simple
 and performant.
+
+Another challenge that we encountered was how to develop features that are dependent on other in-progress features.
+Due to the nature of this project, many teams are developing interdependent features concurrently. Because of this,
+we were unable to progress in either of our main goals, tuple and list destructuring, simply due to the fact that tuples
+and lists don't exist quite yet. To account for this, we decided to implement a feature that's not in Python, object
+destructuring. This still provides progress to our goals however, as we believe that the difference between accessing
+object and tuple fields will be quite minimal. So we believe that only a few changes to our code is necessary to provide
+support for tuple destructuring when they are ready.
