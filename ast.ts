@@ -63,7 +63,8 @@ export type Stmt<A> =
   | { a?: A; tag: "continue" }
   | { a?: A; tag: "break" }
   | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> }
-  | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
+  | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> }
+  | { a?: A, tag: "import", isFromStmt:boolean, target: string, compName?: string, alias?: string}; // by Jose
 
 export interface Destructure<A> {
   isDestructured: boolean;
