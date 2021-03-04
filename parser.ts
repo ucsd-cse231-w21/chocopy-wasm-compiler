@@ -379,6 +379,7 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
   c.firstChild();  // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
+  let traversedDefaultParam = false; // When a default param is encountered once, all following params must also be default params
   while(c.type.name !== ")") {
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
@@ -389,12 +390,15 @@ export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter
     let typ = traverseType(c, s);
     c.parent();
     c.nextSibling(); // Move on to comma or ")" or "="
-    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now
+    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now (what would be the proper way to avoid this?)
     if(nextTagName === "AssignOp") { 
-      c.nextSibling();
+      traversedDefaultParam = true;
+      c.nextSibling(); // Move on to default value
       let val = traverseLiteral(c, s);
       parameters.push({name, type: typ, value: val});
+      c.nextSibling(); // Move on to comma
     } else {
+      if (traversedDefaultParam === true) { throw new Error("Expected a default value for " + name) }
       parameters.push({name, type: typ});
     }
     c.nextSibling(); // Focuses on a VariableName
