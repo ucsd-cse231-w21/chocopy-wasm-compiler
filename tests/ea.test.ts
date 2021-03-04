@@ -34,7 +34,9 @@ f(5)
           expr: {
             tag: "call",
             name: "f",
-            arguments: [{ tag: "literal", value: { tag: "num", value: BigInt(5) } }],
+            arguments: [
+              { a: { tag: "number" }, tag: "literal", value: { tag: "num", value: BigInt(5) } },
+            ],
             a: { tag: "number" },
           },
         },
