@@ -145,6 +145,12 @@ function webStart() {
       editor.setValue("");
       editor.clearHistory();
     })
+    
+    document.getElementById("clear").addEventListener("click", function(e) {
+      //clear repl output
+      resetRepl();
+    })
+
     setupRepl();
   });
 
