@@ -21,6 +21,14 @@ export class BasicREPL {
 
   constructor(importObject: any) {
     this.importObject = importObject;
+
+    //add sample builtin module
+    importObject["otherModule"] = {};
+
+    for(let [name, info] of otherModule.functions.entries()){
+      importObject["otherModule"][name] = info.func;
+    }
+
     if (!importObject.js) {
       const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
       const view = new Int32Array(memory.buffer);

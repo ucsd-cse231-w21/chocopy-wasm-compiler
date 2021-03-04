@@ -53,13 +53,14 @@ var importObject : any = {
   }
 };
 
-
+/*
 //add sample builtin module
 importObject["otherModule"] = {};
 
 for(let [name, info] of otherModule.functions.entries()){
   importObject["otherModule"][name] = info.func;
 }
+*/
 
 const file = readFileSync('./builtins/testFile.txt', 'utf-8');
 const repl = new BasicREPL(importObject);
