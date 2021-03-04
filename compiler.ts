@@ -232,8 +232,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     case "pass":
       return [];
     case "break":
-      return [`(br_if 1 (i32.eq (i32.const 1) (i32.const 1)))
-        (br 0)`];
+      return [`(br_if ${stmt.depth} (i32.const 1))`];
     case "field-assign":
       var objStmts = codeGenExpr(stmt.obj, env);
       var objTyp = stmt.obj.a;
