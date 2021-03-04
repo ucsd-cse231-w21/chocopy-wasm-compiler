@@ -1,10 +1,6 @@
 import * as H from "./heap";
 import { Block, NULL_BLOCK } from "./heap";
-import {
-  extractPointer,
-  isPointer,
-  Pointer
-} from "./alloc";
+import { extractPointer, isPointer, Pointer } from "./alloc";
 
 export type HeapTag =
   | typeof TAG_CLASS
@@ -13,18 +9,18 @@ export type HeapTag =
   | typeof TAG_DICT
   | typeof TAG_BIGINT;
 
-export const TAG_CLASS   = 0x1n;
-export const TAG_LIST    = 0x2n;
-export const TAG_STRING  = 0x3n;
-export const TAG_DICT    = 0x4n;
-export const TAG_BIGINT  = 0x5n;
+export const TAG_CLASS = 0x1n;
+export const TAG_LIST = 0x2n;
+export const TAG_STRING = 0x3n;
+export const TAG_DICT = 0x4n;
+export const TAG_BIGINT = 0x5n;
 
 // Offset in BYTES
-const HEADER_OFFSET_TAG    = 0x0;
-const HEADER_OFFSET_SIZE   = 0x1;
-const HEADER_OFFSET_GC     = HEADER_OFFSET_TAG + HEADER_OFFSET_SIZE;
+const HEADER_OFFSET_TAG = 0x0;
+const HEADER_OFFSET_SIZE = 0x1;
+const HEADER_OFFSET_GC = HEADER_OFFSET_TAG + HEADER_OFFSET_SIZE;
 
-export const HEADER_SIZE_BYTES    = 8;
+export const HEADER_SIZE_BYTES = 8;
 
 //
 // Proxy for constructed GC object headers
@@ -130,7 +126,7 @@ export interface MarkableAllocator extends H.Allocator {
   // Returns the object's corresponding Header
   //
   // Throws an error if the allocator does not own ptr
-  getHeader: (ptr: Pointer) => Header,
+  getHeader: (ptr: Pointer) => Header;
 
   // size: size of object in bytes (NOT including header/metadata)
   // tag: heap object tag to know how to traverse the object
@@ -140,14 +136,13 @@ export interface MarkableAllocator extends H.Allocator {
   //
   // Returns an untagged pointer to the start of the object's memory (not the header)
   // Returns the null pointer (0x0) if allocation failed
-  gcalloc: (tag: HeapTag, size: bigint) => Pointer,
+  gcalloc: (tag: HeapTag, size: bigint) => Pointer;
 
   // Scans the allocated objects for unmarked, allocated objects and frees them
-  sweep: () => void,
+  sweep: () => void;
 }
 
 export class RootSet {
-
   // Needed to prune global variables
   memory: Uint8Array;
 
@@ -182,8 +177,8 @@ export class RootSet {
     this.memory = memory;
 
     this.globals = new Set();
-    this.localsStack = new Array();
-    this.tempsStack = new Array();
+    this.localsStack = [];
+    this.tempsStack = [];
 
     this.captureTempsFlag = false;
   }
@@ -206,7 +201,7 @@ export class RootSet {
     if (this.tempsStack.pop() === undefined) {
       throw new Error("Popping an empty temp root stack");
     }
-    this.captureTempsFlag = (this.tempsStack.length > 0);
+    this.captureTempsFlag = this.tempsStack.length > 0;
   }
 
   pushFrame() {
@@ -246,9 +241,8 @@ export class RootSet {
   // Iterate through all roots
   // Global variables are pruned for pointers
   forEach(callback: (heapObjPtr: Pointer) => void) {
-
     // Scan global variables for pointers
-    this.globals.forEach(globalVarAddr => {
+    this.globals.forEach((globalVarAddr) => {
       const globalVarValue = readI32(this.memory, Number(globalVarAddr));
       if (isPointer(globalVarValue)) {
         callback(extractPointer(globalVarValue));
@@ -256,17 +250,17 @@ export class RootSet {
     });
 
     // Local set is already a set of pointers to heap values
-    this.localsStack.forEach(frame => {
-      frame.forEach(localPtrValue => {
+    this.localsStack.forEach((frame) => {
+      frame.forEach((localPtrValue) => {
         callback(localPtrValue);
       });
     });
 
     // Temp set is already a set of pointers to heap values
-    this.tempsStack.forEach(frame => {
-      frame.forEach(localPtrValue => {
+    this.tempsStack.forEach((frame) => {
+      frame.forEach((localPtrValue) => {
         callback(localPtrValue);
-      })
+      });
     });
   }
 }
@@ -296,8 +290,8 @@ export class MnS<A extends MarkableAllocator> {
   //
   // TODO(alex): figure out how to handle marking across GC boundaries
   markFromRoots() {
-    let worklist: Array<Pointer> = new Array();
-    this.roots.forEach(root => {
+    let worklist: Array<Pointer> = [];
+    this.roots.forEach((root) => {
       if (!this.isMarked(root)) {
         this.setMarked(root);
         worklist.push(root);
@@ -422,7 +416,8 @@ export class MnS<A extends MarkableAllocator> {
 ///
 /// NOTE(alex): copy/paste because we don't have typeclasses Q.Q
 
-export class MarkableSwitch<P extends MarkableAllocator, F extends MarkableAllocator> implements MarkableAllocator {
+export class MarkableSwitch<P extends MarkableAllocator, F extends MarkableAllocator>
+  implements MarkableAllocator {
   allocator: H.Switch<P, F>;
 
   constructor(p: P, f: F) {
@@ -568,7 +563,6 @@ export class MarkableDescriber<A extends MarkableAllocator> implements MarkableA
 
 export class MarkableFallback<P extends MarkableAllocator, F extends MarkableAllocator>
   implements MarkableAllocator {
-
   allocator: H.Fallback<P, F>;
 
   constructor(primary: P, fallback: F) {

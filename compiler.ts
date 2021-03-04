@@ -18,8 +18,8 @@ export const emptyEnv: GlobalEnv = {
   locals: new Set(),
 };
 
-const RELEASE_TEMPS: boolean = true;
-const HOLD_TEMPS: boolean = false;
+const RELEASE_TEMPS = true;
+const HOLD_TEMPS = false;
 
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>, mm: MemoryManager): GlobalEnv {
   const newGlobals = new Map(env.globals);
@@ -76,7 +76,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): 
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
-  definedVars.add("$allocPointer");           // Used to cache the result of `gcalloc`
+  definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs: Array<string> = [];
@@ -155,27 +155,23 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         // Local i32's are always initialized to 0
         //   * removeLocal/addLocal ignore 0x0 pointers
         // These functions do a runtime tag-check to distinguish pointers
-        const result = [
-          `(local.get $${stmt.name})`,
-          `(call $removeLocal)`,
-        ].concat(valStmts.concat([`(local.set $${stmt.name})`]))
-          .concat([
-            `(local.get $${stmt.name})`,
-            `(call $addLocal)`,
-          ]);
+        const result = [`(local.get $${stmt.name})`, `(call $removeLocal)`]
+          .concat(valStmts.concat([`(local.set $${stmt.name})`]))
+          .concat([`(local.get $${stmt.name})`, `(call $addLocal)`]);
 
         return codeGenTempGuard(result, RELEASE_TEMPS);
       } else {
         // NOTE(alex:mm): all global variables in linear memory can be
         //   scanned by MemoryManager for pointers
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
-        return codeGenTempGuard(locationToStore.concat(valStmts).concat([`(i32.store)`]),
-          RELEASE_TEMPS);
+        return codeGenTempGuard(
+          locationToStore.concat(valStmts).concat([`(i32.store)`]),
+          RELEASE_TEMPS
+        );
       }
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
-      return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]),
-        RELEASE_TEMPS);
+      return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]), RELEASE_TEMPS);
     case "if":
       // TODO(alex:mm): Are these temporary guards correct/minimal?
       var condExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env), RELEASE_TEMPS);
@@ -205,7 +201,12 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(stmt.field);
       var valStmts = codeGenExpr(stmt.value, env);
-      const result = [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      const result = [
+        ...objStmts,
+        `(i32.add (i32.const ${offset * 4}))`,
+        ...valStmts,
+        `(i32.store)`,
+      ];
       return codeGenTempGuard(result, RELEASE_TEMPS);
     default:
       unhandledTag(stmt);
@@ -226,7 +227,7 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
-  definedVars.add("$allocPointer");     // Used to cache the result of `gcalloc`
+  definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach(env.locals.add, env.locals);
   def.parameters.forEach((p) => env.locals.add(p.name));
@@ -306,7 +307,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return valStmts;
     case "construct":
       var stmts: Array<string> = [
-       `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
+        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
         `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
         `(call $gcalloc)`,
         `(local.set $$allocPointer)`,

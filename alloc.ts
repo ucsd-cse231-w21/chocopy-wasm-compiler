@@ -1,23 +1,18 @@
 import * as H from "./heap";
 import * as GC from "./gc";
-export {
-  HeapTag,
-  TAG_CLASS,
-  TAG_LIST,
-  TAG_STRING,
-  TAG_DICT,
-  TAG_BIGINT,
-} from "./gc";
+export { HeapTag, TAG_CLASS, TAG_LIST, TAG_STRING, TAG_DICT, TAG_BIGINT } from "./gc";
 
 // Untagged pointer (32-bits)
 export type Pointer = bigint;
 
 export function toHeapTag(tag: bigint): GC.HeapTag {
-  if ((tag === GC.TAG_CLASS)
-    || (tag === GC.TAG_LIST)
-    || (tag === GC.TAG_STRING)
-    || (tag === GC.TAG_DICT)
-    || (tag === GC.TAG_BIGINT)) {
+  if (
+    tag === GC.TAG_CLASS ||
+    tag === GC.TAG_LIST ||
+    tag === GC.TAG_STRING ||
+    tag === GC.TAG_DICT ||
+    tag === GC.TAG_BIGINT
+  ) {
     return tag;
   }
 
@@ -27,31 +22,38 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
 export function importMemoryManager(importObject: any, mm: MemoryManager) {
   importObject.imports.memoryManager = mm;
 
-  importObject.imports.gcalloc = function(tag: number, size: number): number {
+  importObject.imports.gcalloc = function (tag: number, size: number): number {
     return Number(mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size)));
   };
 
-  importObject.imports.addTemp = function(value: number): number {
-    mm.addTemp(BigInt(value))
+  importObject.imports.addTemp = function (value: number): number {
+    mm.addTemp(BigInt(value));
     return value;
   };
-  importObject.imports.captureTemps = function() { mm.captureTemps() };
-  importObject.imports.releaseTemps = function() { mm.releaseTemps() };
+  importObject.imports.captureTemps = function () {
+    mm.captureTemps();
+  };
+  importObject.imports.releaseTemps = function () {
+    mm.releaseTemps();
+  };
 
-  importObject.imports.pushFrame = function() {
+  importObject.imports.pushFrame = function () {
     mm.pushFrame();
-  }
+  };
 
-  importObject.imports.addLocal = function(value: number) {
+  importObject.imports.addLocal = function (value: number) {
     mm.addLocal(BigInt(value));
   };
-  importObject.imports.removeLocal = function(value: number) {
+  importObject.imports.removeLocal = function (value: number) {
     mm.removeLocal(BigInt(value));
   };
-  importObject.imports.releaseLocals = function() { mm.releaseLocals() };
+  importObject.imports.releaseLocals = function () {
+    mm.releaseLocals();
+  };
 
-  importObject.imports.forceCollect = function() { mm.forceCollect() };
-
+  importObject.imports.forceCollect = function () {
+    mm.forceCollect();
+  };
 }
 
 // Public API for memory allocation/GC
@@ -63,10 +65,13 @@ export class MemoryManager {
   // globalAllocator: Fallback<BumpAllocator, Generic>
   gc: GC.MnS<H.BumpAllocator>;
 
-  constructor(memory: Uint8Array, cfg: {
-    staticStorage: bigint,
-    total: bigint,
-  }) {
+  constructor(
+    memory: Uint8Array,
+    cfg: {
+      staticStorage: bigint;
+      total: bigint;
+    }
+  ) {
     this.memory = memory;
     this.staticAllocator = new H.BumpAllocator(memory, 4n, cfg.staticStorage + 4n);
     const gcHeap = new H.BumpAllocator(memory, cfg.staticStorage, cfg.total);

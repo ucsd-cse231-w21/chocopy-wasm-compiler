@@ -40,5 +40,5 @@ export const importObject = {
   },
 
   output: "",
-  memoryManager: undefined as (undefined | MemoryManager),
+  memoryManager: undefined as undefined | MemoryManager,
 };
