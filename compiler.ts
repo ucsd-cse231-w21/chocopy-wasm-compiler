@@ -180,7 +180,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       // stop condition cur<step
       var Expr_cond:Expr<Type> = { a: BOOL, tag: "binop", op: BinOp.Gte, left: Expr_cur, right: Expr_stop };
       var Code_cond = codeGenExpr(Expr_cond, env);
-      
+
       // if have index
       if (stmt.index) {
         var iass:Stmt<Type> = { a: NONE, tag: "assign", name: stmt.index, value: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(0) } } };
@@ -207,7 +207,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
               ${Code_step.join("\n")}
               ${Code_idstep.join("\n")}
 
-              (br 0)                    
+              (br 0)
           ))`
         ]
       }
@@ -226,11 +226,14 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
             ${bodyStmts.join("\n")}
             ${Code_step.join("\n")}
 
-            (br 0)                    
+            (br 0)
         ))`
       ]
     case "pass":
       return [];
+    case "break":
+      return [`(br_if 1 (i32.eq (i32.const 1) (i32.const 1)))
+        (br 0)`];
     case "field-assign":
       var objStmts = codeGenExpr(stmt.obj, env);
       var objTyp = stmt.obj.a;
