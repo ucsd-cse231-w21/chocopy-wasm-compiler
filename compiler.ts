@@ -76,6 +76,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): 
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$allocPointer");           // Used to cache the result of `gcalloc`
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs: Array<string> = [];
@@ -225,6 +226,7 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
+  definedVars.add("$allocPointer");     // Used to cache the result of `gcalloc`
   // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach(env.locals.add, env.locals);
   def.parameters.forEach((p) => env.locals.add(p.name));
@@ -303,11 +305,16 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
     case "construct":
-      var stmts: Array<string> = [];
+      var stmts: Array<string> = [
+       `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
+        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
+        `(call $gcalloc)`,
+        `(local.set $$allocPointer)`,
+      ];
       env.classes.get(expr.name).forEach(([offset, initVal], field) =>
         stmts.push(
           ...[
-            `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+            `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
             ...codeGenLiteral(initVal, env), // Initialize field
             "(i32.store)", // Put the default field value on the heap
@@ -315,10 +322,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         )
       );
       return stmts.concat([
-        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
-        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
-        `(call $gcalloc)`,
+        `(local.get $$allocPointer)`,
         `(call $${expr.name}$__init__)`, // call __init__
+        `(drop)`,
+        `(local.get $$allocPointer)`,
       ]);
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
