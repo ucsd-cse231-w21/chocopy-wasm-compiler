@@ -1,4 +1,4 @@
-import { PyInt, PyBool, PyNone, PyObj } from '../utils';
+import { PyInt, PyBool, PyNone, PyObj } from "../utils";
 import { assert, asserts, assertPrint, assertFail } from "./utils.test";
 
 // We write end-to-end tests here to make sure the compiler works as expected.
@@ -376,59 +376,91 @@ f(2)`,
     PyNone()
   );
 
-  assert("function-with-default-param", `
+  assert(
+    "function-with-default-param",
+    `
   def add_default_10(x : int, y : int = 10) -> int:
-	  return x + y
-  `, PyNone());
+    return x + y`,
+    PyNone()
+  );
 });
 
-describe('defaults', () => {
-  assert("params default", `
+describe("defaults", () => {
+  assert(
+    "params default",
+    `
   def foo(x : int = 3) -> int:
     return x
   
-  foo()`, PyInt(3));
+  foo()`,
+    PyInt(3)
+  );
 
-  assert("params default", `
+  assert(
+    "params default",
+    `
   def foo(x : int = 3) -> int:
     return x
   
-  foo(5)`, PyInt(5));
-  
-  assert("params default more params", `
+  foo(5)`,
+    PyInt(5)
+  );
+
+  assert(
+    "params default more params",
+    `
   def foo(x : int = 3, y : int = 4) -> int:
     return x + y
   
-  foo(5)`, PyInt(9));
+  foo(5)`,
+    PyInt(9)
+  );
 
-  assertPrint("project-proposal program 1", `
+  assertPrint(
+    "project-proposal program 1",
+    `
   def add_default_10(x : int, y : int = 10) -> int:
 	  return x + y
 	
   print(add_default_10(20))
-  print(add_default_10(20, 5))`, ['30', '25']);
-  
-  assertPrint("project-proposal program 2", `
+  print(add_default_10(20, 5))`,
+    ["30", "25"]
+  );
+
+  assertPrint(
+    "project-proposal program 2",
+    `
   def add_defaults(x : int = 10, y : int = 20, z : int = 30) -> int:
 	  return x + y + z
 
   print(add_defaults())
-  print(add_defaults(40))`, ['60', '90']);
+  print(add_defaults(40))`,
+    ["60", "90"]
+  );
 
-  assertFail("params default more params", `
+  assertFail(
+    "params default more params",
+    `
   def foo(x : int, y : int = 4) -> int:
     return x + y
   
-  foo()`);
+  foo()`
+  );
 
-  assert("function-with-multiple-default-params", `
+  assert(
+    "function-with-multiple-default-params",
+    `
   def foo(x : int = 3, y : int = 4, z : int = 5) -> int:
     return x + y + z
-  `, PyNone());
+  `,
+    PyNone()
+  );
 
-  assertFail("function-with-incorrect-default-param", `
+  assertFail(
+    "function-with-incorrect-default-param",
+    `
   def foo(x : int = 3, y : int = 4, z : int) -> int:
     return x + y + z
-  `);
+  `
+  );
 });
-
