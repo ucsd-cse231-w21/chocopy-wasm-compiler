@@ -12,7 +12,7 @@ export type Scope<A> =
   | { a?: A, tag: "global", name: string} // not support
   | { a?: A, tag: "nonlocal", name: string}
 
-export type Parameter<A> = { name: string, type: Type, value?: Literal }
+export type Parameter = { name: string, type: Type, value?: Literal }
 
 export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
 
@@ -23,7 +23,7 @@ export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
 export type FunDef<A> = { 
   a?: A, 
   name: string, 
-  parameters: Array<Parameter<A>>, 
+  parameters: Array<Parameter>, 
   ret: Type, 
   decls: Array<Scope<A>>,
   inits: Array<VarInit<A>>, 
