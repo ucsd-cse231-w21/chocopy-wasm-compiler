@@ -375,7 +375,7 @@ export function traverseType(c : TreeCursor, s : string) : Type {
   }
 }
 
-export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter> {
+export function traverseParameters(c : TreeCursor, s : string) : Array<Parameter<null>> {
   c.firstChild();  // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
