@@ -15,6 +15,8 @@ const TRef: Type = { tag: "class", name: EA_REF_CLASS };
 /** Field assign/lookup whose obj is an id of this name represents nonlocally mutable vars */
 export const EA_NONLOCAL_OBJ = "$nl_ptr$";
 
+export const EA_REF_SUFFIX = "_$ref";
+
 type LocalEnv = {
   name: string;
   prefix: string;
@@ -127,12 +129,12 @@ function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
     case "assign":
       const aid = lookupId(stmt.name, e);
       // TODO: assume all nonlocal is mutable now
-      if (aid.isNonlocal) {
-        nSet.add(stmt.name);
+      if (aid.varScope != VarScope.GLOBAL) {
+        if (aid.varScope == VarScope.NONLOCAL) nSet.add(aid.name);
         return {
           a: stmt.a,
           tag: "field-assign",
-          obj: { a: TRef, tag: "id", name: stmt.name },
+          obj: { a: TRef, tag: "id", name: stmt.name + EA_REF_SUFFIX },
           field: EA_DEREF_FIELD,
           value: eaExpr(stmt.value, e, nSet),
         };
@@ -227,12 +229,12 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
 
     case "id":
       const idid = lookupId(expr.name, e);
-      if (idid.isNonlocal) {
-        nSet.add(idid.name);
+      if (idid.varScope != VarScope.GLOBAL) {
+        if (idid.varScope == VarScope.NONLOCAL) nSet.add(idid.name);
         return {
           a: expr.a,
           tag: "lookup",
-          obj: { a: TRef, tag: "id", name: idid.name },
+          obj: { a: TRef, tag: "id", name: idid.name + EA_REF_SUFFIX },
           field: EA_DEREF_FIELD,
         };
       } else {
@@ -285,18 +287,24 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
 /**
  * Lookup a name in local name space.
  */
-function lookupId(n: string, local: LocalEnv): { isNonlocal: boolean; name: string } {
+
+enum VarScope {
+  GLOBAL,
+  NONLOCAL,
+  LOCAL,
+}
+function lookupId(n: string, local: LocalEnv): { varScope: VarScope; name: string } {
   // n is a local variable
-  if (local.varIds.includes(n)) return { isNonlocal: false, name: n };
+  if (local.varIds.includes(n)) return { varScope: VarScope.LOCAL, name: n };
 
   // n is a child function
-  if (local.funIds.includes(n)) return { isNonlocal: false, name: local.prefix + n };
+  if (local.funIds.includes(n)) return { varScope: VarScope.LOCAL, name: local.prefix + n };
 
   // n is a glocal variable
-  if (local.parent == null) return { isNonlocal: false, name: n };
+  if (local.parent == null) return { varScope: VarScope.GLOBAL, name: n };
 
   const nameInParent = lookupId(n, local.parent);
-  return nameInParent == null
-    ? { isNonlocal: false, name: null }
-    : { isNonlocal: true, name: nameInParent.name };
+  return nameInParent.varScope == VarScope.GLOBAL
+    ? { varScope: VarScope.GLOBAL, name: nameInParent.name }
+    : { varScope: VarScope.NONLOCAL, name: nameInParent.name };
 }
