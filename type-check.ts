@@ -416,12 +416,14 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
     case "bracket-lookup":
       var obj_t = tcExpr(env, locals, expr.obj);
       var key_t = tcExpr(env, locals, expr.key);
-      var tBracketExpr = {...expr, obj: obj_t, key: key_t, a:obj_t.a};
+      var tBracketExpr = { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
       if (obj_t.a != STRING) {
         throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
       }
       if (key_t.a != NUM) {
-        throw new TypeCheckError("Bracket lookup using " + key_t.a.tag + " type as index is not possible");
+        throw new TypeCheckError(
+          "Bracket lookup using " + key_t.a.tag + " type as index is not possible"
+        );
       }
       return tBracketExpr;
     default:
@@ -433,12 +435,12 @@ export function tcLiteral(literal: Literal) {
   switch (literal.tag) {
     case "bool":
       return BOOL;
-    case "string":
-      return STRING;
     case "num":
       return NUM;
     case "none":
       return NONE;
+    case "string":
+      return STRING;
     default:
       unhandledTag(literal);
   }

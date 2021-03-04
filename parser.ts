@@ -17,7 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
+import { NUM, BOOL, NONE, CLASS, isTagged, STRING } from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -467,6 +467,8 @@ export function traverseType(c: TreeCursor, s: string): Type {
   switch (name) {
     case "int":
       return NUM;
+    case "str":
+      return STRING;
     case "bool":
       return BOOL;
     default:
