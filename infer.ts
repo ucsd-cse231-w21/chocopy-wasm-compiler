@@ -113,6 +113,7 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
             return BOOL;
           }
       }
+      break;
 
     case "binop":
       var leftType = inferExprType(expr.left, globEnv, locEnv);
@@ -178,6 +179,7 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
         case BinOp.Is:
           throw new Error("Type Inference is not yet supported for 'is'");
       }
+      break;
 
     default:
       throw new Error(`Inference not implemented for expressions with tag: '${expr.tag}'`);
