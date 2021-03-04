@@ -1,5 +1,5 @@
 import { PyInt, PyBool, PyNone, PyObj } from '../utils';
-import { assert, asserts, assertPrint } from "./utils.test";
+import { assert, asserts, assertPrint, assertFail } from "./utils.test";
 
 // We write end-to-end tests here to make sure the compiler works as expected.
 // You should write enough end-to-end tests until you are confident the compiler
@@ -262,8 +262,18 @@ f(2)`, PyInt(2));
   c : C = None
   c`, PyNone());
 
-  assert("function-with-default-arg", `
+  assert("function-with-default-param", `
   def add_default_10(x : int, y : int = 10) -> int:
 	  return x + y
   `, PyNone());
+
+  assert("function-with-multiple-default-params", `
+  def foo(x : int = 3, y : int = 4, z : int = 5) -> int:
+    return x + y + z
+  `, PyNone());
+
+  assertFail("function-with-incorrect-default-param", `
+  def foo(x : int = 3, y : int = 4, z : int) -> int:
+    return x + y + z
+  `);
 });
