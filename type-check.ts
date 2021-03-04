@@ -260,7 +260,8 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       // delete the temp var information after finished the body, and restore last depth
       // locals.vars.delete(stmt.name);
       locals.loop_depth = last_depth;
-      
+
+      // return type checked stmt      
       return { a: NONE, tag: 'for', name: stmt.name, index: stmt.index, iterable: fIter, body: fBody };
     case "continue":
       return { a: NONE, tag: 'continue', depth: locals.loop_depth};
