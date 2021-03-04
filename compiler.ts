@@ -7,7 +7,7 @@ import * as BaseException from "./error";
 // Numbers are offsets into global memory
 export type GlobalEnv = {
   globals: Map<string, number>;
-  classes: Map<string, Map<string, [number, Literal]>>;
+  classes: Map<string, Map<string, [number, Expr<any>]>>;
   locals: Set<string>;
   offset: number;
 };
@@ -175,7 +175,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 }
 
 function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
-  const value = codeGenLiteral(init.value, env);
+  //const value = codeGenLiteral(init.value, env);
+  const value = codeGenExpr(init.value, env);
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`];
   } else {
@@ -270,7 +271,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           ...[
             `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
             `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
-            ...codeGenLiteral(initVal, env), // Initialize field
+            ...codeGenExpr(initVal, env), // Initialize field
             "(i32.store)", // Put the default field value on the heap
           ]
         )

@@ -50,6 +50,7 @@ export async function run(
   config: Config
 ): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
+  // INFER THE TYPES HERE, PASS PARTIALLY TYPED PROGRAM TO TC
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const progTyp = tprogram.a;
   var returnType = "";

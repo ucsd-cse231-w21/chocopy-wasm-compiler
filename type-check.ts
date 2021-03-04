@@ -1,5 +1,6 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
+import { inferExprType, inferTypeLit } from "./infer";
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -83,14 +84,25 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   const newGlobs = new Map(env.globals);
   const newFuns = new Map(env.functions);
   const newClasses = new Map(env.classes);
-  program.inits.forEach((init) => newGlobs.set(init.name, init.type));
+  program.inits.forEach((init) => {
+    if (init.declaredType === undefined) {
+      env.globals = newGlobs;
+      init.declaredType = inferExprType(init.value, env, emptyLocalTypeEnv());
+    }
+    newGlobs.set(init.name, init.declaredType);
+  });
   program.funs.forEach((fun) =>
     newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret])
   );
   program.classes.forEach((cls) => {
     const fields = new Map();
     const methods = new Map();
-    cls.fields.forEach((field) => fields.set(field.name, field.type));
+    cls.fields.forEach((field) => {
+      if (field.declaredType === undefined) {
+        field.declaredType = inferExprType(field.value, env, emptyLocalTypeEnv());
+      }
+      fields.set(field.name, field.declaredType);
+    });
     cls.methods.forEach((method) =>
       methods.set(method.name, [method.parameters.map((p) => p.type), method.ret])
     );
@@ -99,10 +111,19 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   return { globals: newGlobs, functions: newFuns, classes: newClasses };
 }
 
-export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, GlobalTypeEnv] {
+// x : int = 5 valid
+// y = 10      also valid
+// class defs
+// function defs
+
+// program
+
+// changed Program<null> to Program<any> in the signature, so that TC can accept partially typed programs
+// generated from the infer.ts file
+export function tc(env: GlobalTypeEnv, program: Program<any>): [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
-  const tInits = program.inits.map((init) => tcInit(env, init));
+  const tInits = program.inits.map((init) => tcInit(env, emptyLocalTypeEnv(), init));
   const tDefs = program.funs.map((fun) => tcDef(newEnv, fun));
   const tClasses = program.classes.map((cls) => tcClass(newEnv, cls));
 
@@ -125,12 +146,24 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   return [aprogram, newEnv];
 }
 
-export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
-  const valTyp = tcLiteral(init.value);
-  if (isAssignable(env, valTyp, init.type)) {
+export function tcInit(
+  env: GlobalTypeEnv,
+  localEnv: LocalTypeEnv,
+  init: VarInit<any>
+): VarInit<Type> {
+  var valTyp: Type;
+  if (init.declaredType === undefined) {
+    valTyp = inferExprType(init.value, env, localEnv);
+    init.declaredType = valTyp;
+  } else {
+    valTyp = tcExpr(env, emptyLocalTypeEnv(), init.value).a;
+  }
+  if (isAssignable(env, valTyp, init.declaredType)) {
     return { ...init, a: NONE };
   } else {
-    throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
+    throw new TypeCheckError(
+      "Expected type `" + init.declaredType.tag + "`; got type `" + valTyp.tag + "`"
+    );
   }
 }
 
@@ -139,14 +172,13 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
   fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
-  fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
-
+  fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, locals, init).declaredType));
   const tBody = tcBlock(env, locals, fun.body);
   return { ...fun, a: NONE, body: tBody };
 }
 
 export function tcClass(env: GlobalTypeEnv, cls: Class<null>): Class<Type> {
-  const tFields = cls.fields.map((field) => tcInit(env, field));
+  const tFields = cls.fields.map((field) => tcInit(env, emptyLocalTypeEnv(), field));
   const tMethods = cls.methods.map((method) => tcDef(env, method));
   return { a: NONE, name: cls.name, fields: tFields, methods: tMethods };
 }
@@ -156,7 +188,12 @@ export function tcBlock(
   locals: LocalTypeEnv,
   stmts: Array<Stmt<null>>
 ): Array<Stmt<Type>> {
-  return stmts.map((stmt) => tcStmt(env, locals, stmt));
+  return stmts.map((stmt) => {
+    console.log("Marker A");
+    var st = tcStmt(env, locals, stmt);
+    console.log(st);
+    return st;
+  });
 }
 
 export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>): Stmt<Type> {
@@ -232,7 +269,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
 export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null>): Expr<Type> {
   switch (expr.tag) {
     case "literal":
-      return { ...expr, a: tcLiteral(expr.value) };
+      return { ...expr, a: inferTypeLit(expr.value) };
     case "binop":
       const tLeft = tcExpr(env, locals, expr.left);
       const tRight = tcExpr(env, locals, expr.right);
@@ -418,6 +455,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
   }
 }
 
+/*
 export function tcLiteral(literal: Literal) {
   switch (literal.tag) {
     case "bool":
@@ -430,3 +468,4 @@ export function tcLiteral(literal: Literal) {
       unhandledTag(literal);
   }
 }
+*/

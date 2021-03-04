@@ -131,3 +131,23 @@ describe("tc", () => {
     NUM
   );
 });
+
+describe("type inference", () => {
+  assertTC(
+    "program-I",
+    `
+    x = (1 + 3) * 2
+    x
+    `,
+    NUM
+  );
+
+  assertTC(
+    "program-II",
+    `
+    y = (10-5) < (2 * 3)
+    y
+    `,
+    BOOL
+  );
+});
