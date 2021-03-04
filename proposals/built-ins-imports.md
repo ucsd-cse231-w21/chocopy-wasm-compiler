@@ -37,6 +37,17 @@ This memory layout is essential as imported modules will be represented as objec
 Using the changes listed in this proposal, we aim to make the following example programs run according to expectations:
 
 ```
+from someModule import func1
+func1()  #should invoke func1 in someModule
+```
+
+```
+from someModule import func1, func2
+func1()   #should invoke func1 in someModule
+func2()   #should invoke func2 in someModule
+```
+
+```
 print(10)
 ```
 
@@ -67,17 +78,6 @@ print(func() ) #should work as before
 ```
 
 ```
-from someModule import func1
-func1()  #should invoke func1 in someModule
-```
-
-```
-from someModule import func1, func2
-func1()   #should invoke func1 in someModule
-func2()   #should invoke func2 in someModule
-```
-
-```
 from someModule import SomeClass
 x: SomeClass = SomeClass()  #should instantiate SomeClass in someModule
 ```
@@ -87,3 +87,5 @@ from someModule import SomeClass
 x: SomeClass = SomeClass()  #should instantiate SomeClass in someModule
 x.method()   #Should invoke method() in SomeClass
 ```
+
+Our goal is to get the first two programs to run successfully.
