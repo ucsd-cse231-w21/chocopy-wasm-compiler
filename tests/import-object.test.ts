@@ -2,6 +2,7 @@ import { Type } from "../ast";
 import { NUM, BOOL, NONE } from "../utils";
 import { nTagBits } from "../compiler";
 
+
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
     case "number":

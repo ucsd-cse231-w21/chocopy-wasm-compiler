@@ -3,21 +3,21 @@
 // - https://github.com/AssemblyScript/wabt.js/
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
-import { checkServerIdentity } from 'tls';
-import wabt from 'wabt';
-import { wasm } from 'webpack';
-import * as compiler from './compiler';
-import {parse} from './parser';
-import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
-import { Type, Value } from './ast';
-import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
+import { checkServerIdentity } from "tls";
+import wabt from "wabt";
+import { wasm } from "webpack";
+import * as compiler from "./compiler";
+import { parse } from "./parser";
+import { GlobalTypeEnv, tc } from "./type-check";
+import { Value } from "./ast";
+import { PyValue, NONE } from "./utils";
 
 export type Config = {
   importObject: any;
-  env: compiler.GlobalEnv,
-  typeEnv: GlobalTypeEnv,
-  functions: string        // prelude functions
-}
+  env: compiler.GlobalEnv;
+  typeEnv: GlobalTypeEnv;
+  functions: string; // prelude functions
+};
 
 // NOTE(joe): This is a hack to get the CLI Repl to run. WABT registers a global
 // uncaught exn handler, and this is not allowed when running the REPL
@@ -25,15 +25,18 @@ export type Config = {
 // is given for this in the docs page, and I haven't spent time on the domain
 // module to figure out what's going on here. It doesn't seem critical for WABT
 // to have this support, so we patch it away.
-if(typeof process !== "undefined") {
+if (typeof process !== "undefined") {
   const oldProcessOn = process.on;
-  process.on = (...args : any) : any => {
-    if(args[0] === "uncaughtException") { return; }
-    else { return oldProcessOn.apply(process, args); }
+  process.on = (...args: any): any => {
+    if (args[0] === "uncaughtException") {
+      return;
+    } else {
+      return oldProcessOn.apply(process, args);
+    }
   };
 }
 
-export async function runWat(source : string, importObject : any) : Promise<any> {
+export async function runWat(source: string, importObject: any): Promise<any> {
   const wabtInterface = await wabt();
   const myModule = wabtInterface.parseWat("test.wat", source);
   var asBinary = myModule.toBinary({});
@@ -42,7 +45,10 @@ export async function runWat(source : string, importObject : any) : Promise<any>
   return result;
 }
 
-export async function run(source : string, config: Config) : Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
+export async function run(
+  source: string,
+  config: Config
+): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const progTyp = tprogram.a;
@@ -51,25 +57,25 @@ export async function run(source : string, config: Config) : Promise<[Value, com
   // const lastExpr = parsed.stmts[parsed.stmts.length - 1]
   // const lastExprTyp = lastExpr.a;
   // console.log("LASTEXPR", lastExpr);
-  if(progTyp !== NONE) {
+  if (progTyp !== NONE) {
     returnType = "(result i32)";
-    returnExpr = "(local.get $$last)"
-  } 
+    returnExpr = "(local.get $$last)";
+  }
   let globalsBefore = (config.env.globals as Map<string, number>).size;
   const compiled = compiler.compile(tprogram, config.env);
   let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;
-  if(!importObject.js) {
-    const memory = new WebAssembly.Memory({initial:2000, maximum:2000});
+  if (!importObject.js) {
+    const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
     importObject.js = { memory: memory };
   }
 
   const view = new Int32Array(importObject.js.memory.buffer);
   let offsetBefore = view[0];
   console.log("before updating: ", offsetBefore);
-  view[0] = offsetBefore + ((globalsAfter - globalsBefore) * 4);
-  console.log("after updating: ", view[0])
+  view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
+  console.log("after updating: ", view[0]);
 
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
