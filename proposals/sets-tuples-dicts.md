@@ -71,20 +71,24 @@ dict_a.clear()
 Initializes a nested dictionary dict_c - with the inner dictionary format [int, bool]
 Dict_c[2][7] : first looks up dict_c[2] which returns {5: False, 7: True} and then further looks up the key 7, which returns True
 ```python
-dict_c = {1:45*56,
+dict_c:[int, [int, bool]] = None
+dict_c = {1: {32: False},
           2: {5: False, 7: True},
           3: {4*5:True}}
-dict_c[2][7] # returns True
+dict_c[3][20]
 ```
+Output: True
+
 **Example #12: Nested look-up**:
 dict_b[1] returns 5, which is passed as a key to dict_a. Hence, the expression returns 500
 ```python
-dict_a: {5: 500, 10: 1000}
-dict_b: {1: 5, 2: 10}
+dict_a:[int, int] = None
+dict_b:[int, int] = None
+dict_a = {5: 500, 10: 1000}
+dict_b =  {1: 5, 2: 10}
 dict_a[dict_b[1]]
 ```
 Output: 500
-
 
 
 ## 2. Tests
