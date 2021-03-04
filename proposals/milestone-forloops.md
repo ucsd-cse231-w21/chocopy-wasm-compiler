@@ -90,9 +90,18 @@ for i in range(5):
 
 program 8:
 ```python
-i:int = 0
-for i in range(5):
-  print(i)
+class a(object):
+  curr:int = 0
+  def f(self:a):
+    i:int = 0
+    for i in range(3):
+      self.curr = self.curr + 1
+
+r:a = None
+r = a()
+print(r.curr)
+r.f()
+print(r.curr)
 ```
 
 program 9:
