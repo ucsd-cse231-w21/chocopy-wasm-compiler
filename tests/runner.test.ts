@@ -132,6 +132,23 @@ f(2)`,
   );
 
   assert(
+    "type inference: init int",
+    `
+    x = (1 + 3) * 2
+    x`,
+    PyInt(8)
+  );
+
+  assert(
+    "type inference: init bool",
+    `
+    y = (10-5) < (2 * 3)
+    y`,
+    PyBool(true)
+  );
+
+
+  assert(
     "init before assign",
     `
   x : int = 0
