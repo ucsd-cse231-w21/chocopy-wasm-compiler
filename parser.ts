@@ -222,7 +222,10 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
           start_index = traverseExpr(c, s);
           console.log("First case " + s.substring(c.from, c.to));
           if (sliced_list.length == 1) {
-            end_index = start_index;
+            //end_index = start_index;
+            console.log("Bracket lookup");
+            c.parent();
+            return { tag: "bracket-lookup", obj: objExpr, key: start_index };
           }
           c.nextSibling();
         }
@@ -239,8 +242,9 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
             c.nextSibling();
           }
         console.log("Final case " + s.substring(c.from, c.to));
+        c.parent();
         return {
-          tag: "string_slicing",
+          tag: "slicing",
           name: objExpr,
           start: start_index,
           end: end_index,

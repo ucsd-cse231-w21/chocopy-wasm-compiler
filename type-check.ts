@@ -1,5 +1,5 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
+import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -413,6 +413,17 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeCheckError("method calls require an object");
       }
+    case "bracket-lookup":
+      var obj_t = tcExpr(env, locals, expr.obj);
+      var key_t = tcExpr(env, locals, expr.key);
+      var tBracketExpr = {...expr, obj: obj_t, key: key_t, a:obj_t.a};
+      if (obj_t.a != STRING) {
+        throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
+      }
+      if (key_t.a != NUM) {
+        throw new TypeCheckError("Bracket lookup using " + key_t.a.tag + " type as index is not possible");
+      }
+      return tBracketExpr;
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
@@ -422,6 +433,8 @@ export function tcLiteral(literal: Literal) {
   switch (literal.tag) {
     case "bool":
       return BOOL;
+    case "string":
+      return STRING;
     case "num":
       return NUM;
     case "none":
