@@ -65,3 +65,25 @@ import someNodule   #Should not re-inialize someModule
 from someModule import func
 print(func() ) #should work as before 
 ```
+
+```
+from someModule import func1
+func1()  #should invoke func1 in someModule
+```
+
+```
+from someModule import func1, func2
+func1()   #should invoke func1 in someModule
+func2()   #should invoke func2 in someModule
+```
+
+```
+from someModule import SomeClass
+x: SomeClass = SomeClass()  #should instantiate SomeClass in someModule
+```
+
+```
+from someModule import SomeClass
+x: SomeClass = SomeClass()  #should instantiate SomeClass in someModule
+x.method()   #Should invoke method() in SomeClass
+```
