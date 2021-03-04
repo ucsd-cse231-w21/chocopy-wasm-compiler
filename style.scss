@@ -74,6 +74,15 @@
   white-space: break-spaces;
   line-break: anywhere;
 }
+
+.clear {
+  float: right;
+  display: block;
+}
+.clearfix{
+  clear: both;
+}
+
 @media only screen and (max-width: 800px) {
   .interactions{
     width: 100%;
@@ -83,3 +92,4 @@
     width: 100%;
   }
 }
+ 
