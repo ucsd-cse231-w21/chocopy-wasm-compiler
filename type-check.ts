@@ -243,7 +243,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
           );
         if (!isAssignable(env, valueType, tValue.a))
           throw new TypeCheckError(
-            "Expected value type `" + keyType.tag + "`; got value type `" + tValue.a.tag + "`"
+            "Expected value type `" + valueType.tag + "`; got value type `" + tValue.a.tag + "`"
           );
         return { ...stmt, a: NONE, obj: tObject, key: tKey, value: tValue };
       } else {
