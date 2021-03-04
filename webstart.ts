@@ -129,7 +129,7 @@ function webStart() {
         })
         .catch((e) => {
           renderError(e ,source.value);
-          console.log("run failed", e);
+          console.log("run failed", e.stack);
         });
     });
     setupRepl();
