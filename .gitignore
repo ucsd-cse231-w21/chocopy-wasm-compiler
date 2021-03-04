@@ -3,3 +3,4 @@ build
 cli
 *.sw*
 mochawesome-report
+*.js
