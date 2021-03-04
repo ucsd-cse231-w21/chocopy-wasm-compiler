@@ -19,7 +19,7 @@ class Foo(object):
   b: int = 0
 
 x: Foo = None
-X = Foo()
+x = Foo()
 x.a = 1337
 
 x = Foo()
