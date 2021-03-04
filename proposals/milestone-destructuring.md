@@ -113,6 +113,62 @@ cares about the `*a` part of the assignment), one option is to ignore any assign
 However, within Python, `_` can be accessed like any other variable. Once we agree on how to implement `_`, we will
 make it a usable variable.
 
+## Programs From Proposal to Finish by March 11th
+In the case that the list team's progress permits us to progress on the splat operator:
+```python
+# _ is throwaway either by design or convention
+a: int = 0
+a, _ = (1, 2)
+assert a == 1
+
+# Splat operator
+a: int = 0
+b: [int] = None
+c: int = 0
+a, *b = (1, 2)
+c, *_ = (1, 2)
+assert a == 1 and b == [2] and c == 1
+
+# Empty splat operator
+a: int = 0
+b: int = 0
+c: [int] = None
+a, b, *c = (1, 2)
+assert a == 1 and b == 2 and c == []
+
+# Single splat at any location
+a: int = 0
+c: [int] = None
+b: int = 0
+a, *c, b = (1, 2, 3)
+assert a == 1 and c == [2] and b == 3
+
+# Splat always creates a list
+b: [int] = None
+c: [int] = None
+_, *b = [1, 2, 3]
+assert b == [2, 3]
+_, *c = (1, 2, 3)
+assert c == [2, 3]
+
+# Assignment happens in a left to right order.
+# Destructured assignment can happen at particular indicies in arrays.
+x: [int] = [0, 1]
+i: int = 0
+i, x[i] = 1, 2         # i is updated, then x[i] is updated
+assert i == 1 and x == [0, 2]
+```
+
+Otherwise focus on chained assignment program:
+```python
+# Assignment targets are performed entirely from left to right
+a: int = 0
+b: int = 0
+x: int = 0
+a, b = x, a = 1, 2
+assert a == 2 and b == 2 and x == 1
+```
+
 ## Biggest Challenges
 One of our challenges was determining the best way to type check a destructured assignment. Designing the type
 checking logic with starred assignments in mind was particularly tough, since you don't immediately know how many
