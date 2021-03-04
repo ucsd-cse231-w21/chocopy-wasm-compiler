@@ -5,6 +5,7 @@ import { NUM, BOOL, NONE } from '../utils';
 describe('tc', () => {
 
   assertTC("number", "1", NUM);
+  assertTC("big number", "4294967296", NUM);
   assertTC("true", "True", BOOL);
   assertTC("false", "False", BOOL);
 

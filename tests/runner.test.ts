@@ -8,6 +8,8 @@ describe('run', () => {
 
   // runWasm('i64 return value', '(module (func (export "exported_func") (result i64) (i64.const 234)))', BigInt(234));
 
+  assert('big num', "-1000000000000", PyBigInt(-1000000000000n));
+  
   assert('add', "2 + 3", PyInt(2 + 3));
 
   assert('add3', "2 + 3 + 4", PyInt(2 + 3 + 4));
@@ -182,6 +184,14 @@ f(2)`, PyInt(2));
   print(True)
   print(1)`, PyInt(1));
 
+  assert("big num print (positive)", `
+    print(4294967296)
+  `, PyBigInt(4294967296n));
+
+  assert("big num print (negative)", `
+    print(-1000000000000)
+  `, PyBigInt(-1000000000000n));
+  
   assert("while true", `
   x : int = 3
   fib : int = 1
