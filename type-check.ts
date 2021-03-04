@@ -227,6 +227,8 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         throw new BaseException.TypeMismatchError(fields.get(stmt.field).tag, tVal.a.tag, stmt.loc);
       }
       return { ...stmt, a: NONE, obj: tObj, value: tVal };
+    default:
+      unhandledTag(stmt);
   }
 }
 
@@ -296,6 +298,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               expr.loc
             );
           return { a: BOOL, ...tBin };
+        default:
+          return unreachable(expr);
       }
     case "uniop":
       const tExpr = tcExpr(env, locals, expr.expr);
@@ -321,6 +325,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               expr.loc
             );
           }
+        default:
+          return unreachable(expr);
       }
     case "id":
       if (locals.vars.has(expr.name)) {
