@@ -319,7 +319,9 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       var value = traverseExpr(c, s);
       c.parent();
 
+      console.log(destruct);
       const target = destruct.targets[0].target;
+      console.log(target);
 
       // TODO: The new assign syntax should hook in here
       if (target.tag === "lookup") {
@@ -333,6 +335,14 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
         return {
           tag: "assign",
           name: target.name,
+          value: value,
+        };
+      } else if (target.tag === "bracket-lookup") {
+        console.log("inside assignStatement -> bracket-lookup");
+        return {
+          tag: "bracket-assign",
+          obj: target.obj,
+          key: target.key,
           value: value,
         };
       } else {

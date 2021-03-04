@@ -79,13 +79,14 @@ export interface AssignTarget<A> {
 
 // List of tags in Assignable. unfortunately, TS can't generate a JS array from a type,
 // so we instead must explicitly declare one.
-export const ASSIGNABLE_TAGS = ["id", "lookup"] as const;
+export const ASSIGNABLE_TAGS = ["id", "lookup", "bracket-lookup"] as const;
 /**
  * Subset of Expr types which are valid as assign targets
  */
 export type Assignable<A> =
   | { a?: A; tag: "id"; name: string }
-  | { a?: A; tag: "lookup"; obj: Expr<A>; field: string };
+  | { a?: A; tag: "lookup"; obj: Expr<A>; field: string }
+  | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
 
 export type Expr<A> =
   | { a?: A; tag: "literal"; value: Literal }

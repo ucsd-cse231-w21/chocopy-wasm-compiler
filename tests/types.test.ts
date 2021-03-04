@@ -144,4 +144,20 @@ describe("tc", () => {
   d: [int, int] = None
   d = {4}`
   );
+
+  assertTCFail(
+    "dict-bad-lookup",
+    `
+  d: [int, int] = None
+  d = {4:5, 1:4}
+  d[True]`
+  );
+
+  assertTCFail(
+    "dict-bad-assign",
+    `
+  a:[int,int]=None
+  a = {}
+  a[8] = True`
+  );
 });

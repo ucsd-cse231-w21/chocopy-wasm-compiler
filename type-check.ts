@@ -60,11 +60,16 @@ export type TypeError = {
 };
 
 export function equalType(t1: Type, t2: Type) {
-  return t1 === t2
-  || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name)
-  //if dictionary is initialized to key-value pairs, check whether key types match and value types match;
-  //if dictionary is initialized to empty {}, then we check for "none" type in key and value
-  || (t1.tag === "dict" && t2.tag === "dict" && ((t1.key === t2.key && t1.value === t2.value) || (t1.key.tag === "none" && t1.value.tag === "none" )));
+  return (
+    t1 === t2 ||
+    (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
+    //if dictionary is initialized to key-value pairs, check whether key types match and value types match;
+    //if dictionary is initialized to empty {}, then we check for "none" type in key and value
+    (t1.tag === "dict" &&
+      t2.tag === "dict" &&
+      ((t1.key === t2.key && t1.value === t2.value) ||
+        (t1.key.tag === "none" && t1.value.tag === "none")))
+  );
 }
 
 export function isNoneOrClass(t: Type) {
@@ -228,6 +233,27 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
           } expected type: ${fields.get(stmt.field)}`
         );
       return { ...stmt, a: NONE, obj: tObj, value: tVal };
+    case "bracket-assign":
+      let tObject = tcExpr(env, locals, stmt.obj);
+      let tKey = tcExpr(env, locals, stmt.key);
+      let tValue = tcExpr(env, locals, stmt.value);
+      if (tObject.a.tag == "dict") {
+        let keyType = tObject.a.key;
+        let valueType = tObject.a.value;
+        if (!isAssignable(env, keyType, tKey.a))
+          throw new TypeCheckError(
+            "Expected key type `" + keyType.tag + "`; got key type `" + tKey.a.tag + "`"
+          );
+        if (!isAssignable(env, valueType, tValue.a))
+          throw new TypeCheckError(
+            "Expected value type `" + keyType.tag + "`; got value type `" + tValue.a.tag + "`"
+          );
+        return { ...stmt, a: valueType, obj: tObj, key: tKey, value: tValue };
+      } else {
+        // list lookup cases go here
+        throw new TypeCheckError("bracket-assign for lists not implemented");
+      }
+    // throw new TypeCheckError("bracket-assign not implemented");
     default:
       unhandledTag(stmt);
   }
@@ -422,35 +448,54 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       let dictType: Type;
       // check for the empty dict, example: d = {} -> returns `none`
       if (!entries?.length) {
-        dictType = { tag: "dict", key: { tag: "none" }, value: {tag: "none"} };
-        let dictAnnotated = {...expr, a: dictType, entries: entries};
+        dictType = { tag: "dict", key: { tag: "none" }, value: { tag: "none" } };
+        let dictAnnotated = { ...expr, a: dictType, entries: entries };
         return dictAnnotated;
-      } else {  // the dict has one or more key-value pairs
+      } else {
+        // the dict has one or more key-value pairs
         // return the types of keys and values, if they are consistent
         let keyTypes = new Set();
         let valueTypes = new Set();
         let entryTypes: Array<[Expr<Type>, Expr<Type>]> = [];
-        for(let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+        for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
           let keyType = tcExpr(env, locals, entries[entryIndex][0]);
           let valueType = tcExpr(env, locals, entries[entryIndex][1]);
           entryTypes.push([keyType, valueType]);
           keyTypes.add(keyType.a);
           valueTypes.add(valueType.a);
         }
-        if( keyTypes.size > 1 ) {
+        if (keyTypes.size > 1) {
           throw new TypeCheckError("Heterogenous `Key` types aren't supported");
         }
-        if( valueTypes.size > 1 ) {
+        if (valueTypes.size > 1) {
           throw new TypeCheckError("Heterogenous `Value` types aren't supported");
         }
         let keyType = keyTypes.values().next().value;
         let valueType = valueTypes.values().next().value;
         dictType = { tag: "dict", key: keyType, value: valueType };
-        let dictAnnotated = {...expr, a: dictType, entries: entryTypes};
+        let dictAnnotated = { ...expr, a: dictType, entries: entryTypes };
         return dictAnnotated;
       }
     case "bracket-lookup":
-      throw new TypeCheckError("Typecheck for bracket-lookup not implemented");
+      var tObj = tcExpr(env, locals, expr.obj);
+      if (tObj.a.tag === "dict") {
+        let keyType = tObj.a.key;
+        let valueType = tObj.a.value;
+        let tKey = tcExpr(env, locals, expr.key);
+        let keyLookupType = tKey.a;
+        if (!isAssignable(env, keyType, keyLookupType))
+          throw new TypeCheckError(
+            "Expected key type `" +
+              keyType.tag +
+              "`; got key lookup type `" +
+              keyLookupType.tag +
+              "`"
+          );
+        return { ...expr, a: valueType, obj: tObj, key: tKey };
+      } else {
+        // list lookup cases go here
+        throw new TypeCheckError("bracket-lookup for lists not implemented");
+      }
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
