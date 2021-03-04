@@ -1,6 +1,16 @@
-// import { TypeCheckError } from "./type-check";
+// -*- mode: typescript; typescript-indent-level: 2; -*-
 
-// export enum Type {NUM, BOOL, NONE, OBJ}; 
+export type Parameter = { tag: "parameter", name: string, type: Type }
+export type Pos = { line: number, col: number, len: number } // For line information on error
+export type Branch = { tag: "branch", cond: Expr, condPos: Pos, body : Array<Stmt> }
+
+export type Value =
+    { tag: "none" }
+  | { tag: "bool", value: boolean }
+  | { tag: "num", value: number }
+  | { tag: "object", name: string, address: number}
+  | { tag: "str", off: number }
+
 export type Type =
   | {tag: "number"}
   | {tag: "bool"}
@@ -8,58 +18,38 @@ export type Type =
   | {tag: "str"}
   | {tag: "class", name: string}
 
-export type Parameter<A> = { name: string, type: Type }
+export const BoolT:  Type = { tag: "bool" };
+export const IntT:   Type = { tag: "number" };
+export const NoneT:  Type = { tag: "none" };
+export const StrT:   Type = { tag: "str" };
+export const ClassT: Type = { tag: "class", name: undefined };
 
-export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
+export type Name = { str: string, pos: Pos }
+export type ClassBody = { iVars: Array<Stmt>, inherits: Array<Name>,  funcs: Array<Function> };
+export type Function = { pos: Pos, name: Name, parametersPos: Pos, parameters: Array<Parameter>, ret: Type, retPos: Pos, body: Array<Stmt> };
 
-export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods: Array<FunDef<A>>}
+export type Stmt =
+  | { tag: "comment", pos: Pos }
+  | { tag: "pass", pos: Pos }
+  | { tag: "func", content: Function }
+  | { tag: "define", pos: Pos, name: Name, staticType: Type, value: Expr }
+  | { tag: "assign", pos: Pos, lhs: Expr, value: Expr, staticType?: Type }
+  | { tag: "expr", expr: Expr }
+  | { tag: "while", cond: Expr, whileBody: Array<Stmt> }
+  | { tag: "if", cond: Expr, condPos: Pos, ifBody: Array<Stmt>, branches: Array<Branch>, elseBody: Array<Stmt> }
+  | { tag: "return", pos: Pos, expr: Expr }
+  | { tag: "class", name: Name, body: ClassBody }
+  | { tag: "for", varName: Name, str: Expr, body: Array<Stmt> }
 
-export type VarInit<A> = { a?: A, name: string, type: Type, value: Literal }
-
-export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
-
-export type Stmt<A> =
-  | {  a?: A, tag: "assign", name: string, value: Expr<A> }
-  | {  a?: A, tag: "return", value: Expr<A> }
-  | {  a?: A, tag: "expr", expr: Expr<A> }
-  | {  a?: A, tag: "if", cond: Expr<A>, thn: Array<Stmt<A>>, els: Array<Stmt<A>> }
-  | {  a?: A, tag: "while", cond: Expr<A>, body: Array<Stmt<A>> }
-  | {  a?: A, tag: "pass" }
-  | {  a?: A, tag: "field-assign", obj: Expr<A>, field: string, value: Expr<A> }
-
-// For line information on error
-export type Pos = { line: number, col: number, len: number }
-
-export type Expr<A> =
-    {  a?: A, tag: "literal", value: Literal }
-  | {  a?: A, tag: "id", name: string }
-  | {  a?: A, tag: "binop", op: BinOp, left: Expr<A>, right: Expr<A>}
-  | {  a?: A, tag: "uniop", op: UniOp, expr: Expr<A> }
-  | {  a?: A, tag: "builtin1", name: string, arg: Expr<A> }
-  | {  a?: A, tag: "builtin2", name: string, left: Expr<A>, right: Expr<A>}
-  | {  a?: A, tag: "call", name: string, arguments: Array<Expr<A>> } 
-  | {  a?: A, tag: "lookup", obj: Expr<A>, field: string }
-  | {  a?: A, tag: "method-call", obj: Expr<A>, method: string, arguments: Array<Expr<A>> }
-  | {  a?: A, tag: "construct", name: string }
-
-  // Represents a statically allocated string
-  | {  a?: A, tag: "string", pos: Pos, value: string }
-
-  // Represents the slice operator, expr is the string to be sliced
-  // and args represent the start, end and the step
-  | {  a?: A, tag: "intervalExp", pos: Pos, expr: Expr, args: Expr[] } 
-
-export type Literal = 
-    { tag: "num", value: number }
-  | { tag: "bool", value: boolean }
-  | { tag: "none" }
-
-// TODO: should we split up arithmetic ops from bool ops?
-export enum BinOp { Plus, Minus, Mul, IDiv, Mod, Eq, Neq, Lte, Gte, Lt, Gt, Is, And, Or};
-
-export enum UniOp { Neg, Not };
-
-export type Value =
-    Literal
-  | { tag: "object", name: string, address: number}
-  | { tag: "str", off: number } // Heap offset
+export type Expr =
+  | { iType?: Type, tag: "intervalExp", pos: Pos, expr: Expr, args: Expr[] }
+  | { iType?: Type, tag: "num", pos: Pos, value: number }
+  | { iType?: Type, tag: "self", pos: Pos }
+  | { iType?: Type, tag: "none", pos: Pos}
+  | { iType?: Type, tag: "bool", pos: Pos, value: boolean}
+  | { iType?: Type, tag: "id", pos: Pos, name: string }
+  | { iType?: Type, tag: "memExp", pos: Pos, expr: Expr, member: Name }
+  | { iType?: Type, tag: "binExp", pos: Pos, name: string, arg: [Expr, Expr] }
+  | { iType?: Type, tag: "unaryExp", pos: Pos, name: string, arg: Expr }
+  | { iType?: Type, tag: "funcCall", pos: Pos, prmPos: Pos, prmsPosArr: Array<Pos>, name: Expr, args: Array<Expr> }
+  | { iType?: Type, tag: "string", pos: Pos, value: string }

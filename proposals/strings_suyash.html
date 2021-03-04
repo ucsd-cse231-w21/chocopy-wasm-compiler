@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+<title>strings_suyash.html</title>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+<link rel="stylesheet" type="text/css" media="all" href="https://simon.lc/sites/markdown/markdown.css"  />
+</head>
+
+<body>
+
+<h1 id="strings---proposals">Strings - Proposals</h1>
+<h2 id="members">Members</h2>
+<ul>
+<li>Suyash Mahar</li>
+</ul>
+<h2 id="representative-examples">10 Representative examples</h2>
+<h3 id="section">#1</h3>
+<p>Statically allocating strings:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a>hello_world: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;Hello! World&quot;</span></span></code></pre></div>
+<h3 id="section-1">#2</h3>
+<p>Adding two strings to create a new string:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a>a: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;first&quot;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a>b: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;second&quot;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a>c: <span class="bu">str</span> <span class="op">=</span> a <span class="op">+</span> b</span></code></pre></div>
+<h3 id="section-2">#3</h3>
+<p>Printing strings:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="bu">print</span>(<span class="st">&quot;Printing a string!&quot;</span>)</span></code></pre></div>
+<h3 id="section-3">#4</h3>
+<p>Slicing character from a strings:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a>c: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;This is a number: 1&quot;</span>[<span class="dv">18</span>]</span></code></pre></div>
+<h3 id="section-4">#5</h3>
+<p>Slicing a substring from a string:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a>hello_world: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;Hello! World&quot;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>hello: <span class="bu">str</span> <span class="op">=</span> hello_world[<span class="dv">0</span>:<span class="dv">6</span>]</span></code></pre></div>
+<h3 id="section-5">#6</h3>
+<p>Slicing a string with a step value:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a>numbers: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;1 2 3 4 5 6&quot;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>numbers_without_space <span class="op">=</span> numbers[<span class="dv">0</span>:<span class="dv">11</span>:<span class="dv">2</span>]</span></code></pre></div>
+<h3 id="section-6">#7</h3>
+<p>Getting length of a string:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a>test_str: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;String of length 19&quot;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="bu">print</span>(<span class="bu">len</span>(test_str) <span class="op">==</span> <span class="dv">19</span>)</span></code></pre></div>
+<h3 id="section-7">#8</h3>
+<p>Escape sequences <code>\n</code>, <code>\\</code>, <code>\t</code>:<br />
+(tabs expands to 4 spaces)</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a>test_string: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;</span><span class="ch">\t</span><span class="st">This line is tabbed</span><span class="ch">\n</span><span class="st">This is not</span><span class="ch">\n</span><span class="st">New lines with: </span><span class="ch">\\</span><span class="st">n, tabs with </span><span class="ch">\\</span><span class="st">t&quot;</span></span></code></pre></div>
+<h3 id="section-8">#9</h3>
+<p>Comparing two strings:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a>test1: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;equal&quot;</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>test2: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;equal&quot;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a><span class="bu">print</span>(test1 <span class="op">==</span> test2)</span></code></pre></div>
+<h3 id="section-9">#10</h3>
+<p>For loop iterator, create a variable of type <code>str</code> and assign the next value:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a>hello_world <span class="op">=</span> <span class="st">&quot;Hello! World&quot;</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a><span class="cf">for</span> var <span class="kw">in</span> hello_world:</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>     <span class="bu">print</span>(var)</span></code></pre></div>
+<h2 id="a-description-of-how-you-will-add-tests-for-your-feature.">A description of how you will add tests for your feature.</h2>
+<p>Some tests that would be helpful for evaluating the implementation:<br />
+1. Verify the static allocation of string and ensure that it ends with a NULL character. 2. Verify adding two string allocation creates a new string with characters from both the strings and a terminating NULL character. 3. Verify equality operator for the strings. 4. Test the translation of escaped characters in a string.</p>
+<h2 id="a-description-of-any-new-ast-forms-you-plan-to-add.">A description of any new AST forms you plan to add.</h2>
+<ol type="1">
+<li>Add a new <code>Value</code> type of tag <code>"str"</code>.</li>
+<li>Add a new <code>Type</code> type of tag <code>"str"</code>.</li>
+<li>Add a new <code>Expr</code> type of tag <code>"intervalExp"</code> that handles the slicing syntax (e.g., <code>[1:2]</code>).</li>
+<li>Add a new field <code>iType?: Type</code> to represent the value type for every <code>Expr</code>.</li>
+</ol>
+<p><strong>For 3</strong></p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="im">export type</span> Expr <span class="op">=</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;intervalExp&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> expr<span class="op">:</span> Expr<span class="op">,</span> args<span class="op">:</span> Expr[] }</span></code></pre></div>
+<p><strong>For 4</strong></p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="im">export type</span> Expr <span class="op">=</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;intervalExp&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> expr<span class="op">:</span> Expr<span class="op">,</span> args<span class="op">:</span> Expr[] }</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;num&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> value<span class="op">:</span> <span class="dt">number</span> }</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;self&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos }</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;none&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos}</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;bool&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> value<span class="op">:</span> <span class="dt">boolean</span>}</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;id&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> name<span class="op">:</span> <span class="dt">string</span> }</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;memExp&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> expr<span class="op">:</span> Expr<span class="op">,</span> member<span class="op">:</span> Name }</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;binExp&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> name<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> arg<span class="op">:</span> [Expr<span class="op">,</span> Expr] }</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;unaryExp&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> name<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> arg<span class="op">:</span> Expr }</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;funcCall&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> prmPos<span class="op">:</span> Pos<span class="op">,</span> prmsPosArr<span class="op">:</span> Array<span class="op">&lt;</span>Pos<span class="op">&gt;,</span> name<span class="op">:</span> Expr<span class="op">,</span> args<span class="op">:</span> Array<span class="op">&lt;</span>Expr<span class="op">&gt;</span> }</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true"></a>  <span class="op">|</span> { iType<span class="op">?:</span> Type<span class="op">,</span> tag<span class="op">:</span> <span class="st">&quot;string&quot;</span><span class="op">,</span> pos<span class="op">:</span> Pos<span class="op">,</span> value<span class="op">:</span> <span class="dt">string</span> }</span></code></pre></div>
+<h2 id="a-description-of-any-new-functions-datatypes-andor-files-added-to-the-codebase.">A description of any new functions, datatypes, and/or files added to the codebase.</h2>
+<p>New datatypes in compiler.ts: 1. <code>tempHeapPtr: number</code>: heap pointer that is set before compiling, the codebase then increments it on every static string allocation. On completing the compilation, the runtime then sets the WASM memory with the new value. 2. <code>codeGenString()</code>: Function to generate code for strings.</p>
+<h2 id="a-description-of-any-changes-to-existing-functions-datatypes-andor-files-in-the-codebase.">A description of any changes to existing functions, datatypes, and/or files in the codebase.</h2>
+<ol type="1">
+<li>Add a new case to the function <code>traverseExpr()</code> for the node type <code>"String"</code>.</li>
+<li>Add a new case for <code>typeStr</code> of value <code>"str"</code> to <code>parseType()</code> function.</li>
+<li>Change the function signature of all the functions in <code>tc.ts</code> to add support for generating the decorated AST.</li>
+<li>Add support for typechecking strings in comparator (<code>==</code>, <code>!=</code>) and addition (<code>+</code>) operators to function <code>tc_binExp()</code>.</li>
+</ol>
+<h2 id="a-description-of-the-value-representation-and-memory-layout-for-any-new-runtime-values-you-will-add.">A description of the value representation and memory layout for any new runtime values you will add.</h2>
+<p>All strings will be stored as NULL terminated ASCII sequence. The pointers to the string will point to the first character of the string.</p>
+<p>New functions in <code>repl.ts</code> for the WASM runtime:</p>
+<ol type="1">
+<li><code>$str$len</code> to calculate length of the string, takes a single pointer.</li>
+<li><code>$str$concat</code> to concatenate two strings, takes two pointers.</li>
+<li><code>$str$slice</code> to slice strings, takes the pointer to the string and 3 arguments</li>
+</ol>
+<p>Pointers to a string are represented using a 64-bit values with their 60th bit set and lower 32 bits representing the heap offset.</p>
+<h2 id="a-milestone-plan-for-march-4-pick-2-of-your-10-example-programs-that-you-commit-to-making-work-by-march-4.">A milestone plan for March 4 – pick 2 of your 10 example programs that you commit to making work by March 4.</h2>
+<p>Static allocation of strings and addition (#1 and #2)</p>
+
+</body>
+</html>

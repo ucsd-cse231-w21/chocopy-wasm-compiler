@@ -1,64 +1,79 @@
-<!DOCTYPE html>
+<!doctype HTML>
 <html>
-<head>
-    <meta charset="utf-8" />
+  <head>
+    <meta charset="utf-8">
     <script src="https://cdn.jsdelivr.net/gh/AssemblyScript/wabt.js@1.0.20/index.js"></script>
-    <script>
-        const wabt = WabtModule;
-    </script>
-    <style>
-        .editor {
-            float: left;
-            width: 49%;
-            margin: 0;
-            padding: 0;
-            height: 100%;
-        }
-        .user-code {
-            width: 100%;
-            height: 80em;
-            resize: none;
-            overflow: scroll;
-            font-family: monospace;
-        }
-        .interactions {
-            float: right;
-            width: 49%;
-            margin-left: 1em;
-            padding: 0;
-            height: 100%;
-        }
-        .repl-code {
-            height: 2em;
-            width: 30em;
-            text-align: left;
-            font-family: monospace;
-        }
-        .prompt {
-            vertical-align: middle;
-        }
-        .output pre {
-            max-width: 100%;
-            white-space: break-spaces;
-            line-break: anywhere;
-        }
-    </style>
-</head>
+    <script>const wabt = WabtModule;</script>
+    <script src="webstart.js"></script>
+    <link rel="stylesheet" href="style.css">
+  </head>
 
-<body>
-    <div class="editor">
-        <button id="run">Run!</button>
-        <br/>
-        <textarea class="user-code" id="user-code"></textarea>
+  <body>
+    
+    <div id="aboutModal" class="modal">
+      <!-- Modal content -->
+      <div class="modal-content">
+	<span class="close" id="closeAboutModal">&times;</span>
+	<p>
+	  Developed using the PA1 stater code for CSE231.<br>
+	</p>
+	<p>
+	  Uses ChocoPy as the reference standard.<br>
+	</p>
+	
+	<p>
+	  Compiler currently supports:
+	</p>
+	<ul>
+	  <li>Classes (no-inheritance)</li>
+	  <li>Strings (len, slices including negative indices and steps)</li>
+	  <li>32-bit integers</li>
+	  <li>Non-nested functions</li>
+	  <li>Comments 🙃</li>
+	  <li>Booleans</li>
+	  <li>REPL</li>
+	</ul> 
+	<p>
+	  <br>
+	  Written over the course of Winter 2021 by Suyash Mahar.
+	</p>
+      </div>
     </div>
+
+    <div class="editor">
+      <button class="runbtn" id="aboutBtn">About</button>
+      <div class="dropdown">
+	<button class="dropbtn">Examples ▾
+	  <i class="fa fa-caret-down"></i>
+	</button>
+	<div class="dropdown-content">
+	  <a id="pattern-print" href="#">Pattern print</a>
+	  <a id="ex-complex-number" href="#">Complex Number example</a>
+	  <a id="ex-list" href="#">Vector example</a>
+	  <a id="ex-string" href="#">String example</a>	  
+	  <a id="test-python" href="#">Test Suite</a>
+	</div>
+      </div>
+      <button class="runbtn" id="run">Run!</button>
+      <div class="user-code language-python" id="user-code"></div>    
+    </div><br/>
 
     <div class="interactions">
-        <div class="output" id="output"></div>
-        <div id="repl-entry">
-            <span class="prompt"><code>»</code></span>
-            <textarea type="text" id="next-code" class="repl-code"></textarea>
-        </div>
+      <h3 class="headers">Output</h3>
+      <details class="headers">
+	<summary class="headers">Show generated code.</summary>
+	<p id="outputSource">Nothing here yet, execute something.</p>
+	<hr>
+      </details>
+      <div class="output" id="output">
+      </div>
+      <h3 class="headers">REPL</h3>
+      <p class="descriptors">(Shift+Enter for new line, Enter to execute)</p>
+      <div id="repl-entry">
+        <span class="prompt"><code>&gt;&gt;</code></span>
+        <textarea type="text" id="next-code" class="repl-code"></textarea>
+      </div>
     </div>
-</body>
+  </body>
 
 </html>

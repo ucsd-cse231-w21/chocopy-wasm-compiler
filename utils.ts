@@ -13,6 +13,10 @@ export function PyValue(typ: Type, result: number): Value {
   }
 }
 
+export function PyStr(off: number): Value {
+    return { tag: "str", off: off };
+}
+
 export function PyInt(n: number): Value {
   return { tag: "num", value: n };
 }
@@ -30,6 +34,7 @@ export function PyNone(): Value {
   return { tag: "none" };
 }
 
+export const STR : Type = {tag: "str"};
 export const NUM : Type = {tag: "number"};
 export const BOOL : Type = {tag: "bool"};
 export const NONE : Type = {tag: "none"};
