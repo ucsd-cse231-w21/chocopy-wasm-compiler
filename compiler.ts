@@ -314,8 +314,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       let dictStmts: Array<string> = [];
       //Allocate memory on the heap for hashtable. Currently size is 10
       //It finally pushes address of dict on stack, ie the return value
-      dictStmts = dictStmts.concat(codeGenDictAlloc(10, env));
       dictStmts.push("(local $dictBaseAddr)");
+      dictStmts = dictStmts.concat(codeGenDictAlloc(10, env));
       dictStmts.push("(local.set $dictBaseAddr)");
       expr.entries.forEach((keyval) => {
         dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], keyval[1], 10, env));
@@ -370,12 +370,103 @@ function dictUtilFuns(): Array<string> {
   dictFunStmts.push(
     ...[
       "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
-      "(local $offset i32)", // Local variable to store the offset into the hashtable
+      "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
+      "(local.get $baseAddr)",
       "(local.get $key)",
       "(local.get $hashtablesize)",
       "(i32.rem_s)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
-      "(local.set $offset)", //Set the offset to be used later
+      "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
+      "(i32.load)",
+      "(i32.const 0)", //None
+      "(i32.eq)",
+      "(if",
+      "(then",  // if the literal in bucketAddress is None
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $key)",
+      "(i32.store)", // Dumping tag
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(i32.const 4)",
+      "(i32.add)", // Moving to the next block
+      "(local.get $val)",
+      "(i32.store)", // Dumping value
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(i32.const 8)",
+      "(i32.add)", // Moving to the next block
+      "(i32.const 0)", //None
+      "(i32.store)", // Dumping None in the next
+      "(local.get $baseAddr)", // Recomputing the bucketAddress to update it.
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Recomputed bucketAddress
+      "(i32.load (i32.const 0))",
+      "(i32.store)", //Updated the bucketAddress pointing towards first element.
+      "(i32.const 0)",
+      "(i32.load (i32.const 0))",
+      "(i32.const 12)",
+      "(i32.add)",
+      "(i32.store)", // Updating the empty space address in first block
+      ")", // Closing then
+      "(else", // Opening else
+      "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Recomputed bucketAddress
+      "(i32.load)", //Loading head of linkedList
+      "(i32.const 8)",
+      "(i32.add)", // Next pointer
+      "(local.set $nodePtr)",
+      "(block",
+      "(loop", // While loop till we find a node whose next is None
+      "(local.get $nodePtr)",
+      "(i32.load)", // Traversing to head of next node
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(i32.const 8)",
+      "(i32.add)", // Next pointer
+      "(local.set $nodePtr)",
+      ")", // Closing then
+      ")", // Closing if
+      "(br_if 0", // Opening br_if
+      "(local.get $nodePtr)",
+      "(i32.load)", // Traversing to head of next node
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      ")", // Closing br_if
+      "(br 1)",
+      ")", // Closing loop
+      ")", // Closing Block
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $key)",
+      "(i32.store)", // Dumping tag
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(i32.const 4)",
+      "(i32.add)", // Moving to the next block
+      "(local.get $val)",
+      "(i32.store)", // Dumping value
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(i32.const 8)",
+      "(i32.add)", // Moving to the next block
+      "(i32.const 0)", //None
+      "(i32.store)", // Dumping None in the next
+      "(local.get $nodePtr)", // Get the address of "next" block in node, whose next is None.
+      "(i32.load (i32.const 0))",
+      "(i32.store)", // Updated the next pointing towards first element of new node.
+      "(i32.const 0)",
+      "(i32.load (i32.const 0))",
+      "(i32.const 12)",
+      "(i32.add)",
+      "(i32.store)", // Updating the empty space address in first block
+      ")", // Closing else
+      ")", // Closing if
       "(return))", //
     ]
   );
