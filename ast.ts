@@ -61,7 +61,7 @@ export type Stmt<A> =
   | { a?: A; tag: "pass" }
   | { a?: A; tag: "field-assign"; obj: Expr<A>; field: string; value: Expr<A> }
   | { a?: A; tag: "continue"; depth?: number}
-  | { a?: A; tag: "break"; depth?: number}
+  | { a?: A; tag: "break"; depth?: number} // depth is used for wasm 'br' instruction
   | { a?: A; tag: "for"; name: string; index?: string; iterable: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
 

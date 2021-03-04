@@ -265,6 +265,9 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
     case "continue":
       return { a: NONE, tag: 'continue', depth: locals.loop_depth};
     case "break":
+      if(locals.loop_depth < 1){
+        throw new TypeCheckError('Break outside a loop.');
+      }
       return { a: NONE, tag: 'break', depth: locals.loop_depth};
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
