@@ -67,6 +67,11 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
+//Any built-in WASM functions go here
+export function libraryFuns(): string {
+  return dictUtilFuns().join("\n");
+}
+
 export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   const withDefines = augmentEnv(env, ast);
 
@@ -306,12 +311,75 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var [offset, _] = env.classes.get(className).get(expr.field);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
     case "dict":
+      let dictStmts: Array<string> = [];
+      //Allocate memory on the heap for hashtable. Currently size is 10
+      //It finally pushes address of dict on stack, ie the return value
+      dictStmts = dictStmts.concat(codeGenDictAlloc(10, env));
+      dictStmts.push("(local $dictBaseAddr)");
+      dictStmts.push("(local.set $dictBaseAddr)");
+      expr.entries.forEach((keyval) => {
+        dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], keyval[1], 10, env));
+      });
       throw new Error("Code gen for dict not implemented");
     case "bracket-lookup":
       throw new Error("Code gen for bracket-lookup not implemented");
     default:
       unhandledTag(expr);
   }
+}
+
+function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv): Array<string> {
+  let dictAllocStmts: Array<string> = [];
+  for (let i = 0; i < hashtableSize; i++) {
+    dictAllocStmts.push(
+      ...[
+        `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+        `(i32.add (i32.const ${i * 4}))`, // Calc hash table entry offset from heap offset
+        ...codeGenLiteral({ tag: "none" }, env), // CodeGen for "none" literal
+        "(i32.store)", // Initialize to none
+      ]
+    );
+  }
+  return dictAllocStmts.concat([
+    "(i32.load (i32.const 0))", // Get address for the dict (this is the return value)
+    "(i32.const 0)", // Address for our upcoming store instruction
+    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+    `(i32.add (i32.const ${hashtableSize * 4}))`, // Increment heap offset according to hashtable size
+    "(i32.store)", // Save the new heap offset
+  ]);
+}
+
+function codeGenDictKeyVal(
+  key: Expr<Type>,
+  val: Expr<Type>,
+  hashtableSize: number,
+  env: GlobalEnv
+): Array<string> {
+  let dictKeyValStmts: Array<string> = ["(local.get $dictBaseAddr)"];
+  dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
+  dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(val, env));
+  dictKeyValStmts = dictKeyValStmts.concat([
+    `(i32.const ${hashtableSize})`,
+    "(call $ha$htable$Update)",
+  ]);
+  return dictKeyValStmts;
+}
+
+function dictUtilFuns(): Array<string> {
+  let dictFunStmts: Array<string> = [];
+  dictFunStmts.push(
+    ...[
+      "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
+      "(local $offset i32)", // Local variable to store the offset into the hashtable
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(local.set $offset)", //Set the offset to be used later
+      "(return))", //
+    ]
+  );
+  return dictFunStmts;
 }
 
 function codeGenLiteral(literal: Literal, env: GlobalEnv): Array<string> {
