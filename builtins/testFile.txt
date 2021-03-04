@@ -1,0 +1,4 @@
+from otherModule import someFunc, otherFunc
+
+someFunc()
+otherFunc()

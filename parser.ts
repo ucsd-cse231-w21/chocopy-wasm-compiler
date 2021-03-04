@@ -17,6 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
+import { importObject } from "./tests/import-object.test";
 import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
@@ -277,11 +278,22 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
         c.nextSibling(); //land on the "import" keyword
         c.nextSibling(); //land on component name to import
 
+        importStatement.compName = new Array();
         const componentName = s.substring(c.from, c.to);
+        importStatement.compName.push(componentName);
+
+        const uniquenessComps = new Set();
+        uniquenessComps.add(componentName);
+        while(c.nextSibling()){
+          const compName = s.substring(c.from, c.to).trim();
+          if(compName !== "," && !uniquenessComps.has(compName)){
+            importStatement.compName.push(compName);
+            uniquenessComps.add(compName);
+          }
+        }
 
         importStatement.isFromStmt = true;
         importStatement.target = targetModule;
-        importStatement.compName = componentName;
       }
       else{
         c.nextSibling(); //goes to the target module

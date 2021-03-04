@@ -16,6 +16,7 @@ export type Config = {
   importObject: any;
   env: compiler.GlobalEnv;
   typeEnv: GlobalTypeEnv;
+  builtIns: Map<string, GlobalTypeEnv>;
   functions: string; // prelude functions
 };
 
@@ -50,7 +51,7 @@ export async function run(
   config: Config
 ): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
-  const [tprogram, tenv] = tc(config.typeEnv, parsed);
+  const [tprogram, tenv] = tc(config.typeEnv, parsed, config.builtIns);
   const progTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";
@@ -62,13 +63,21 @@ export async function run(
     returnExpr = "(local.get $$last)";
   }
   let globalsBefore = (config.env.globals as Map<string, number>).size;
-  const compiled = compiler.compile(tprogram, config.env);
+  const compiled = compiler.compile(tprogram, config.env, config.builtIns);
   let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;
   if (!importObject.js) {
     const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
     importObject.js = { memory: memory };
+  }
+
+  //for now, we'll onyl import top-level functions
+  const builtInHeaders : Array<string> = new Array();
+  for(let [moduleName, module] of config.builtIns.entries()){
+    for(let [funcName, info] of module.functions.entries()){
+      builtInHeaders.push(`(func $${funcName} (import "${moduleName}" "${funcName}") (result i32))`);
+    }
   }
 
   const view = new Int32Array(importObject.js.memory.buffer);
@@ -86,6 +95,7 @@ export async function run(
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    ${builtInHeaders.join("\n")}
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
