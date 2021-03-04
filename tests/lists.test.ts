@@ -2,28 +2,22 @@ import { PyInt, PyBool, PyNone, PyObj } from "../utils";
 import { assert, asserts, assertPrint } from "./utils.test";
 
 describe("LIST TEST", () => {
-
-
-    var source = `
+  var source = `
         items : [int] = None
         items = [1, 2, 3]
     `;
 
+  assert("Assign List To Variable (Program 2)", source, PyNone());
 
-    assert("Assign List To Variable (Program 2)", source, PyNone());
-
-
-    var source = `
+  var source = `
     items : [int] = None
     items = [1, 2, 3] + [4, 5, 6]
     items[5]
     `;
 
-    assert("Concat List (Program 3)", source, PyInt(6));
+  assert("Concat List (Program 3)", source, PyInt(6));
 
-
-
-    var source = `
+  var source = `
         items : [int] = None
         n : int = 10
         items = [1, 2]
@@ -31,20 +25,15 @@ describe("LIST TEST", () => {
         n
     `;
 
-    assert("Lists Access (Program 4)", source, PyInt(1 + 2));
+  assert("Lists Access (Program 4)", source, PyInt(1 + 2));
 
+  //Other Test
+  assert("Empty List", "[]", PyObj(`list<none>`, 540));
+  assert("List With Number", "[1,2,3]", PyObj(`list<number>`, 632));
 
-    //Other Test
-    assert("Empty List", "[]", PyObj(`list<none>`, 540));
-    assert("List With Number", "[1,2,3]", PyObj(`list<number>`, 632));
-    
-        
-    assert("Lists Declaration", "items : [int] = None\nitems", PyNone());
+  assert("Lists Declaration", "items : [int] = None\nitems", PyNone());
 
-
-
-
-    var source = `
+  var source = `
         class A(object):
             n:int = 100
         x : [A] = None
@@ -54,7 +43,5 @@ describe("LIST TEST", () => {
         x = [A(),A(),A()]
         `;
 
-    assert("List With Class", source, PyNone());
-
-  
+  assert("List With Class", source, PyNone());
 });
