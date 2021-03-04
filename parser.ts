@@ -18,6 +18,10 @@ import {
   ASSIGNABLE_TAGS,
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
+import { numpyFields, numpyMethods } from "./numpy";
+
+// track all imported classes/functions/vars; alias should be unique
+export const importedNames : Map<string, string> = new Map(); // alias->targetModule
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -264,6 +268,52 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
 
 export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
   switch (c.node.type.name) {
+    case "ImportStatement":{ // majority done by Jose
+      c.firstChild(); //go into the import statement, landing at the "import" keyword
+
+      let importStatement: Stmt<null> = {tag: "import", isFromStmt: false, target: undefined, compName: undefined, alias: undefined};
+
+      if(s.substring(c.from, c.to).trim() === "from"){
+        // "from targetModule import compName as alias"
+
+        c.nextSibling(); //goes to the target module
+
+        const targetModule = s.substring(c.from, c.to);
+
+        c.nextSibling(); //land on the "import" keyword
+        c.nextSibling(); //land on component name to import
+
+        const componentName = s.substring(c.from, c.to);
+
+        importStatement.isFromStmt = true;
+        importStatement.target = targetModule;
+        importStatement.compName = componentName;
+      }
+      else{
+        // "import target as alias"
+        c.nextSibling(); //goes to the target module
+
+        const targetModule = s.substring(c.from, c.to);
+        importStatement.isFromStmt = false;
+        importStatement.target = targetModule;
+      }
+
+      let alias = importStatement.target; // default alias is target
+      if(c.nextSibling()){
+        //we're currently in the "as" keyword
+
+        c.nextSibling(); //goes to the alias name
+        alias = s.substring(c.from, c.to);
+
+        importStatement.alias = alias;
+      }
+      c.parent(); //go back to parent
+
+      importedNames.set(alias, importStatement.target);
+
+      return importStatement;
+    }
+
     case "ReturnStatement":
       c.firstChild(); // Focus return keyword
 
@@ -509,6 +559,25 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
   return { name, parameters, ret, inits, decls, funs, body };
 }
 
+export function traverseImports(program: Program<null>): Program<null> {
+  // key: alias -> value: name
+  importedNames.forEach( (name: string, alias: string) => {
+    switch(name){
+      case "numpy":
+      // separate numpy from other imports; assume numpy imports single ndarray class
+        program.classes.push({
+          name: "numpy",
+          fields: numpyFields,
+          methods: numpyMethods
+        })
+        break;
+    } 
+    // add more cases of classes/functions/vars below
+  }); 
+
+  return program;
+} 
+
 export function traverseClass(c: TreeCursor, s: string): Class<null> {
   const fields: Array<VarInit<null>> = [];
   const methods: Array<FunDef<null>> = [];
@@ -619,7 +688,10 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
         hasChild = c.nextSibling();
       }
       c.parent();
-      return { funs, inits, classes, stmts };
+
+      const program = traverseImports({ funs, inits, classes, stmts }); // augment program with imports
+
+      return program;
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }
