@@ -218,7 +218,7 @@ f(6)
                   name: {
                     a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
                     tag: "lookup",
-                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "h" },
+                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$h" },
                     field: "$deref",
                   },
                   arguments: [{ a: { tag: "number" }, tag: "id", name: "y" }],

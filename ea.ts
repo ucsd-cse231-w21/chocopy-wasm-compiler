@@ -232,7 +232,7 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
         return {
           a: expr.a,
           tag: "lookup",
-          obj: { a: TRef, tag: "id", name: expr.name },
+          obj: { a: TRef, tag: "id", name: idid.name },
           field: EA_DEREF_FIELD,
         };
       } else {
