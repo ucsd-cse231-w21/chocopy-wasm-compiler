@@ -61,8 +61,6 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       let args = traverseArguments(c, s);
       c.parent(); // pop CallExpression
 
-      console.log(callExpr)
-      console.log()
       if (callExpr.tag === "call" || callExpr.tag === "method-call") {
         return {
           tag: "call_expr",
@@ -737,7 +735,7 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
         hasChild = c.nextSibling();
       }
       c.parent();
-      return { funs, inits, classes, stmts };
+      return { funs, inits, classes, stmts, closures: [] };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }

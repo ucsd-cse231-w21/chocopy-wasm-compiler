@@ -22,6 +22,7 @@ export type Program<A> = {
   inits: Array<VarInit<A>>;
   classes: Array<Class<A>>;
   stmts: Array<Stmt<A>>;
+  closures: Array<ClosureDef<A>>;
 };
 
 export type Class<A> = {
@@ -44,11 +45,16 @@ export type FunDef<A> = {
   body: Array<Stmt<A>>;
 };
 
-export type Closure<A> = {
+/** Compiled as a function in wasm */
+export type ClosureDef<A> = {
   a?: A;
   name: string;
-  fields: Array<VarInit<A>>;
-  apply: FunDef<A>;
+  parameters: Array<Parameter<A>>; // excluding the nonlocal pointer
+  ret: Type;
+  nonlocals: Array<string>;
+  nested: Array<string>;
+  inits: Array<VarInit<A>>;
+  body: Array<Stmt<A>>;
 };
 
 export type Stmt<A> =

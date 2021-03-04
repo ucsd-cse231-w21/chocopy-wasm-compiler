@@ -175,7 +175,14 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram = { a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody };
+  const aprogram: Program<Type> = {
+    a: lastTyp,
+    inits: tInits,
+    funs: tDefs,
+    classes: tClasses,
+    stmts: tBody,
+    closures: [],
+  };
   return [aprogram, newEnv];
 }
 
