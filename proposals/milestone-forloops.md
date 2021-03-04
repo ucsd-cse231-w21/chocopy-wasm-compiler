@@ -76,9 +76,13 @@ program 6:
 ```python
 i:int = 0
 j:int = 0
+k:int = 0
 for i in range(5):
-  for j in range(5):
-    print(i, j)
+    print(i)
+for j in range(6):
+    print(j)
+for j in range(7):
+    print(k)
 ```
 
 program 7:
@@ -119,8 +123,10 @@ def f():
 program 10:
 ```python
 i:int = 0
+j:int = 0
 for i in range(5):
-  print(i)
+  for j in range(5):
+    print(i, j)
 ```
 ## Biggest challenge
 
