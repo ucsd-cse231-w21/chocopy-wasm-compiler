@@ -15,8 +15,9 @@ i:int = 0
 for i in range(5):
   if i == 3:
     break
+    print(i)
   else:
-   print(i)
+    print(i)
 ```
 
 ## Biggest challenge
