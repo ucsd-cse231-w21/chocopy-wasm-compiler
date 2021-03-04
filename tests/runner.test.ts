@@ -353,6 +353,17 @@ f(2)`,
   );
 
   assert("test", `def f() -> int: return 1`, PyNone());
+  
+  assert("empty-dict-init", 
+         `d:[int, int] = None
+          d = {}`,
+         PyNone());
+
+  assert("key-val-pair-dict-init", 
+         `d:[int, int] = None
+          d = {1:2}
+          `,
+         PyNone());
 
   asserts("multi-repl", [
     [`def f() -> int: return 1`, PyNone()],

@@ -314,13 +314,14 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       let dictStmts: Array<string> = [];
       //Allocate memory on the heap for hashtable. Currently size is 10
       //It finally pushes address of dict on stack, ie the return value
-      dictStmts.push("(local $dictBaseAddr)");
-      dictStmts = dictStmts.concat(codeGenDictAlloc(10, env));
-      dictStmts.push("(local.set $dictBaseAddr)");
+      dictStmts = dictStmts.concat(codeGenDictAlloc(10, env, expr.entries.length));
+      //dictStmts.push("(local $dictBaseAddr i32)");
+      //dictStmts.push("(local.set $dictBaseAddr (local $dictBaseAddr i32))");
       expr.entries.forEach((keyval) => {
         dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], keyval[1], 10, env));
       });
-      throw new Error("Code gen for dict not implemented");
+      return dictStmts;
+    //throw new Error("Code gen for dict not implemented");
     case "bracket-lookup":
       throw new Error("Code gen for bracket-lookup not implemented");
     default:
@@ -328,7 +329,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   }
 }
 
-function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv): Array<string> {
+function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number): Array<string> {
   let dictAllocStmts: Array<string> = [];
   for (let i = 0; i < hashtableSize; i++) {
     dictAllocStmts.push(
@@ -339,6 +340,9 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv): Array<string> 
         "(i32.store)", // Initialize to none
       ]
     );
+  }
+  for (let i = 0; i < entries; i++) {
+    dictAllocStmts = dictAllocStmts.concat(["(i32.load (i32.const 0))"]);
   }
   return dictAllocStmts.concat([
     "(i32.load (i32.const 0))", // Get address for the dict (this is the return value)
@@ -355,7 +359,8 @@ function codeGenDictKeyVal(
   hashtableSize: number,
   env: GlobalEnv
 ): Array<string> {
-  let dictKeyValStmts: Array<string> = ["(local.get $dictBaseAddr)"];
+  //let dictKeyValStmts: Array<string> = ["(local.get $dictBaseAddr)"];
+  let dictKeyValStmts: Array<string> = [];
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(val, env));
   dictKeyValStmts = dictKeyValStmts.concat([
@@ -367,6 +372,27 @@ function codeGenDictKeyVal(
 
 function dictUtilFuns(): Array<string> {
   let dictFunStmts: Array<string> = [];
+  dictFunStmts.push(
+    ...[
+      "(func $ha$htable$CreateEntry (param $key i32) (param $val i32)",
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $key)",
+      "(i32.store)", // Dumping tag
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(i32.const 4)",
+      "(i32.add)", // Moving to the next block
+      "(local.get $val)",
+      "(i32.store)", // Dumping value
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(i32.const 8)",
+      "(i32.add)", // Moving to the next block
+      "(i32.const 0)", //None
+      "(i32.store)", // Dumping None in the next
+      "(return))",
+      "",
+    ]
+  );
+
   dictFunStmts.push(
     ...[
       "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
@@ -381,20 +407,10 @@ function dictUtilFuns(): Array<string> {
       "(i32.const 0)", //None
       "(i32.eq)",
       "(if",
-      "(then",  // if the literal in bucketAddress is None
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(then", // if the literal in bucketAddress is None
       "(local.get $key)",
-      "(i32.store)", // Dumping tag
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
-      "(i32.const 4)",
-      "(i32.add)", // Moving to the next block
       "(local.get $val)",
-      "(i32.store)", // Dumping value
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
-      "(i32.const 8)",
-      "(i32.add)", // Moving to the next block
-      "(i32.const 0)", //None
-      "(i32.store)", // Dumping None in the next
+      "(call $ha$htable$CreateEntry)", //create node
       "(local.get $baseAddr)", // Recomputing the bucketAddress to update it.
       "(local.get $key)",
       "(local.get $hashtablesize)",
@@ -444,19 +460,9 @@ function dictUtilFuns(): Array<string> {
       "(br 1)",
       ")", // Closing loop
       ")", // Closing Block
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
       "(local.get $key)",
-      "(i32.store)", // Dumping tag
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
-      "(i32.const 4)",
-      "(i32.add)", // Moving to the next block
       "(local.get $val)",
-      "(i32.store)", // Dumping value
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
-      "(i32.const 8)",
-      "(i32.add)", // Moving to the next block
-      "(i32.const 0)", //None
-      "(i32.store)", // Dumping None in the next
+      "(call $ha$htable$CreateEntry)", //create node
       "(local.get $nodePtr)", // Get the address of "next" block in node, whose next is None.
       "(i32.load (i32.const 0))",
       "(i32.store)", // Updated the next pointing towards first element of new node.
