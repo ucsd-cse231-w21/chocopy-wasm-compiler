@@ -534,7 +534,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           args.length === expr.arguments.length &&
           tArgs.every((tArg, i) => isAssignable(env, tArg.a, args[i]))
         ) {
-          return { ...expr, a: ret, arguments: expr.arguments };
+          return { ...expr, a: ret, arguments: tArgs };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
@@ -579,7 +579,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           argTypes.length === expr.arguments.length &&
           tArgs.every((tArg, i) => isAssignable(env, tArg.a, argTypes[i]))
         ) {
-          return { ...expr, a: retType, arguments: expr.arguments };
+          return { ...expr, a: retType, arguments: tArgs };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
