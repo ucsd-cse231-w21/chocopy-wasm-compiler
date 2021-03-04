@@ -27,14 +27,14 @@ for i in range(5):
 ```
 
 ## Updates to the examples we plan for March 11
-program 1:
+program 1 (complete):
 ```python
 i:int = 0
 for i in range(5):
   print(i)
 ```
 
-program 2:
+program 2 (complete):
 ```python
 i:int = 0
 for i in range(5):
