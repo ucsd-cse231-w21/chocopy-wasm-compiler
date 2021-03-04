@@ -11,7 +11,7 @@ export function transformComprehension(comprehension: Expr<Type>): Expr<Type> {
     throw new Error("Unsupported iterable for comprehension");
   }
 
-  if (!comprehension.hasOwnProperty("cond")) {
+  if (!comprehension.cond) {
     // No condition was provided, so default true
     return comprehension.iter;
   } else {
