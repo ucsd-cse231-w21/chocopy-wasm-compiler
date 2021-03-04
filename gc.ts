@@ -214,6 +214,9 @@ export class RootSet {
   }
 
   addLocal(value: bigint) {
+    if (this.localsStack.length === 0) {
+      throw new Error("No local stack frame to push to");
+    }
     if (isPointer(value)) {
       const ptr = extractPointer(value);
       if (ptr != 0x0n) {
