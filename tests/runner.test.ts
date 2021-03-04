@@ -287,6 +287,20 @@ describe('defaults', () => {
   
   foo(5)`, PyInt(9));
 
+  assertPrint("project-proposal program 1", `
+  def add_default_10(x : int, y : int = 10) -> int:
+	  return x + y
+	
+  print(add_default_10(20))
+  print(add_default_10(20, 5))`, ['30', '25']);
+  
+  assertPrint("project-proposal program 2", `
+  def add_defaults(x : int = 10, y : int = 20, z : int = 30) -> int:
+	  return x + y + z
+
+  print(add_defaults())
+  print(add_defaults(40))`, ['60', '90']);
+
   assertFail("params default more params", `
   def foo(x : int, y : int = 4) -> int:
     return x + y
