@@ -9,7 +9,7 @@ import { wasm } from "webpack";
 import * as compiler from "./compiler";
 import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
-import { Value } from "./ast";
+import { Value, Type, Location } from "./ast";
 import { PyValue, NONE } from "./utils";
 
 export type Config = {
@@ -53,7 +53,7 @@ export async function run(
   console.log(parsed);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   console.log(tprogram);
-  const progTyp = tprogram.a;
+  const progTyp = tprogram.a[0];
   var returnType = "";
   var returnExpr = "";
   // const lastExpr = parsed.stmts[parsed.stmts.length - 1]

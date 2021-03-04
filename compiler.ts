@@ -1,4 +1,4 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
+import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, Location } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 
@@ -19,7 +19,7 @@ export const emptyEnv: GlobalEnv = {
   offset: 0,
 };
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
+export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
 
@@ -67,7 +67,7 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
-export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
+export function compile(ast: Program<[Type, Location]>, env: GlobalEnv): CompileResult {
   const withDefines = augmentEnv(env, ast);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
@@ -103,7 +103,7 @@ function envLookup(env: GlobalEnv, name: string): number {
   return env.globals.get(name) * 4; // 4-byte values
 }
 
-function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
+function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string> {
   switch (stmt.tag) {
     // case "fun":
     //   const definedVars = getLocals(stmt.body);
@@ -157,7 +157,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       return [];
     case "field-assign":
       var objStmts = codeGenExpr(stmt.obj, env);
-      var objTyp = stmt.obj.a;
+      var objTyp = stmt.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
         throw new BaseException.Exception(
@@ -173,7 +173,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
   }
 }
 
-function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
+function codeGenInit(init: VarInit<[Type, Location]>, env: GlobalEnv): Array<string> {
   const value = codeGenLiteral(init.value, env);
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`];
@@ -183,7 +183,7 @@ function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
   }
 }
 
-function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
+function codeGenDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
@@ -211,17 +211,17 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   ];
 }
 
-function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
+function codeGenClass(cls: Class<[Type, Location]>, env: GlobalEnv): Array<string> {
   const methods = [...cls.methods];
   methods.forEach((method) => (method.name = `${cls.name}$${method.name}`));
   const result = methods.map((method) => codeGenDef(method, env));
   return result.flat();
 }
 
-function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
+function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
     case "builtin1":
-      const argTyp = expr.a;
+      const argTyp = expr.a[0];
       const argStmts = codeGenExpr(expr.arg, env);
       var callName = expr.name;
       if (expr.name === "print" && argTyp === NUM) {
@@ -286,7 +286,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       ]);
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
+      var objTyp = expr.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
         throw new BaseException.Exception(
@@ -298,7 +298,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
+      var objTyp = expr.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
         throw new BaseException.Exception(
