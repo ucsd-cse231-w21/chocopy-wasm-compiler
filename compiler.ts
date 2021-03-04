@@ -127,7 +127,10 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
       valStmts.push("return");
-      return codeGenTempGuard(valStmts, HOLD_TEMPS);
+      // NOTE(alex:mm): We need to put temporaries into the calling statement's
+      //   temp frame, not a new one so allocated objects in the return expression
+      //   escape the function call.
+      return valStmts;
     case "assignment":
       throw new Error("Destructured assignment not implemented");
     case "assign":
@@ -171,6 +174,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         )}))`,
       ];
     case "while":
+      // TODO(alex:mm): Are these temporary guards correct/minimal?
       var wcondExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env), RELEASE_TEMPS);
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
