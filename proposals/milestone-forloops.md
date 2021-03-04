@@ -49,7 +49,7 @@ for i in range(5):
 program 3:
 ```python
 i:int = 0
-for i in range(0, 6, 2):
+for i in range(0, 7, 2):
   print(i)
 ```
 
