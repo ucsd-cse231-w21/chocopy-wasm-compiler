@@ -149,7 +149,11 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     case "while":
       var wcondExpr = codeGenExpr(stmt.cond, env);
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      return [`(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join("\n")}) (br 1) ))`];
+      return [
+        `(block (loop (br_if 1 ${wcondExpr.join("\n")}\n(i32.eqz)) ${bodyStmts.join(
+          "\n"
+        )} (br 0) ))`,
+      ];
     case "pass":
       return [];
     case "field-assign":
@@ -171,7 +175,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 }
 
 function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
-  const value = codeGenLiteral(init.value);
+  const value = codeGenLiteral(init.value, env);
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`];
   } else {
@@ -234,7 +238,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       const rightStmts = codeGenExpr(expr.right, env);
       return [...leftStmts, ...rightStmts, `(call $${expr.name})`];
     case "literal":
-      return codeGenLiteral(expr.value);
+      return codeGenLiteral(expr.value, env);
     case "id":
       if (env.locals.has(expr.name)) {
         return [`(local.get $${expr.name})`];
@@ -266,7 +270,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           ...[
             `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
             `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
-            ...codeGenLiteral(initVal), // Initialize field
+            ...codeGenLiteral(initVal, env), // Initialize field
             "(i32.store)", // Put the default field value on the heap
           ]
         )
@@ -310,7 +314,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   }
 }
 
-function codeGenLiteral(literal: Literal): Array<string> {
+function codeGenLiteral(literal: Literal, env: GlobalEnv): Array<string> {
   switch (literal.tag) {
     case "num":
       return ["(i32.const " + literal.value + ")"];
