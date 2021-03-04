@@ -248,7 +248,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
           throw new TypeCheckError(
             "Expected value type `" + keyType.tag + "`; got value type `" + tValue.a.tag + "`"
           );
-        return { ...stmt, a: valueType, obj: tObj, key: tKey, value: tValue };
+        return { ...stmt, a: NONE, obj: tObject, key: tKey, value: tValue };
       } else {
         // list lookup cases go here
         throw new TypeCheckError("bracket-assign for lists not implemented");

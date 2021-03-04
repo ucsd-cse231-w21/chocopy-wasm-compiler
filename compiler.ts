@@ -139,6 +139,17 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
         return locationToStore.concat(valStmts).concat([`(i32.store)`]);
       }
+    case "bracket-assign":
+      switch (stmt.obj.a.tag) {
+        case "dict":
+          return codeGenExpr(stmt.obj, env).concat(
+            codeGenDictKeyVal(stmt.key, stmt.value, 10, env)
+          );
+        case "list":
+        case "string":
+        default:
+          throw new Error("Bracket-assign for types other than dict not implemented");
+      }
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
       return exprStmts.concat([`(local.set $$last)`]);
@@ -315,15 +326,19 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       //Allocate memory on the heap for hashtable. Currently size is 10
       //It finally pushes address of dict on stack, ie the return value
       dictStmts = dictStmts.concat(codeGenDictAlloc(10, env, expr.entries.length));
-      //dictStmts.push("(local $dictBaseAddr i32)");
-      //dictStmts.push("(local.set $dictBaseAddr (local $dictBaseAddr i32))");
       expr.entries.forEach((keyval) => {
         dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], keyval[1], 10, env));
       });
       return dictStmts;
-    //throw new Error("Code gen for dict not implemented");
     case "bracket-lookup":
-      throw new Error("Code gen for bracket-lookup not implemented");
+      switch (expr.obj.a.tag) {
+        case "dict":
+          throw new Error("Code gen for bracket-lookup for dict not implemented");
+        case "list":
+        case "string":
+        default:
+          throw new Error("Code gen for bracket-lookup for types other than dict not implemented");
+      }
     default:
       unhandledTag(expr);
   }
@@ -331,6 +346,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
 
 function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number): Array<string> {
   let dictAllocStmts: Array<string> = [];
+  //Ideally this loop should be replaced by call to allocator API to allocate hashtablesize entries on heap.
   for (let i = 0; i < hashtableSize; i++) {
     dictAllocStmts.push(
       ...[
@@ -341,6 +357,7 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number
       ]
     );
   }
+  //Push the base address of dict on the stack to be consumed by each of the key:val pair initialization
   for (let i = 0; i < entries; i++) {
     dictAllocStmts = dictAllocStmts.concat(["(i32.load (i32.const 0))"]);
   }
@@ -353,13 +370,13 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number
   ]);
 }
 
+//Assumes that base address of dict is pushed onto the stack already
 function codeGenDictKeyVal(
   key: Expr<Type>,
   val: Expr<Type>,
   hashtableSize: number,
   env: GlobalEnv
 ): Array<string> {
-  //let dictKeyValStmts: Array<string> = ["(local.get $dictBaseAddr)"];
   let dictKeyValStmts: Array<string> = [];
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(val, env));
@@ -397,6 +414,7 @@ function dictUtilFuns(): Array<string> {
     ...[
       "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
       "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
+      //"(local $keyMatch i32)", // Local variable to check if a key match is found in existing entries
       "(local.get $baseAddr)",
       "(local.get $key)",
       "(local.get $hashtablesize)",
@@ -456,6 +474,21 @@ function dictUtilFuns(): Array<string> {
       "(i32.load)", // Traversing to head of next node
       "(i32.const 0)", //None
       "(i32.ne)", // If nodePtr not None
+      /*
+      "(if", //If not none check for key match
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.load)", // load the key in the node
+      "(local.get $key)",
+      "(i32.ne)",
+      "(local.set $keyMatch)",
+      ")" // Closing then
+      "(else",
+      "(local.set $keyMatch (i32.const 0))",
+      ")" // Closing else
+      ")" // Closing if
+      "(local.get $)"
+      */
       ")", // Closing br_if
       "(br 1)",
       ")", // Closing loop
