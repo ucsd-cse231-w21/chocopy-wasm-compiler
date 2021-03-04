@@ -63,7 +63,7 @@ export function join(env: GlobalTypeEnv, t1: Type, t2: Type): Type {
   return NONE;
 }
 
-export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalTypeEnv {
+export function augmentTEnv(env: GlobalTypeEnv, program: Program<Location>): GlobalTypeEnv {
   const newGlobs = new Map(env.globals);
   const newFuns = new Map(env.functions);
   const newClasses = new Map(env.classes);
@@ -83,7 +83,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   return { globals: newGlobs, functions: newFuns, classes: newClasses };
 }
 
-export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, GlobalTypeEnv] {
+export function tc(env: GlobalTypeEnv, program: Program<Location>): [Program<[Type, Location]>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
   const tInits = program.inits.map((init) => tcInit(env, init));
@@ -98,15 +98,15 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   const tBody = tcBlock(newEnv, locals, program.stmts);
   var lastTyp: Type = NONE;
   if (tBody.length) {
-    lastTyp = tBody[tBody.length - 1].a;
+    lastTyp = tBody[tBody.length - 1].a[0];
   }
   // TODO(joe): check for assignment in existing env vs. new declaration
   // and look for assignment consistency
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram = {
-    a: lastTyp,
+  const aprogram : Program<[Type, Location]> = {
+    a: [lastTyp, program.a],
     inits: tInits,
     funs: tDefs,
     classes: tClasses,
@@ -116,17 +116,17 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   return [aprogram, newEnv];
 }
 
-export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
+export function tcInit(env: GlobalTypeEnv, init: VarInit<Location>): VarInit<[Type, Location]> {
   const valTyp = tcLiteral(init.value);
   if (isAssignable(env, valTyp, init.type)) {
-    return { ...init, a: NONE };
+    return { ...init, a: [NONE, init.a] };
   } else {
     // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
     throw new BaseException.TypeMismatchError(init.type.tag, valTyp.tag, init.loc);
   }
 }
 
-export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
+export function tcDef(env: GlobalTypeEnv, fun: FunDef<Location>): FunDef<[Type, Location]> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
@@ -134,24 +134,24 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
 
   const tBody = tcBlock(env, locals, fun.body);
-  return { ...fun, a: NONE, body: tBody };
+  return { ...fun, a: [NONE, fun.a], body: tBody };
 }
 
-export function tcClass(env: GlobalTypeEnv, cls: Class<null>): Class<Type> {
+export function tcClass(env: GlobalTypeEnv, cls: Class<Location>): Class<[Type, Location]> {
   const tFields = cls.fields.map((field) => tcInit(env, field));
   const tMethods = cls.methods.map((method) => tcDef(env, method));
-  return { a: NONE, name: cls.name, fields: tFields, methods: tMethods, loc: cls.loc };
+  return { a: [NONE, cls.a], name: cls.name, fields: tFields, methods: tMethods, loc: cls.loc };
 }
 
 export function tcBlock(
   env: GlobalTypeEnv,
   locals: LocalTypeEnv,
-  stmts: Array<Stmt<null>>
-): Array<Stmt<Type>> {
+  stmts: Array<Stmt<Location>>
+): Array<Stmt<[Type, Location]>> {
   return stmts.map((stmt) => tcStmt(env, locals, stmt));
 }
 
-export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>): Stmt<Type> {
+export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<Location>): Stmt<[Type, Location]> {
   switch (stmt.tag) {
     case "assignment":
       throw new BaseException.Exception(
@@ -169,11 +169,11 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       } else {
         throw new BaseException.NameError(stmt.name, stmt.loc);
       }
-      if (!isAssignable(env, tValExpr.a, nameTyp)) {
+      if (!isAssignable(env, tValExpr.a[0], nameTyp)) {
         //throw new BaseException.Exception("Non-assignable types");
-        throw new BaseException.TypeMismatchError(nameTyp.tag, tValExpr.a.tag, stmt.loc);
+        throw new BaseException.TypeMismatchError(nameTyp.tag, tValExpr.a[0].tag, stmt.loc);
       }
-      return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr, loc: stmt.loc };
+      return { a: [NONE, stmt.a], tag: stmt.tag, name: stmt.name, value: tValExpr, loc: stmt.loc };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr, loc: stmt.loc };
@@ -183,86 +183,87 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const thnTyp = tThn[tThn.length - 1].a;
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
-      if (tCond.a !== BOOL) {
+      if (tCond.a[0] !== BOOL) {
         // Python allows condition to be not bool. So we create this ConditionTypeError here, which does not exist in real python.
-        throw new BaseException.ConditionTypeError(tCond.a.tag, tCond.loc);
-      } else if (thnTyp !== elsTyp)
+        throw new BaseException.ConditionTypeError(tCond.a[0].tag, tCond.loc);
+      } else if (thnTyp !== elsTyp) {
         throw new BaseException.SyntaxError("Types of then and else branches must match", stmt.loc);
+      }
       return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls, loc: stmt.loc };
     case "return":
       if (locals.topLevel)
         throw new BaseException.SyntaxError("‘return’ outside of functions", stmt.loc);
       const tRet = tcExpr(env, locals, stmt.value);
-      if (!isAssignable(env, tRet.a, locals.expectedRet))
+      if (!isAssignable(env, tRet.a[0], locals.expectedRet))
         throw new BaseException.TypeMismatchError(
           locals.expectedRet.tag === "class"
             ? (locals.expectedRet as any).name
             : locals.expectedRet.tag,
-          tRet.a.tag === "class" ? (tRet.a as any).name : tRet.a.tag,
+          tRet.a[0].tag === "class" ? (tRet.a as any).name : tRet.a[0].tag,
           stmt.loc
         );
       return { a: tRet.a, tag: stmt.tag, value: tRet, loc: stmt.loc };
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
-      if (!equalType(tCond.a, BOOL))
-        throw new BaseException.ConditionTypeError(tCond.a.tag, tCond.loc);
-      return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody, loc: stmt.loc };
+      if (!equalType(tCond.a[0], BOOL))
+        throw new BaseException.ConditionTypeError(tCond.a[0].tag, tCond.loc);
+      return { a: [NONE, stmt.a], tag: stmt.tag, cond: tCond, body: tBody, loc: stmt.loc };
     case "pass":
-      return { a: NONE, tag: stmt.tag, loc: stmt.loc };
+      return { a: [NONE, stmt.a], tag: stmt.tag, loc: stmt.loc };
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
-      if (tObj.a.tag !== "class") {
-        throw new BaseException.AttributeError(tObj.a.tag, stmt.field, stmt.loc);
+      if (tObj.a[0].tag !== "class") {
+        throw new BaseException.AttributeError(tObj.a[0].tag, stmt.field, stmt.loc);
       }
-      if (!env.classes.has(tObj.a.name)) {
-        throw new BaseException.NameError(tObj.a.name, stmt.loc);
+      if (!env.classes.has(tObj.a[0].name)) {
+        throw new BaseException.NameError(tObj.a[0].name, stmt.loc);
       }
-      const [fields, _] = env.classes.get(tObj.a.name);
+      const [fields, _] = env.classes.get(tObj.a[0].name);
       if (!fields.has(stmt.field)) {
-        throw new BaseException.AttributeError(tObj.a.name, stmt.field, stmt.loc);
+        throw new BaseException.AttributeError(tObj.a[0].name, stmt.field, stmt.loc);
       }
-      if (!isAssignable(env, tVal.a, fields.get(stmt.field))) {
-        throw new BaseException.TypeMismatchError(fields.get(stmt.field).tag, tVal.a.tag, stmt.loc);
+      if (!isAssignable(env, tVal.a[0], fields.get(stmt.field))) {
+        throw new BaseException.TypeMismatchError(fields.get(stmt.field).tag, tVal.a[0].tag, stmt.loc);
       }
-      return { ...stmt, a: NONE, obj: tObj, value: tVal };
+      return { ...stmt, a: [NONE, stmt.a], obj: tObj, value: tVal };
     default:
       unhandledTag(stmt);
   }
 }
 
-export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null>): Expr<Type> {
+export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<Location>): Expr<[Type, Location]> {
   switch (expr.tag) {
     case "literal":
-      return { ...expr, a: tcLiteral(expr.value) };
+      return { ...expr, a: [tcLiteral(expr.value), expr.a] };
     case "binop":
       const tLeft = tcExpr(env, locals, expr.left);
       const tRight = tcExpr(env, locals, expr.right);
-      const tBin = { ...expr, left: tLeft, right: tRight };
+      const tBin : Expr<[Type, Location]> = { ...expr, left: tLeft, right: tRight, a: undefined };
       switch (expr.op) {
         case BinOp.Plus:
         case BinOp.Minus:
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
-          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
-            return { a: NUM, ...tBin };
+          if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
+            return { a: [NUM, expr.a], ...tBin };
           } else {
             throw new BaseException.UnsupportedOprandTypeError(
               BinOp[expr.op],
-              [tLeft.a.tag, tRight.a.tag],
+              [tLeft.a[0].tag, tRight.a[0].tag],
               expr.loc
             );
           }
         case BinOp.Eq:
         case BinOp.Neq:
-          if (equalType(tLeft.a, tRight.a)) {
-            return { a: BOOL, ...tBin };
+          if (equalType(tLeft.a[0], tRight.a[0])) {
+            return { a: [BOOL, expr.a], ...tBin };
           } else {
             throw new BaseException.UnsupportedOprandTypeError(
               BinOp[expr.op],
-              [tLeft.a.tag, tRight.a.tag],
+              [tLeft.a[0].tag, tRight.a[0].tag],
               expr.loc
             );
           }
@@ -270,19 +271,19 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Gte:
         case BinOp.Lt:
         case BinOp.Gt:
-          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
-            return { a: BOOL, ...tBin };
+          if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
+            return { a: [BOOL, expr.a], ...tBin };
           } else {
             throw new BaseException.UnsupportedOprandTypeError(
               BinOp[expr.op],
-              [tLeft.a.tag, tRight.a.tag],
+              [tLeft.a[0].tag, tRight.a[0].tag],
               expr.loc
             );
           }
         case BinOp.And:
         case BinOp.Or:
-          if (equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) {
-            return { a: BOOL, ...tBin };
+          if (equalType(tLeft.a[0], BOOL) && equalType(tRight.a[0], BOOL)) {
+            return { a: [BOOL, expr.a], ...tBin };
           } else {
             throw new BaseException.UnsupportedOprandTypeError(
               BinOp[expr.op],
@@ -376,7 +377,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
     case "call":
       if (env.classes.has(expr.name)) {
         // surprise surprise this is actually a constructor
-        const tConstruct: Expr<Type> = {
+        const tConstruct: Expr<[Type, Location]> = {
           a: CLASS(expr.name),
           tag: "construct",
           name: expr.name,
