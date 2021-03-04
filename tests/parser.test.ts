@@ -52,6 +52,33 @@ describe("parse(source) function", () => {
     ]);
   });
 
+  it("parse a nested dict expression", () => {
+    const parsed = parse("d = {2:{4:True}}");
+    expect(parsed.stmts).to.deep.equal([
+      {
+        tag: "assign",
+        name: "d",
+        value: {
+          tag: "dict",
+          entries: [
+            [
+              { tag: "literal", value: { tag: "num", value: 2n } },
+              {
+                tag: "dict",
+                entries: [
+                  [
+                    { tag: "literal", value: { tag: "num", value: 4n } },
+                    { tag: "literal", value: { tag: "bool", value: true } },
+                  ],
+                ],
+              },
+            ],
+          ],
+        }, // end of values
+      },
+    ]);
+  });
+
   it("parse a bracket-lookup expression", () => {
     const parsed = parse("x = d[2]");
     expect(parsed.stmts).to.deep.equal([

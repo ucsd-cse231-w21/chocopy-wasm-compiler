@@ -61,14 +61,11 @@ export type TypeError = {
 
 export function equalType(t1: Type, t2: Type) {
   return (
-    t1 === t2 ||
+    // ensure deep match for nested types (example: [int,[int,int]])
+    JSON.stringify(t1) === JSON.stringify(t2) ||
     (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
-    //if dictionary is initialized to key-value pairs, check whether key types match and value types match;
     //if dictionary is initialized to empty {}, then we check for "none" type in key and value
-    (t1.tag === "dict" &&
-      t2.tag === "dict" &&
-      ((t1.key === t2.key && t1.value === t2.value) ||
-        (t1.key.tag === "none" && t1.value.tag === "none")))
+    (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none")
   );
 }
 

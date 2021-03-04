@@ -139,6 +139,20 @@ describe("tc", () => {
   );
 
   assertTCFail(
+    "dict-bad-assignment",
+    `
+    a:[int, [int, int]] = None
+    a = {2:True}`
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+    a:[int, [int, int]] = None
+    a = {2:{3:True}}`
+  );
+
+  assertTCFail(
     "dict-incomplete-assignment",
     `
   d: [int, int] = None
