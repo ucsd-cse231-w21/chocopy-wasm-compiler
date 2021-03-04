@@ -193,14 +193,11 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         (i32.store)
         (block
           (loop
-
             (br_if 1 ${Code_cond.join("\n")})
 
             ${Code_ass.join("\n")}
             ${bodyStmts.join("\n")}
             ${Code_step.join("\n")}
-
-
 
             (br 0)                    
         ))`
