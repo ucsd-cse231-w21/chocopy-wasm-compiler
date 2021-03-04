@@ -5,11 +5,11 @@ describe("comprehensions test", () => {
     "Empty comprehension",
     `
     a: Range = None
-    a = [i for i in range(0,5) if True]
+    a = [i for i in range(0,5) if False]
     while a.has_next():
       print(a.next())
   `,
-    ["0", "1", "2", "3", "4"]
+    [""]
   );
 
   assertPrint(
