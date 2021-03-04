@@ -125,7 +125,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
 export function tc(env : GlobalTypeEnv, program : Program<any>) : [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
-  const tInits = program.inits.map((init) => tcInit(env, init));
+  const tInits = program.inits.map((init) => tcInit(env, emptyLocalTypeEnv(), init));
   const tDefs = program.funs.map((fun) => tcDef(newEnv, fun));
   const tClasses = program.classes.map((cls) => tcClass(newEnv, cls));
 
@@ -148,10 +148,10 @@ export function tc(env : GlobalTypeEnv, program : Program<any>) : [Program<Type>
   return [aprogram, newEnv];
 }
 
-export function tcInit(env: GlobalTypeEnv, init: VarInit<any>): VarInit<Type> {
+export function tcInit(env: GlobalTypeEnv, localEnv: LocalTypeEnv, init: VarInit<any>): VarInit<Type> {
   var valTyp: Type
   if (init.declaredType === undefined) {
-    valTyp =  inferExprType(init.value, env, emptyLocalTypeEnv())
+    valTyp =  inferExprType(init.value, env, localEnv)
     init.declaredType = valTyp;
   } else {
     valTyp = tcExpr(env, emptyLocalTypeEnv(), init.value).a
@@ -168,14 +168,13 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
   fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
-  fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).declaredType));
-
+  fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, locals, init).declaredType));
   const tBody = tcBlock(env, locals, fun.body);
   return { ...fun, a: NONE, body: tBody };
 }
 
 export function tcClass(env: GlobalTypeEnv, cls: Class<null>): Class<Type> {
-  const tFields = cls.fields.map((field) => tcInit(env, field));
+  const tFields = cls.fields.map((field) => tcInit(env, emptyLocalTypeEnv(), field));
   const tMethods = cls.methods.map((method) => tcDef(env, method));
   return { a: NONE, name: cls.name, fields: tFields, methods: tMethods };
 }

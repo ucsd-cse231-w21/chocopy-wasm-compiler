@@ -483,7 +483,23 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
 
   while (hasChild) {
     if (isNewAssign(c, s)) {
-      inits.push(traverseVarInit(c, s));
+      var shouldAdd = true;
+      var potentialInit = traverseVarInit(c, s);
+      inits.forEach(i => {
+        if (i.name === potentialInit.name) {
+          shouldAdd = false;
+        }
+      })
+      parameters.forEach(p => {
+        if (p.name === potentialInit.name) {
+          shouldAdd = false;
+        }
+      })
+      if (shouldAdd) {
+        inits.push(potentialInit);
+      } else { 
+        break;
+      }
     } else {
       break;
     }

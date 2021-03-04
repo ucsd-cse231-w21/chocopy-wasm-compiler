@@ -184,6 +184,9 @@ export function inferExprType(expr: Expr<any>, globEnv : GlobalTypeEnv, locEnv :
         case BinOp.Is:
           throw new Error("Type Inference is not yet supported for 'is'")
       }
+
+      default: 
+        throw new Error(`Inference not implemented for expressions with tag: '${expr.tag}'`)
     
   }
 }
