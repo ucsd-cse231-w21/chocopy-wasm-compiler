@@ -147,7 +147,7 @@ At present, we treat it like any other variable. We have two options moving forw
   <!-- Yes, I know /dev/null reads out a stream of 0s, but the comparison to being a trashcan is apt -->
 
 ## Programs From Proposal to Finish by March 11th
-In the case that the list team's progress permits us to progress on the splat operator:
+In the case that the list team's progress permits us to finish the splat operator:
 ```python
 # _ is throwaway either by design or convention
 a: int = 0
