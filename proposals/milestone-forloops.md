@@ -10,6 +10,9 @@ for i in range(5):
 ```
 
 program 2: `for` loop with `break` in `if` condition 
+Note that this program is slightly different with the one in our original proposal. 
+This is because we found that we cannot support lists without a proper list implementation.
+We've decided to only support `for` loops with `range()` and adjust our programs accordingly.
 ```python
 i:int = 0
 for i in range(5):
