@@ -35,8 +35,8 @@ describe("LIST TEST", () => {
 
 
     //Other Test
-    assert("Empty List", "[]", PyObj(`list<none>`, 4));
-    assert("List With Number", "[1,2,3]", PyObj(`list<number>`, 96));
+    assert("Empty List", "[]", PyObj(`list<none>`, 540));
+    assert("List With Number", "[1,2,3]", PyObj(`list<number>`, 632));
     
         
     assert("Lists Declaration", "items : [int] = None\nitems", PyNone());
