@@ -183,6 +183,33 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       
       // if have index
       if (stmt.index) {
+        var iass:Stmt<Type> = { a: NONE, tag: "assign", name: stmt.index, value: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(0) } } };
+        var Code_iass = codeGenStmt(iass, env);
+
+        var nid:Expr<Type> =  { a: NUM, tag: "binop", op: BinOp.Plus, left: { a: NUM, tag: "id", name: stmt.index }, right: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(1) } } };
+        var niass:Stmt<Type> = { a: NONE, tag: "assign", name: stmt.index, value: nid };
+        var Code_idstep = codeGenStmt(niass, env);
+
+        // iterable should be a Range object
+        return [
+          `
+          (i32.const ${envLookup(env, "rg")})
+          ${iter.join("\n")}
+          (i32.store)
+          ${Code_iass.join("\n")}
+          (block
+            (loop
+
+              (br_if 1 ${Code_cond.join("\n")})
+
+              ${Code_ass.join("\n")}
+              ${bodyStmts.join("\n")}
+              ${Code_step.join("\n")}
+              ${Code_idstep.join("\n")}
+
+              (br 0)                    
+          ))`
+        ]
       }
 
       // iterable should be a Range object
