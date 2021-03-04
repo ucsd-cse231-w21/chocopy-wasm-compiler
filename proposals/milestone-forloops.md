@@ -46,7 +46,7 @@ for i in range(5):
 ```
 
 
-program 3:
+program 3 (complete):
 ```python
 i:int = 0
 for i in range(5):
