@@ -19,8 +19,6 @@ import { parse } from "./parser";
 // x = x + 2
 // `);
 
-var result = parse(`
-while True:
-  pass`);
+var result = parse(`from hello import help1, help1, help3`);
 
 console.log(JSON.stringify(result, null, 4));

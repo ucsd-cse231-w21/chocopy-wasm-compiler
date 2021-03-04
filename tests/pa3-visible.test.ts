@@ -259,4 +259,23 @@ x`,
 if True:
   pass`
   );
+
+  assert(
+    "import statement test 1",
+    `
+    from otherModule import someFunc
+    someFunc()
+  `,
+    PyNone()
+  );
+
+  assert(
+    "import statement test 1",
+    `
+    from otherModule import someFunc, otherFunc
+    someFunc()
+    otherFunc()
+  `,
+    PyNone()
+  );
 });

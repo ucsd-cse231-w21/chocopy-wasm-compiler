@@ -17,6 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
+import { importObject } from "./tests/import-object.test";
 import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
@@ -264,6 +265,56 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
 
 export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
   switch (c.node.type.name) {
+    case "ImportStatement":{
+      c.firstChild(); //go into the import statement, landing at the "import" keyword
+
+      let importStatement: Stmt<null> = {tag: "import", isFromStmt: false, target: undefined, compName: undefined, alias: undefined};
+      
+      if(s.substring(c.from, c.to).trim() === "from"){
+        c.nextSibling(); //goes to the target module
+
+        const targetModule = s.substring(c.from, c.to);
+
+        c.nextSibling(); //land on the "import" keyword
+        c.nextSibling(); //land on component name to import
+
+        importStatement.compName = new Array();
+        const componentName = s.substring(c.from, c.to);
+        importStatement.compName.push(componentName);
+
+        const uniquenessComps = new Set();
+        uniquenessComps.add(componentName);
+        while(c.nextSibling()){
+          const compName = s.substring(c.from, c.to).trim();
+          if(compName !== "," && !uniquenessComps.has(compName)){
+            importStatement.compName.push(compName);
+            uniquenessComps.add(compName);
+          }
+        }
+
+        importStatement.isFromStmt = true;
+        importStatement.target = targetModule;
+      }
+      else{
+        c.nextSibling(); //goes to the target module
+
+        const targetModule = s.substring(c.from, c.to);
+        importStatement.isFromStmt = false;
+        importStatement.target = targetModule;
+      }
+
+      if(c.nextSibling()){
+        //we're currently in the "as" keyword
+
+        c.nextSibling(); //goes to the alias name
+
+        importStatement.alias = s.substring(c.from, c.to);
+      }
+
+
+      c.parent(); //go back to parent
+      return importStatement;
+    }
     case "ReturnStatement":
       c.firstChild(); // Focus return keyword
 

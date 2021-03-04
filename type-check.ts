@@ -99,19 +99,19 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   return { globals: newGlobs, functions: newFuns, classes: newClasses };
 }
 
-export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, GlobalTypeEnv] {
+export function tc(env: GlobalTypeEnv, program: Program<null>, builtIns: Map<string, GlobalTypeEnv>): [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
   const tInits = program.inits.map((init) => tcInit(env, init));
-  const tDefs = program.funs.map((fun) => tcDef(newEnv, fun));
-  const tClasses = program.classes.map((cls) => tcClass(newEnv, cls));
+  const tDefs = program.funs.map((fun) => tcDef(newEnv, fun, builtIns));
+  const tClasses = program.classes.map((cls) => tcClass(newEnv, cls, builtIns));
 
   // program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
   // program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
   // program.funs.forEach(fun => tcDef(env, fun));
   // Strategy here is to allow tcBlock to populate the locals, then copy to the
   // global env afterwards (tcBlock changes locals)
-  const tBody = tcBlock(newEnv, locals, program.stmts);
+  const tBody = tcBlock(newEnv, locals, program.stmts, builtIns);
   var lastTyp: Type = NONE;
   if (tBody.length) {
     lastTyp = tBody[tBody.length - 1].a;
@@ -134,35 +134,67 @@ export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
   }
 }
 
-export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
+export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>, builtIns: Map<string, GlobalTypeEnv>): FunDef<Type> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
   fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
   fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
 
-  const tBody = tcBlock(env, locals, fun.body);
+  const tBody = tcBlock(env, locals, fun.body, builtIns);
   return { ...fun, a: NONE, body: tBody };
 }
 
-export function tcClass(env: GlobalTypeEnv, cls: Class<null>): Class<Type> {
+export function tcClass(env: GlobalTypeEnv, cls: Class<null>, builtIns: Map<string, GlobalTypeEnv>): Class<Type> {
   const tFields = cls.fields.map((field) => tcInit(env, field));
-  const tMethods = cls.methods.map((method) => tcDef(env, method));
+  const tMethods = cls.methods.map((method) => tcDef(env, method, builtIns));
   return { a: NONE, name: cls.name, fields: tFields, methods: tMethods };
 }
 
 export function tcBlock(
   env: GlobalTypeEnv,
   locals: LocalTypeEnv,
-  stmts: Array<Stmt<null>>
+  stmts: Array<Stmt<null>>,
+  builtIns: Map<string, GlobalTypeEnv>
 ): Array<Stmt<Type>> {
-  return stmts.map((stmt) => tcStmt(env, locals, stmt));
+  return stmts.map((stmt) => tcStmt(env, locals, stmt, builtIns));
 }
 
-export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>): Stmt<Type> {
+export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>, builtIns: Map<string, GlobalTypeEnv>): Stmt<Type> {
   switch (stmt.tag) {
     case "assignment":
       throw new TypeCheckError("Destructured assignment not implemented");
+    case "import": {
+      const targetModule = builtIns.get(stmt.target);
+      if(targetModule === undefined){
+        throw new TypeCheckError(`The module ${stmt.target} cannot be found!`);
+      }
+
+      //if import is a "from" statements, include functions to 
+      //the file's global env
+      if(stmt.isFromStmt){
+
+        const importedComps : Set<string> = new Set(stmt.compName);
+
+        //right now, we check for function uniqueness by name only
+        for(let [name, infos] of targetModule.functions.entries()){
+          if(importedComps.has(name)){
+            if(env.functions.has(name)){
+              throw new TypeCheckError(`There's already a function called ${name}`);
+            }
+            env.functions.set(name, infos);
+          }
+        }
+      }
+      else{
+        //we create a new global variable with the name of the imported module
+        env.globals.set(stmt.target, {tag: "class", name: stmt.target});
+        //class -> [Map<string, Type>, Map<string, [Array<Type>, Type]>]
+        env.classes.set(stmt.target, [new Map(), targetModule.functions]);
+      }
+
+      return stmt;
+    }
     case "assign":
       const tValExpr = tcExpr(env, locals, stmt.value);
       var nameTyp;
@@ -180,9 +212,9 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
     case "if":
       var tCond = tcExpr(env, locals, stmt.cond);
-      const tThn = tcBlock(env, locals, stmt.thn);
+      const tThn = tcBlock(env, locals, stmt.thn, builtIns);
       const thnTyp = tThn[tThn.length - 1].a;
-      const tEls = tcBlock(env, locals, stmt.els);
+      const tEls = tcBlock(env, locals, stmt.els, builtIns);
       const elsTyp = tEls[tEls.length - 1].a;
       if (tCond.a !== BOOL) throw new TypeCheckError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
@@ -202,7 +234,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       return { a: tRet.a, tag: stmt.tag, value: tRet };
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
-      const tBody = tcBlock(env, locals, stmt.body);
+      const tBody = tcBlock(env, locals, stmt.body, builtIns);
       if (!equalType(tCond.a, BOOL))
         throw new TypeCheckError("Condition Expression Must be a bool");
       return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };

@@ -1,5 +1,6 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
+import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import * as BaseException from "./error";
 
 // https://learnxinyminutes.com/docs/wasm/
@@ -8,6 +9,7 @@ import * as BaseException from "./error";
 export type GlobalEnv = {
   globals: Map<string, number>;
   classes: Map<string, Map<string, [number, Literal]>>;
+  imports : Set<string>,
   locals: Set<string>;
   offset: number;
 };
@@ -16,10 +18,11 @@ export const emptyEnv: GlobalEnv = {
   globals: new Map(),
   classes: new Map(),
   locals: new Set(),
-  offset: 0,
+  imports: new Set(),
+  offset: 0
 };
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
+export function augmentEnv(env: GlobalEnv, prog: Program<Type>, builtIns: Map<string, GlobalTypeEnv>): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
 
@@ -37,7 +40,8 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     globals: newGlobals,
     classes: newClasses,
     locals: env.locals,
-    offset: newOffset,
+    imports: new Set(builtIns.keys()),
+    offset: newOffset
   };
 }
 
@@ -67,8 +71,8 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
-export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
-  const withDefines = augmentEnv(env, ast);
+export function compile(ast: Program<Type>, env: GlobalEnv, builtIns: Map<string, GlobalTypeEnv>): CompileResult {
+  const withDefines = augmentEnv(env, ast, builtIns);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
@@ -120,6 +124,9 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     //     ${stmtsBody}
     //     (i32.const 0)
     //     (return))`];
+    case "import":
+      console.log(" ---- import encountered at compile, skipping ----");
+      return [];
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
       valStmts.push("return");
@@ -286,6 +293,13 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         "(drop)",
       ]);
     case "method-call":
+      if(expr.obj.tag === "id"){
+        //check if the ID is an imported module
+        if(env.imports.has(expr.obj.name)){
+          return [`(call $${expr.method})`];
+        }
+      }
+
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
       if (objTyp.tag !== "class") {

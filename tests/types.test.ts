@@ -130,4 +130,23 @@ describe("tc", () => {
   c.x`,
     NUM
   );
+
+  assertTC(
+    "import statement test 1",
+    `
+    from otherModule import someFunc
+    someFunc()
+  `,
+    NONE
+  );
+
+  assertTC(
+    "import statement test 1",
+    `
+    from otherModule import someFunc, otherFunc
+    someFunc()
+    otherFunc()
+  `,
+    NONE
+  );
 });

@@ -10,11 +10,72 @@ export type Type =
   | { tag: "callable"; args: Array<Type>; ret: Type }
   | { tag: "list"; content_type: Type };
 
+/**
+ * Checks if two types are strictly equal. 
+ * There is no accouting for inheritance.
+ * @param a - one of the Types to check for equality
+ * @param b - one of the Types to check for equality
+ * 
+ * @returns true if a and b are strictly equal. Else, false
+ */
+export function isSameType(a: Type, b: Type) : boolean {
+  if(a.tag === b.tag){
+    if(a.tag === "class" && b.tag === "class"){
+      return a.name === b.name;
+    }
+    else if(a.tag === "list" && b.tag === "list"){
+      return isSameType(a.content_type, b.content_type);
+    }
+    else if(a.tag === "callable" && b.tag === "callable"){
+      if(a.args.length === b.args.length && isSameType(a.ret, b.ret)){
+        for(let i = 0; i < a.args.length; i++){
+          if(!isSameType(a.args[i], b.args[i])){
+            return false;
+          }
+        }
+      }
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Returns the string representation of a Type.
+ * Callable types are formatted as such:
+ *      "(" <parameterType> "," <parameterType> ... ") -> " <returnType> 
+ * 
+ * @param type - the Type to generate a string representation of
+ * @returns the string representation of the provided Type
+ */
+export function typeToString(type: Type) : string {
+  switch(type.tag){
+    case "class": return type.name;
+    case "list":  return `[${typeToString(type.content_type)}]`;
+    case "callable": return `(${type.args.map(x => typeToString(x)).join(",")}) -> ${typeToString(type.ret)}`;
+    default: return type.tag;
+  }
+}
+
 export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support
   | { a?: A; tag: "nonlocal"; name: string };
 
 export type Parameter<A> = { name: string; type: Type; value?: Literal };
+
+/**
+ * An organized representation of a ChocoPy program
+ */
+/*
+export type OrganizedProgram<A> = {
+  annotation? : A,
+  moduleFuncs: Map<string, FunDef<A>>,
+  moduleClasses: Map<string, Class<A>>,
+  moduleVariables: Map<string, VarInit<A>>,
+  stmts: Array<Stmt<A>>
+}
+*/
 
 export type Program<A> = {
   a?: A;
@@ -63,7 +124,9 @@ export type Stmt<A> =
   | { a?: A; tag: "continue" }
   | { a?: A; tag: "break" }
   | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> }
-  | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
+  | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> }
+  | {  a?: A, tag: "import", isFromStmt:boolean, target: string, compName?: Array<string>, alias?: string};
+
 
 export interface Destructure<A> {
   isDestructured: boolean;
