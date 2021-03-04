@@ -262,7 +262,7 @@ f(2)`, PyInt(2));
   c : C = None
   c`, PyNone());
 
-  assert("function-with-default-arg", `
+  assert("function-with-default-param", `
   def add_default_10(x : int, y : int = 10) -> int:
 	  return x + y
   `, PyNone());
@@ -292,4 +292,14 @@ describe('defaults', () => {
     return x + y
   
   foo()`);
+
+  assert("function-with-multiple-default-params", `
+  def foo(x : int = 3, y : int = 4, z : int = 5) -> int:
+    return x + y + z
+  `, PyNone());
+
+  assertFail("function-with-incorrect-default-param", `
+  def foo(x : int = 3, y : int = 4, z : int) -> int:
+    return x + y + z
+  `);
 });
