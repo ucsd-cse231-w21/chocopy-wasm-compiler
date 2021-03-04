@@ -1,6 +1,7 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
+import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, ClosureDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
+import { all } from "cypress/types/bluebird";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -10,6 +11,7 @@ export type GlobalEnv = {
   classes: Map<string, Map<string, [number, Literal]>>;
   locals: Set<string>;
   offset: number;
+  funs: Map<string, [number, Array<string>]>; // <function name, [tbl idx, Array of nonlocals]>
 };
 
 export const emptyEnv: GlobalEnv = {
@@ -17,11 +19,24 @@ export const emptyEnv: GlobalEnv = {
   classes: new Map(),
   locals: new Set(),
   offset: 0,
+  funs: new Map(),
 };
 
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
+  const newFuns = new Map(env.funs);
+
+  // set the referenced value to be num since we use i32 in wasm
+  const RefMap = new Map<string, [number, Literal]>();
+  RefMap.set("$deref", [0, {tag: "num", value: BigInt(0)}]);
+  newClasses.set("$ref", RefMap);
+
+  let idx = newFuns.size;
+  prog.closures.forEach((clo) => {
+    newFuns.set(clo.name, [idx, clo.nonlocals]);
+    idx += 1;
+  });
 
   var newOffset = env.offset;
   prog.inits.forEach((v) => {
@@ -38,6 +53,7 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     classes: newClasses,
     locals: env.locals,
     offset: newOffset,
+    funs: newFuns
   };
 }
 
@@ -67,23 +83,58 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
+function getFuns(stmts: Array<Stmt<Type>>): Array<string> {
+  let funs: Array<string> = [];
+  stmts.forEach((stmt) => {
+    if (stmt.tag == "expr" && stmt.expr.tag == "call_expr") {
+      funs.push((stmt.expr.name as any).name);
+    }
+  });
+
+  return funs;
+}
+
 export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
+  console.log(ast);
   const withDefines = augmentEnv(env, ast);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("addr");
+  ast.closures.forEach((clo) => {
+    definedVars.add(clo.name);
+  })
+  const calledFuns = getFuns(ast.stmts);
+  calledFuns.forEach((fun) => {
+    definedVars.add(fun);
+  });
+
   definedVars.forEach(env.locals.add, env.locals);
+  
   const localDefines = makeLocals(definedVars);
   const funs: Array<string> = [];
   ast.funs.forEach((f) => {
-    funs.push(codeGenDef(f, withDefines).join("\n"));
+    funs.push(codeGenFunDef(f, withDefines).join("\n"));
   });
+  ast.closures.forEach((clo) => {
+    funs.push(codeGenClosureDef(clo, withDefines).join("\n"));
+  });
+  
+  const funNames: Array<string> = [];
+  ast.closures.forEach((clo) => {
+    funNames.push(clo.name);
+  });
+  calledFuns.forEach((fun) => {
+    funNames.push(fun);
+  });
+  const initFuns = initNested(funNames, withDefines);
+
   const classes: Array<string> = ast.classes.map((cls) => codeGenClass(cls, withDefines)).flat();
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(inits.concat(...commandGroups));
+  const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
   withDefines.locals.clear();
   return {
     functions: allFuns,
@@ -180,7 +231,72 @@ function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
   }
 }
 
-function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
+function myMemAlloc(name: string, size: number): Array<string> {
+  const allocs: Array<string> = [];
+  allocs.push(`(i32.load (i32.const 0))`);
+  allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
+  allocs.push(`(i32.const 0)`);
+  allocs.push(`(i32.add (local.get ${name}) (i32.const ${size * 4}))`);
+  allocs.push(`(i32.store) ;; update the heap ptr`);
+  return allocs;
+}
+
+function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
+  const inits: Array<string> = [];
+  nested.forEach((fun) => {
+    let fun_info = env.funs.get(fun);
+    inits.push(myMemAlloc(`$${fun}`, fun_info[1].length+1).join("\n"));
+    inits.push(`(local.get $${fun})`);
+    inits.push(`(i32.const ${fun_info[0]}) ;; function idx`);
+    inits.push(`(i32.store)`);
+  });
+
+  return inits;
+}
+
+const funPtr = "$funPtr"; // the first extra argument
+
+function initNonlocals(nonlocals: Array<string>): Array<string> {
+  const inits: Array<string> = [];
+  nonlocals.forEach((v, i) => {
+    inits.push(`(i32.load (i32.add (local.get ${funPtr} (i32.const ${(i+1)*4}))))`);
+    inits.push(`(local.set $${v})`);
+  });
+
+  return inits;
+}
+
+function codeGenClosureDef (def: ClosureDef<Type>, env: GlobalEnv): Array<string> {
+  const definedVars: Set<string> = new Set();
+  definedVars.add("addr");
+  def.nonlocals.forEach((v) => definedVars.add(v));
+  def.nested.forEach((v) => definedVars.add(v));
+  def.inits.forEach((v) => definedVars.add(v.name));
+
+  definedVars.forEach(env.locals.add, env.locals);
+  def.parameters.forEach((p) => env.locals.add(p.name));
+
+  const localDefs = makeLocals(definedVars).join("\n");
+  const nonlocals = initNonlocals(def.nonlocals).join("\n");
+  const nested = initNested(def.nested, env).join("\n");
+
+  const inits = def.inits.map((init) => codeGenInit(init, env)).flat().join("\n");
+  let params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
+  let stmts = def.body.map((stmt) => codeGenStmt(stmt, env)).flat().join("\n");
+  env.locals.clear();
+
+  return [
+    `(func $${def.name} (param ${funPtr} i32) ${params} (result i32)
+    ${localDefs}
+    ${nonlocals}
+    ${nested}
+    ${inits}
+    ${stmts}
+    )`
+  ];
+}
+
+function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
@@ -211,7 +327,7 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
 function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
   const methods = [...cls.methods];
   methods.forEach((method) => (method.name = `${cls.name}$${method.name}`));
-  const result = methods.map((method) => codeGenDef(method, env));
+  const result = methods.map((method) => codeGenFunDef(method, env));
   return result.flat();
 }
 
@@ -259,6 +375,21 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
+    case "call_expr":
+      const callExpr: Array<string> = [];
+      const funName = (expr.name as any).name;
+      const nonlocals = env.funs.get(funName)[1];
+      nonlocals.forEach((name, i) => {
+        callExpr.push(myMemAlloc("$addr", 1).join("\n"));
+        callExpr.push(`(i32.store (local.get $addr) (local.get $${name}))`);
+        callExpr.push(`(i32.store (i32.add (local.get $${funName}) (i32.const ${(i+1)*4})) (local.get $addr))`);
+      });
+      callExpr.push(`(local.get $${funName}) ;; argument for $funPtr`);
+      expr.arguments.forEach((arg) => {
+        callExpr.push(codeGenExpr(arg, env).join("\n"));
+      });
+      callExpr.push(`(call_indirect (type $callType${expr.arguments.length+1}) (i32.load (local.get $${funName})))`);
+      return callExpr;
     case "construct":
       var stmts: Array<string> = [];
       env.classes.get(expr.name).forEach(([offset, initVal], field) =>
@@ -303,6 +434,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         );
       }
       var className = objTyp.name;
+      console.log("className", className);
       var [offset, _] = env.classes.get(className).get(expr.field);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
     default:
