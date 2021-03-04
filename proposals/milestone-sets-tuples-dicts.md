@@ -18,3 +18,4 @@ We faced the following challenges during this week's implementation:
 - For implementing dictionary, we had to implement hashtable and we wrote 100-150 lines of assembly code which was time-taking but it finally worked out!
 - We had to keep track of our implementation with other teams: strings, lists, memory allocation and making sure it is compatible and modular enough so that it's easy to integrate.
 - Implementing the typechecker part for dictionary assign and lookup with decorated AST, having not worked with it before in PA3.
+- We assumed that the type-checking for nested dictionary will be taken care automatically by `===`. However, `===` does't work on objects with nested levels. That is even though 2 objects are same at different levels, it returns `False`. We used `JSON.stringify` to convert the object to a string before checking.
