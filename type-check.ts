@@ -60,7 +60,11 @@ export type TypeError = {
 };
 
 export function equalType(t1: Type, t2: Type) {
-  return t1 === t2 || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name);
+  return t1 === t2
+  || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name)
+  //if dictionary is initialized to key-value pairs, check whether key types match and value types match;
+  //if dictionary is initialized to empty {}, then we check for "none" type in key and value
+  || (t1.tag === "dict" && t2.tag === "dict" && ((t1.key === t2.key && t1.value === t2.value) || (t1.key.tag === "none" && t1.value.tag === "none" )));
 }
 
 export function isNoneOrClass(t: Type) {
@@ -68,7 +72,7 @@ export function isNoneOrClass(t: Type) {
 }
 
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && t2.tag === "class");
+  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "dict"));
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -414,16 +418,37 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         throw new TypeCheckError("method calls require an object");
       }
     case "dict":
-      let entries = expr.entries
-      // check for the empty array, example: d = {}
+      let entries = expr.entries;
+      let dictType: Type;
+      // check for the empty dict, example: d = {} -> returns `none`
       if (!entries?.length) {
-        console.log("empty dict");
+        dictType = { tag: "dict", key: { tag: "none" }, value: {tag: "none"} };
+        let dictAnnotated = {...expr, a: dictType, entries: entries};
+        return dictAnnotated;
       } else {  // the dict has one or more key-value pairs
-        //
-        console.log("dict with values");
-
+        // return the types of keys and values, if they are consistent
+        let keyTypes = new Set();
+        let valueTypes = new Set();
+        let entryTypes: Array<[Expr<Type>, Expr<Type>]> = [];
+        for(let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+          let keyType = tcExpr(env, locals, entries[entryIndex][0]);
+          let valueType = tcExpr(env, locals, entries[entryIndex][1]);
+          entryTypes.push([keyType, valueType]);
+          keyTypes.add(keyType.a);
+          valueTypes.add(valueType.a);
+        }
+        if( keyTypes.size > 1 ) {
+          throw new TypeCheckError("Heterogenous `Key` types aren't supported");
+        }
+        if( valueTypes.size > 1 ) {
+          throw new TypeCheckError("Heterogenous `Value` types aren't supported");
+        }
+        let keyType = keyTypes.values().next().value;
+        let valueType = valueTypes.values().next().value;
+        dictType = { tag: "dict", key: keyType, value: valueType };
+        let dictAnnotated = {...expr, a: dictType, entries: entryTypes};
+        return dictAnnotated;
       }
-      throw new TypeCheckError("Typecheck for dict not implemented");
     case "bracket-lookup":
       throw new TypeCheckError("Typecheck for bracket-lookup not implemented");
     default:

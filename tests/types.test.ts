@@ -130,4 +130,18 @@ describe("tc", () => {
   c.x`,
     NUM
   );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+  d : [int,int] = None
+  d = {1:False, 2:True}`
+  );
+
+  assertTCFail(
+    "dict-incomplete-assignment",
+    `
+  d: [int, int] = None
+  d = {4}`
+  );
 });
