@@ -46,12 +46,11 @@ for i in range(5):
 ```
 
 
-program 3 (complete):
+program 3:
 ```python
 i:int = 0
-for i in range(5):
+for i in range(0, 6, 2):
   print(i)
-  break
 ```
 
 program 4:
