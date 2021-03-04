@@ -65,23 +65,27 @@ for i in range(5):
 
 program 5:
 ```python
-i:int = 0
-for i in range(5):
-  print(i)
+x:int = 0
+idx:int = 0
+for idx, x in enumerate(5):
+  print(idx)
+  print(x)
 ```
 
 program 6:
 ```python
 i:int = 0
+j:int = 0
 for i in range(5):
-  print(i)
+  for j in range(5):
+    print(i, j)
 ```
 
 program 7:
 ```python
 i:int = 0
 for i in range(5):
-  print(i)
+  pass
 ```
 
 program 8:
@@ -94,8 +98,13 @@ for i in range(5):
 program 9:
 ```python
 i:int = 0
-for i in range(5):
-  print(i)
+def f():
+  for i in range(5):
+    if i == 3:
+      return i
+      print(i)
+    else:
+      print(i)
 ```
 
 program 10:
