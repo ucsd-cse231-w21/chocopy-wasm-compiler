@@ -59,8 +59,9 @@ f(5)
                 tag: "call_expr",
                 name: {
                   a: { tag: "callable", args: [], ret: { tag: "number" } },
-                  tag: "id",
-                  name: "f_$inc",
+                  tag: "lookup",
+                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$inc_$ref" },
+                  field: "$deref",
                 },
                 arguments: [],
               },
@@ -86,7 +87,7 @@ f(5)
                 left: {
                   a: { tag: "number" },
                   tag: "lookup",
-                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x" },
+                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
                   field: "$deref",
                 },
                 right: {
@@ -159,8 +160,9 @@ f(6)
                   tag: "call_expr",
                   name: {
                     a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
-                    tag: "id",
-                    name: "f_$g",
+                    tag: "lookup",
+                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$g_$ref" },
+                    field: "$deref",
                   },
                   arguments: [
                     {
@@ -175,8 +177,9 @@ f(6)
                   tag: "call_expr",
                   name: {
                     a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
-                    tag: "id",
-                    name: "f_$g",
+                    tag: "lookup",
+                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$g_$ref" },
+                    field: "$deref",
                   },
                   arguments: [
                     {
@@ -209,7 +212,7 @@ f(6)
                 left: {
                   a: { tag: "number" },
                   tag: "lookup",
-                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x" },
+                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
                   field: "$deref",
                 },
                 right: {
@@ -218,10 +221,17 @@ f(6)
                   name: {
                     a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
                     tag: "lookup",
-                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$h" },
+                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$h_$ref" },
                     field: "$deref",
                   },
-                  arguments: [{ a: { tag: "number" }, tag: "id", name: "y" }],
+                  arguments: [
+                    {
+                      a: { tag: "number" },
+                      tag: "lookup",
+                      obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "y_$ref" },
+                      field: "$deref",
+                    },
+                  ],
                 },
               },
             },
@@ -239,9 +249,14 @@ f(6)
             {
               a: { tag: "none" },
               tag: "field-assign",
-              obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x" },
+              obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
               field: "$deref",
-              value: { a: { tag: "number" }, tag: "id", name: "z" },
+              value: {
+                a: { tag: "number" },
+                tag: "lookup",
+                obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "z_$ref" },
+                field: "$deref",
+              },
             },
             {
               a: { tag: "number" },
@@ -253,7 +268,7 @@ f(6)
                 left: {
                   a: { tag: "number" },
                   tag: "lookup",
-                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x" },
+                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
                   field: "$deref",
                 },
                 right: {
