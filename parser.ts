@@ -442,7 +442,7 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
 }
 
 export function traverseVarInit(c: TreeCursor, s: string): VarInit<any> {
-  var declaredType: Type
+  var declaredType: Type;
   var isTyped = isTypedAssign(c, s);
   c.firstChild();
   var name = s.substring(c.from, c.to);
@@ -450,13 +450,13 @@ export function traverseVarInit(c: TreeCursor, s: string): VarInit<any> {
     c.nextSibling(); // go to : type
     c.firstChild(); // go to :
     c.nextSibling(); // go to type
-    declaredType = traverseType(c, s); 
+    declaredType = traverseType(c, s);
     c.parent();
-  } 
+  }
   c.nextSibling(); // go to =
   c.nextSibling(); // go to value
-  //var value = traverseLiteral(c, s); // TODO bad 
-  var value = traverseExpr(c, s)
+  //var value = traverseLiteral(c, s); // TODO bad
+  var value = traverseExpr(c, s);
   c.parent();
   return { name, declaredType, value };
 }
@@ -485,19 +485,19 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
     if (isNewAssign(c, s)) {
       var shouldAdd = true;
       var potentialInit = traverseVarInit(c, s);
-      inits.forEach(i => {
+      inits.forEach((i) => {
         if (i.name === potentialInit.name) {
           shouldAdd = false;
         }
-      })
-      parameters.forEach(p => {
+      });
+      parameters.forEach((p) => {
         if (p.name === potentialInit.name) {
           shouldAdd = false;
         }
-      })
+      });
       if (shouldAdd) {
         inits.push(potentialInit);
-      } else { 
+      } else {
         break;
       }
     } else {
@@ -602,9 +602,9 @@ export function isTypedAssign(c: TreeCursor, s: string): boolean {
 export function isNewAssign(c: TreeCursor, s: string): boolean {
   var cond1 = c.type.name === "AssignStatement";
   c.firstChild();
-  var cond2 = c.type.name === "MemberExpression"; 
+  var cond2 = c.type.name === "MemberExpression";
   c.parent();
-  return cond1 && !cond2
+  return cond1 && !cond2;
 }
 
 export function isFunDef(c: TreeCursor, s: string): boolean {
@@ -626,19 +626,19 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
       var hasChild = c.firstChild();
 
       while (hasChild) {
-         if (isNewAssign(c, s)) {
-           var shouldAdd = true; 
-           var potentialInit = traverseVarInit(c, s);
-           inits.forEach(i => {
-             if (i.name === potentialInit.name) {
-               shouldAdd = false;
-             }
-           })
-           if (shouldAdd) {
+        if (isNewAssign(c, s)) {
+          var shouldAdd = true;
+          var potentialInit = traverseVarInit(c, s);
+          inits.forEach((i) => {
+            if (i.name === potentialInit.name) {
+              shouldAdd = false;
+            }
+          });
+          if (shouldAdd) {
             inits.push(potentialInit);
-           } else { 
-             break;
-           }
+          } else {
+            break;
+          }
         } else if (isFunDef(c, s)) {
           funs.push(traverseFunDef(c, s));
         } else if (isClassDef(c, s)) {

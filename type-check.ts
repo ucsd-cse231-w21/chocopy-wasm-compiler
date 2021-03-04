@@ -89,9 +89,9 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
     const methods = new Map();
     cls.fields.forEach((field) => {
       if (field.declaredType === undefined) {
-        field.declaredType = inferExprType(field.value, env, emptyLocalTypeEnv()) 
+        field.declaredType = inferExprType(field.value, env, emptyLocalTypeEnv());
       }
-      fields.set(field.name, field.declaredType)
+      fields.set(field.name, field.declaredType);
     });
     cls.methods.forEach((method) =>
       methods.set(method.name, [method.parameters.map((p) => p.type), method.ret])
@@ -105,10 +105,10 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
 
   program.inits.forEach((init) => {
     if (init.declaredType === undefined) {
-      env.globals = newGlobs
-      init.declaredType = inferExprType(init.value, env, emptyLocalTypeEnv())
+      env.globals = newGlobs;
+      init.declaredType = inferExprType(init.value, env, emptyLocalTypeEnv());
     }
-    newGlobs.set(init.name, init.declaredType)
+    newGlobs.set(init.name, init.declaredType);
   });
   return { globals: newGlobs, functions: newFuns, classes: newClasses };
 }
@@ -122,7 +122,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
 
 // changed Program<null> to Program<any> in the signature, so that TC can accept partially typed programs
 // generated from the infer.ts file
-export function tc(env : GlobalTypeEnv, program : Program<any>) : [Program<Type>, GlobalTypeEnv] {
+export function tc(env: GlobalTypeEnv, program: Program<any>): [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
   const tInits = program.inits.map((init) => tcInit(env, emptyLocalTypeEnv(), init));
@@ -148,18 +148,24 @@ export function tc(env : GlobalTypeEnv, program : Program<any>) : [Program<Type>
   return [aprogram, newEnv];
 }
 
-export function tcInit(env: GlobalTypeEnv, localEnv: LocalTypeEnv, init: VarInit<any>): VarInit<Type> {
-  var valTyp: Type
+export function tcInit(
+  env: GlobalTypeEnv,
+  localEnv: LocalTypeEnv,
+  init: VarInit<any>
+): VarInit<Type> {
+  var valTyp: Type;
   if (init.declaredType === undefined) {
-    valTyp =  inferExprType(init.value, env, localEnv)
+    valTyp = inferExprType(init.value, env, localEnv);
     init.declaredType = valTyp;
   } else {
-    valTyp = tcExpr(env, emptyLocalTypeEnv(), init.value).a
+    valTyp = tcExpr(env, emptyLocalTypeEnv(), init.value).a;
   }
   if (isAssignable(env, valTyp, init.declaredType)) {
     return { ...init, a: NONE };
   } else {
-    throw new TypeCheckError("Expected type `" + init.declaredType.tag + "`; got type `" + valTyp.tag + "`");
+    throw new TypeCheckError(
+      "Expected type `" + init.declaredType.tag + "`; got type `" + valTyp.tag + "`"
+    );
   }
 }
 
@@ -185,9 +191,9 @@ export function tcBlock(
   stmts: Array<Stmt<null>>
 ): Array<Stmt<Type>> {
   return stmts.map((stmt) => {
-    console.log("Marker A")
+    console.log("Marker A");
     var st = tcStmt(env, locals, stmt);
-    console.log(st)
+    console.log(st);
     return st;
   });
 }

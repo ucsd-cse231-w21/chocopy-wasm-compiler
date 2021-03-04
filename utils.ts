@@ -40,14 +40,18 @@ export function isTagged<
   return set.includes(val.tag);
 }
 
-export const FAILEDINFER : Type = {tag: "failedToInfer"}
-export const UNSAT : Type = {tag:"unsat"}
-export const STRING : Type = {tag: "string"}
-export const NUM : Type = {tag: "number"};
-export const BOOL : Type = {tag: "bool"};
-export const NONE : Type = {tag: "none"};
-export function LIST(content : Type) : Type {return {tag:"list", content_type: content}}
-export function CLASS(name : string) : Type {return {tag: "class", name}};
+export const FAILEDINFER: Type = { tag: "failedToInfer" };
+export const UNSAT: Type = { tag: "unsat" };
+export const STRING: Type = { tag: "string" };
+export const NUM: Type = { tag: "number" };
+export const BOOL: Type = { tag: "bool" };
+export const NONE: Type = { tag: "none" };
+export function LIST(content: Type): Type {
+  return { tag: "list", content_type: content };
+}
+export function CLASS(name: string): Type {
+  return { tag: "class", name };
+}
 export function unreachable(arg: never): never {
   throw new Error(`Hit unreachable state. Got value ${JSON.stringify(arg)}`);
 }
@@ -59,4 +63,3 @@ export function unreachable(arg: never): never {
 export function unhandledTag(arg: { tag: string }): never {
   throw new Error(`Node tagged with ${arg.tag} is not handled.\n\n${JSON.stringify(arg)}`);
 }
-

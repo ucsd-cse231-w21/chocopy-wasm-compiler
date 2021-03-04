@@ -147,7 +147,6 @@ f(2)`,
     PyBool(true)
   );
 
-
   assert(
     "init before assign",
     `

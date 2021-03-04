@@ -2,46 +2,56 @@
 
 // export enum Type {NUM, BOOL, NONE, OBJ};
 export type Type =
-  | {tag: "number"}
-  | {tag: "bool"}
-  | {tag: "none"}
-  | {tag: "string"}
-  | {tag: "class", name: string}
-  | {tag: "callable", args: Array<Type>, ret: Type}
-  | {tag: "list", content_type: Type }
-  | {tag: "failedToInfer"}  // Throws an error, asking for user to specify a type annotation
-  | {tag: "unsat"}  // Type inference constraints is unsatisfiable. Indicates type-checker should throw error
+  | { tag: "number" }
+  | { tag: "bool" }
+  | { tag: "none" }
+  | { tag: "string" }
+  | { tag: "class"; name: string }
+  | { tag: "callable"; args: Array<Type>; ret: Type }
+  | { tag: "list"; content_type: Type }
+  | { tag: "failedToInfer" } // Throws an error, asking for user to specify a type annotation
+  | { tag: "unsat" }; // Type inference constraints is unsatisfiable. Indicates type-checker should throw error
 
-export type Scope<A> = 
-  | { a?: A, tag: "global", name: string} // not support
-  | { a?: A, tag: "nonlocal", name: string}
+export type Scope<A> =
+  | { a?: A; tag: "global"; name: string } // not support
+  | { a?: A; tag: "nonlocal"; name: string };
 
+export type Parameter<A> = { name: string; type: Type; value?: Literal };
 
-export type Parameter<A> = { name: string, type: Type, value?: Literal }
+export type Program<A> = {
+  a?: A;
+  funs: Array<FunDef<A>>;
+  inits: Array<VarInit<A>>;
+  classes: Array<Class<A>>;
+  stmts: Array<Stmt<A>>;
+};
 
-export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
+export type Class<A> = {
+  a?: A;
+  name: string;
+  fields: Array<VarInit<A>>;
+  methods: Array<FunDef<A>>;
+};
 
-export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods: Array<FunDef<A>>}
+export type VarInit<A> = { a?: A; name: string; declaredType: Type; value: Expr<A> };
 
-export type VarInit<A> = { a?: A, name: string, declaredType: Type, value: Expr<A> }
+export type FunDef<A> = {
+  a?: A;
+  name: string;
+  parameters: Array<Parameter<A>>;
+  ret: Type;
+  decls: Array<Scope<A>>;
+  inits: Array<VarInit<A>>;
+  funs: Array<FunDef<A>>;
+  body: Array<Stmt<A>>;
+};
 
-export type FunDef<A> = { 
-  a?: A, 
-  name: string, 
-  parameters: Array<Parameter<A>>, 
-  ret: Type, 
-  decls: Array<Scope<A>>,
-  inits: Array<VarInit<A>>, 
-  funs: Array<FunDef<A>>
-  body: Array<Stmt<A>>
-}
-
-export type Closure<A> = { 
-  a?: A, 
-  name: string, 
-  fields: Array<VarInit<A>>, 
-  apply: FunDef<A> 
-}
+export type Closure<A> = {
+  a?: A;
+  name: string;
+  fields: Array<VarInit<A>>;
+  apply: FunDef<A>;
+};
 
 export type Stmt<A> =
   | { a?: A; tag: "assignment"; target: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"

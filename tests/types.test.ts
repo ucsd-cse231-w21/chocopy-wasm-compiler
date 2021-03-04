@@ -133,7 +133,8 @@ describe("tc", () => {
 });
 
 describe("type inference", () => {
-  assertTC("program-I",
+  assertTC(
+    "program-I",
     `
     x = (1 + 3) * 2
     x
@@ -141,7 +142,8 @@ describe("type inference", () => {
     NUM
   );
 
-  assertTC("program-II",
+  assertTC(
+    "program-II",
     `
     y = (10-5) < (2 * 3)
     y

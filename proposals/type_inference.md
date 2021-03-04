@@ -14,11 +14,11 @@ User does not need to declare the type of x and the right hand side can be an ex
 
 The user no longer needs to declare the type of y before it is assigned here, and instead the type is inferred from the expression on the right hand side to be a boolean. 
 
-### Program 3 (None)
+### ~~Program 3 (None)~~
 	
 	z = print(1)
 
-Since the return type of print is None, the type of z is inferred to be None. 
+Since the return type of print is None, the type of z is inferred to be None.
 
 ### Program 4 
 
