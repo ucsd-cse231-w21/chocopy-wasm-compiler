@@ -27,7 +27,7 @@ Use instanceof to get additional properties of each Error type, if necessary.
 		+-- ConditionTypeError -> This error class is for condition type check in while and if, which does not exist in real python.
 */
 
-import { Location } from "./ast"
+import { BinOp, Location } from "./ast"
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class KeyboardInterrupt extends Error {
@@ -234,6 +234,18 @@ export class TypeError extends Exception {
 export class TypeMismatchError extends Exception {
 	constructor(expect: string, got: string, loc?: Location) {
 		super(`Expected type '${expect}'; got type '${got}'`, "TypeMismatchError", loc);
+		if (Error.captureStackTrace) {
+			Error.captureStackTrace(this, TypeMismatchError);
+		}
+	} 
+}
+
+export class UnsupportedOprandTypeError extends Exception {
+	constructor(op: string, oprand: string[], loc?: Location) {
+		if (oprand.length == 1) 
+			super(`unsupported operand type(s) for ${op}: '${oprand[0]}'`, "TypeError", loc); 
+		else 
+			super(`unsupported operand type(s) for ${op}: '${oprand[0]}' and '${oprand[1]}'`, "TypeError", loc); 
 		if (Error.captureStackTrace) {
 			Error.captureStackTrace(this, TypeMismatchError);
 		}

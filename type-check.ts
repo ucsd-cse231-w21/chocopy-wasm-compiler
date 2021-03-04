@@ -185,7 +185,10 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         throw new BaseException.SyntaxError("‘return’ outside of functions", stmt.loc);
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
-        throw new BaseException.TypeMismatchError((locals.expectedRet as any).name, (tRet.a as any).name, stmt.loc);
+        throw new BaseException.TypeMismatchError(
+          locals.expectedRet.tag === "class" ? (locals.expectedRet as any).name : locals.expectedRet.tag, 
+          tRet.a.tag === "class" ? (tRet.a as any).name : tRet.a.tag, 
+          stmt.loc);
       return {a: tRet.a, tag: stmt.tag, value:tRet, loc: stmt.loc};
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
@@ -230,24 +233,24 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.IDiv:
         case BinOp.Mod:
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return { a: NUM, ...tBin } }
-          else { throw new BaseException.TypeMismatchError("number", toObject([tLeft.a, tRight.a]), expr.loc); }
+          else { throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc); }
         case BinOp.Eq:
         case BinOp.Neq:
           if (equalType(tLeft.a, tRight.a)) { return { a: BOOL, ...tBin }; }
-          else { throw new BaseException.TypeMismatchError("bool", toObject([tLeft.a, tRight.a]), expr.loc) }
+          else { throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc); }
         case BinOp.Lte:
         case BinOp.Gte:
         case BinOp.Lt:
         case BinOp.Gt:
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) { return { a: BOOL, ...tBin }; }
-          else { throw new BaseException.TypeMismatchError("bool", toObject([tLeft.a, tRight.a]), expr.loc) }
+          else { throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc); }
         case BinOp.And:
         case BinOp.Or:
           if (equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) { return { a: BOOL, ...tBin }; }
-          else { throw new BaseException.TypeMismatchError("bool", toObject([tLeft.a, tRight.a]), expr.loc); }
+          else { throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc); }
         case BinOp.Is:
           if (!isNoneOrClass(tLeft.a) || !isNoneOrClass(tRight.a))
-            throw new BaseException.TypeMismatchError("object", toObject([tLeft.a, tRight.a]), expr.loc);
+            throw new BaseException.UnsupportedOprandTypeError(BinOp[expr.op], [tLeft.a.tag, tRight.a.tag], expr.loc);
           return { a: BOOL, ...tBin };
       }
     case "uniop":
@@ -256,10 +259,10 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       switch (expr.op) {
         case UniOp.Neg:
           if (equalType(tExpr.a, NUM)) { return tUni }
-          else { throw new BaseException.TypeMismatchError("number", toObject(tExpr.a), expr.loc); }
+          else { throw new BaseException.UnsupportedOprandTypeError(UniOp[expr.op], [tExpr.a.tag], expr.loc); }
         case UniOp.Not:
           if (equalType(tExpr.a, BOOL)) { return tUni }
-          else { throw new BaseException.TypeMismatchError("bool", toObject(tExpr.a), expr.loc); }
+          else { throw new BaseException.UnsupportedOprandTypeError(UniOp[expr.op], [tExpr.a.tag], expr.loc); }
       }
     case "id":
       if (locals.vars.has(expr.name)) {
@@ -280,7 +283,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (isAssignable(env, tArg.a, expectedArgTyp)) {
           return { ...expr, a: retTyp, arg: tArg };
         } else {
-          throw new BaseException.TypeMismatchError(toObject(expectedArgTyp), toObject(tArg), expr.loc);
+          throw new BaseException.TypeMismatchError(expectedArgTyp.tag === "class" ? expectedArgTyp.name: expectedArgTyp.tag, tArg.a.tag === "class" ? tArg.a.name : tArg.tag, expr.loc);
         }
       } else {
         throw new BaseException.NameError(expr.name, expr.loc);
@@ -293,7 +296,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (isAssignable(env, leftTyp, tLeftArg.a) && isAssignable(env, rightTyp, tRightArg.a)) {
           return { ...expr, a: retTyp, left: tLeftArg, right: tRightArg };
         } else {
-          throw new BaseException.TypeMismatchError(toObject([leftTyp, rightTyp]), toObject([tLeftArg, tRightArg]), expr.loc);
+          throw new BaseException.TypeMismatchError(toObject([leftTyp, rightTyp]), toObject([tLeftArg.a, tRightArg.a]), expr.loc);
         }
       } else {
         throw new BaseException.NameError(expr.name, expr.loc);
@@ -327,7 +330,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           throw new BaseException.TypeError(`${expr.name} takes ${argTypes.length} positional arguments but ${expr.arguments.length} were given`, expr.loc);
         }
         else {
-          throw new BaseException.TypeMismatchError(toObject(argTypes), toObject(expr.arguments), expr.loc);
+          throw new BaseException.TypeMismatchError(toObject(argTypes), toObject(tArgs.map(s => {return s.a})), expr.loc);
         }
       } else {
         throw new BaseException.NameError(expr.name, expr.loc);
@@ -367,7 +370,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               throw new BaseException.TypeError(`${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`, expr.loc);
             }
             else {
-              throw new BaseException.TypeMismatchError(toObject(methodArgs), toObject(realArgs), expr.loc);
+              throw new BaseException.TypeMismatchError(toObject(methodArgs), toObject(realArgs.map(s => {return s.a})), expr.loc);
             }
           } else {
             throw new BaseException.AttributeError(tObj.a.name, expr.method, expr.loc);
@@ -396,10 +399,6 @@ export function tcLiteral(literal: Literal) {
   }
 }
 
-export function toObject(obj: any) {
-  return JSON.stringify(obj, (key, value) =>
-      typeof value === 'bigint'
-          ? value.toString()
-          : value
-  );
-}
+export function toObject(types: Type[]) : string {
+  return `[${types.map(s => {return s.tag === "class"? s.name : s.tag }).join(",")}]`;
+} 
