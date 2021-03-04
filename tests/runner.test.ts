@@ -385,17 +385,31 @@ f(2)`,
     PyNone()
   );
 
-  assertPrint("print-1-string", `
-  print("ABC")`, ["ABC"]);
+  assertPrint(
+    "print-1-string",
+    `
+  print("ABC")`,
+    ["ABC"]
+  );
 
-  assertPrint("print-2-strings", `
+  assertPrint(
+    "print-2-strings",
+    `
   print("Compiler")
-  print("Design")`, ["Compiler", "Design"]);
+  print("Design")`,
+    ["Compiler", "Design"]
+  );
 
-  assertPrint("print-string-index", `
-  print("Design"[2])`, ["s"]);
+  assertPrint(
+    "print-string-index",
+    `
+  print("Design"[2])`,
+    ["s"]
+  );
 
-  assertPrint("class-with-string-fields", `
+  assertPrint(
+    "class-with-string-fields",
+    `
   class C(object):
     x : str = "Sandhya"
     y : str = "Jayaraman"
@@ -404,9 +418,13 @@ f(2)`,
   c1 = C()
   print(c1.x)
   c1.x = "Joe"
-  print(c1.x)`, ["Sandhya", "Joe"]);
+  print(c1.x)`,
+    ["Sandhya", "Joe"]
+  );
 
-  assertPrint("class-with-string-fields-inside-functions", `
+  assertPrint(
+    "class-with-string-fields-inside-functions",
+    `
   class C(object):
     x : str = "ZZZ"
 
@@ -416,9 +434,13 @@ f(2)`,
 
   c1 : C = None
   c1 = C()
-  print(c1.func("AAA"))`, ["AAA"]);
+  print(c1.func("AAA"))`,
+    ["AAA"]
+  );
 
-  assertPrint("string-index-inside-class", `
+  assertPrint(
+    "string-index-inside-class",
+    `
   class C(object):
     x : str = "PQR"
 
@@ -427,5 +449,7 @@ f(2)`,
 
   c1 : C = None
   c1 = C()
-  print(c1.func())`, ["R"]);
+  print(c1.func())`,
+    ["R"]
+  );
 });

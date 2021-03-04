@@ -8,24 +8,24 @@ import "codemirror/mode/python/python";
 
 import "./style.scss";
 
-var mem_js: { memory: any; };
+var mem_js: { memory: any };
 
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
     case "number":
       return (arg as number).toString();
     case "string":
-      if(arg==-1) throw new Error("String index out of bounds");
+      if (arg == -1) throw new Error("String index out of bounds");
       const view = new Int32Array(mem_js.memory.buffer);
-      arg=arg+4;
-      let ascii_val = view[arg/4];
-      var i=1;
+      arg = arg + 4;
+      let ascii_val = view[arg / 4];
+      var i = 1;
       var full_string = "";
-      while(ascii_val!=0){
+      while (ascii_val != 0) {
         var char = String.fromCharCode(ascii_val);
         full_string += char;
-        ascii_val = view[(arg/4)+i];
-        i+=1;
+        ascii_val = view[arg / 4 + i];
+        i += 1;
       }
       return full_string;
     case "bool":
@@ -49,7 +49,7 @@ function print(typ: Type, arg: number): any {
 
 function webStart() {
   document.addEventListener("DOMContentLoaded", function () {
-    const memory = new WebAssembly.Memory({initial:2000, maximum:2000});
+    const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
     const view = new Int32Array(memory.buffer);
     view[0] = 4;
     var memory_js = { memory: memory };
@@ -65,7 +65,7 @@ function webStart() {
         max: Math.max,
         pow: Math.pow,
       },
-      js:memory_js,
+      js: memory_js,
     };
 
     mem_js = importObject.js;
@@ -88,10 +88,9 @@ function webStart() {
           elt.innerHTML = result.value ? "True" : "False";
           break;
         case "object":
-          if(result.name=="String"){
+          if (result.name == "String") {
             elt.innerText = stringify(STRING, result.address);
-          }
-          else{
+          } else {
             elt.innerHTML = `<${result.name} object at ${result.address}`;
           }
           break;

@@ -369,6 +369,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         );
         return brStmts;
       }
+      break;
     default:
       unhandledTag(expr);
   }
