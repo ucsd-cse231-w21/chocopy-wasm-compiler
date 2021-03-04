@@ -22,7 +22,8 @@ Use instanceof to get additional properties of each Error type, if necessary.
     +-- TypeError
     +-- ValueError
     |   +-- UnicodeError
-    
+
+    +-- UnsupportedOprandTypeError -> This error class is for TypeError related to operator like + - // * ....
 		+-- TypeMismatchError -> This error class is for TypeError that is allowed in Python but not in our project
 		+-- ConditionTypeError -> This error class is for condition type check in while and if, which does not exist in real python.
 */
