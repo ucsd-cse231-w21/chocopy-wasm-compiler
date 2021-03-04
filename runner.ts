@@ -95,6 +95,9 @@ export async function run(
   )`;
   console.log(wasmSource);
   const result = await runWat(wasmSource, importObject);
+  console.log("debug edwin");
+  console.log(view);
+  compiled.newEnv.offset = view[0] / 4;
 
   return [PyValue(progTyp, result), compiled.newEnv, tenv, compiled.functions];
 }
