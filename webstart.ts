@@ -36,6 +36,7 @@ function print(typ: Type, arg: number): any {
 
 function webStart() {
   document.addEventListener("DOMContentLoaded", function () {
+    var filecontent: string | ArrayBuffer;
     var importObject = {
       imports: {
         print_num: (arg: number) => print(NUM, arg),
@@ -151,6 +152,37 @@ function webStart() {
       resetRepl();
     })
 
+    document.getElementById("choose_file").addEventListener("change",function(e){
+      //clears repl output
+      resetRepl();
+      //resets environment
+      repl = new BasicREPL(importObject);
+      //load file
+      var input:any = e.target;
+      var reader = new FileReader();
+      reader.onload = function(){ 
+        filecontent = reader.result;
+      };
+      reader.readAsText(input.files[0]);
+    })
+    
+    document.getElementById("load").addEventListener("click", function(e) {
+      var element = document.querySelector(".CodeMirror")  as any;
+      var editor = element.CodeMirror;
+      editor.setValue(filecontent);
+    })
+
+    document.getElementById("save").addEventListener("click", function(e) {
+      //download the code in the editor
+      var FileSaver = require('file-saver');
+      var title = (document.getElementById("save_title") as any).value;
+      var element = document.querySelector(".CodeMirror")  as any;
+      var editor = element.CodeMirror;
+      var code = editor.getValue();
+      var blob = new Blob([code],{type:"text/plain;charset=utf-8"});
+      FileSaver.saveAs(blob,title);
+    })
+
     setupRepl();
   });
 
@@ -228,4 +260,6 @@ function makeMarker(msg:any) : any {
 
   return marker;
 }
+
+
 webStart();
