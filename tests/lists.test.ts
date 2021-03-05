@@ -7,9 +7,13 @@ describe("LIST TEST", () => {
   var source = `
         items : [int] = None
         items = [1, 2, 3, 4, 5, 6, 7, 8]
+        print(items[0])
+        print(items[3])
+        print(items[4])
+        print(items[6])
         items[7]
     `;
-
+  assertPrint("Program 2: Assign List To Variable (prints)", source, ["1", "4", "5", "7"]);
   assert("Program 2: Assign List To Variable", source, PyInt(8));
 
   var source = `
@@ -44,9 +48,14 @@ describe("LIST TEST", () => {
         x2 : A = None
         x3 : A = None  
         x = [A(),A(),A()]
+        print(x[0].n)
+        print(x[1].n)
+        print(x[2].n)
+        x[1].n = 12940
         x[1].n
         `;
-  assert("List With Class", source, PyInt(100));
+  assertPrint("List with Class (prints)", source, ["100", "100", "100"]);
+  assert("List With Class", source, PyInt(12940));
 
   var source = `
     items : [bool] = None
