@@ -220,7 +220,7 @@ export function tcStmt(
       } else if (thnTyp !== elsTyp) {
         throw new BaseException.SyntaxError(stmt.a, "Types of then and else branches must match");
       }
-      return { a: [thnTyp,stmt.a], tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
+      return { a: [thnTyp, stmt.a], tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
     case "return":
       if (locals.topLevel)
         throw new BaseException.SyntaxError(stmt.a, "‘return’ outside of functions");
