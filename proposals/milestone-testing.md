@@ -24,12 +24,12 @@ for the `global` keyword.
 Variables required some special treatment that we failed to foresee in our proposal. We currently
 maintain a variable environment that tracks current variables in scope by type.  Our current 
 implementation, when it selects a variable for generation, has a fixed probability to either use 
-an existing variable of the correct type, or generate a new variable in a random scope(either local
-or global). Then, when all the statements are finished generating, we then generate the required 
+an existing variable of the correct type, or generate a new variable in local scope. 
+Then, when all the statements are finished generating, we then generate the required 
 variable definitions at the top of the program. Functions are treated similarly; whenever a function
 call is selected for generation, we randomly select either an existing function of the correct
 return type to generate, or create a new function signature with the required return type.
-Then, when main body generation is finished, functions are generated according to the used
+Then, when main body generation is finished, function definitions are generated according to the used
 function signatures, with random bodies. Notably, it's possible for these function bodies to
 generated function calls of their own. If they call new functions instead of existing functions, 
 those functions are created as nested functions. We decided not to have a chance of generating 
@@ -37,11 +37,11 @@ an undefined function call because we considered that an uninteresting error wit
 
 For literals, as per our proposal, we currently only generate the literals 1, 0, True, False, and
 None. We found that we were able to generate a reasonable range of integers by generating arithmetic
-expressiojns with only the numbers 0 and 1, However, we found that having a roughly equal change to 
+expressions with only the numbers 0 and 1, However, we found that having a roughly equal change to 
 generate either 0 or 1 resulted in a significant amount of divide-by-zero errors, as generating a 0
 at any point in the right operand of an integer division or modulus resulted in a very high chance
 that the entire right operand expression evaluated to 0. As a result, we have tuned the probabilities
-such that 0 is very uncommon, as we do not believe divide-by-0 is an interesting error, as it is
+such that 0 is impossible, as we do not believe divide-by-0 is an interesting error, as it is
 thrown in the Wasm runtime instead of the compiler.
 
 Our program generation also wraps all unary expressions in parentheses. This is because we found
@@ -57,11 +57,120 @@ This wrapping is only done on the version of the program sent to the Python inte
 on the version of the program sent to our ChocoPy-Wasm compiler. Other than this modification, 
 the programs sent to both are identical. We have confirmed with the type-inference group that their 
 semantics will match Python's semantics(as their functionality extends ChocoPy), and intend to
-confirm with other groups that their semantics will also match Python.
+confirm with other groups that their semantics will also be at least a subset of pythjon
 
-Below is an example of a generated program:
+Below is an example of a generated program(LONG):
 
 ```python
+number_0:int = 1
+number_1:int = 1
+number_2:int = 1
+number_3:int = 1
+number_4:int = 1
+number_5:int = 1
+number_6:int = 1
+number_7:int = 1
+number_8:int = 1
+number_9:int = 1
+number_10:int = 1
+number_11:int = 1
+number_12:int = 1
+number_13:int = 1
+bool_0:bool = False
+bool_1:bool = False
+bool_2:bool = False
+bool_3:bool = False
+bool_4:bool = False
+bool_5:bool = False
+bool_6:bool = False
+bool_7:bool = False
+bool_8:bool = False
+def func_number_0():
+  number_14:int = 1
+  number_15:int = 1
+  bool_9:bool = False
+  bool_9
+  1 - (-(-number_14)) != 1 <= number_15
+  1 % 1
+def func_number_1():
+  bool_9:bool = False
+  bool_10:bool = False
+  bool_11:bool = False
+  1
+  bool_9 = (not bool_10)
+  bool_11
+  bool_0
+def func_number_2(func_number_2_param_0: int):
+  func_number_2_param_0:int = 1
+  def func_number_3():
+    number_15:int = 1
+    (-number_13)
+    number_15
+    True
+  def func_none_0(func_none_0_param_0: int):
+    func_none_0_param_0:int = 1
+    1
+  None is None is None is None is None is None is None is None is None is func_none_0(func_number_3())
+if True:
+  None
+else:
+  if 1 >= 1 + 1:
+    number_0
+  else:
+    None
+    if bool_0:
+      if (not bool_1):
+        number_0
+        1
+        bool_2 = False
+      elif (not True) :
+        func_number_0() * (-1) < number_1
+      elif bool_3 :
+        number_2 = 1
+        if True:
+          False
+          if (not bool_4):
+            if (-number_1 * func_number_0() + number_2) > 1:
+              (-1) // 1 * func_number_0()
+              True
+            else:
+              number_3
+              if (not (not bool_5)):
+                func_number_0() > (-1)
+              else:
+                func_number_1() % number_4 + number_5
+              1
+              func_number_1()
+              None
+              bool_6 = True
+            1 // number_4
+          else:
+            if True:
+              if number_3 != func_number_1():
+                number_1 = number_6
+              else:
+                1 % func_number_1()
+            else:
+              func_number_1() <= number_7 % 1
+          number_8 = func_number_1()
+        elif True :
+          number_9 = func_number_0() % func_number_1()
+        else:
+          func_number_1()
+          1
+          func_number_2(1)
+          func_number_0()
+          if bool_7:
+            if (not bool_8 or False):
+              number_10 = number_6
+              number_11 = 1
+            func_number_1() > number_12
+          number_13
+    else:
+      bool_8
+    func_number_1()
+print(1)
+
 
 ```
 
@@ -120,13 +229,15 @@ constructs as possible from the following, roughly organized in order of priorit
 Mandatory
 - Classes, member access/assignment, and method calls
 
-Optional
+Likely
 - Library function calls
+- Default argument usage
+
+Optional
 - Loops
 - Lists
-- Strings(TODO do we have strings?)
+- Strings
 - Sets/Tuples, destructuring
-- Default argument usage
 
 Unsure how to do
 - Garbage collection/memory management
@@ -184,8 +295,7 @@ code generation will respond accordingly. Additionally, since default arguments 
 be literals, we may have to expand our literal generation to sufficiently test different default
 arguments. However, these issues should not be overly difficult to solve, and we expect that should
 we attempt default argument generation, it should not take too much time. However, we expect that
-there will be relatively few bugs in this feature compared to the previous features, so we
-place it at the lowest priority.
+there will be relatively few bugs in this feature compared to the previous features.
 
 We are unsure how to test garbage collection/memory management. We expect that class generation and
 its associated constructs are sufficient syntactically to test memory management. However, 
@@ -199,7 +309,7 @@ testing memory management to be outside the scope of our current program generat
 on the memory management group to produce unit tests for their implementation.
 
 Given that we only have a week remaining, we only expect to finish class generation and maybe
-library function calls. However, we completed our milestone work unexpectely quickly. If this occurs
+library function calls. However, we completed our milestone work unexpectedly quickly. If this occurs
 again, we may be able to work on the other items in the list. Otherwise, we leave it to future 
 contributors to extend program generation to more completely test other feature.
 
