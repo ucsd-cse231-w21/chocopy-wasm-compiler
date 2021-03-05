@@ -80,6 +80,7 @@ export async function run(
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
+    (func $print_str (import "imports" "print_str") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "print_none") (param i32) (result i32))
     (func $abs (import "imports" "abs") (param i32) (result i32))
