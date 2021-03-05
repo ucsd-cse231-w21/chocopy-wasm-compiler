@@ -478,10 +478,8 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
 }
 
 export function traverseType(c: TreeCursor, s: string): Type {
-  // For now, always a VariableName
-
   let name = s.substring(c.from, c.to);
-  if (name.includes("[")) return traverseBracketType(c, s);
+  if(c.node.type.name === "ArrayExpression") return traverseBracketType(c, s);
   switch (name) {
     case "int":
       return NUM;
