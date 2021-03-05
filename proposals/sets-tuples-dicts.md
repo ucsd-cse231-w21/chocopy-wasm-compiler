@@ -8,68 +8,88 @@ By integrating the support from strings and lists, we seek to support dictionary
 **Example 1**:
 Initializes an empty dictionary dict_b and a dictionary dict_a with key-value pairs
 ```python
+dict_a:[int, int] = None
+dict_b:[int, int] = None
 dict_b = {}
 dict_a = {1:45, 2: 420, 3: 69}
 ```
 
 **Example 2**:
-Initializes a dictionary dict_c using the dictionary passed to the dict() constructor
+Initializes a dictionary dict_a using the dictionary passed to the dict() constructor
 ```python
-dict_c = dict({1:45*56, 2: 2+89, 3:84-43})   # uses constructor
+dict_a:[int, int] = None
+dict_a = dict({1:45*56, 2: 2+89, 3:84-43})   # uses constructor
 ```
 
 **Example 3**:
-Add additional key-value pairs in dict_b based on the input dict provided. For the same key, the value is updated.
+Add additional key-value pairs in dict_a based on the input dict provided. For the same key, the value is updated.
 ```python
-dict_b.update({5: 87})
+dict_a:[int, int] = None
+dict_a = {5:4}
+dict_a.update({5: 87})
+dict_a[5]
 ```
+Output: 87
 
 **Example 4**:
 Overwrites the existing value for the corresponding key or updates a new key if the key is not already present
 ```python
+dict_a:[int, int] = None
+dict_a = {5:4}
 dict_a[3] = 1
+dict_a[5] = 20
 ```
+dict_a should be {3:1, 5:20}
 
 **Example 5**:
-Accesses the key and gets the corresponding value. If we try to access a key that’s not present, it throws an error.
+If we try to access a key that’s not present, it throws an error.
 ```python
+dict_a:[int, int] = None
+dict_a = {5:4}
 dict_a[7]               # KeyError since `7` is not a key
 ```
+Program should error out.
 
 **Example 6**:
 Returns its respective value if the key is present and else, returns None.
 ```python
+dict_a:[int, int] = None
+dict_a = {2:4}
 dict_a.get(7)  # returns `None` if key not present
 dict_a.get(2)  # returns 420
 ```
 
 **Example 7**:
-Prints the dictionary.
-```python
-print(dict_a)
-```
-
-**Example 8**:
 Obtains the type of object. For a dictionary, it would always return “dict”
 ```python
+dict_a:[int, int] = None
+dict_a = {}
 print(type(dict_a))
 ```
 
-**Example 9**:
+**Example 8**:
 If the key is present, this method returns the value associated with the key and removes the key-value pair from the dictionary. Else, throws KeyError.
 ```python
+dict_a:[int, int] = None
+dict_a = {2:4, 5:3}
 dict_a.pop(2)
+print(dict_a)
 ```
+Should print dict_a with one key value pair {5:3}
 
-**Example 10**:
+**Example 9**:
 clear(): This method clears all items in the dictionary and returns an empty dictionary
 ```python
+dict_a:[int, bool] = None
+dict_a = {4:True}
 dict_a.clear()
+print(dict_a)
 ```
+Should print an empty dictionary {}
 
-**Example 11**:
-Initializes a nested dictionary dict_c - with the inner dictionary format [int, bool]
-Dict_c[2][7] : first looks up dict_c[2] which returns {5: False, 7: True} and then further looks up the key 7, which returns True
+**Example 10**:
+Initializes a nested dictionary dict_c - with the inner dictionary typed as [int, bool]
+dict_c[3][20] : first looks up dict_c[3] which maps to {20: True} and then further looks up the key 20, which returns True
 ```python
 dict_c:[int, [int, bool]] = None
 dict_c = {1: {32: False},
@@ -79,7 +99,7 @@ dict_c[3][20]
 ```
 Output: True
 
-**Example #12: Nested look-up**:
+**Example #11: Nested look-up**:
 dict_b[1] returns 5, which is passed as a key to dict_a. Hence, the expression returns 500
 ```python
 dict_a:[int, int] = None
