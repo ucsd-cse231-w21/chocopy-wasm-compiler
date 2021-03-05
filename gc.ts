@@ -314,16 +314,17 @@ export class MnS<A extends MarkableAllocator> {
 
       switch (childTag) {
         case TAG_CLASS: {
-          for (let fieldIndex = 0n; fieldIndex < childSize / 4n; fieldIndex++) {
-            const fieldValue = this.getField(childPtr + BigInt(4) * fieldIndex);
+          // NOTE(alex:mm): use field indices for debug info later
+          for (let fieldIndex = 0n; fieldIndex < childSize / 32n; fieldIndex++) {
+            const fieldValue = this.getField(childPtr + 32n * fieldIndex);
             if (!isPointer(fieldValue)) {
               continue;
             }
 
-            const fieldPtr = extractPointer(fieldValue);
-            if (!this.isMarked(fieldPtr)) {
-              this.setMarked(fieldPtr);
-              worklist.push(fieldPtr);
+            const fieldPointerValue = extractPointer(fieldValue);
+            if (!this.isMarked(fieldPointerValue)) {
+              this.setMarked(fieldPointerValue);
+              worklist.push(fieldPointerValue);
             }
           }
           break;
