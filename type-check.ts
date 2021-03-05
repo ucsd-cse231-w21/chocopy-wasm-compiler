@@ -1,5 +1,21 @@
-import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
+import {
+  Stmt,
+  Expr,
+  Type,
+  UniOp,
+  BinOp,
+  Literal,
+  Program,
+  FunDef,
+  VarInit,
+  Class,
+  Destructure,
+  Assignable,
+  ASSIGNABLE_TAGS,
+  AssignTarget,
+  Parameter,
+} from "./ast";
+import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
 import * as BaseException from "./error";
 import { transformComprehension } from "./transform";
 
@@ -17,7 +33,7 @@ export class TypeCheckError extends Error {
 
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
-  functions: Map<string, [Array<Type>, Type]>;
+  functions: Map<string, [Array<Parameter>, Type]>;
   classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>;
 };
 
@@ -28,10 +44,10 @@ export type LocalTypeEnv = {
 };
 
 const defaultGlobalFunctions = new Map();
-defaultGlobalFunctions.set("abs", [[NUM], NUM]);
-defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("abs", [[{ type: NUM }], NUM]);
+defaultGlobalFunctions.set("max", [[{ type: NUM }, { type: NUM }], NUM]);
+defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
+defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
 
 export const defaultTypeEnv = {
@@ -69,15 +85,25 @@ export type TypeError = {
 };
 
 export function equalType(t1: Type, t2: Type) {
-  return t1 === t2 || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name);
+  return (
+    // ensure deep match for nested types (example: [int,[int,int]])
+    JSON.stringify(t1) === JSON.stringify(t2) ||
+    (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
+    //if dictionary is initialized to empty {}, then we check for "none" type in key and value
+    (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none")
+  );
 }
 
 export function isNoneOrClass(t: Type) {
   return t.tag === "none" || t.tag === "class";
 }
 
+const objtypes = ["class", "list", "dict"];
+function isObjectTypeTag(t: string): boolean {
+  return objtypes.indexOf(t) >= 0;
+}
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && t2.tag === "class");
+  return equalType(t1, t2) || (t1.tag === "none" && isObjectTypeTag(t2.tag));
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -93,9 +119,8 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   const newFuns = new Map(env.functions);
   const newClasses = new Map(env.classes);
   program.inits.forEach((init) => newGlobs.set(init.name, init.type));
-  program.funs.forEach((fun) =>
-    newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret])
-  );
+  program.funs.forEach((fun) => newFuns.set(fun.name, [fun.parameters, fun.ret]));
+  //program.funs.forEach(fun => newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
   program.classes.forEach((cls) => {
     const fields = new Map();
     const methods = new Map();
@@ -147,11 +172,26 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
+  // type checking defaults
+  fun.parameters.forEach((p) => tcDefault(p.type, p.value));
   fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
   fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
 
   const tBody = tcBlock(env, locals, fun.body);
   return { ...fun, a: NONE, body: tBody };
+}
+
+export function tcDefault(paramType: Type, paramLiteral: Literal) {
+  // no default values
+  if (paramLiteral === undefined) {
+    return;
+  } else if (paramLiteral.tag === "num" && paramType.tag === "number") {
+    return;
+  } else if (paramLiteral.tag !== paramType.tag) {
+    throw new TypeCheckError(
+      "Default value type " + paramLiteral.tag + " does not match param type " + paramType.tag
+    );
+  }
 }
 
 export function tcClass(env: GlobalTypeEnv, cls: Class<null>): Class<Type> {
@@ -171,19 +211,13 @@ export function tcBlock(
 export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>): Stmt<Type> {
   switch (stmt.tag) {
     case "assignment":
-      throw new TypeCheckError("Destructured assignment not implemented");
-    case "assign":
-      const tValExpr = tcExpr(env, locals, stmt.value);
-      var nameTyp;
-      if (locals.vars.has(stmt.name)) {
-        nameTyp = locals.vars.get(stmt.name);
-      } else if (env.globals.has(stmt.name)) {
-        nameTyp = env.globals.get(stmt.name);
-      } else {
-        throw new TypeCheckError("Unbound id: " + stmt.name);
-      }
-      if (!isAssignable(env, tValExpr.a, nameTyp)) throw new TypeCheckError("Non-assignable types");
-      return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr };
+      const tValueExpr = tcExpr(env, locals, stmt.value);
+      return {
+        a: NONE,
+        tag: stmt.tag,
+        value: tValueExpr,
+        destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a),
+      };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
@@ -217,25 +251,103 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: NONE, tag: stmt.tag };
-    case "field-assign":
-      var tObj = tcExpr(env, locals, stmt.obj);
-      const tVal = tcExpr(env, locals, stmt.value);
-      if (tObj.a.tag !== "class") throw new TypeCheckError("field assignments require an object");
-      if (!env.classes.has(tObj.a.name))
-        throw new TypeCheckError("field assignment on an unknown class");
-      const [fields, _] = env.classes.get(tObj.a.name);
-      if (!fields.has(stmt.field))
-        throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
-      if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
-        throw new TypeCheckError(
-          `could not assign value of type: ${tVal.a}; field ${
-            stmt.field
-          } expected type: ${fields.get(stmt.field)}`
-        );
-      return { ...stmt, a: NONE, obj: tObj, value: tVal };
+    // throw new TypeCheckError("bracket-assign not implemented");
     default:
       unhandledTag(stmt);
   }
+}
+
+/**
+ * Type check a Destructure<null>. This requires explicitly passing in the type of the value this
+ * assignment will receive.
+ * @param env GlobalTypeEnv
+ * @param locals LocalTypeEnv
+ * @param destruct Destructure description of assign targets
+ * @param value Type of the value passed into this destructure
+ */
+function tcDestructure(
+  env: GlobalTypeEnv,
+  locals: LocalTypeEnv,
+  destruct: Destructure<null>,
+  value: Type
+): Destructure<Type> {
+  /**
+   * Type check an AssignTarget<null>. Ensures that the target is valid and that its type is compatible with the
+   * value being assignment
+   * @param {AssignTarget<null>} aTarget - The target to be type checked
+   * @param {Type} valueType - The type of the value being assigned to the target
+   */
+  function tcTarget(aTarget: AssignTarget<null>, valueType: Type): AssignTarget<Type> {
+    let { target, starred, ignore } = aTarget;
+    const tTarget = tcAssignable(env, locals, target);
+    const targetType = tTarget.a;
+    if (!isAssignable(env, valueType, targetType))
+      throw new TypeCheckError(`Non-assignable types: Cannot assign ${valueType} to ${targetType}`);
+    return {
+      starred,
+      ignore,
+      target: tTarget,
+    };
+  }
+
+  if (!destruct.isDestructured) {
+    let target = tcTarget(destruct.targets[0], value);
+    return {
+      valueType: value,
+      isDestructured: false,
+      targets: [target],
+    };
+  }
+
+  let types: Type[] = [];
+  if (value.tag === "class") {
+    // This is a temporary hack to get destructuring working (reuse for tuples later?)
+    let cls = env.classes.get(value.name);
+    if (cls === undefined)
+      throw new Error(
+        `Class ${value.name} not found in global environment. This is probably a parsing bug.`
+      );
+    let attrs = cls[0];
+    attrs.forEach((val) => types.push(val));
+    let starOffset = 0;
+    let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
+      if (i >= types.length)
+        throw new Error(
+          `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+        );
+      if (target.starred) {
+        starOffset = types.length - targets.length; // How many values will be assigned to the starred target
+        throw new TypeCheckError("Starred values not supported");
+      }
+      let valueType = types[i + starOffset];
+      return tcTarget(target, valueType);
+    });
+
+    if (types.length > destruct.targets.length + starOffset)
+      throw new Error(
+        `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      );
+
+    return {
+      isDestructured: destruct.isDestructured,
+      targets: tTargets,
+      valueType: value,
+    };
+  } else {
+    throw new TypeCheckError(`Type ${value.tag} cannot be destructured`);
+  }
+}
+
+function tcAssignable(
+  env: GlobalTypeEnv,
+  locals: LocalTypeEnv,
+  target: Assignable<null>
+): Assignable<Type> {
+  const expr = tcExpr(env, locals, target);
+  if (!isTagged(expr, ASSIGNABLE_TAGS)) {
+    throw new TypeCheckError(`Cannot assing to target type ${expr.tag}`);
+  }
+  return expr;
 }
 
 export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null>): Expr<Type> {
@@ -252,6 +364,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
+          if (expr.op == BinOp.Plus && tLeft.a.tag === "list" && equalType(tLeft.a, tRight.a)) {
+            return { a: tLeft.a, ...tBin };
+          }
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
             return { a: NUM, ...tBin };
           } else {
@@ -319,10 +434,10 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         const tArg = tcExpr(env, locals, expr.arg);
         return { ...expr, a: tArg.a, arg: tArg };
       } else if (env.functions.has(expr.name)) {
-        const [[expectedArgTyp], retTyp] = env.functions.get(expr.name);
+        const [[expectedParam], retTyp] = env.functions.get(expr.name);
         const tArg = tcExpr(env, locals, expr.arg);
 
-        if (isAssignable(env, tArg.a, expectedArgTyp)) {
+        if (isAssignable(env, tArg.a, expectedParam.type)) {
           return { ...expr, a: retTyp, arg: tArg };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
@@ -332,10 +447,13 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       }
     case "builtin2":
       if (env.functions.has(expr.name)) {
-        const [[leftTyp, rightTyp], retTyp] = env.functions.get(expr.name);
+        const [[leftParam, rightParam], retTyp] = env.functions.get(expr.name);
         const tLeftArg = tcExpr(env, locals, expr.left);
         const tRightArg = tcExpr(env, locals, expr.right);
-        if (isAssignable(env, leftTyp, tLeftArg.a) && isAssignable(env, rightTyp, tRightArg.a)) {
+        if (
+          isAssignable(env, leftParam.type, tLeftArg.a) &&
+          isAssignable(env, rightParam.type, tRightArg.a)
+        ) {
           return { ...expr, a: retTyp, left: tLeftArg, right: tRightArg };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
@@ -360,7 +478,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           return tConstruct;
         }
       } else if (env.functions.has(expr.name)) {
-        const [argTypes, retType] = env.functions.get(expr.name);
+        const [params, retType] = env.functions.get(expr.name);
+        const argTypes = params.map((p) => p.type);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
         if (
@@ -368,6 +487,27 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           tArgs.every((tArg, i) => tArg.a === argTypes[i])
         ) {
           return { ...expr, a: retType, arguments: expr.arguments };
+        }
+        // case where the function may have default values
+        else if (
+          argTypes.length > expr.arguments.length &&
+          tArgs.every((tArg, i) => tArg.a === argTypes[i])
+        ) {
+          // check if arguments less than number of parameters
+          // first populate all the arguments first.
+          // Then, populate the rest of the values with defaults from params
+          var augArgs = expr.arguments;
+          var argNums = expr.arguments.length;
+          while (argNums < argTypes.length) {
+            if (params[argNums].value === undefined) {
+              throw new Error("Missing argument from call");
+            } else {
+              // add default values into arguments as an Expr
+              augArgs = augArgs.concat({ tag: "literal", value: params[argNums].value });
+            }
+            argNums = argNums + 1;
+          }
+          return { ...expr, a: retType, arguments: augArgs };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
@@ -495,6 +635,91 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
     //   iter,
     //   cond,
     // };
+
+    case "list-expr":
+      var commonType = null;
+      const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
+      if (listExpr.length == 0) {
+        commonType = NONE;
+      } else {
+        commonType = listExpr[0].a;
+        for (var i = 1; i < listExpr.length; ++i) {
+          var lexprType = listExpr[i].a;
+          if (!equalType(lexprType, commonType)) {
+            if (equalType(commonType, NONE) && isNoneOrClass(lexprType)) {
+              commonType = lexprType;
+            } else if (!(equalType(lexprType, NONE) && isNoneOrClass(commonType))) {
+              throw new TypeCheckError(
+                `list expr type mismatch: ${lexprType}, expect type: ${commonType}`
+              );
+            }
+          }
+        }
+      }
+      return { ...expr, a: { tag: "list", content_type: commonType }, contents: listExpr };
+    case "dict":
+      let entries = expr.entries;
+      let dictType: Type;
+      // check for the empty dict, example: d = {} -> returns `none`
+      if (!(entries.length > 0)) {
+        dictType = { tag: "dict", key: { tag: "none" }, value: { tag: "none" } };
+        let dictAnnotated = { ...expr, a: dictType, entries: entries };
+        return dictAnnotated;
+      } else {
+        // the dict has one or more key-value pairs
+        // return the types of keys and values, if they are consistent
+        let keyTypes = new Set();
+        let valueTypes = new Set();
+        let entryTypes: Array<[Expr<Type>, Expr<Type>]> = [];
+        for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+          let keyType = tcExpr(env, locals, entries[entryIndex][0]);
+          let valueType = tcExpr(env, locals, entries[entryIndex][1]);
+          entryTypes.push([keyType, valueType]);
+          keyTypes.add(JSON.stringify(keyType.a));
+          valueTypes.add(JSON.stringify(valueType.a));
+        }
+        if (keyTypes.size > 1) {
+          throw new TypeCheckError("Heterogenous `Key` types aren't supported");
+        }
+        if (valueTypes.size > 1) {
+          throw new TypeCheckError("Heterogenous `Value` types aren't supported");
+        }
+        let keyType = tcExpr(env, locals, entries[0][0]);
+        let valueType = tcExpr(env, locals, entries[0][1]);
+        dictType = { tag: "dict", key: keyType.a, value: valueType.a };
+        let dictAnnotated = { ...expr, a: dictType, entries: entryTypes };
+        return dictAnnotated;
+      }
+    case "bracket-lookup":
+      var obj_t = tcExpr(env, locals, expr.obj);
+      var key_t = tcExpr(env, locals, expr.key);
+      if (obj_t.a.tag === "dict") {
+        let keyType = obj_t.a.key;
+        let valueType = obj_t.a.value;
+        let keyLookupType = key_t.a;
+        if (!isAssignable(env, keyType, keyLookupType))
+          throw new TypeCheckError(
+            "Expected key type `" +
+              keyType.tag +
+              "`; got key lookup type `" +
+              keyLookupType.tag +
+              "`"
+          );
+        return { ...expr, a: valueType, obj: obj_t, key: key_t };
+      } else if (obj_t.a.tag == "string") {
+        if (!equalType(key_t.a, NUM)) {
+          throw new TypeCheckError("String lookup supports only integer indices");
+        }
+        return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
+      } else if (obj_t.a.tag === "list") {
+        if (!equalType(key_t.a, NUM)) {
+          throw new TypeCheckError("List lookup supports only integer indices");
+        }
+        return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.content_type };
+      } else {
+        throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
+      }
+
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
@@ -508,6 +733,8 @@ export function tcLiteral(literal: Literal) {
       return NUM;
     case "none":
       return NONE;
+    case "string":
+      return STRING;
     default:
       unhandledTag(literal);
   }
