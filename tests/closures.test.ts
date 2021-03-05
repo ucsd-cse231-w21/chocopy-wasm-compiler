@@ -6,7 +6,6 @@ import { PyInt, PyBool, PyNone, NUM, BOOL, CLASS, NONE } from "../utils";
 import { Type, Value, Program, BinOp } from "../ast";
 import { GlobalEnv, compile } from "../compiler";
 import { BasicREPL } from "../repl";
-import { print } from "../webstart";
 
 describe("Closures", () => {
   it("Trivial nested function without escape", () => {
