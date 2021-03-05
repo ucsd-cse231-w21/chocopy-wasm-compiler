@@ -40,6 +40,7 @@ export type LocalTypeEnv = {
   vars: Map<string, Type>;
   expectedRet: Type;
   topLevel: boolean;
+  loop_depth: number;
 };
 
 const defaultGlobalFunctions = new Map();
@@ -48,12 +49,22 @@ defaultGlobalFunctions.set("max", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
+defaultGlobalFunctions.set("range", [[NUM], CLASS("Range")]);
+
+const defaultGlobalClasses = new Map();
+// Range initialization
+const dfields = new Map();
+dfields.set("cur", NUM);
+dfields.set("stop", NUM);
+dfields.set("step", NUM);
+defaultGlobalClasses.set("Range", [dfields, new Map()]);
 
 export const defaultTypeEnv = {
   globals: new Map(),
   functions: defaultGlobalFunctions,
-  classes: new Map(),
+  classes: defaultGlobalClasses,
 };
+
 
 export function emptyGlobalTypeEnv(): GlobalTypeEnv {
   return {
@@ -68,6 +79,7 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
     vars: new Map(),
     expectedRet: NONE,
     topLevel: true,
+    loop_depth: 0
   };
 }
 
@@ -213,11 +225,15 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
     case "if":
+      // loop_depth used for potential for loop breaks insiede this if
+      locals.loop_depth += 1;
       var tCond = tcExpr(env, locals, stmt.cond);
       const tThn = tcBlock(env, locals, stmt.thn);
       const thnTyp = tThn[tThn.length - 1].a;
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
+      // restore loop depth
+      locals.loop_depth -= 1;
       if (tCond.a !== BOOL) throw new TypeCheckError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
         throw new TypeCheckError("Types of then and else branches must match");
@@ -235,14 +251,75 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         );
       return { a: tRet.a, tag: stmt.tag, value: tRet };
     case "while":
+      // record the history depth
+      const wlast_depth = locals.loop_depth;
+      // set depth information to 1 for potential break and continues
+      locals.loop_depth = 1;
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
+      locals.loop_depth = wlast_depth;
+
       if (!equalType(tCond.a, BOOL))
         throw new TypeCheckError("Condition Expression Must be a bool");
       return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: NONE, tag: stmt.tag };
-    // throw new TypeCheckError("bracket-assign not implemented");
+    case "for":
+      // check the type of iterator items, then add the item name into local variables with its type
+      const fIter = tcExpr(env, locals, stmt.iterable);
+      switch(fIter.a.tag){
+        case 'class':
+          if(fIter.a.name === 'Range'){
+            locals.vars.set(stmt.name, NUM);
+            break;
+          }else{
+            throw new TypeCheckError("for-loop cannot take " + fIter.a.name + ' class as iterator.');
+          }
+        case 'string':
+          // Character not implemented
+          // locals.vars.set(stmt.name, {tag: 'char'});
+          throw new TypeCheckError('for-loop with strings are not implmented.');
+        case 'list':
+          locals.vars.set(stmt.name, fIter.a.content_type);
+          break;
+        default:
+          throw new TypeCheckError('Illegal iterating item in for-loop.');
+      }
+      // record the history depth
+      const last_depth = locals.loop_depth;
+      // set depth information to 1 for potential break and continues
+      locals.loop_depth = 1;
+      // go into body
+      const fBody = tcBlock(env, locals, stmt.body);
+      // delete the temp var information after finished the body, and restore last depth
+      // locals.vars.delete(stmt.name);
+      locals.loop_depth = last_depth;
+
+      // return type checked stmt
+      return { a: NONE, tag: 'for', name: stmt.name, index: stmt.index, iterable: fIter, body: fBody };
+    case "continue":
+      return { a: NONE, tag: 'continue', depth: locals.loop_depth};
+    case "break":
+      if(locals.loop_depth < 1){
+        throw new TypeCheckError('Break outside a loop.');
+      }
+      return { a: NONE, tag: 'break', depth: locals.loop_depth};
+    case "field-assign":
+      var tObj = tcExpr(env, locals, stmt.obj);
+      const tVal = tcExpr(env, locals, stmt.value);
+      if (tObj.a.tag !== "class") throw new TypeCheckError("field assignments require an object");
+      if (!env.classes.has(tObj.a.name))
+        throw new TypeCheckError("field assignment on an unknown class");
+      const [fields, _] = env.classes.get(tObj.a.name);
+      if (!fields.has(stmt.field))
+        throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
+      if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
+        throw new TypeCheckError(
+          `could not assign value of type: ${tVal.a}; field ${
+            stmt.field
+          } expected type: ${fields.get(stmt.field)}`
+        );
+      return { ...stmt, a: NONE, obj: tObj, value: tVal };
     default:
       unhandledTag(stmt);
   }
