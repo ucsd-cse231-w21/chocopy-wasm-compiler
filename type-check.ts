@@ -276,7 +276,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             throw new TypeCheckError("is operands must be objects");
           return { a: BOOL, ...tBin };
         default:
-          return unreachable(expr);
+          return unreachable(expr as never);
       }
     case "uniop":
       const tExpr = tcExpr(env, locals, expr.expr);
