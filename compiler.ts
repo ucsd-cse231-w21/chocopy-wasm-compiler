@@ -303,11 +303,11 @@ function codeGenListCopy(concat: number): Array<string> {
   var stmts: Array<string> = [];
   var loopstmts: Array<string> = [];
   var condstmts: Array<string> = [];
-  var listType = 10;  //temporary list type number
-  var header = [4,8]  //size, bound relative position
+  var listType = 10; //temporary list type number
+  var header = [4, 8]; //size, bound relative position
   stmts.push(...[`(local.set $$list_cmp)`]); //store first address to local var
-  stmts.push(...[`(i32.load (i32.const 0))`,`(local.set $$list_base)`]);  //store the starting address for the new list
-  if(concat != 1)
+  stmts.push(...[`(i32.load (i32.const 0))`, `(local.set $$list_base)`]); //store the starting address for the new list
+  if (concat != 1)
     stmts.push(...[`(local.get $$list_base)`, "(i32.const " + listType + ")", "(i32.store)"]); //create a new list with type
 
   //check if the current index has reached the size of the list
@@ -319,7 +319,7 @@ function codeGenListCopy(concat: number): Array<string> {
       `(local.get $$list_index)`,
       `(i32.eq)`,
     ]
-  ); 
+  );
 
   //statement for loop through the compared list and add the elements to the new list
   loopstmts.push(
@@ -341,9 +341,9 @@ function codeGenListCopy(concat: number): Array<string> {
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
     ]
-  ); 
+  );
 
-  if(concat == 1) {
+  if (concat == 1) {
     stmts.push(
       ...[
         `(local.get $$list_base)`,
@@ -353,7 +353,6 @@ function codeGenListCopy(concat: number): Array<string> {
       ]
     );
   }
-
 
   //while loop structure
   stmts.push(
@@ -368,11 +367,11 @@ function codeGenListCopy(concat: number): Array<string> {
       `)`,
       `)`,
     ]
-  ); 
-  
+  );
+
   //add/modify header info of the list
-  header.forEach(addr => {
-    var stmt = null
+  header.forEach((addr) => {
+    var stmt = null;
     if (concat == 1) {
       stmt = [
         `(local.get $$list_base)`,
@@ -385,7 +384,7 @@ function codeGenListCopy(concat: number): Array<string> {
         `(i32.load)`,
         `(i32.add)`,
         `(i32.store)`,
-      ]
+      ];
     } else {
       stmt = [
         `(local.get $$list_base)`,
@@ -394,13 +393,13 @@ function codeGenListCopy(concat: number): Array<string> {
         `(i32.add (i32.const ${addr}))`,
         `(i32.load)`,
         `(i32.store)`,
-      ]
+      ];
     }
     stmts.push(...stmt);
-  }) 
-  
+  });
+
   if (concat == 2) return stmts.concat(codeGenListCopy(1));
-  
+
   return stmts.concat([
     `(local.get $$list_base)`, // Get address for the object (this is the return value)
     "(i32.const 0)", // Address for our upcoming store instruction
@@ -565,14 +564,14 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         );
         return brStmts;
       } else if (expr.obj.a.tag == "list") {
-          var objStmts = codeGenExpr(expr.obj, env);
-          //This should eval to a number
-          //Multiply it by 4 to use as offset in memory
-          var keyStmts = codeGenExpr(expr.key, env);
-          //Add 3 to keyStmts to jump over type + size + bound
-          //Add that to objStmts base address
-          //Load from there
-          return objStmts.concat(
+        var objStmts = codeGenExpr(expr.obj, env);
+        //This should eval to a number
+        //Multiply it by 4 to use as offset in memory
+        var keyStmts = codeGenExpr(expr.key, env);
+        //Add 3 to keyStmts to jump over type + size + bound
+        //Add that to objStmts base address
+        //Load from there
+        return objStmts.concat(
           //TODO check for IndexOutOfBounds
           //Coordinate with error group
           /*
@@ -588,16 +587,17 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           ],
             objStmts, //reload list base addr & key stmts?
           */
-            keyStmts,
+          keyStmts,
           [
             `(i32.mul (i32.const 4))`,
             `(i32.add (i32.const 12)) ;; move past type, size, bound`,
             `(i32.add) ;; retrieve element location`,
             `(i32.load) ;; load list element`,
-          ]);
+          ]
+        );
       }
       break;
-      
+
     case "list-expr":
       var stmts: Array<string> = [];
       var listType = 10;
@@ -639,11 +639,11 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
 
       //Move heap head to the end of the list and return list address
       return stmts.concat([
-        "(i32.load (i32.const 0))", 
-        "(i32.const 0)",            
-        "(i32.load (i32.const 0))", 
-        `(i32.add (i32.const ${(listBound + 3) * 4}))`, 
-        "(i32.store)",              
+        "(i32.load (i32.const 0))",
+        "(i32.const 0)",
+        "(i32.load (i32.const 0))",
+        `(i32.add (i32.const ${(listBound + 3) * 4}))`,
+        "(i32.store)",
       ]);
 
     default:

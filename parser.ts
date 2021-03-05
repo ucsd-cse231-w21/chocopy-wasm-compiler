@@ -406,49 +406,49 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       c.parent();
       // const target = destruct.targets[0].target;
 
-    //   // TODO: The new assign syntax should hook in here
-    //   switch (target.tag) {
-    //     case "lookup":
-    //       return {
-    //         tag: "field-assign",
-    //         obj: target.obj,
-    //         field: target.field,
-    //         value: value,
-    //       };
-    //     case "bracket-lookup":
-    //       return {
-    //         tag: "bracket-assign",
-    //         obj: target.obj,
-    //         key: target.key,
-    //         value: value,
-    //       };
-    //     case "id":
-    //       return {
-    //         tag: "assign",
-    //         name: target.name,
-    //         value: value,
-    //       };
-    //     default:
-    //       throw new Error("Unknown target while parsing assignment");
-    //   }
-    // /*
-    //   if (target.tag === "lookup") {
-    //     return {
-    //       tag: "field-assign",
-    //       obj: target.obj,
-    //       field: target.field,
-    //       value: value,
-    //     };
-    //   } else if (target.tag === "id") {
-    //     return {
-    //       tag: "assign",
-    //       name: target.name,
-    //       value: value,
-    //     };
-    //   } else {
-    //     throw new Error("Unknown target while parsing assignment");
-    //   }
-    //   */
+      //   // TODO: The new assign syntax should hook in here
+      //   switch (target.tag) {
+      //     case "lookup":
+      //       return {
+      //         tag: "field-assign",
+      //         obj: target.obj,
+      //         field: target.field,
+      //         value: value,
+      //       };
+      //     case "bracket-lookup":
+      //       return {
+      //         tag: "bracket-assign",
+      //         obj: target.obj,
+      //         key: target.key,
+      //         value: value,
+      //       };
+      //     case "id":
+      //       return {
+      //         tag: "assign",
+      //         name: target.name,
+      //         value: value,
+      //       };
+      //     default:
+      //       throw new Error("Unknown target while parsing assignment");
+      //   }
+      // /*
+      //   if (target.tag === "lookup") {
+      //     return {
+      //       tag: "field-assign",
+      //       obj: target.obj,
+      //       field: target.field,
+      //       value: value,
+      //     };
+      //   } else if (target.tag === "id") {
+      //     return {
+      //       tag: "assign",
+      //       name: target.name,
+      //       value: value,
+      //     };
+      //   } else {
+      //     throw new Error("Unknown target while parsing assignment");
+      //   }
+      //   */
       return {
         tag: "assignment",
         destruct,
@@ -574,7 +574,7 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
 
 export function traverseType(c: TreeCursor, s: string): Type {
   let name = s.substring(c.from, c.to);
-  if(c.node.type.name === "ArrayExpression") return traverseBracketType(c, s);
+  if (c.node.type.name === "ArrayExpression") return traverseBracketType(c, s);
   switch (name) {
     case "int":
       return NUM;

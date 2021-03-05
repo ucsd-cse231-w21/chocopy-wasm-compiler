@@ -542,7 +542,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
     case "bracket-lookup":
       var obj_t = tcExpr(env, locals, expr.obj);
       var key_t = tcExpr(env, locals, expr.key);
- 
 
       if (key_t.a != NUM) {
         throw new TypeCheckError(
@@ -550,15 +549,14 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         );
       }
 
-      if ( obj_t.a == STRING ) {
+      if (obj_t.a == STRING) {
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
-      } else if(obj_t.a.tag === "list" ) {
+      } else if (obj_t.a.tag === "list") {
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.content_type };
-      }
-      else {
+      } else {
         throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
       }
-      
+
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }

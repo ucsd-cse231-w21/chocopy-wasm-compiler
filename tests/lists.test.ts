@@ -1,5 +1,5 @@
 import { PyInt, PyBool, PyNone, PyObj, LIST } from "../utils";
-import { assert, asserts, assertPrint,assertTC } from "./utils.test";
+import { assert, asserts, assertPrint, assertTC } from "./utils.test";
 
 describe("LIST TEST", () => {
   //Programs described in the writeup, with additional changes
@@ -35,7 +35,7 @@ describe("LIST TEST", () => {
   assert("Program 4: Lists Access", source, PyInt(1 + 2));
 
   //Other Tests
-  
+
   assertTC("Empty List", "[]", LIST({ tag: "none" }));
   assertTC("List With Number", "[1,2,3]", LIST({ tag: "number" }));
 
@@ -68,7 +68,4 @@ describe("LIST TEST", () => {
     concatted[4]
   `;
   assert("Concat List Vars", source, PyBool(true));
-
-
-  
 });
