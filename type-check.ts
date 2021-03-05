@@ -503,10 +503,10 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       var obj_t = tcExpr(env, locals, expr.obj);
       var key_t = tcExpr(env, locals, expr.key);
       var tBracketExpr = { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
-      if (obj_t.a != STRING) {
+      if (!equalType(obj_t.a, STRING)) {
         throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
       }
-      if (key_t.a != NUM) {
+      if (!equalType(key_t.a, NUM)) {
         throw new TypeCheckError(
           "Bracket lookup using " + key_t.a.tag + " type as index is not possible"
         );
