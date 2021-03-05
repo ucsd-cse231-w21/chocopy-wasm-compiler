@@ -273,6 +273,14 @@ f(2)`,
     PyInt(6)
   );
 
+  assertPrint(
+    "while False",
+    `
+while False:
+  print(0)`,
+    [""]
+  );
+
   assert(
     "parenthesized expr",
     `
@@ -462,5 +470,73 @@ describe("defaults", () => {
   def foo(x : int = 3, y : int = 4, z : int) -> int:
     return x + y + z
   `
+  );
+
+  assertPrint(
+    "print-1-string",
+    `
+  print("ABC")`,
+    ["ABC"]
+  );
+
+  assertPrint(
+    "print-2-strings",
+    `
+  print("Compiler")
+  print("Design")`,
+    ["Compiler", "Design"]
+  );
+
+  assertPrint(
+    "print-string-index",
+    `
+  print("Design"[2])`,
+    ["s"]
+  );
+
+  assertPrint(
+    "class-with-string-fields",
+    `
+  class C(object):
+    x : str = "Sandhya"
+    y : str = "Jayaraman"
+
+  c1 : C = None
+  c1 = C()
+  print(c1.x)
+  c1.x = "Joe"
+  print(c1.x)`,
+    ["Sandhya", "Joe"]
+  );
+
+  assertPrint(
+    "class-with-string-fields-inside-functions",
+    `
+  class C(object):
+    x : str = "ZZZ"
+
+    def func(self:C, z:str)->str:
+      self.x = z
+      return self.x
+
+  c1 : C = None
+  c1 = C()
+  print(c1.func("AAA"))`,
+    ["AAA"]
+  );
+
+  assertPrint(
+    "string-index-inside-class",
+    `
+  class C(object):
+    x : str = "PQR"
+
+    def func(self:C)->str:
+      return self.x[2]
+
+  c1 : C = None
+  c1 = C()
+  print(c1.func())`,
+    ["R"]
   );
 });
