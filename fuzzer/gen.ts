@@ -1,6 +1,6 @@
 import { Type } from "../ast";
 
-const indent: string = "  ";
+const indent = "  ";
 
 type Parameter = { name: string; type: Type };
 
@@ -86,9 +86,7 @@ class Env {
     }
     const tyFuncs = this.funcs.get(typeString);
     if (tyFuncs.length == 0) {
-      throw new Error(
-        "Attempting to select random function from list of size 0"
-      ); //should never get here
+      throw new Error("Attempting to select random function from list of size 0"); //should never get here
     }
     return tyFuncs[Math.floor(Math.random() * tyFuncs.length)];
   }
@@ -363,12 +361,7 @@ function genVarDef(name: string, type: Type): string {
   }
 }
 
-function genFuncDef(
-  level: number,
-  env: Env,
-  sig: FunDef,
-  className?: string
-): Array<string> {
+function genFuncDef(level: number, env: Env, sig: FunDef, className?: string): Array<string> {
   var currIndent = indent.repeat(level);
   var funcStrings = [];
   var paramList = sig.parameters;
@@ -384,8 +377,7 @@ function genFuncDef(
     } else {
       funcHeader += ", ";
     }
-    funcHeader +=
-      paramList[i].name + ": " + convertTypeToPythonType(paramList[i].type);
+    funcHeader += paramList[i].name + ": " + convertTypeToPythonType(paramList[i].type);
   }
   funcHeader += "):";
   funcStrings.push(funcHeader);
@@ -466,10 +458,7 @@ function genDecl(env: Env, upperEnv: Env, level: number): Array<string> {
   var funcDecls: Array<string> = [];
   env.funcs.forEach((funcDefs: Array<FunDef>, type: string) => {
     funcDefs.forEach((funcDef: FunDef) => {
-      if (
-        !upperEnv.funcs.has(type) ||
-        !upperEnv.funcs.get(type).includes(funcDef)
-      ) {
+      if (!upperEnv.funcs.has(type) || !upperEnv.funcs.get(type).includes(funcDef)) {
         funcDecls = funcDecls.concat(genFuncDef(level, env, funcDef));
       }
     });
@@ -548,13 +537,7 @@ function genExpr(type: Type, env: Env): string {
           leftType = { tag: "none" };
           rightType = { tag: "none" };
       }
-      return (
-        genExpr(leftType, env) +
-        " " +
-        genBinOp(op) +
-        " " +
-        genExpr(rightType, env)
-      );
+      return genExpr(leftType, env) + " " + genBinOp(op) + " " + genExpr(rightType, env);
     case "uniop":
       var op = selectRandomUniOp(type);
       var expr = genExpr(type, env);
@@ -654,7 +637,7 @@ function genBinOp(op: string): string {
   }
 }
 
-export function genProgram(): {to_python: string, to_repl: string} {
+export function genProgram(): { to_python: string; to_repl: string } {
   initDefaultProbs();
   var env = new Env();
   const level = 0;
@@ -669,11 +652,11 @@ export function genProgram(): {to_python: string, to_repl: string} {
 
   //do this after genBody since we need to know about all the functions/variables
   program.program = genDecl(env, new Env(), level).concat(program.program);
-  
+
   var toReturn = {
     to_repl: program.program.join("\n"),
     to_python: "",
-  }
+  };
   program.stmt = body.stmt;
   if (program.stmt === "expr") {
     program.program[program.program.length - 1] =

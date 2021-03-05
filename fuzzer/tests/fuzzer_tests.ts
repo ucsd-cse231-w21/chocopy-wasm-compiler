@@ -8,7 +8,6 @@ import {
   assertFail,
 } from "../../tests/utils.test";
 
-
 describe("PA3 hidden tests", () => {
   assertTC(
     "call-type-checking",
