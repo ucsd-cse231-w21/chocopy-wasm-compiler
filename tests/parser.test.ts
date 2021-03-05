@@ -3,6 +3,22 @@ import { expect } from "chai";
 import { parser } from "lezer-python";
 import { traverseExpr, traverseStmt, traverse, parse, traverseVarInit } from "../parser";
 
+function singleVarDestruct(name: string) {
+  return {
+    isDestructured: false,
+    targets: [
+      {
+        ignore: false,
+        starred: false,
+        target: {
+          name,
+          tag: "id",
+        },
+      },
+    ],
+  };
+}
+
 describe("parse(source) function", () => {
   it("parse a typed dict variable initialization", () => {
     const parsed = parse("d:[int, bool] = None");
@@ -23,8 +39,8 @@ describe("parse(source) function", () => {
     const parsed = parse("d = {}");
     expect(parsed.stmts).to.deep.equal([
       {
-        tag: "assign",
-        name: "d",
+        destruct: singleVarDestruct("d"),
+        tag: "assignment",
         value: {
           tag: "dict",
           entries: [],
@@ -37,8 +53,8 @@ describe("parse(source) function", () => {
     const parsed = parse("d = {2:True}");
     expect(parsed.stmts).to.deep.equal([
       {
-        tag: "assign",
-        name: "d",
+        destruct: singleVarDestruct("d"),
+        tag: "assignment",
         value: {
           tag: "dict",
           entries: [
@@ -56,8 +72,8 @@ describe("parse(source) function", () => {
     const parsed = parse("d = {2:{4:True}}");
     expect(parsed.stmts).to.deep.equal([
       {
-        tag: "assign",
-        name: "d",
+        destruct: singleVarDestruct("d"),
+        tag: "assignment",
         value: {
           tag: "dict",
           entries: [
@@ -83,8 +99,8 @@ describe("parse(source) function", () => {
     const parsed = parse("x = d[2]");
     expect(parsed.stmts).to.deep.equal([
       {
-        tag: "assign",
-        name: "x",
+        destruct: singleVarDestruct("x"),
+        tag: "assignment",
         value: {
           tag: "bracket-lookup",
           obj: { tag: "id", name: "d" },
