@@ -33,12 +33,19 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
     newClasses.set(cls.name, classFields);
   });
-  return {
+
+  // environment linker: imported programs with main program
+  // TODO: test nested imports
+  var envRet = {
     globals: newGlobals,
     classes: newClasses,
     locals: env.locals,
     offset: newOffset,
-  };
+  }
+  prog.imports.forEach( (ip) => {
+    envRet =  augmentEnv(envRet, ip);
+  });
+  return envRet;
 }
 
 type CompileResult = {
@@ -165,6 +172,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var [offset, _] = env.classes.get(className).get(stmt.field);
       var valStmts = codeGenExpr(stmt.value, env);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+    case "import":
+      return [];
     default:
       unhandledTag(stmt);
   }
