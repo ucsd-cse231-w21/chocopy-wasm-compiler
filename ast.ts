@@ -52,20 +52,29 @@ export type Closure<A> = {
 };
 
 export type Stmt<A> =
-  | { a?: A; tag: "assignment"; target: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
-  | { a?: A; tag: "assign"; name: string; value: Expr<A> }
+  | { a?: A; tag: "assignment"; destruct: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
   | { a?: A; tag: "return"; value: Expr<A> }
   | { a?: A; tag: "expr"; expr: Expr<A> }
   | { a?: A; tag: "if"; cond: Expr<A>; thn: Array<Stmt<A>>; els: Array<Stmt<A>> }
   | { a?: A; tag: "while"; cond: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "pass" }
-  | { a?: A; tag: "field-assign"; obj: Expr<A>; field: string; value: Expr<A> }
   | { a?: A; tag: "continue" }
   | { a?: A; tag: "break" }
   | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
 
+/**
+ * Description of assign targets. isDestructured indicates if we are doing
+ * object destructuring and targets is an array of targets. One case where this
+ * distinction is important is with single element tuples:
+ *
+ * `(a,) = (1,)` vs. `a = (1,)`
+ *
+ * The first assigns `a = 1` while the second results in `a = (1,)`
+ */
 export interface Destructure<A> {
+  // Info about the value that is being destructured
+  valueType?: A;
   isDestructured: boolean;
   targets: AssignTarget<A>[];
 }
@@ -104,7 +113,7 @@ export type Expr<A> =
   | { a?: A; tag: "comprehension"; expr: Expr<A>; field: string; iter: Expr<A>; cond?: Expr<A> }
   | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
-  | { a?: A; tag: "string_slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
+  | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
   | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
 
