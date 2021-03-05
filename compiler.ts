@@ -218,6 +218,7 @@ function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
   return result.flat();
 }
 
+// If concat is true, then the function will not return address and modify the heap head.
 function codeGenListCopy(concat: boolean): Array<string> {
   var stmts: Array<string> = [];
   var loopstmts: Array<string> = [];
@@ -549,12 +550,13 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         listindex += 1;
       });
 
+      //Move heap head to the end of the list and return list address
       return stmts.concat([
-        "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
-        "(i32.const 0)", // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-        `(i32.add (i32.const ${(listBound + 3) * 4}))`, // Move heap head beyond the two words we just created for fields
-        "(i32.store)", // Save the new heap offset
+        "(i32.load (i32.const 0))", 
+        "(i32.const 0)",            
+        "(i32.load (i32.const 0))", 
+        `(i32.add (i32.const ${(listBound + 3) * 4}))`, 
+        "(i32.store)",              
       ]);
     default:
       unhandledTag(expr);
