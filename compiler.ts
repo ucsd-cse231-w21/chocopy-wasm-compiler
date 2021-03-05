@@ -1,4 +1,17 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
+import {
+  Stmt,
+  Expr,
+  UniOp,
+  BinOp,
+  Type,
+  Program,
+  Literal,
+  FunDef,
+  VarInit,
+  Class,
+  Assignable,
+  Destructure,
+} from "./ast";
 import { NUM, BOOL, STRING, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 
@@ -72,6 +85,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
@@ -128,15 +142,14 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       valStmts.push("return");
       return valStmts;
     case "assignment":
-      throw new Error("Destructured assignment not implemented");
-    case "assign":
-      var valStmts = codeGenExpr(stmt.value, env);
-      if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]);
-      } else {
-        const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
-        return locationToStore.concat(valStmts).concat([`(i32.store)`]);
-      }
+      const valueCode = codeGenExpr(stmt.value, env);
+      const getValue = "(local.get $$destruct)";
+
+      return [
+        ...valueCode,
+        "local.set $$destruct",
+        ...codeGenDestructure(stmt.destruct, getValue, env),
+      ];
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
       return exprStmts.concat([`(local.set $$last)`]);
@@ -159,21 +172,75 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       ];
     case "pass":
       return [];
-    case "field-assign":
-      var objStmts = codeGenExpr(stmt.obj, env);
-      var objTyp = stmt.obj.a;
+    default:
+      unhandledTag(stmt);
+  }
+}
+
+/**
+ * Generate assign statements as described by the destructuring term
+ * @param destruct Destructuring description of assign targets
+ * @param value WASM code literal value for fetching the referenced value. E.g. "(local.get $$myValue)"
+ * @param env GlobalEnv
+ */
+function codeGenDestructure(destruct: Destructure<Type>, value: string, env: GlobalEnv): string[] {
+  let assignStmts: string[] = [];
+
+  if (destruct.isDestructured) {
+    const objTyp = destruct.valueType;
+    if (objTyp.tag === "class") {
+      const className = objTyp.name;
+      const classFields = env.classes.get(className).values();
+      // Collect every assignStmt
+
+      assignStmts = destruct.targets.flatMap(({ target }) => {
+        const [offset, _] = classFields.next().value;
+        // The WASM code value that we extracted from the object at this current offset
+        const addressOffset = offset * 4;
+        const fieldValue = [`(i32.add ${value} (i32.const ${addressOffset}))`, `(i32.load)`];
+
+        return codeGenAssignable(target, fieldValue, env);
+      });
+    } else {
+      // Currently assumes that the valueType of our destructure is an object
+      throw new Error("Destructuring not supported yet for types other than 'class'");
+    }
+  } else {
+    const target = destruct.targets[0];
+    if (!target.ignore) {
+      assignStmts = codeGenAssignable(target.target, [value], env);
+    }
+  }
+
+  return assignStmts;
+}
+
+function codeGenAssignable(target: Assignable<Type>, value: string[], env: GlobalEnv): string[] {
+  switch (target.tag) {
+    case "id": // Variables
+      if (env.locals.has(target.name)) {
+        return [...value, `(local.set $${target.name})`];
+      } else {
+        const locationToStore = [`(i32.const ${envLookup(env, target.name)}) ;; ${target.name}`];
+        return [...locationToStore, ...value, "(i32.store)"];
+      }
+    case "lookup": // Field lookup
+      const objStmts = codeGenExpr(target.obj, env);
+      const objTyp = target.obj.a;
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
         throw new Error(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
-      var className = objTyp.name;
-      var [offset, _] = env.classes.get(className).get(stmt.field);
-      var valStmts = codeGenExpr(stmt.value, env);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      const className = objTyp.name;
+      const [offset, _] = env.classes.get(className).get(target.field);
+      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...value, `(i32.store)`];
     default:
-      unhandledTag(stmt);
+      // Force type error if assignable is added without implementation
+      // At the very least, there should be a stub
+      const err: never = target;
+      throw new Error(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
 
@@ -191,6 +258,7 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
+  definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
