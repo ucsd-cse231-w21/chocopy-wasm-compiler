@@ -10,7 +10,12 @@ export type Type =
   | { tag: "list"; content_type: Type }
   | CallableType;
 
-export type CallableType = { tag: "callable"; args: Array<Type>; ret: Type };
+export type CallableType = {
+  tag: "callable";
+  args: Array<Type>;
+  ret: Type;
+  isVar?: boolean; // is a variable
+};
 
 export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support

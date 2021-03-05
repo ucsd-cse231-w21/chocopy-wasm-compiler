@@ -113,15 +113,24 @@ describe("type-check", () => {
     NUM
   );
 
+  assertTC(
+    "lambda-1-arg-tc",
+    `
+        x:Callable[[int], bool] = None
+        x = lambda a : True
+        x(1)`,
+    BOOL
+  );
+
   // TODO: lambda expression not fully implemented
-  // assertTC(
-  //   "lambda-args-tc",
-  //   `
-  //       x:Callable[[int, bool],] = None
-  //       x = lambda a,b : None
-  //       x(1, True)`,
-  //   NONE
-  // );
+  assertTC(
+    "lambda-args-tc",
+    `
+        x:Callable[[int, bool],] = None
+        x = lambda a,b : None
+        x(1, True)`,
+    NONE
+  );
 
   assertTC(
     "ret-lambda-fun-tc1",

@@ -35,7 +35,12 @@ f(5)
             a: { tag: "number" },
             tag: "call_expr",
             name: {
-              a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
+              a: {
+                tag: "callable",
+                args: [{ tag: "number" }],
+                ret: { tag: "number" },
+                isVar: false,
+              },
               tag: "id",
               name: "f",
             },
@@ -63,7 +68,7 @@ f(5)
                 a: { tag: "number" },
                 tag: "call_expr",
                 name: {
-                  a: { tag: "callable", args: [], ret: { tag: "number" } },
+                  a: { tag: "callable", args: [], ret: { tag: "number" }, isVar: false },
                   tag: "lookup",
                   obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$inc_$ref" },
                   field: "$deref",
@@ -138,7 +143,12 @@ f(6)
             a: { tag: "number" },
             tag: "call_expr",
             name: {
-              a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
+              a: {
+                tag: "callable",
+                args: [{ tag: "number" }],
+                ret: { tag: "number" },
+                isVar: false,
+              },
               tag: "id",
               name: "f",
             },
@@ -170,7 +180,12 @@ f(6)
                   a: { tag: "number" },
                   tag: "call_expr",
                   name: {
-                    a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
+                    a: {
+                      tag: "callable",
+                      args: [{ tag: "number" }],
+                      ret: { tag: "number" },
+                      isVar: false,
+                    },
                     tag: "lookup",
                     obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$g_$ref" },
                     field: "$deref",
@@ -187,7 +202,12 @@ f(6)
                   a: { tag: "number" },
                   tag: "call_expr",
                   name: {
-                    a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
+                    a: {
+                      tag: "callable",
+                      args: [{ tag: "number" }],
+                      ret: { tag: "number" },
+                      isVar: false,
+                    },
                     tag: "lookup",
                     obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$g_$ref" },
                     field: "$deref",
@@ -231,7 +251,12 @@ f(6)
                   a: { tag: "number" },
                   tag: "call_expr",
                   name: {
-                    a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
+                    a: {
+                      tag: "callable",
+                      args: [{ tag: "number" }],
+                      ret: { tag: "number" },
+                      isVar: false,
+                    },
                     tag: "lookup",
                     obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$h_$ref" },
                     field: "$deref",

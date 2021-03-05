@@ -380,6 +380,7 @@ function initRef(refs: Set<string>): Array<string> {
 function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string> {
   const definedVars: Set<string> = new Set();
   definedVars.add("$addr");
+  definedVars.add("$destruct");
   def.nonlocals.forEach((v) => definedVars.add(`${v}_$ref`)); // nonlocals are reference, ending with '_$ref'
   def.nested.forEach((v) => definedVars.add(`${v}_$ref`)); // nested functions are references of function ptrs, ending with _$ref
   def.inits.forEach((v) => definedVars.add(`${v.name}`));

@@ -138,6 +138,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
       tag: "callable",
       args: fun.parameters.map((p) => p.type),
       ret: fun.ret,
+      isVar: false,
     });
   });
 
@@ -159,6 +160,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
         tag: "callable",
         args: method.parameters.map((p) => p.type),
         ret: method.ret,
+        isVar: false,
       });
     });
     newClasses.set(cls.name, [fields, methods]);
@@ -238,6 +240,7 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
       tag: "callable",
       args: func.parameters.map((p) => p.type),
       ret: func.ret,
+      isVar: false,
     });
   });
 
@@ -282,6 +285,7 @@ export function tcNestDef(
       tag: "callable",
       args: func.parameters.map((p) => p.type),
       ret: func.ret,
+      isVar: false,
     });
   });
 
@@ -336,7 +340,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         a: NONE,
         tag: stmt.tag,
         value: tValueExpr,
-        destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a),
+        destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a, stmt.value),
       };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
@@ -355,13 +359,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       if (locals.topLevel) throw new TypeCheckError("cannot return outside of functions");
 
       if (stmt.value.tag === "lambda" && locals.expectedRet.tag === "callable") {
-        var args = stmt.value.args;
-        var ret = stmt.value.ret;
-        if (args.length === locals.expectedRet.args.length) {
-          for (var i = 0; i < args.length; i++) {
-            locals.vars.set(args[i], locals.expectedRet.args[i]);
-          }
-        } else throw new TypeError("Function call type mismatch: Lambda");
+        tcLambda(locals, stmt.value, locals.expectedRet);
       }
 
       const tRet = tcExpr(env, locals, stmt.value);
@@ -397,7 +395,8 @@ function tcDestructure(
   env: GlobalTypeEnv,
   locals: LocalTypeEnv,
   destruct: Destructure<null>,
-  value: Type
+  value: Type,
+  expr: Expr<null>
 ): Destructure<Type> {
   /**
    * Type check an AssignTarget<null>. Ensures that the target is valid and that its type is compatible with the
@@ -409,6 +408,13 @@ function tcDestructure(
     let { target, starred, ignore } = aTarget;
     const tTarget = tcAssignable(env, locals, target);
     const targetType = tTarget.a;
+
+    if (expr.tag === "lambda") {
+      tcLambda(locals, expr, targetType);
+      valueType = tcExpr(env, locals, expr).a;
+      console.log(valueType);
+    }
+
     if (!isAssignable(env, valueType, targetType))
       throw new TypeCheckError(`Non-assignable types: Cannot assign ${valueType} to ${targetType}`);
     return {
@@ -436,7 +442,14 @@ function tcDestructure(
         `Class ${value.name} not found in global environment. This is probably a parsing bug.`
       );
     let attrs = cls[0];
-    attrs.forEach((val) => types.push(val));
+    // attrs.forEach((val) => types.push(val));
+    attrs.forEach((val) => {
+      // eslint-disable-next-line no-empty
+      if (val.tag === "callable" && val.isVar == false) {
+      } else {
+        types.push(val);
+      }
+    });
     let starOffset = 0;
     let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
       if (i >= types.length)
