@@ -59,6 +59,6 @@ export function CLASS(name: string): Type {
   return { tag: "class", name };
 }
 
-export function CALLABLE(args : Array<Type>, ret: Type) {
+export function CALLABLE(args: Array<Type>, ret: Type) {
   return { tag: "callable", args, ret };
 }

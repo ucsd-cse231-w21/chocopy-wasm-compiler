@@ -85,11 +85,10 @@ export async function run(
     sorted_funs[v[0]] = `$${k}`;
   });
 
-  let funRef = 
-  `
+  let funRef = `
   (table ${funs.size} funcref)
   (elem (i32.const 0) ${sorted_funs.join(" ")})
-  `
+  `;
 
   const wasmSource = `(module
     (import "js" "memory" (memory 1))

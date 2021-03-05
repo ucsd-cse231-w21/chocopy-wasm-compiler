@@ -1,4 +1,16 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, ClosureDef, VarInit, Class } from "./ast";
+import {
+  Stmt,
+  Expr,
+  UniOp,
+  BinOp,
+  Type,
+  Program,
+  Literal,
+  FunDef,
+  ClosureDef,
+  VarInit,
+  Class,
+} from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 import { all } from "cypress/types/bluebird";
@@ -29,9 +41,9 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
 
   // set the referenced value to be num since we use i32 in wasm
   const RefMap = new Map<string, [number, Literal]>();
-  RefMap.set("$deref", [0, {tag: "num", value: BigInt(0)}]);
+  RefMap.set("$deref", [0, { tag: "num", value: BigInt(0) }]);
   newClasses.set("$ref", RefMap);
-  
+
   let newOffset = env.offset;
 
   let idx = newFuns.size;
@@ -58,7 +70,7 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     classes: newClasses,
     locals: env.locals,
     offset: newOffset,
-    funs: newFuns
+    funs: newFuns,
   };
 }
 
@@ -105,7 +117,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   ast.closures.forEach((clo) => {
     funs.push(codeGenClosureDef(clo, withDefines).join("\n"));
   });
-  
+
   // use the called functions to determine top level functions
   // require support from AST
   const globalFuns: Array<string> = [];
@@ -122,7 +134,9 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
   const memForward = myMemForward(withDefines.offset - env.offset);
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(initFuns.concat(inits.concat(memForward.concat(...commandGroups))));
+  const commands = localDefines.concat(
+    initFuns.concat(inits.concat(memForward.concat(...commandGroups)))
+  );
   withDefines.locals.clear();
   return {
     functions: allFuns,
@@ -131,13 +145,13 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   };
 }
 
-function initGlobalFuns (funs: Array<string>, env: GlobalEnv): Array<string> {
+function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
   const inits: Array<string> = [];
   funs.forEach((fun) => {
     let idx = env.funs.get(fun)[0];
     let length = env.funs.get(fun)[1].length;
     let loc = envLookup(env, fun);
-    inits.push(myMemAlloc(`$$addr`, (length+1)*4).join("\n"));
+    inits.push(myMemAlloc(`$$addr`, (length + 1) * 4).join("\n"));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx}))`);
     inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function`);
   });
@@ -246,7 +260,11 @@ function myMemAlloc(name: string, size: number): Array<string> {
   const allocs: Array<string> = [];
   allocs.push(`(i32.load (i32.const 0))`);
   allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
-  allocs.push(`(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${size * 4}))) ;; update the heap ptr`);
+  allocs.push(
+    `(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${
+      size * 4
+    }))) ;; update the heap ptr`
+  );
   return allocs;
 }
 
@@ -259,15 +277,17 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
   nested.forEach((fun) => {
     inits.push(myMemAlloc(`$${fun}_$ref`, 1).join("\n"));
   });
-  
+
   nested.forEach((fun) => {
     let [idx, nonlocals] = env.funs.get(fun);
-    inits.push(myMemAlloc(`$$addr`, nonlocals.length+1).join("\n"));
+    inits.push(myMemAlloc(`$$addr`, nonlocals.length + 1).join("\n"));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
-      inits.push(`(i32.store (i32.add (local.get $$addr) (i32.const ${(i+1)*4})) (local.get $${v}_$ref))`);
+      inits.push(
+        `(i32.store (i32.add (local.get $$addr) (i32.const ${(i + 1) * 4})) (local.get $${v}_$ref))`
+      );
     });
-    inits.push((`(i32.store (local.get $${fun}_$ref) (local.get $$addr))`));
+    inits.push(`(i32.store (local.get $${fun}_$ref) (local.get $$addr))`);
   });
 
   return inits;
@@ -278,7 +298,7 @@ const funPtr = "$funPtr"; // the first extra argument
 function initNonlocals(nonlocals: Array<string>): Array<string> {
   const inits: Array<string> = [];
   nonlocals.forEach((v, i) => {
-    inits.push(`(i32.load (i32.add (local.get ${funPtr}) (i32.const ${(i+1)*4})))`);
+    inits.push(`(i32.load (i32.add (local.get ${funPtr}) (i32.const ${(i + 1) * 4})))`);
     inits.push(`(local.set $${v}_$ref)`);
   });
 
@@ -312,13 +332,19 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   def.parameters.forEach((p) => env.locals.add(p.name));
 
   const localDefs = makeLocals(definedVars).join("\n");
-  const inits = def.inits.map((init) => codeGenInit(init, env)).flat().join("\n");
+  const inits = def.inits
+    .map((init) => codeGenInit(init, env))
+    .flat()
+    .join("\n");
   const refs = initRef(extraRefs).join("\n");
   const nonlocals = initNonlocals(def.nonlocals).join("\n");
   const nested = initNested(def.nested, env).join("\n");
 
   let params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
-  let stmts = def.body.map((stmt) => codeGenStmt(stmt, env)).flat().join("\n");
+  let stmts = def.body
+    .map((stmt) => codeGenStmt(stmt, env))
+    .flat()
+    .join("\n");
   env.locals.clear();
 
   return [
@@ -331,7 +357,7 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
     ${stmts}
     (i32.const 0)
     (return)
-    )`
+    )`,
   ];
 }
 
@@ -422,18 +448,26 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         // until now, all the function variables are wrapped in references
         // the 'id's serves for global functions
         funName = nameExpr.name;
-        callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $funPtr`)
+        callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $funPtr`);
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
-        callExpr.push(`(call_indirect (type $callType${expr.arguments.length+1}) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`);
+        callExpr.push(
+          `(call_indirect (type $callType${
+            expr.arguments.length + 1
+          }) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
+        );
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
         callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $funPtr`);
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
-        callExpr.push(`(call_indirect (type $callType${expr.arguments.length+1}) (i32.load (i32.load (local.get $${funName}))))`);
+        callExpr.push(
+          `(call_indirect (type $callType${
+            expr.arguments.length + 1
+          }) (i32.load (i32.load (local.get $${funName}))))`
+        );
       } else {
         throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);
       }
