@@ -1,7 +1,5 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
-import * as BaseException from "./error";
-import { TypeOfExpression } from "typescript";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -581,7 +579,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           args.length === expr.arguments.length &&
           tArgs.every((tArg, i) => isAssignable(env, tArg.a, args[i]))
         ) {
-          return { ...expr, a: ret, arguments: tArgs };
+          return { ...expr, a: ret, name: innercall, arguments: tArgs };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
