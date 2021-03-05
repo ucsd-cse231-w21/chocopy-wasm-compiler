@@ -171,14 +171,10 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
 export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
-  // console.log(newEnv);
   const tInits = program.inits.map((init) => tcInit(env, init));
   const tDefs = program.funs.map((fun) => tcDef(newEnv, fun));
   const tClasses = program.classes.map((cls) => tcClass(newEnv, cls));
 
-  // program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
-  // program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
-  // program.funs.forEach(fun => tcDef(env, fun));
   // Strategy here is to allow tcBlock to populate the locals, then copy to the
   // global env afterwards (tcBlock changes locals)
   const tBody = tcBlock(newEnv, locals, program.stmts);
@@ -321,9 +317,9 @@ export function tcBlock(
 
 export function tcLambda(locals: LocalTypeEnv, expr: Expr<null>, expected: Type) {
   if (expr.tag === "lambda" && expected.tag === "callable") {
-    var args = expr.args;
+    const args = expr.args;
     if (args.length === expected.args.length) {
-      for (var i = 0; i < args.length; i++) {
+      for (let i = 0; i < args.length; i++) {
         locals.vars.set(args[i], expected.args[i]);
       }
     } else {
@@ -413,7 +409,6 @@ function tcDestructure(
     if (expr.tag === "lambda") {
       tcLambda(locals, expr, targetType);
       valueType = tcExpr(env, locals, expr).a;
-      console.log(valueType);
     }
 
     if (!isAssignable(env, valueType, targetType))
@@ -445,11 +440,8 @@ function tcDestructure(
     let attrs = cls[0];
     // attrs.forEach((val) => types.push(val));
     attrs.forEach((val) => {
-      // eslint-disable-next-line no-empty
-      if (val.tag === "callable" && val.isVar == false) {
-      } else {
-        types.push(val);
-      }
+      if (val.tag === "callable" && val.isVar == false) return; // method should not count
+      types.push(val);
     });
     let starOffset = 0;
     let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
@@ -641,50 +633,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         throw new TypeError("Undefined function: " + expr.name);
       }
     case "call":
-      if (env.classes.has(expr.name)) {
-        // surprise surprise this is actually a constructor
-        const tConstruct: Expr<Type> = { a: CLASS(expr.name), tag: "construct", name: expr.name };
-        const [_, methods] = env.classes.get(expr.name);
-        if (methods.has("__init__")) {
-          const [initArgs, initRet] = methods.get("__init__");
-          if (expr.arguments.length !== initArgs.length - 1)
-            throw new TypeCheckError(
-              "__init__ didn't receive the correct number of arguments from the constructor"
-            );
-          if (initRet !== NONE) throw new TypeCheckError("__init__  must have a void return type");
-          return tConstruct;
-        } else {
-          return tConstruct;
-        }
-      } else if (env.globals.has(expr.name) || locals.vars.has(expr.name)) {
-        var argTypes: Type[];
-        var retType: Type;
-        if (locals.vars.has(expr.name)) {
-          var temp = locals.vars.get(expr.name);
-          // should always be true
-          if (temp.tag === "callable") {
-            [argTypes, retType] = [temp.args, temp.ret];
-          }
-        } else {
-          var temp = env.globals.get(expr.name);
-          if (temp.tag === "callable") {
-            [argTypes, retType] = [temp.args, temp.ret];
-          }
-        }
-
-        const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-
-        if (
-          argTypes.length === expr.arguments.length &&
-          tArgs.every((tArg, i) => isAssignable(env, tArg.a, argTypes[i]))
-        ) {
-          return { ...expr, a: retType, arguments: tArgs };
-        } else {
-          throw new TypeError("Function call type mismatch: " + expr.name);
-        }
-      } else {
-        throw new TypeError("Undefined function: " + expr.name);
-      }
+      throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
       if (tObj.a.tag === "class") {
@@ -707,9 +656,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       if (tObj.a.tag === "class") {
         if (env.classes.has(tObj.a.name)) {
           const [fields, methods] = env.classes.get(tObj.a.name);
-          // if (methods.has(expr.method)) {
-          // const [methodArgs, methodRet] = methods.get(expr.method);
-          // const realArgs = [tObj].concat(tArgs);
 
           var methodArgs: Type[];
           var methodRet: Type;

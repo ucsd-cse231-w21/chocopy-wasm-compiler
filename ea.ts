@@ -28,21 +28,26 @@ export const EA_NONLOCAL_OBJ = "$nl_ptr$";
 export const EA_REF_SUFFIX = "_$ref";
 
 type LocalEnv = {
-  name: string;
-  prefix: string;
-  varIds: string[];
-  funIds: string[];
-  parent: LocalEnv; // null for global
+  name: string; // function name(without prefix)
+  prefix: string; // prefix is used to rename nested functions
+  varIds: string[]; // local variables & parameters
+  funIds: string[]; // nested functions defined (name without prefix)
+  parent: LocalEnv; // parent namespace, null for global
 };
 
 const globalLocalEnv: (fun_names: string[]) => LocalEnv = (fun_names: string[]) => ({
   name: "global",
   prefix: "",
   varIds: [],
-  funIds: [], // use the original name
+  funIds: [],
   parent: null,
 });
 
+/**
+ * Entry point of escape analysis.
+ * @param tAst Typed ast
+ * @returns Flattened ast with no nest functions
+ */
 export function ea(tAst: Program<Type>): Program<Type> {
   return {
     a: tAst.a,
@@ -56,13 +61,12 @@ export function ea(tAst: Program<Type>): Program<Type> {
   };
 }
 
-// TODO
+// TODO (closure group): ea for classes are not fully tested
 export function eaClass(cl: Class<Type>): Class<Type> {
   return {
     a: cl.a,
     name: cl.name,
     fields: cl.fields,
-    // TODO: check nonlocals
     methods: [].concat(
       ...cl.methods.map((f) => eaFunDef(f, globalLocalEnv(cl.methods.map((f) => f.name)), false))
     ),
@@ -131,9 +135,11 @@ export function eaFunDef(
  *
  * Notes for other groups to add cases: Generally, first call eaExpr for all expr
  * component and call eaStmt for all stmt components. After that, reconstruct the
- * ast.
+ * ast. See assignment case if some name/identifier are used directly without id
+ * expression.
  *
- * @param nSet is used to keep track of nonlocal variables used in the curent function
+ * @param nSet is used to keep track of nonlocal variables used in the curent
+ * function. Add used name/identifier to this set.
  * @returns Converted statement
  */
 function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
@@ -165,7 +171,8 @@ function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
         ...stmt.destruct,
         targets: targets,
       };
-      return { ...stmt, destruct: aDestruct, value: aVlaue }; // TODO: assume everything escapes by now
+      // TODO (closure group): assume everything escapes by now
+      return { ...stmt, destruct: aDestruct, value: aVlaue };
 
     case "return":
       return { ...stmt, value: eaExpr(stmt.value, e, nSet) };
@@ -198,10 +205,10 @@ function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
       return stmt;
 
     case "for":
-      return { ...stmt }; // TODO
+      return { ...stmt }; // TODO: implement ea for this new case while merging
 
     case "bracket-assign":
-      return { ...stmt }; // TODO
+      return { ...stmt }; // TODO: implement ea for this new case while merging
   }
 }
 
@@ -210,10 +217,11 @@ function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
  *
  * Notes for other groups to add cases: Generally, first call eaExpr for all expr
  * component and call eaStmt for all stmt components. After that, reconstruct the
- * ast.
+ * ast. See id case if some name/identifier are used directly without id expression.
  *
- * @param nSet is used to keep track of nonlocal variables used in the curent function
- * @returns If this stmt used something nonlocal
+ * @param nSet is used to keep track of nonlocal variables used in the curent
+ * function. Add used name/identifier to this set.
+ * @returns Converted expression
  */
 function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
   switch (expr.tag) {
@@ -233,21 +241,7 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
       return { ...expr, left: eaExpr(expr.left, e, nSet), right: eaExpr(expr.right, e, nSet) };
 
     case "call":
-      // warn("Use call_expr instead to support first class functions.");
-      return eaExpr(
-        {
-          a: expr.a,
-          tag: "call_expr",
-          name: {
-            a: { tag: "callable", args: expr.arguments.map((a) => a.a), ret: expr.a },
-            tag: "id",
-            name: expr.name,
-          },
-          arguments: expr.arguments,
-        },
-        e,
-        nSet
-      );
+      throw new Error("Pls migrate to call_expr whose callee is an expression.");
 
     case "id":
       const idid = lookupId(expr.name, e);
@@ -306,15 +300,16 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
   }
 }
 
-/**
- * Lookup a name in local name space.
- */
-
 enum VarScope {
   GLOBAL,
   NONLOCAL,
   LOCAL,
 }
+
+/**
+ * Lookup a name in the given space.
+ * @returns The scope if the identifier and a prefixed name if it is an function
+ */
 function lookupId(n: string, local: LocalEnv): { varScope: VarScope; name: string } {
   // n is a local variable
   if (local.varIds.includes(n)) return { varScope: VarScope.LOCAL, name: n };

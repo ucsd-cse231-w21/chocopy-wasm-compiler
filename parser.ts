@@ -297,10 +297,6 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         c.nextSibling(); // go to expression
         const ret = traverseExpr(c, s);
         c.parent();
-        // console.log("Lambda Args");
-        // console.log(lambdaArgs);
-        // console.log("Lambda Ret");
-        // console.log(ret);
         return { tag: "lambda", args: lambdaArgs, ret };
       } else {
         throw new Error("Invalid Lambda Expression");
@@ -564,9 +560,6 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
     throw new Error("Invalid Callable return type");
   }
   c.parent();
-  // console.log(`Callable`);
-  // console.log(args);
-  // console.log(ret);
   return { tag: "callable", args, ret };
 }
 
@@ -627,7 +620,6 @@ export function traverseScope(c: TreeCursor, s: string): Scope<null> {
   var scope = s.substring(c.from, c.to);
   c.nextSibling(); // go to varname
   var name = s.substring(c.from, c.to);
-  // console.log(`Scope!!!! ${scope} ${name}`);
   switch (scope) {
     case "global":
       c.parent();
@@ -644,7 +636,6 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
   c.firstChild(); // Focus on def
   c.nextSibling(); // Focus on name of function
   var name = s.substring(c.from, c.to);
-  // console.log(`FuncName ${name}`);
   c.nextSibling(); // Focus on ParamList
   var parameters = traverseParameters(c, s);
   c.nextSibling(); // Focus on Body or TypeDef
@@ -659,19 +650,16 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
   var inits = [];
   var body = [];
 
-  // TODO: Closure group: fill decls and funs to make things work
   const decls: Scope<null>[] = [];
   const funs: FunDef<null>[] = [];
 
   var hasChild = c.nextSibling();
-
   while (hasChild) {
     if (isVarInit(c, s)) {
       inits.push(traverseVarInit(c, s));
     } else if (isScope(c, s)) {
       decls.push(traverseScope(c, s));
     } else if (isFunDef(c, s)) {
-      // console.log(`Nested function`);
       funs.push(traverseFunDef(c, s));
     } else {
       break;
@@ -684,9 +672,7 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
     hasChild = c.nextSibling();
   }
 
-  // console.log("Before pop to body: ", c.type.name);
   c.parent(); // Pop to Body
-  // console.log("Before pop to def: ", c.type.name);
   c.parent(); // Pop to FunctionDefinition
 
   return { name, parameters, ret, inits, decls, funs, body };

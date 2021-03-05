@@ -15,7 +15,6 @@ import {
 } from "./ast";
 import { NUM, BOOL, STRING, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { all } from "cypress/types/bluebird";
 
 // https://learnxinyminutes.com/docs/wasm/
 
