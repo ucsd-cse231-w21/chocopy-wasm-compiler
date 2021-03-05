@@ -9,7 +9,7 @@ export type Type =
   | { tag: "class"; name: string }
   | { tag: "list"; content_type: Type }
   | { tag: "dict"; key: Type; value: Type }
-  | CallableType
+  | CallableType;
 
 export type CallableType = {
   tag: "callable";

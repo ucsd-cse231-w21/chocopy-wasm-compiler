@@ -104,10 +104,9 @@ describe("type-check", () => {
         a.x(5)()`,
     BOOL
   );
-
 });
 
-describe.skip("lambda", function() {
+describe.skip("lambda", function () {
   assertTC(
     "lambda-no-arg-tc",
     `
@@ -153,4 +152,4 @@ describe.skip("lambda", function() {
         f(4)(True)`,
     NUM
   );
-})
+});

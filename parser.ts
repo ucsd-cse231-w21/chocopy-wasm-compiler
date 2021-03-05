@@ -683,7 +683,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
   c.nextSibling(); // [
   c.nextSibling(); // Focus on Arg Array
 
-  const args : Array<Type> = [];
+  const args: Array<Type> = [];
   if (c.type.name === "ArrayExpression") {
     c.firstChild(); // [
     c.nextSibling(); // arg or ]
@@ -717,7 +717,10 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
     throw new Error("Invalid Callable return type");
   }
   c.parent();
-  const params : Array<Parameter> = args.map((t : Type, i : number) => ({ name: `callable_${i}`, type: t }));
+  const params: Array<Parameter> = args.map((t: Type, i: number) => ({
+    name: `callable_${i}`,
+    type: t,
+  }));
   return { tag: "callable", args: params, ret };
 }
 

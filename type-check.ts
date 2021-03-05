@@ -700,7 +700,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       }
     case "lambda":
       throw new BaseException.TypeError("Lambda is not supported");
-      /*
+    /*
       var args: Type[] = [];
       expr.args.forEach((arg) => args.push(locals.vars.get(arg)));
       var callable: Type = { tag: "callable", args, ret: tcExpr(env, locals, expr.ret).a };
@@ -733,7 +733,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         const [args, ret] = [innercall.a.args, innercall.a.ret];
         const params = args;
         const retType = ret;
-        const argTypes = args.map(p => p.type);
+        const argTypes = args.map((p) => p.type);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
         if (
@@ -757,7 +757,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               throw new Error("Missing argument from call");
             } else {
               // add default values into arguments as an Expr
-              augArgs = augArgs.concat([tcExpr(env, locals, { tag: "literal", value: params[argNums].value })]);
+              augArgs = augArgs.concat([
+                tcExpr(env, locals, { tag: "literal", value: params[argNums].value }),
+              ]);
             }
             argNums = argNums + 1;
           }
@@ -799,7 +801,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             var temp = fields.get(expr.method);
             // should always be true
             if (temp.tag === "callable") {
-              [methodArgs, methodRet] = [temp.args.map(p => p.type), temp.ret];
+              [methodArgs, methodRet] = [temp.args.map((p) => p.type), temp.ret];
             }
 
             var realArgs: Expr<Type>[] = tArgs;

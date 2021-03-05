@@ -299,7 +299,7 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
       return {
         ...expr,
         obj: eaExpr(expr.obj, e, nSet),
-        key: eaExpr(expr.key, e, nSet)
+        key: eaExpr(expr.key, e, nSet),
       };
   }
 }
