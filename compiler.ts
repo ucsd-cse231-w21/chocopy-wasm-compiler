@@ -48,11 +48,13 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     newGlobals.set(v.name, newOffset);
     newOffset += 1;
   });
+
   prog.classes.forEach((cls) => {
     const classFields = new Map();
     cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
     newClasses.set(cls.name, classFields);
   });
+
   return {
     globals: newGlobals,
     classes: newClasses,
@@ -62,23 +64,33 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
   };
 }
 
+function envLookup(env: GlobalEnv, name: string): number {
+  if (!env.globals.has(name)) {
+    console.log("Could not find " + name + " in ", env);
+    throw new Error("Could not find name " + name);
+  }
+  return env.globals.get(name) * 4; // 4-byte values
+}
+
 type CompileResult = {
   functions: string;
   mainSource: string;
   newEnv: GlobalEnv;
 };
 
-// export function getLocals(ast : Array<Stmt>) : Set<string> {
-//   const definedVars : Set<string> = new Set();
-//   ast.forEach(s => {
-//     switch(s.tag) {
-//       case "define":
-//         definedVars.add(s.name);
-//         break;
-//     }
-//   });
-//   return definedVars;
-// }
+function myMemForward(n: number): Array<string> {
+  const forward: Array<string> = [];
+  forward.push(`;; update the heap ptr`);
+  forward.push(`(i32.store (i32.const 0) (i32.add (i32.load (i32.const 0)) (i32.const ${n * 4})))`);
+  return forward;
+}
+
+function myMemAlloc(name: string, size: number): Array<string> {
+  const allocs: Array<string> = [];
+  allocs.push(`(local.set ${name} (i32.load (i32.const 0))) ;; allocate memory for ${name}`);
+  allocs.push(`(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${size * 4}))) ;; update the heap ptr`);
+  return allocs;
+}
 
 export function makeLocals(locals: Set<string>): Array<string> {
   const localDefines: Array<string> = [];
@@ -86,17 +98,6 @@ export function makeLocals(locals: Set<string>): Array<string> {
     localDefines.push(`(local $${v} i32)`);
   });
   return localDefines;
-}
-
-function getFuns(stmts: Array<Stmt<Type>>): Array<string> {
-  let funs: Array<string> = [];
-  stmts.forEach((stmt) => {
-    if (stmt.tag == "expr" && stmt.expr.tag == "call_expr") {
-      funs.push((stmt.expr.name as any).name);
-    }
-  });
-
-  return funs;
 }
 
 export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
@@ -109,6 +110,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
 
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
+
   const funs: Array<string> = [];
   ast.funs.forEach((f) => {
     funs.push(codeGenFunDef(f, withDefines).join("\n"));
@@ -117,26 +119,29 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
     funs.push(codeGenClosureDef(clo, withDefines).join("\n"));
   });
 
-  // use the called functions to determine top level functions
-  // require support from AST
   const globalFuns: Array<string> = [];
   ast.closures.forEach((clo) => {
     if (clo.isGlobal) {
       globalFuns.push(clo.name);
     }
   });
-  const initFuns = initGlobalFuns(globalFuns, withDefines);
-
+  
   const classes: Array<string> = ast.classes.map((cls) => codeGenClass(cls, withDefines)).flat();
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
+
+  const initFuns = initGlobalFuns(globalFuns, withDefines);
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
-  const memForward = myMemForward(withDefines.offset - env.offset);
+  // const memForward = myMemForward(withDefines.offset - env.offset);
+  const memForward: Array<string> = [];
+  
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
   const commands = localDefines.concat(
     initFuns.concat(inits.concat(memForward.concat(...commandGroups)))
   );
+
   withDefines.locals.clear();
+  
   return {
     functions: allFuns,
     mainSource: commands.join("\n"),
@@ -147,54 +152,21 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
 function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
   const inits: Array<string> = [];
   funs.forEach((fun) => {
-    let idx = env.funs.get(fun)[0];
-    let length = env.funs.get(fun)[1].length;
+    let fun_info = env.funs.get(fun);
+    let idx = fun_info[0];
+    let length = fun_info[1].length;
     let loc = envLookup(env, fun);
-    inits.push(myMemAlloc(`$$addr`, (length + 1) * 4).join("\n"));
-    inits.push(`(i32.store (local.get $$addr) (i32.const ${idx}))`);
-    inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function`);
+    inits.push(myMemAlloc(`$$addr`, (length + 1)).join("\n"));
+    inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
+    inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function reference`);
   });
+  
   // global functions have no nonlocals, assert length == 0
   return inits;
 }
 
-function myMemForward(n: number): Array<string> {
-  const forward: Array<string> = [];
-  forward.push(`;; update the heap ptr`);
-  forward.push(`(i32.const 0)`);
-  forward.push(`(i32.add (i32.load (i32.const 0)) (i32.const ${n * 4}))`);
-  forward.push(`(i32.store)`);
-  return forward;
-}
-
-function envLookup(env: GlobalEnv, name: string): number {
-  if (!env.globals.has(name)) {
-    console.log("Could not find " + name + " in ", env);
-    throw new Error("Could not find name " + name);
-  }
-  return env.globals.get(name) * 4; // 4-byte values
-}
-
 function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
   switch (stmt.tag) {
-    // case "fun":
-    //   const definedVars = getLocals(stmt.body);
-    //   definedVars.add("$last");
-    //   stmt.parameters.forEach(p => definedVars.delete(p.name));
-    //   definedVars.forEach(env.locals.add, env.locals);
-    //   stmt.parameters.forEach(p => env.locals.add(p.name));
-
-    //   const localDefines = makeLocals(definedVars);
-    //   const locals = localDefines.join("\n");
-    //   var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-    //   var stmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-    //   var stmtsBody = stmts.join("\n");
-    //   env.locals.clear();
-    //   return [`(func $${stmt.name} ${params} (result i32)
-    //     ${locals}
-    //     ${stmtsBody}
-    //     (i32.const 0)
-    //     (return))`];
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
       valStmts.push("return");
@@ -255,22 +227,9 @@ function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
   }
 }
 
-function myMemAlloc(name: string, size: number): Array<string> {
-  const allocs: Array<string> = [];
-  allocs.push(`(i32.load (i32.const 0))`);
-  allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
-  allocs.push(
-    `(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${
-      size * 4
-    }))) ;; update the heap ptr`
-  );
-  return allocs;
-}
-
 function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
-  // this is where the closure is constructed
+  // this is where the closures are constructed, except for global closures
   // the accesses of callable variables does not create a closure
-
   const inits: Array<string> = [];
 
   nested.forEach((fun) => {
@@ -282,9 +241,8 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
     inits.push(myMemAlloc(`$$addr`, nonlocals.length + 1).join("\n"));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
-      inits.push(
-        `(i32.store (i32.add (local.get $$addr) (i32.const ${(i + 1) * 4})) (local.get $${v}_$ref))`
-      );
+      // the dependent variable 'v' exists in the parent scope
+      inits.push(`(i32.store (i32.add (local.get $$addr) (i32.const ${(i + 1) * 4})) (local.get $${v}_$ref))`);
     });
     inits.push(`(i32.store (local.get $${fun}_$ref) (local.get $$addr))`);
   });
@@ -295,6 +253,7 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
 const funPtr = "$funPtr"; // the first extra argument
 
 function initNonlocals(nonlocals: Array<string>): Array<string> {
+  // extract the references for nonlocals from the '$funPtr'
   const inits: Array<string> = [];
   nonlocals.forEach((v, i) => {
     inits.push(`(i32.load (i32.add (local.get ${funPtr}) (i32.const ${(i + 1) * 4})))`);
@@ -305,6 +264,7 @@ function initNonlocals(nonlocals: Array<string>): Array<string> {
 }
 
 function initRef(refs: Set<string>): Array<string> {
+  // for parameters and local variables, extra references are created and initialized
   const inits: Array<string> = [];
   refs.forEach((name) => {
     inits.push(myMemAlloc(`$${name}_$ref`, 1).join("\n"));
@@ -316,6 +276,7 @@ function initRef(refs: Set<string>): Array<string> {
 
 function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string> {
   const definedVars: Set<string> = new Set();
+  definedVars.add("$last");
   definedVars.add("$addr");
   def.nonlocals.forEach((v) => definedVars.add(`${v}_$ref`)); // nonlocals are reference, ending with '_$ref'
   def.nested.forEach((v) => definedVars.add(`${v}_$ref`)); // nested functions are references of function ptrs, ending with _$ref
@@ -323,6 +284,7 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   def.inits.forEach((v) => definedVars.add(`${v.name}_$ref`));
   def.parameters.forEach((p) => definedVars.add(`${p.name}_$ref`));
 
+  // references that required memory allocation
   const extraRefs: Set<string> = new Set();
   def.inits.forEach((v) => extraRefs.add(`${v.name}`));
   def.parameters.forEach((p) => extraRefs.add(`${p.name}`));
@@ -331,32 +293,27 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   def.parameters.forEach((p) => env.locals.add(p.name));
 
   const localDefs = makeLocals(definedVars).join("\n");
-  const inits = def.inits
-    .map((init) => codeGenInit(init, env))
-    .flat()
-    .join("\n");
+  const inits = def.inits.map((init) => codeGenInit(init, env)).flat().join("\n");
   const refs = initRef(extraRefs).join("\n");
   const nonlocals = initNonlocals(def.nonlocals).join("\n");
   const nested = initNested(def.nested, env).join("\n");
 
   let params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
-  let stmts = def.body
-    .map((stmt) => codeGenStmt(stmt, env))
-    .flat()
-    .join("\n");
+  let stmts = def.body.map((stmt) => codeGenStmt(stmt, env)).flat().join("\n");
+  
   env.locals.clear();
 
   return [
-    `(func $${def.name} (param ${funPtr} i32) ${params} (result i32)
-    ${localDefs}
-    ${inits}
-    ${refs}
-    ${nonlocals}
-    ${nested}
-    ${stmts}
-    (i32.const 0)
-    (return)
-    )`,
+`(func $${def.name} (param ${funPtr} i32) ${params} (result i32)
+${localDefs}
+${inits}
+${refs}
+${nonlocals}
+${nested}
+${stmts}
+(i32.const 0)
+(return)
+)`,
   ];
 }
 
@@ -394,25 +351,6 @@ function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
   const result = methods.map((method) => codeGenFunDef(method, env));
   return result.flat();
 }
-
-// function initFun(fun: string, env: GlobalEnv): Array<string> {
-//   const init: Array<string> = [];
-//   if (env.funs.has(fun)) {
-//     const nonlocals = env.funs.get(fun)[1];
-//     nonlocals.forEach((name, i) => {
-//       if (env.funs.has(name)) {
-//         init.push(initFun(name, env).join("\n"));
-//       } else {
-//         init.push(myMemAlloc("$addr", 1).join("\n"));
-//         init.push(`(i32.store (local.get $addr) (local.get $${name}))`);
-//         init.push(`(i32.store (i32.add (local.get $${fun}}) (i32.const ${(i+1)*4})) (local.get $addr))`);
-//       }
-//     });
-//   }
-//   init.push(`(local.get $${fun}) ;; argument for $funPtr`);
-
-//   return init;
-// }
 
 function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
@@ -471,9 +409,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
         callExpr.push(
-          `(call_indirect (type $callType${
-            expr.arguments.length + 1
-          }) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
+          `(call_indirect (type $callType${expr.arguments.length + 1}) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
         );
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
@@ -482,9 +418,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
         callExpr.push(
-          `(call_indirect (type $callType${
-            expr.arguments.length + 1
-          }) (i32.load (i32.load (local.get $${funName}))))`
+          `(call_indirect (type $callType${expr.arguments.length + 1}) (i32.load (i32.load (local.get $${funName}))))`
         );
       } else {
         throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);
