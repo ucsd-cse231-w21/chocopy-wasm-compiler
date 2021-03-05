@@ -281,7 +281,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           "(i32.load (i32.const 0))", // Load the dynamic heap head offset
           "(local.set $$string_class)",
           "(i32.load (i32.const 0))",
-          `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the two words we just created for fields
+          `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the k words we just created for fields
           "(i32.store)", // Save the new heap offset
         ]
       );
