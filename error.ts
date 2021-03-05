@@ -107,7 +107,7 @@ export class AttributeError extends CompileError {
   obj: Type;
   attr: string;
   constructor(loc: Location, obj: Type, attr: string) {
-    var message = `'${obj.tag == "class" ? obj.name : obj.tag} ' object has no attribute '${attr}'`;
+    var message = `'${obj.tag == "class" ? obj.name : obj.tag}' object has no attribute '${attr}'`;
     super(loc, message, "AttributeError");
     this.obj = obj;
     this.attr = attr;
@@ -191,15 +191,19 @@ export class TypeMismatchError extends TypeError {
     if (Array.isArray(expect)) {
       super(
         loc,
-        `Expected type '${expect.map((s) => s.tag).join(", ")}';  got type '${(got as Type[])
-          .map((s) => s.tag)
-          .join(", ")}'`,
+        `Expected type '${expect
+          .map((s) => typeToString(s))
+          .join(", ")}';  got type '${(got as Type[]).map((s) => typeToString(s)).join(", ")}'`,
         name
       );
       this.expect = expect;
       this.got = got as Type[];
     } else {
-      super(loc, `Expected type '${expect.tag}'; got type '${(got as Type).tag}'`, name);
+      super(
+        loc,
+        `Expected type '${typeToString(expect)}'; got type '${typeToString(got as Type)}'`,
+        name
+      );
       this.expect = [expect];
       this.got = [got as Type];
     }
@@ -209,13 +213,19 @@ export class TypeMismatchError extends TypeError {
 export class UnsupportedOperandTypeError extends TypeError {
   op: BinOp | UniOp;
   oprand: Type[];
-  constructor(loc: Location, op: BinOp | UniOp, oprand: Type[], name = "TypeError") {
-    if (oprand.length == 1)
-      super(loc, `unsupported operand type(s) for ${op}: '${oprand[0].tag}'`, name);
+  constructor(loc: Location, op: BinOp | UniOp, operand: Type[], name = "TypeError") {
+    if (operand.length == 1)
+      super(
+        loc,
+        `unsupported operand type(s) for ${UniOp[op]}: '${typeToString(operand[0])}'`,
+        name
+      );
     else
       super(
         loc,
-        `unsupported operand type(s) for ${op}: '${oprand[0].tag}' and '${oprand[1].tag}'`,
+        `unsupported operand type(s) for ${BinOp[op]}: '${typeToString(
+          operand[0]
+        )}' and '${typeToString(operand[1])}'`,
         name
       );
   }
@@ -224,7 +234,11 @@ export class UnsupportedOperandTypeError extends TypeError {
 export class ConditionTypeError extends TypeError {
   type: Type;
   constructor(loc: Location, got: Type) {
-    super(loc, `Condition Expression Cannot be of type '${got.tag}'`, "ConditionTypeError");
+    super(
+      loc,
+      `Condition Expression Cannot be of type '${typeToString(got)}'`,
+      "ConditionTypeError"
+    );
     this.type = got;
   }
 }
@@ -241,5 +255,18 @@ export class UnicodeError extends ValueError {
       `'${codec}' codec can't encode character '${character}' in position ${pos}`,
       "UnicodeError"
     );
+  }
+}
+
+function typeToString(typ: Type): string {
+  switch (typ.tag) {
+    case "callable":
+      return `[[${typ.args.toString()}], ${typ.ret}]`;
+    case "class":
+      return typ.name;
+    case "list":
+      return typeToString(typ.content_type);
+    default:
+      return typ.tag;
   }
 }
