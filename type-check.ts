@@ -13,6 +13,7 @@ import {
   Assignable,
   ASSIGNABLE_TAGS,
   AssignTarget,
+  Parameter,
 } from "./ast";
 import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
 import * as BaseException from "./error";
@@ -31,7 +32,7 @@ export class TypeCheckError extends Error {
 
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
-  functions: Map<string, [Array<Type>, Type]>;
+  functions: Map<string, [Array<Parameter>, Type]>;
   classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>;
 };
 
@@ -42,10 +43,10 @@ export type LocalTypeEnv = {
 };
 
 const defaultGlobalFunctions = new Map();
-defaultGlobalFunctions.set("abs", [[NUM], NUM]);
-defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("abs", [[{ type: NUM }], NUM]);
+defaultGlobalFunctions.set("max", [[{ type: NUM }, { type: NUM }], NUM]);
+defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
+defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
 
 export const defaultTypeEnv = {
@@ -109,9 +110,8 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   const newFuns = new Map(env.functions);
   const newClasses = new Map(env.classes);
   program.inits.forEach((init) => newGlobs.set(init.name, init.type));
-  program.funs.forEach((fun) =>
-    newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret])
-  );
+  program.funs.forEach((fun) => newFuns.set(fun.name, [fun.parameters, fun.ret]));
+  //program.funs.forEach(fun => newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
   program.classes.forEach((cls) => {
     const fields = new Map();
     const methods = new Map();
@@ -163,11 +163,26 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
+  // type checking defaults
+  fun.parameters.forEach((p) => tcDefault(p.type, p.value));
   fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
   fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
 
   const tBody = tcBlock(env, locals, fun.body);
   return { ...fun, a: NONE, body: tBody };
+}
+
+export function tcDefault(paramType: Type, paramLiteral: Literal) {
+  // no default values
+  if (paramLiteral === undefined) {
+    return;
+  } else if (paramLiteral.tag === "num" && paramType.tag === "number") {
+    return;
+  } else if (paramLiteral.tag !== paramType.tag) {
+    throw new TypeCheckError(
+      "Default value type " + paramLiteral.tag + " does not match param type " + paramType.tag
+    );
+  }
 }
 
 export function tcClass(env: GlobalTypeEnv, cls: Class<null>): Class<Type> {
@@ -410,10 +425,10 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         const tArg = tcExpr(env, locals, expr.arg);
         return { ...expr, a: tArg.a, arg: tArg };
       } else if (env.functions.has(expr.name)) {
-        const [[expectedArgTyp], retTyp] = env.functions.get(expr.name);
+        const [[expectedParam], retTyp] = env.functions.get(expr.name);
         const tArg = tcExpr(env, locals, expr.arg);
 
-        if (isAssignable(env, tArg.a, expectedArgTyp)) {
+        if (isAssignable(env, tArg.a, expectedParam.type)) {
           return { ...expr, a: retTyp, arg: tArg };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
@@ -423,10 +438,13 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       }
     case "builtin2":
       if (env.functions.has(expr.name)) {
-        const [[leftTyp, rightTyp], retTyp] = env.functions.get(expr.name);
+        const [[leftParam, rightParam], retTyp] = env.functions.get(expr.name);
         const tLeftArg = tcExpr(env, locals, expr.left);
         const tRightArg = tcExpr(env, locals, expr.right);
-        if (isAssignable(env, leftTyp, tLeftArg.a) && isAssignable(env, rightTyp, tRightArg.a)) {
+        if (
+          isAssignable(env, leftParam.type, tLeftArg.a) &&
+          isAssignable(env, rightParam.type, tRightArg.a)
+        ) {
           return { ...expr, a: retTyp, left: tLeftArg, right: tRightArg };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
@@ -451,7 +469,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           return tConstruct;
         }
       } else if (env.functions.has(expr.name)) {
-        const [argTypes, retType] = env.functions.get(expr.name);
+        const [params, retType] = env.functions.get(expr.name);
+        const argTypes = params.map((p) => p.type);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
         if (
@@ -459,6 +478,27 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           tArgs.every((tArg, i) => tArg.a === argTypes[i])
         ) {
           return { ...expr, a: retType, arguments: expr.arguments };
+        }
+        // case where the function may have default values
+        else if (
+          argTypes.length > expr.arguments.length &&
+          tArgs.every((tArg, i) => tArg.a === argTypes[i])
+        ) {
+          // check if arguments less than number of parameters
+          // first populate all the arguments first.
+          // Then, populate the rest of the values with defaults from params
+          var augArgs = expr.arguments;
+          var argNums = expr.arguments.length;
+          while (argNums < argTypes.length) {
+            if (params[argNums].value === undefined) {
+              throw new Error("Missing argument from call");
+            } else {
+              // add default values into arguments as an Expr
+              augArgs = augArgs.concat({ tag: "literal", value: params[argNums].value });
+            }
+            argNums = argNums + 1;
+          }
+          return { ...expr, a: retType, arguments: augArgs };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
