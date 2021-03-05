@@ -198,3 +198,5 @@ Till now one of our biggest challenge is overloading and duplicate definition. I
 The second challenge is the break statement. When there are recursive blocks exists inside a for-loop, the wasm br instruction needs a $depth
 parameter to determine which block to break through. Therefore, we have to add a depth recorder inside the type check environment to record
 the current depth and give the value to all break statements.
+
+Another challenge is incorporating the for loop into class methods. We need to handle the class variables, and the heap index correctly
