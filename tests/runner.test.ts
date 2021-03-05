@@ -409,6 +409,14 @@ while False:
   );
 
   assertPrint(
+    "string-variables-printing",
+    `
+  x : str = "Compiler"
+  print(x)`,
+    ["Compiler"]
+  );
+
+  assertPrint(
     "print-string-index",
     `
   print("Design"[2])`,
@@ -416,22 +424,69 @@ while False:
   );
 
   assertPrint(
+    "print-negative-string-index",
+    `
+  print("Design"[-2])`,
+    ["g"]
+  );
+
+  assertPrint(
+    "print-string-variable-negative-index",
+    `
+  a:str="ABCDE"
+  print(a[-3])`,
+    ["C"]
+  );
+
+  assertPrint(
+    "function-with-strings",
+    `
+  def func():
+    print("Compiler")
+  func()`,
+    ["Compiler"]
+  );
+
+  assertPrint(
+    "function-with-string-variable",
+    `
+  def func()->str:
+    a:str="Compiler"
+    return a
+
+  print(func())`,
+    ["Compiler"]
+  );
+
+  assertPrint(
+    "function-with-string-return-and-string-param",
+    `
+  def func(a:str)->str:
+    print(a)
+    return a[2]
+
+  print(func("Compiler"))
+    `,
+    ["Compiler","m"]
+  );
+
+  assertPrint(
     "class-with-string-fields",
     `
   class C(object):
-    x : str = "Sandhya"
-    y : str = "Jayaraman"
+    x : str = "Compiler"
+    y : str = "Design"
 
   c1 : C = None
   c1 = C()
   print(c1.x)
-  c1.x = "Joe"
+  c1.x = "ABC"
   print(c1.x)`,
-    ["Sandhya", "Joe"]
+    ["Compiler", "ABC"]
   );
 
   assertPrint(
-    "class-with-string-fields-inside-functions",
+    "class-with-string-fields-inside-methods",
     `
   class C(object):
     x : str = "ZZZ"
@@ -460,4 +515,20 @@ while False:
   print(c1.func())`,
     ["R"]
   );
+
+  assertPrint(
+    "negative-string-index-inside-class",
+    `
+  class C(object):
+    x : str = "PQR"
+
+    def func(self:C)->str:
+      return self.x[-2]
+
+  c1 : C = None
+  c1 = C()
+  print(c1.func())`,
+    ["Q"]
+  );
+
 });

@@ -8,14 +8,14 @@ function stringify(typ: Type, arg: any): string {
     case "string":
       if (arg == -1) throw new Error("String index out of bounds");
       const view = new Int32Array(importObject.js.memory.buffer);
+      let string_length = view[arg / 4] + 1;
       arg = arg + 4;
-      let ascii_val = view[arg / 4];
-      var i = 1;
+      var i = 0;
       var full_string = "";
-      while (ascii_val != 0) {
+      while (i < string_length) {
+        let ascii_val = view[arg / 4 + i];
         var char = String.fromCharCode(ascii_val);
         full_string += char;
-        ascii_val = view[arg / 4 + i];
         i += 1;
       }
       return full_string;
