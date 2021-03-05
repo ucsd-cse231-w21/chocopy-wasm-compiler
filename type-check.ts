@@ -390,6 +390,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
  * @param locals LocalTypeEnv
  * @param destruct Destructure description of assign targets
  * @param value Type of the value passed into this destructure
+ * @param expr Expr of the value passed into this destructure (only used for lambda expr)
  */
 function tcDestructure(
   env: GlobalTypeEnv,
