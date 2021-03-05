@@ -17,11 +17,10 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
-import { numpyFields, numpyMethods } from "./numpy";
+import { NUM, BOOL, NONE, CLASS, isTagged, importPostfix } from "./utils";
+import { numpyFields, numpyMethods, numpyImportMethods } from "./numpy";
 
-// track all imported classes/functions/vars; alias should be unique
-export const importedNames : Map<string, string> = new Map(); // alias->targetModule
+export const importedNames : Map<string, string> = new Map(); // alias->targetModule: imported classes/functions/vars
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -298,18 +297,18 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
         importStatement.target = targetModule;
       }
 
-      let alias = importStatement.target; // default alias is target
+      importStatement.alias = importStatement.target; // default alias is target
       if(c.nextSibling()){
         //we're currently in the "as" keyword
 
         c.nextSibling(); //goes to the alias name
-        alias = s.substring(c.from, c.to);
 
-        importStatement.alias = alias;
+        importStatement.alias = s.substring(c.from, c.to);
       }
       c.parent(); //go back to parent
 
-      importedNames.set(alias, importStatement.target);
+      // TODO: check target uniqueness
+      importedNames.set(importStatement.alias, importStatement.target);
 
       return importStatement;
     }
@@ -562,40 +561,41 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
   return { name, parameters, ret, inits, decls, funs, body };
 }
 
-export function traverseImports(program: Program<null>): Program<null> {
+export function traverseImports(): Array<Program<null>> {
   // key: alias -> value: name
-  const importPostfix = "$import";
+  const imoprtRet: Array<Program<null>> = [];
+
   importedNames.forEach( (name: string, alias: string) => {
+    const funs: Array<FunDef<null>> = [];
+    const inits: Array<VarInit<null>> = [];
+    const classes: Array<Class<null>> = [];
+    const stmts: Array<Stmt<null>> = [];
+    const imports: Array<Program<null>> = [];
+
     switch(name){
       case "numpy":
       // import numpy as np; a : np = None; a = np.array([10])
-      // = import numpy; class numpy_wrapper: def array(self, list) : numpy : ...; np : numpy_wrapper = None;
+      // <=> import numpy; class numpy$import: def array(self, list) : numpy : ...; np : numpy$import = None;
       //   class numpy: <dtype, shape fields> <add(), dot() methods>; 
       //   a: numpy = None; a = np.array([10]) 
-        program.classes.push({
+        classes.push({
           name: "numpy"+importPostfix, 
           fields: [],
-          methods: [{name: "array", 
-                     parameters: [{name: "object", type: {tag: "number"}}], // assume number for now; wait for list parsing
-                     ret: {tag: "class", name: "numpy"}, 
-                     decls: [], inits: [], funs: [], body: [] }]
+          methods: numpyImportMethods
         });
-        program.inits.push({
-          name: alias,
-          type: {tag: "class", name: "numpy"+importPostfix},
-          value: {tag: "none"}
-        })
-        program.classes.push({
+        classes.push({
           name: "numpy", // should use name; also overwrite alias->name in checkType()
           fields: numpyFields,
           methods: numpyMethods
         })
         break;
-    } 
-    // add more cases of classes/functions/vars below
+      // TODO: add more cases of classes/functions/vars below
+    }
+
+    imoprtRet.push({funs, inits, classes, stmts, imports}) 
   }); 
 
-  return program;
+  return imoprtRet;
 } 
 
 export function traverseClass(c: TreeCursor, s: string): Class<null> {
@@ -702,7 +702,17 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
         } else if (isClassDef(c, s)) {
           classes.push(traverseClass(c, s));
         } else if (isImport(c, s)){
-          stmts.push(traverseStmt(c, s));
+          let stmt = traverseStmt(c, s);
+          stmts.push(stmt);
+          // treat each import as an instance; credit to Jose
+          // e.g. import numpy as np <=> np : numpy$import = None
+          if (stmt.tag === "import"){
+            inits.push({
+              name: stmt.alias,  
+              type: { tag: "class", name: stmt.target+importPostfix},
+              value: { tag: "none"}
+            });
+          }
         } else {
           break;
         }
@@ -715,9 +725,9 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
       }
       c.parent();
 
-      const program = traverseImports({ funs, inits, classes, stmts }); // augment program with imports
+      const imports = traverseImports(); // syntax linker: imported programs with main program
 
-      return program;
+      return { funs, inits, classes, stmts, imports };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }
