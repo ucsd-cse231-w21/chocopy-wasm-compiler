@@ -1,5 +1,20 @@
-import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
+import {
+  Stmt,
+  Expr,
+  Type,
+  UniOp,
+  BinOp,
+  Literal,
+  Program,
+  FunDef,
+  VarInit,
+  Class,
+  Destructure,
+  Assignable,
+  ASSIGNABLE_TAGS,
+  AssignTarget,
+} from "./ast";
+import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -162,19 +177,13 @@ export function tcBlock(
 export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>): Stmt<Type> {
   switch (stmt.tag) {
     case "assignment":
-      throw new TypeCheckError("Destructured assignment not implemented");
-    case "assign":
-      const tValExpr = tcExpr(env, locals, stmt.value);
-      var nameTyp;
-      if (locals.vars.has(stmt.name)) {
-        nameTyp = locals.vars.get(stmt.name);
-      } else if (env.globals.has(stmt.name)) {
-        nameTyp = env.globals.get(stmt.name);
-      } else {
-        throw new TypeCheckError("Unbound id: " + stmt.name);
-      }
-      if (!isAssignable(env, tValExpr.a, nameTyp)) throw new TypeCheckError("Non-assignable types");
-      return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr };
+      const tValueExpr = tcExpr(env, locals, stmt.value);
+      return {
+        a: NONE,
+        tag: stmt.tag,
+        value: tValueExpr,
+        destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a),
+      };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
@@ -208,25 +217,102 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: NONE, tag: stmt.tag };
-    case "field-assign":
-      var tObj = tcExpr(env, locals, stmt.obj);
-      const tVal = tcExpr(env, locals, stmt.value);
-      if (tObj.a.tag !== "class") throw new TypeCheckError("field assignments require an object");
-      if (!env.classes.has(tObj.a.name))
-        throw new TypeCheckError("field assignment on an unknown class");
-      const [fields, _] = env.classes.get(tObj.a.name);
-      if (!fields.has(stmt.field))
-        throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
-      if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
-        throw new TypeCheckError(
-          `could not assign value of type: ${tVal.a}; field ${
-            stmt.field
-          } expected type: ${fields.get(stmt.field)}`
-        );
-      return { ...stmt, a: NONE, obj: tObj, value: tVal };
     default:
       unhandledTag(stmt);
   }
+}
+
+/**
+ * Type check a Destructure<null>. This requires explicitly passing in the type of the value this
+ * assignment will receive.
+ * @param env GlobalTypeEnv
+ * @param locals LocalTypeEnv
+ * @param destruct Destructure description of assign targets
+ * @param value Type of the value passed into this destructure
+ */
+function tcDestructure(
+  env: GlobalTypeEnv,
+  locals: LocalTypeEnv,
+  destruct: Destructure<null>,
+  value: Type
+): Destructure<Type> {
+  /**
+   * Type check an AssignTarget<null>. Ensures that the target is valid and that its type is compatible with the
+   * value being assignment
+   * @param {AssignTarget<null>} aTarget - The target to be type checked
+   * @param {Type} valueType - The type of the value being assigned to the target
+   */
+  function tcTarget(aTarget: AssignTarget<null>, valueType: Type): AssignTarget<Type> {
+    let { target, starred, ignore } = aTarget;
+    const tTarget = tcAssignable(env, locals, target);
+    const targetType = tTarget.a;
+    if (!isAssignable(env, valueType, targetType))
+      throw new TypeCheckError(`Non-assignable types: Cannot assign ${valueType} to ${targetType}`);
+    return {
+      starred,
+      ignore,
+      target: tTarget,
+    };
+  }
+
+  if (!destruct.isDestructured) {
+    let target = tcTarget(destruct.targets[0], value);
+    return {
+      valueType: value,
+      isDestructured: false,
+      targets: [target],
+    };
+  }
+
+  let types: Type[] = [];
+  if (value.tag === "class") {
+    // This is a temporary hack to get destructuring working (reuse for tuples later?)
+    let cls = env.classes.get(value.name);
+    if (cls === undefined)
+      throw new Error(
+        `Class ${value.name} not found in global environment. This is probably a parsing bug.`
+      );
+    let attrs = cls[0];
+    attrs.forEach((val) => types.push(val));
+    let starOffset = 0;
+    let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
+      if (i >= types.length)
+        throw new Error(
+          `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+        );
+      if (target.starred) {
+        starOffset = types.length - targets.length; // How many values will be assigned to the starred target
+        throw new TypeCheckError("Starred values not supported");
+      }
+      let valueType = types[i + starOffset];
+      return tcTarget(target, valueType);
+    });
+
+    if (types.length > destruct.targets.length + starOffset)
+      throw new Error(
+        `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      );
+
+    return {
+      isDestructured: destruct.isDestructured,
+      targets: tTargets,
+      valueType: value,
+    };
+  } else {
+    throw new TypeCheckError(`Type ${value.tag} cannot be destructured`);
+  }
+}
+
+function tcAssignable(
+  env: GlobalTypeEnv,
+  locals: LocalTypeEnv,
+  target: Assignable<null>
+): Assignable<Type> {
+  const expr = tcExpr(env, locals, target);
+  if (!isTagged(expr, ASSIGNABLE_TAGS)) {
+    throw new TypeCheckError(`Cannot assing to target type ${expr.tag}`);
+  }
+  return expr;
 }
 
 export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null>): Expr<Type> {
@@ -413,6 +499,19 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeCheckError("method calls require an object");
       }
+    case "bracket-lookup":
+      var obj_t = tcExpr(env, locals, expr.obj);
+      var key_t = tcExpr(env, locals, expr.key);
+      var tBracketExpr = { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
+      if (obj_t.a != STRING) {
+        throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
+      }
+      if (key_t.a != NUM) {
+        throw new TypeCheckError(
+          "Bracket lookup using " + key_t.a.tag + " type as index is not possible"
+        );
+      }
+      return tBracketExpr;
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
@@ -426,6 +525,8 @@ export function tcLiteral(literal: Literal) {
       return NUM;
     case "none":
       return NONE;
+    case "string":
+      return STRING;
     default:
       unhandledTag(literal);
   }
