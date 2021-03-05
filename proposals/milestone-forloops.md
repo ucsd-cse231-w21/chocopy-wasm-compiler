@@ -199,4 +199,4 @@ The second challenge is the break statement. When there are recursive blocks exi
 parameter to determine which block to break through. Therefore, we have to add a depth recorder inside the type check environment to record
 the current depth and give the value to all break statements.
 
-Another challenge is incorporating the for loop into class methods. We need to handle the class variables, and the heap index correctly
+Another challenge is incorporating the for loop into class methods. Since we are implementing the range() function as an object, we need to handle the class variables, and the heap index correctly
