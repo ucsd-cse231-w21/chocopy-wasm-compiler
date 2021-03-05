@@ -80,3 +80,23 @@ export function assertTCFail(name: string, source: string) {
     }
   });
 }
+
+export function singleVarAssignment<T>(name: string, value: T) {
+  return {
+    tag: "assignment",
+    destruct: {
+      isDestructured: false,
+      targets: [
+        {
+          ignore: false,
+          starred: false,
+          target: {
+            name,
+            tag: "id",
+          },
+        },
+      ],
+    },
+    value,
+  };
+}
