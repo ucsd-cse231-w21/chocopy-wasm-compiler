@@ -22,6 +22,7 @@ export type Program<A> = {
   inits: Array<VarInit<A>>;
   classes: Array<Class<A>>;
   stmts: Array<Stmt<A>>;
+  imports?: Array<Program<A>>
 };
 
 export type Class<A> = {
