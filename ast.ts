@@ -1,5 +1,8 @@
 // import { TypeCheckError } from "./type-check";
 
+import { type } from "cypress/types/jquery";
+import { FuncIdentity } from "./types";
+
 // export enum Type {NUM, BOOL, NONE, OBJ};
 export type Type =
   | { tag: "number" }
@@ -112,19 +115,24 @@ export type Closure<A> = {
   apply: FunDef<A>;
 };
 
+export type CallSite = {
+  iden: FuncIdentity,
+  isConstructor: boolean
+}
+
 export type Stmt<A> =
-  | { a?: A; tag: "assignment"; target: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
   | { a?: A; tag: "assign"; name: string; value: Expr<A> }
   | { a?: A; tag: "return"; value: Expr<A> }
   | { a?: A; tag: "expr"; expr: Expr<A> }
   | { a?: A; tag: "if"; cond: Expr<A>; thn: Array<Stmt<A>>; els: Array<Stmt<A>> }
-  | { a?: A; tag: "while"; cond: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "pass" }
   | { a?: A; tag: "field-assign"; obj: Expr<A>; field: string; value: Expr<A> }
-  | { a?: A; tag: "continue" }
-  | { a?: A; tag: "break" }
-  | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> }
-  | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> }
+  | { a?: A; tag: "assignment"; target: Destructure<A>; value: Expr<A> } //unsupported for builtins at the moment
+  | { a?: A; tag: "while"; cond: Expr<A>; body: Array<Stmt<A>> } //unsupported for builtins at the moment
+  | { a?: A; tag: "continue" } //unsupported for builtins at the moment
+  | { a?: A; tag: "break" } //unsupported for builtins at the moment
+  | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> } //unsupported for builtins at the moment
+  | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> } //unsupported for builtins at the moment
   | {  a?: A, tag: "import", isFromStmt:boolean, target: string, compName?: Array<string>, alias?: string};
 
 
@@ -155,20 +163,21 @@ export type Expr<A> =
   | { a?: A; tag: "uniop"; op: UniOp; expr: Expr<A> }
   | { a?: A; tag: "builtin1"; name: string; arg: Expr<A> }
   | { a?: A; tag: "builtin2"; name: string; left: Expr<A>; right: Expr<A> }
-  | { a?: A; tag: "call"; name: string; arguments: Array<Expr<A>> }
+  | { a?: A; tag: "call"; name: string; arguments: Array<Expr<A>>, callSite?: CallSite }
   // ASSIGNABLE EXPRS
   | { a?: A; tag: "id"; name: string }
   | { a?: A; tag: "lookup"; obj: Expr<A>; field: string }
   // END ASSIGNABLE EXPRS
-  | { a?: A; tag: "method-call"; obj: Expr<A>; method: string; arguments: Array<Expr<A>> }
-  | { a?: A; tag: "construct"; name: string }
-  | { a?: A; tag: "lambda"; args: Array<string>; ret: Expr<A> }
-  | { a?: A; tag: "comprehension"; expr: Expr<A>; field: string; iter: Expr<A>; cond?: Expr<A> }
-  | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
-  | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
-  | { a?: A; tag: "string_slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
-  | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
-  | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
+  | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> } 
+  | { a?: A; tag: "method-call"; obj: Expr<A>; method: string; arguments: Array<Expr<A>>, callSite?: CallSite  }
+
+  | { a?: A; tag: "construct"; name: string } //unsupported for builtins at the moment
+  | { a?: A; tag: "lambda"; args: Array<string>; ret: Expr<A> } //unsupported for builtins at the moment
+  | { a?: A; tag: "comprehension"; expr: Expr<A>; field: string; iter: Expr<A>; cond?: Expr<A> } //unsupported for builtins at the moment
+  | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> } //unsupported for builtins at the moment
+  | { a?: A; tag: "string_slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> } //unsupported for builtins at the moment
+  | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> } //unsupported for builtins at the moment
+  | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> }; //unsupported for builtins at the moment
 
 export type Literal =
   | { tag: "num"; value: bigint }

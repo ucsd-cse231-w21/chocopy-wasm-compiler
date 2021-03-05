@@ -1,227 +1,151 @@
-export interface Allocator {
-  alloc: (size: bigint) => Block;
-
-  // NOTE: this probably should take a Block
-  free2: (ptr: bigint) => void;
-
-  owns: (ptr: bigint) => boolean;
-
-  description: () => string;
+export type ProgramStore = {
+  typeStore : GlobalTable,
+  memStore: MemoryStore,
 }
 
-export interface Block {
-  ptr: bigint;
-  size: bigint;
+export type MemoryStore = {
+  curFileVarIndex: number,
+
+  fileVariables: Array<{varName: string, declrType: Type, val: Value}>
+  fileVarIndex: Map<string, number>
+
+  /*
+   Maps function signatures (as string) to their assembly labels
+   */
+  fileFunctionLabels: Map<string, string>,
+
+  /*
+   Maps typecodes to their class names
+   */
+  fileTypes: Map<number, string>
+
+  heap: Array<Instance>,
+  heapIndex: number
 }
 
-const NULL_BLOCK: Block = {
-  ptr: 0n,
-  size: 0n,
-};
-
-// NOTE: No deallocation
-// [counter, usableMemory...]
-export class BumpAllocator implements Allocator {
-  counter: bigint;
-  absStart: bigint;
-  absEnd: bigint;
-
-  constructor(s: bigint, endExclusive: bigint) {
-    this.absStart = s;
-    this.counter = s;
-    this.absEnd = endExclusive;
-
-    if (endExclusive <= s) {
-      throw new Error(
-        `Error: end (${endExclusive.toString()})<= start of memory (${s.toString()})`
-      );
-    }
-  }
-
-  alloc(size: bigint): Block {
-    if (this.counter >= this.absEnd - size) {
-      return NULL_BLOCK;
-    }
-
-    const ptr = this.counter;
-    this.counter += size;
-    return {
-      ptr: ptr,
-      size: size,
-    };
-  }
-
-  free2(ptr: bigint) {
-    // noop
-  }
-
-  owns(ptr: bigint): boolean {
-    return ptr >= this.absStart && ptr < this.absEnd;
-  }
-
-  description(): string {
-    return `Bump { counter: ${this.counter}, start: ${this.absStart}, end: ${this.absEnd} } `;
-  }
+/*
+ Represents a runtime instance of a class
+ */
+export type Instance = {
+  typeName: string,
+  attributes: Array<Value>
 }
 
-// AllocList: [ { header, obj}, { header, obj }, { header, obj }]
-//   header: {
-//      prev: bigint,
-//      next: bigint,
-//   }
-// BitMappedBlocks: [infomap, bucket1, bucket2, bucket3...]
+function instanciate(typecode: number, store: ProgramStore) : number{
+  const heapAddress = store.memStore.heapIndex;
 
-// flag === true => fallback
-// flag === false => primary
-//
-// flag defaults to false
-export class Switch<P extends Allocator, F extends Allocator> implements Allocator {
-  flag: boolean;
-  primary: P;
-  fallback: F;
+  const className = store.memStore.fileTypes.get(typecode);
+  const classDef = store.typeStore.classMap.get(className);
 
-  constructor(p: P, f: F) {
-    this.flag = false;
+  console.log("-----------> instantiating!!! "+className);
 
-    this.primary = p;
-    this.fallback = f;
-  }
-
-  alloc(size: bigint): Block {
-    if (this.flag) {
-      return this.fallback.alloc(size);
-    } else {
-      return this.primary.alloc(size);
+  const attrs : Array<Value> = new Array(classDef.classVars.size);
+  for(let {index, varDec} of Array.from(classDef.classVars.values())){
+    if(varDec.value.tag === "value"){
+      switch(varDec.value.value.tag){
+        case "None" : {attrs[index] = {tag: "none"}; break;}
+        case "Boolean" : {attrs[index] = {tag: "bool", value: varDec.value.value.value}; break;}
+        case "Number" : {attrs[index] = {tag: "num", value: Number(varDec.value.value.value)}; break;}
+      }
     }
   }
 
-  free2(ptr: bigint) {
-    if (this.primary.owns(ptr)) {
-      this.primary.free2(ptr);
-    } else {
-      this.fallback.free2(ptr);
-    }
+  store.memStore.heap.push({typeName: className, attributes: attrs});
+
+  store.memStore.heapIndex++;
+  return heapAddress;
+}
+
+function objRetr(address: number, attrIndex: number, store: ProgramStore) : number{  
+  if(address === 0){
+    throw new Error("Heap object at index "+address+" is None!");
   }
 
-  owns(ptr: bigint): boolean {
-    return this.primary.owns(ptr) || this.fallback.owns(ptr);
-  }
-
-  description(): string {
-    return `Switch { flag: ${
-      this.flag
-    }, primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`;
-  }
-
-  setFlag(f: boolean) {
-    this.flag = f;
-  }
-
-  toggleFlag() {
-    this.flag = !this.flag;
+  const heapObject = store.memStore.heap[address];
+  const attrValue = heapObject.attributes[attrIndex];
+  switch(attrValue.tag){
+    case "bool": {return attrValue.value ? 1 : 0}
+    case "none": {return 0}
+    case "num": {return attrValue.value}
+    case "object": {return attrValue.address}
   }
 }
 
-// Allocation sizes <= sizeLimit go to the small allocator
-// sizeLimit is in BYTES
-export class Segregator<N extends bigint, S extends Allocator, L extends Allocator>
-  implements Allocator {
-  sizeLimit: N;
-  small: S;
-  large: L;
+function objMut(address: number, attrIndex: number, newValue: number, store: ProgramStore) {
+  const attrValue = store.memStore.heap[address];
 
-  constructor(sizeLimit: N, s: S, l: L) {
-    this.sizeLimit = sizeLimit;
-    this.small = s;
-    this.large = l;
+  //console.log("------ATTRIBUTE MUTATION!!! "+attrValue.typeName);
+  
+  if(attrValue.typeName === "none"){
+    throw new Error("Heap object at index "+address+" is None!");
   }
 
-  alloc(size: bigint): Block {
-    if (size <= this.sizeLimit) {
-      return this.small.alloc(size);
-    } else {
-      return this.large.alloc(size);
+  if(attrValue.attributes[attrIndex].tag === "num"){
+    attrValue.attributes[attrIndex] = {tag: "num", value: newValue};
+  }
+  else if(attrValue.attributes[attrIndex].tag === "bool"){
+    attrValue.attributes[attrIndex] = {tag: "bool", value: newValue === 0? false : true};
+  }
+  else{
+    if(newValue === 0){
+      attrValue.attributes[attrIndex] = {tag: "none"};
     }
-  }
-
-  free2(ptr: bigint) {
-    if (this.small.owns(ptr)) {
-      this.small.free2(ptr);
-    } else {
-      this.large.free2(ptr);
+    else{
+      const heapObject = store.memStore.heap[newValue];
+      attrValue.attributes[attrIndex] = {tag: "object", name: heapObject.typeName, address: newValue};
     }
-  }
-
-  owns(ptr: bigint): boolean {
-    return this.small.owns(ptr) || this.large.owns(ptr);
-  }
-
-  description(): string {
-    return `Segregator { limit: ${this.sizeLimit.toString()}, small: ${this.small.description()}, large: ${this.large.description()}}`;
   }
 }
 
-export class Describer<A extends Allocator> implements Allocator {
-  message: string;
-  allocator: A;
+function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
+  const varInfo = store.memStore.fileVariables[varIndex];
 
-  constructor(a: A, d: string) {
-    this.message = d;
-    this.allocator = a;
+  //console.log("------GLOBAL VAR MUTATION!!! "+varIndex+" | "+varInfo.varName);
+
+  /*
+  if(varInfo === undefined){
+    throw new Error(`unknown global STORE? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
+       ${curSource.join("\n")}
+        INSTRS: 
+        ${curInstr.join("\n")}`);
   }
+  */
 
-  alloc(size: bigint): Block {
-    return this.allocator.alloc(size);
+  if(varInfo.declrType.tag === "number"){
+    store.memStore.fileVariables[varIndex].val =  {tag: "num", value: newValue};
   }
-
-  free2(ptr: bigint) {
-    this.allocator.free2(ptr);
+  else if(varInfo.declrType.tag === "bool"){
+    store.memStore.fileVariables[varIndex].val = {tag: "bool", value: newValue === 0? false : true};
   }
-
-  owns(ptr: bigint): boolean {
-    return this.allocator.owns(ptr);
-  }
-
-  description(): string {
-    return this.message;
+  else{
+    if(newValue === 0){
+      console.log("------- gvar is nulled!");
+      store.memStore.fileVariables[varIndex].val = {tag: "none"};
+    }
+    else{
+      const heapObject = store.memStore.heap[newValue];
+      console.log("------- still gvar mut "+(heapObject === undefined)+" | "+newValue)
+      store.memStore.fileVariables[varIndex].val = {tag: "object", name: heapObject.typeName, address: newValue};
+    }
   }
 }
 
-export class Fallback<P extends Allocator, F extends Allocator> implements Allocator {
-  primary: P;
-  fallback: F;
+function globalRetr(varIndex: number, store: ProgramStore) : number {
+  const varInfo = store.memStore.fileVariables[varIndex];
 
-  constructor(primary: P, fallback: F) {
-    this.primary = primary;
-    this.fallback = fallback;
+  /*
+  if(varInfo === undefined){
+    throw new Error(`unknown global? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
+       ${curSource.join("\n")}
+        INSTRS: 
+        ${curInstr.join("\n")}`);
   }
+  */
 
-  alloc(size: bigint): Block {
-    const b1 = this.primary.alloc(size);
-    if (b1 === NULL_BLOCK) {
-      return this.fallback.alloc(size);
-    }
-
-    return b1;
-  }
-
-  free2(ptr: bigint) {
-    if (this.primary.owns(ptr)) {
-      this.primary.free2(ptr);
-    } else if (this.fallback.owns(ptr)) {
-      this.fallback.free2(ptr);
-    } else {
-      throw new Error(
-        `Attempting to free pointer (${ptr.toString()}) through allocators that do not own it: ${this.description()}`
-      );
-    }
-  }
-
-  owns(ptr: bigint): boolean {
-    return this.primary.owns(ptr) || this.fallback.owns(ptr);
-  }
-
-  description(): string {
-    return `Fallback { primary: ${this.primary.description()}, fallback: ${this.fallback.description()}}`;
+  switch(varInfo.val.tag){
+    case "bool": {return varInfo.val.value ? 1 : 0}
+    case "none": {return 0}
+    case "num": {return varInfo.val.value}
+    case "object": {return varInfo.val.address}
   }
 }

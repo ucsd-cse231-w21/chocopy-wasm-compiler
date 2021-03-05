@@ -1,6 +1,8 @@
-import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
+import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class, typeToString, Parameter } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
+import { callToSignature, ClassPresenter, fdefToIdentity, fdefToSigStr, FuncIdentity, idenToStr, literalToType, ModulePresenter, OrganizedClass, OrganizedFunc, OrganizedModule } from "./types";
+import { table } from "console";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -14,17 +16,11 @@ export class TypeCheckError extends Error {
   }
 }
 
-export type GlobalTypeEnv = {
-  globals: Map<string, Type>;
-  functions: Map<string, [Array<Type>, Type]>;
-  classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>;
-};
-
-export type LocalTypeEnv = {
-  vars: Map<string, Type>;
-  expectedRet: Type;
-  topLevel: boolean;
-};
+export type GlobalTable = {
+  vars: Map<string, Type>,
+  funcs: Map<string, FuncIdentity>,
+  classes: Map<string, ClassPresenter>
+}
 
 const defaultGlobalFunctions = new Map();
 defaultGlobalFunctions.set("abs", [[NUM], NUM]);
@@ -33,432 +29,764 @@ defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
 
-export const defaultTypeEnv = {
-  globals: new Map(),
-  functions: defaultGlobalFunctions,
-  classes: new Map(),
-};
+/**
+ * Looks up a vairable's type from a list of variable maps.
+ * If the varibale cannot be found, undefined is returned
+ */
+/*
+function flookup(fname: string, fpTypes: Array<Type>,
+  funcMap: Map<string, FuncIdentity>) : FuncIdentity {
+  let fsig = funcCallToFSig(fname, fpTypes);
+  console.log("========flookup: "+fsig);
 
-export function emptyGlobalTypeEnv(): GlobalTypeEnv {
-  return {
-    globals: new Map(),
-    functions: new Map(),
-    classes: new Map(),
+  if(funcMap.has(fsig)){
+    return funcMap.get(fsig);
+  }
+  else{
+    //account for None and object types
+    const ofSameName = Array.from(
+                  funcMap.entries()).filter(
+                      x => x[1].name == fname && 
+                          x[1].paramType.length == fpTypes.length);
+
+    for(let [ x , iden] of ofSameName){
+    console.log("candidate: "+x);
+    let incompatabilityFound = false;
+
+    for(let i = 0; i < iden.paramType.length; i++){
+    const declaredType = iden.paramType[i];
+    const receivedType = fpTypes[i];
+
+    if( (declaredType.tag === "class" && 
+        ( ( (receivedType.tag === "none") || 
+            (receivedType.tag === "class" && receivedType.name === declaredType.name) ) || 
+          (declaredType.name === "object") ) ) || 
+
+        (declaredType.tag === receivedType.tag)){
+        continue;
+    }
+    else{
+        incompatabilityFound = true;
+        break;
+    }
+    }
+
+    if(!incompatabilityFound){
+    return iden;
+    }
+  }
+
+  return undefined;
+  }
+} 
+*/
+
+function flookup(fname: string, 
+                 fpTypes: Array<Type>,
+                 funcMap: Map<string, FuncIdentity>) : FuncIdentity {
+  const sig = callToSignature(fname, fpTypes);
+  if(funcMap.has(sig)){
+    return funcMap.get(sig);
+  }
+  else{
+    //account for None and object types
+    const ofSameName = Array.from(
+      funcMap.entries()).filter(
+          x => x[1].signature.name == fname && 
+              x[1].signature.parameters.length == fpTypes.length);
+
+    for(let [ x , iden] of ofSameName){
+      console.log("candidate: "+x);
+      let incompatabilityFound = false;
+    
+      for(let i = 0; i < iden.signature.parameters.length; i++){
+        const declaredType = iden.signature.parameters[i];
+        const receivedType = fpTypes[i];
+    
+        if( (declaredType.tag === "class" && 
+            ( ( (receivedType.tag === "none") || 
+                (receivedType.tag === "class" && receivedType.name === declaredType.name) ) || 
+                (declaredType.name === "object") ) ) || 
+    
+            (declaredType.tag === receivedType.tag)){
+              continue;
+        }
+        else{
+          incompatabilityFound = true;
+          break;
+        }
+      }
+    
+      if(!incompatabilityFound){
+        return iden;
+      }
+    }
+    
+    return undefined;
+  }
+}
+
+/**
+ * Looks up a vairable's type from a list of variable maps.
+ * If the varibale cannot be found, undefined is returned
+ */
+function lookup(targetVar: string, varMaps: Array<Map<string, Type>>) : Type {
+  for (let vmap of varMaps) {
+    if(vmap.has(targetVar)){
+      return vmap.get(targetVar);
+    }
+  }
+  return undefined;
+} 
+
+/**
+ * Checks if a type is assignable to another type
+ * @param destType - the destination type
+ * @param sourceType - the source type
+ */
+function isAssignable(destType: Type, sourceType: Type) : boolean {
+  if(destType.tag === "none"){
+      return sourceType.tag === "none";
+  }
+
+  if(destType.tag === "class"){
+      return (destType.name === "object") || 
+             (sourceType.tag === "none") || 
+             (sourceType.tag === "class" && sourceType.name === destType.name)
+  }
+  else{
+      return destType.tag === sourceType.tag;
+  }
+}
+
+function checkReturn(body: Array<Stmt<Type>>, expectedReturnType: Type) : boolean {
+  if(body.length >= 1){
+      const lastStatemnt = body[body.length - 1];
+      if(lastStatemnt.tag === "return"){
+          return isAssignable(expectedReturnType, lastStatemnt.value.a);
+      }
+      else if(lastStatemnt.tag === "if"){
+          return checkReturn(lastStatemnt.thn, expectedReturnType) && 
+                 checkReturn(lastStatemnt.els, expectedReturnType);
+      }
+  }
+  return false;
+}
+
+/**
+ * Creates a ClassPresenter out of a class declaration
+ * @param classDef - the ClassPresenter than represents a class
+ */
+function makePresenter(classDef: Class<null>) : ClassPresenter{
+  const result: ClassPresenter = {
+    name: classDef.name,
+    instanceVars: new Map(),
+    instanceMethods: new Map()
   };
-}
 
-export function emptyLocalTypeEnv(): LocalTypeEnv {
-  return {
-    vars: new Map(),
-    expectedRet: NONE,
-    topLevel: true,
-  };
-}
+  //add instance variables
+  for(let v of classDef.fields){
+    if(result.instanceVars.has(v.name)){
+      throw new TypeCheckError(`For the class ${result.name}, the field ${v.name} already exists`);
+    }
 
-export type TypeError = {
-  message: string;
-};
-
-export function equalType(t1: Type, t2: Type) {
-  return t1 === t2 || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name);
-}
-
-export function isNoneOrClass(t: Type) {
-  return t.tag === "none" || t.tag === "class";
-}
-
-export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && t2.tag === "class");
-}
-
-export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return isSubtype(env, t1, t2);
-}
-
-export function join(env: GlobalTypeEnv, t1: Type, t2: Type): Type {
-  return NONE;
-}
-
-export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalTypeEnv {
-  const newGlobs = new Map(env.globals);
-  const newFuns = new Map(env.functions);
-  const newClasses = new Map(env.classes);
-  program.inits.forEach((init) => newGlobs.set(init.name, init.type));
-  program.funs.forEach((fun) =>
-    newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret])
-  );
-  program.classes.forEach((cls) => {
-    const fields = new Map();
-    const methods = new Map();
-    cls.fields.forEach((field) => fields.set(field.name, field.type));
-    cls.methods.forEach((method) =>
-      methods.set(method.name, [method.parameters.map((p) => p.type), method.ret])
-    );
-    newClasses.set(cls.name, [fields, methods]);
-  });
-  return { globals: newGlobs, functions: newFuns, classes: newClasses };
-}
-
-export function tc(env: GlobalTypeEnv, program: Program<null>, builtIns: Map<string, GlobalTypeEnv>): [Program<Type>, GlobalTypeEnv] {
-  const locals = emptyLocalTypeEnv();
-  const newEnv = augmentTEnv(env, program);
-  const tInits = program.inits.map((init) => tcInit(env, init));
-  const tDefs = program.funs.map((fun) => tcDef(newEnv, fun, builtIns));
-  const tClasses = program.classes.map((cls) => tcClass(newEnv, cls, builtIns));
-
-  // program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
-  // program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
-  // program.funs.forEach(fun => tcDef(env, fun));
-  // Strategy here is to allow tcBlock to populate the locals, then copy to the
-  // global env afterwards (tcBlock changes locals)
-  const tBody = tcBlock(newEnv, locals, program.stmts, builtIns);
-  var lastTyp: Type = NONE;
-  if (tBody.length) {
-    lastTyp = tBody[tBody.length - 1].a;
+    result.instanceVars.set(v.name, v.type);
   }
-  // TODO(joe): check for assignment in existing env vs. new declaration
-  // and look for assignment consistency
-  for (let name of locals.vars.keys()) {
-    newEnv.globals.set(name, locals.vars.get(name));
+
+  //add instance methods
+  for(let m of classDef.methods){
+    const fSig = fdefToSigStr(m);
+    if(result.instanceMethods.has(fSig)){
+      throw new TypeCheckError(`For the class ${result.name}, the method ${fSig} already exists`);
+    }
+
+    result.instanceMethods.set(fSig, fdefToIdentity(m));
   }
-  const aprogram = { a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody };
-  return [aprogram, newEnv];
+
+  return result;
 }
 
-export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
-  const valTyp = tcLiteral(init.value);
-  if (isAssignable(env, valTyp, init.type)) {
-    return { ...init, a: NONE };
-  } else {
-    throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
+function doesTypeExist(type: Type, table: GlobalTable) : string {
+  if(type.tag === "class"){
+    return table.classes.has(type.name) ? undefined : type.name;
+  }
+  else if(type.tag === "list"){
+    return doesTypeExist(type.content_type, table);
+  }
+  else if(type.tag === "callable"){
+    for(let par of type.args){
+      const potentialError = doesTypeExist(par, table);
+      if(potentialError !== undefined){
+        return potentialError;
+      }
+    }
+
+    return doesTypeExist(type.ret, table);
+  }
+  return undefined;
+}
+
+/**
+ * Adds imported types and functions to the provided GlobalTable
+ * @param env - the GlobalTable to add imported components
+ * @param builtIns - the builtin modules available
+ * @param imports - the statement list containing import statements
+ */
+export function includeImports(env: GlobalTable, 
+                               builtIns: Map<string, ModulePresenter>, 
+                               imports: Array<Stmt<null>>){
+  //include imports. We include imports first rather than including
+  //global variable to allow for overriding
+  for(let imprt of imports){
+    if(imprt.tag === "import"){
+      if(imprt.isFromStmt){
+        const compSet = new Set(imprt.compName);
+        //include all components in target in this module
+        const target = builtIns.get(imprt.target);
+        if(target === undefined){
+          throw new TypeCheckError(`Unfound module ${imprt.target}`);
+        }
+
+        let anyFound = false;
+        for(let [name, def] of target.functions.entries()){
+          if(compSet.has(name)){
+            anyFound = true;
+
+            env.funcs.set(idenToStr(def), def);
+          }
+        }
+
+        for(let [name, def] of target.classes.entries()){
+          if(compSet.has(name)){
+            anyFound = true;
+
+            env.classes.set(name, def);
+          }
+        }
+
+        if(!anyFound){
+          throw new TypeCheckError(`Cannot find any component named as ${new Array(compSet).join(",")} in the module ${target}`);
+        }
+      }
+      else{
+        if(!builtIns.has(imprt.target)){
+          throw new TypeCheckError(`No module named ${imprt.target}`);
+        }
+        env.vars.set(imprt.alias === undefined ? 
+                       imprt.target : 
+                       imprt.alias,
+                     {tag: "class", name: "module$"+imprt.target});
+      }
+    }
   }
 }
 
-export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>, builtIns: Map<string, GlobalTypeEnv>): FunDef<Type> {
-  var locals = emptyLocalTypeEnv();
-  locals.expectedRet = fun.ret;
-  locals.topLevel = false;
-  fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
-  fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
 
-  const tBody = tcBlock(env, locals, fun.body, builtIns);
-  return { ...fun, a: NONE, body: tBody };
-}
 
-export function tcClass(env: GlobalTypeEnv, cls: Class<null>, builtIns: Map<string, GlobalTypeEnv>): Class<Type> {
-  const tFields = cls.fields.map((field) => tcInit(env, field));
-  const tMethods = cls.methods.map((method) => tcDef(env, method, builtIns));
-  return { a: NONE, name: cls.name, fields: tFields, methods: tMethods };
-}
+function tcExpr(expr: Expr<null>, 
+                vars: Array<Map<string, Type>>, 
+                global: GlobalTable,
+                builtIns: Map<string, ModulePresenter>) : Expr<Type>{
+  switch(expr.tag){
+    case "literal": return {a: literalToType(expr.value), tag: "literal", value: expr.value};
+    case "binop" :  {
+      const left = tcExpr(expr.left, vars, global, builtIns);
+      const right = tcExpr(expr.right, vars, global, builtIns);
 
-export function tcBlock(
-  env: GlobalTypeEnv,
-  locals: LocalTypeEnv,
-  stmts: Array<Stmt<null>>,
-  builtIns: Map<string, GlobalTypeEnv>
-): Array<Stmt<Type>> {
-  return stmts.map((stmt) => tcStmt(env, locals, stmt, builtIns));
-}
+      const leftType = left.a;
+      const rightType = right.a;
 
-export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>, builtIns: Map<string, GlobalTypeEnv>): Stmt<Type> {
-  switch (stmt.tag) {
-    case "assignment":
-      throw new TypeCheckError("Destructured assignment not implemented");
-    case "import": {
-      const targetModule = builtIns.get(stmt.target);
-      if(targetModule === undefined){
-        throw new TypeCheckError(`The module ${stmt.target} cannot be found!`);
+      const equalityOps = new Set([BinOp.Eq, BinOp.Neq]);
+      const relational = new Set([BinOp.Lte, BinOp.Lt, BinOp.Gte, BinOp.Gt]);
+      const arithOps = new Set([BinOp.Plus, BinOp.Minus, BinOp.Mul, BinOp.IDiv, BinOp.Mul]);
+
+      if(expr.op === BinOp.Is){
+          if(leftType.tag === "bool" || leftType.tag === "number" || 
+             rightType.tag === "bool" || rightType.tag === "number"){
+              throw new TypeCheckError("'is' operator can only be used on class instances!");
+          }
+
+          return {a: {tag: "bool"}, tag: "binop", op: expr.op, left: left, right: right};
+      }
+      else if(equalityOps.has(expr.op)){
+         if( (leftType.tag === "class" && (rightType.tag === "class" || rightType.tag === "none")) || 
+             (rightType.tag === "class" && (leftType.tag === "class" || leftType.tag === "none"))  || 
+             (leftType.tag === "none" && (rightType.tag === "class" || rightType.tag === "none")) || 
+             (rightType.tag === "none" && (leftType.tag === "class" || leftType.tag === "none"))  ||
+             (typeToString(leftType) === typeToString(rightType)) ){
+              return {a: {tag: "bool"}, tag: "binop", op: expr.op, left: left, right: right};
+         }
+         
+          throw new TypeCheckError("Both operands must be of the same time when using '"+expr.op+"'");     
+      }
+      else if((relational.has(expr.op) || arithOps.has(expr.op))){
+          if(leftType.tag !== "number" || rightType.tag !== "number"){
+              throw new TypeCheckError("Both operands must be ints when using '"+expr.op+"'");
+          }
+          
+          if(relational.has(expr.op)){
+              return {a: {tag: "bool"}, tag: "binop", op: expr.op, left: left, right: right};
+          }
+
+          return {a: {tag: "number"}, tag: "binop", op: expr.op, left: left, right: right};
       }
 
-      //if import is a "from" statements, include functions to 
-      //the file's global env
-      if(stmt.isFromStmt){
+      //this shouldn't throw, but it makes TypeScript happy
+      throw new TypeCheckError("Unknown operand? '"+expr.op+"'!");
+    }
+    case "uniop": {
+      const target = tcExpr(expr.expr, vars, global, builtIns);
+      const targetType = target.a;
+      switch(expr.op){
+        case UniOp.Neg: {
+          if(targetType.tag !== "number"){
+            throw new TypeCheckError(`'${typeToString(targetType)}' can only be applied on ints.`);
+          }
 
-        const importedComps : Set<string> = new Set(stmt.compName);
+          return {a:targetType, tag: "uniop", op: expr.op, expr: target};
+        }
+        case UniOp.Not: {
+          if(targetType.tag !== "bool"){
+            throw new TypeCheckError(`'${typeToString(targetType)}' can only be applied on bools.`);
+          }
 
-        //right now, we check for function uniqueness by name only
-        for(let [name, infos] of targetModule.functions.entries()){
-          if(importedComps.has(name)){
-            if(env.functions.has(name)){
-              throw new TypeCheckError(`There's already a function called ${name}`);
+          return {a:targetType, tag: "uniop", op: expr.op, expr: target};
+        }
+      }
+    }
+    case "builtin1":{
+      return tcExpr({tag: "call", 
+                     name: expr.name, 
+                     arguments: [expr.arg]}, vars, global, builtIns);
+    }
+    case "builtin2":{
+      return tcExpr({tag: "call", 
+                     name: expr.name, 
+                     arguments: [expr.left, expr.right]}, vars, global, builtIns);
+    }
+    case "call":{
+      const typedArgExprs : Array<Expr<Type>> = new Array();
+
+      for(let i = 0; i < expr.arguments.length; i++){
+        const typedExpr = tcExpr(expr.arguments[i], vars, global, builtIns);
+        typedArgExprs.push(typedExpr);
+      }
+
+      const argTypes : Array<Type> = typedArgExprs.map(x => x.a);
+      const target: FuncIdentity = flookup(expr.name, argTypes, global.funcs);
+
+      if(target !== undefined){
+        return {a: target.returnType, 
+                tag: "call", 
+                name: expr.name, 
+                arguments: typedArgExprs, 
+                callSite: {iden: target, isConstructor: false}};
+      }
+      else if(global.classes.has(expr.name)){
+        return {a: target.returnType, 
+                tag: "call", 
+                name: expr.name, 
+                arguments: typedArgExprs, 
+                callSite: {iden: {signature: {name: expr.name, 
+                                              parameters: argTypes}, 
+                                  returnType: {tag: "class", 
+                                               name: expr.name}}, 
+                           isConstructor: true}};
+      }
+
+      throw new TypeCheckError(`Unfound function: ${callToSignature(expr.name, argTypes)}`);
+    }
+    case "id": {
+      const idType = lookup(expr.name, vars);
+      if(idType === undefined){
+        throw new TypeCheckError(`Cannot find variable named ${expr.name}`);
+      }
+
+      return {a: idType, tag: "id", name: expr.name};
+    }
+    case "lookup": {
+      const target = tcExpr(expr.obj, vars, global, builtIns);
+      const targetType = target.a;
+
+      if(targetType.tag === "class"){
+        if(targetType.name.startsWith("module$")){
+          //this is a module
+          const moduleName = targetType.name.split("$")[1];
+          const module = builtIns.get(moduleName);
+
+          if(module === undefined){
+            throw new TypeCheckError(`Cannot find the module ${moduleName}`);
+          }
+
+          const moduleVar = module.moduleVars.get(expr.field);
+          if(moduleVar === undefined){
+            throw new TypeCheckError(`Cannot find field ${expr.field} in the module ${moduleName}`);
+          }
+
+          return {a: moduleVar, tag: "lookup", obj: target, field: expr.field};
+        }
+        else{
+          const targetClass = global.classes.get(targetType.name);
+          if(targetClass === undefined){
+            throw new TypeError(`Cannot find the type ${targetType.name}`);
+          }
+          else{
+            const fieldType = targetClass.instanceVars.get(expr.field);
+            if(fieldType === undefined){
+              throw new TypeError(`The type ${targetType.name} has no instance variable ${expr.field}`);
             }
-            env.functions.set(name, infos);
+
+            return {a: fieldType, tag: "lookup", obj: target, field: expr.field};
           }
         }
       }
       else{
-        //we create a new global variable with the name of the imported module
-        env.globals.set(stmt.target, {tag: "class", name: stmt.target});
-        //class -> [Map<string, Type>, Map<string, [Array<Type>, Type]>]
-        env.classes.set(stmt.target, [new Map(), targetModule.functions]);
+        throw new TypeError(`The type ${typeToString(targetType)} has no attributes`);
       }
-
-      return stmt;
     }
-    case "assign":
-      const tValExpr = tcExpr(env, locals, stmt.value);
-      var nameTyp;
-      if (locals.vars.has(stmt.name)) {
-        nameTyp = locals.vars.get(stmt.name);
-      } else if (env.globals.has(stmt.name)) {
-        nameTyp = env.globals.get(stmt.name);
-      } else {
-        throw new TypeCheckError("Unbound id: " + stmt.name);
-      }
-      if (!isAssignable(env, tValExpr.a, nameTyp)) throw new TypeCheckError("Non-assignable types");
-      return { a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr };
-    case "expr":
-      const tExpr = tcExpr(env, locals, stmt.expr);
-      return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
-    case "if":
-      var tCond = tcExpr(env, locals, stmt.cond);
-      const tThn = tcBlock(env, locals, stmt.thn, builtIns);
-      const thnTyp = tThn[tThn.length - 1].a;
-      const tEls = tcBlock(env, locals, stmt.els, builtIns);
-      const elsTyp = tEls[tEls.length - 1].a;
-      if (tCond.a !== BOOL) throw new TypeCheckError("Condition Expression Must be a bool");
-      else if (thnTyp !== elsTyp)
-        throw new TypeCheckError("Types of then and else branches must match");
-      return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
-    case "return":
-      if (locals.topLevel) throw new TypeCheckError("cannot return outside of functions");
-      const tRet = tcExpr(env, locals, stmt.value);
-      if (!isAssignable(env, tRet.a, locals.expectedRet))
-        throw new TypeCheckError(
-          "expected return type `" +
-            (locals.expectedRet as any).name +
-            "`; got type `" +
-            (tRet.a as any).name +
-            "`"
-        );
-      return { a: tRet.a, tag: stmt.tag, value: tRet };
-    case "while":
-      var tCond = tcExpr(env, locals, stmt.cond);
-      const tBody = tcBlock(env, locals, stmt.body, builtIns);
-      if (!equalType(tCond.a, BOOL))
-        throw new TypeCheckError("Condition Expression Must be a bool");
-      return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
-    case "pass":
-      return { a: NONE, tag: stmt.tag };
-    case "field-assign":
-      var tObj = tcExpr(env, locals, stmt.obj);
-      const tVal = tcExpr(env, locals, stmt.value);
-      if (tObj.a.tag !== "class") throw new TypeCheckError("field assignments require an object");
-      if (!env.classes.has(tObj.a.name))
-        throw new TypeCheckError("field assignment on an unknown class");
-      const [fields, _] = env.classes.get(tObj.a.name);
-      if (!fields.has(stmt.field))
-        throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
-      if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
-        throw new TypeCheckError(
-          `could not assign value of type: ${tVal.a}; field ${
-            stmt.field
-          } expected type: ${fields.get(stmt.field)}`
-        );
-      return { ...stmt, a: NONE, obj: tObj, value: tVal };
-    default:
-      unhandledTag(stmt);
-  }
-}
+    case "list-expr": {
+      const valueTypes = expr.contents.map(x => tcExpr(x, vars, global, builtIns));
+      return {a: {tag: "list", 
+                  content_type: {tag: "class", 
+                                 name: "object"}}, 
+              tag: "list-expr", 
+              contents: valueTypes};
+    }
+    case "method-call":{
+      const target = tcExpr(expr.obj, vars, global, builtIns);
+      const targetArgs = expr.arguments.map(x => tcExpr(x, vars, global, builtIns));
+      const argTypes = targetArgs.map(x => x.a);
+      const callSig = callToSignature(expr.method, argTypes);
+      const targetType = target.a;
 
-export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null>): Expr<Type> {
-  switch (expr.tag) {
-    case "literal":
-      return { ...expr, a: tcLiteral(expr.value) };
-    case "binop":
-      const tLeft = tcExpr(env, locals, expr.left);
-      const tRight = tcExpr(env, locals, expr.right);
-      const tBin = { ...expr, left: tLeft, right: tRight };
-      switch (expr.op) {
-        case BinOp.Plus:
-        case BinOp.Minus:
-        case BinOp.Mul:
-        case BinOp.IDiv:
-        case BinOp.Mod:
-          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
-            return { a: NUM, ...tBin };
-          } else {
-            throw new TypeCheckError("Type mismatch for numeric op" + expr.op);
-          }
-        case BinOp.Eq:
-        case BinOp.Neq:
-          if (equalType(tLeft.a, tRight.a)) {
-            return { a: BOOL, ...tBin };
-          } else {
-            throw new TypeCheckError("Type mismatch for op" + expr.op);
-          }
-        case BinOp.Lte:
-        case BinOp.Gte:
-        case BinOp.Lt:
-        case BinOp.Gt:
-          if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
-            return { a: BOOL, ...tBin };
-          } else {
-            throw new TypeCheckError("Type mismatch for op" + expr.op);
-          }
-        case BinOp.And:
-        case BinOp.Or:
-          if (equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) {
-            return { a: BOOL, ...tBin };
-          } else {
-            throw new TypeCheckError("Type mismatch for boolean op" + expr.op);
-          }
-        case BinOp.Is:
-          if (!isNoneOrClass(tLeft.a) || !isNoneOrClass(tRight.a))
-            throw new TypeCheckError("is operands must be objects");
-          return { a: BOOL, ...tBin };
-        default:
-          return unreachable(expr);
-      }
-    case "uniop":
-      const tExpr = tcExpr(env, locals, expr.expr);
-      const tUni = { ...expr, a: tExpr.a, expr: tExpr };
-      switch (expr.op) {
-        case UniOp.Neg:
-          if (equalType(tExpr.a, NUM)) {
-            return tUni;
-          } else {
-            throw new TypeCheckError("Type mismatch for op" + expr.op);
-          }
-        case UniOp.Not:
-          if (equalType(tExpr.a, BOOL)) {
-            return tUni;
-          } else {
-            throw new TypeCheckError("Type mismatch for op" + expr.op);
-          }
-        default:
-          return unreachable(expr);
-      }
-    case "id":
-      if (locals.vars.has(expr.name)) {
-        return { a: locals.vars.get(expr.name), ...expr };
-      } else if (env.globals.has(expr.name)) {
-        return { a: env.globals.get(expr.name), ...expr };
-      } else {
-        throw new TypeCheckError("Unbound id: " + expr.name);
-      }
-    case "builtin1":
-      if (expr.name === "print") {
-        const tArg = tcExpr(env, locals, expr.arg);
-        return { ...expr, a: tArg.a, arg: tArg };
-      } else if (env.functions.has(expr.name)) {
-        const [[expectedArgTyp], retTyp] = env.functions.get(expr.name);
-        const tArg = tcExpr(env, locals, expr.arg);
+      if(targetType.tag === "class"){
+        if(targetType.name.startsWith("module$")){
+          //this is a module
+          const moduleName = targetType.name.split("$")[1];
+          const module = builtIns.get(moduleName);
 
-        if (isAssignable(env, tArg.a, expectedArgTyp)) {
-          return { ...expr, a: retTyp, arg: tArg };
-        } else {
-          throw new TypeError("Function call type mismatch: " + expr.name);
-        }
-      } else {
-        throw new TypeError("Undefined function: " + expr.name);
-      }
-    case "builtin2":
-      if (env.functions.has(expr.name)) {
-        const [[leftTyp, rightTyp], retTyp] = env.functions.get(expr.name);
-        const tLeftArg = tcExpr(env, locals, expr.left);
-        const tRightArg = tcExpr(env, locals, expr.right);
-        if (isAssignable(env, leftTyp, tLeftArg.a) && isAssignable(env, rightTyp, tRightArg.a)) {
-          return { ...expr, a: retTyp, left: tLeftArg, right: tRightArg };
-        } else {
-          throw new TypeError("Function call type mismatch: " + expr.name);
-        }
-      } else {
-        throw new TypeError("Undefined function: " + expr.name);
-      }
-    case "call":
-      if (env.classes.has(expr.name)) {
-        // surprise surprise this is actually a constructor
-        const tConstruct: Expr<Type> = { a: CLASS(expr.name), tag: "construct", name: expr.name };
-        const [_, methods] = env.classes.get(expr.name);
-        if (methods.has("__init__")) {
-          const [initArgs, initRet] = methods.get("__init__");
-          if (expr.arguments.length !== initArgs.length - 1)
-            throw new TypeCheckError(
-              "__init__ didn't receive the correct number of arguments from the constructor"
-            );
-          if (initRet !== NONE) throw new TypeCheckError("__init__  must have a void return type");
-          return tConstruct;
-        } else {
-          return tConstruct;
-        }
-      } else if (env.functions.has(expr.name)) {
-        const [argTypes, retType] = env.functions.get(expr.name);
-        const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-
-        if (
-          argTypes.length === expr.arguments.length &&
-          tArgs.every((tArg, i) => tArg.a === argTypes[i])
-        ) {
-          return { ...expr, a: retType, arguments: expr.arguments };
-        } else {
-          throw new TypeError("Function call type mismatch: " + expr.name);
-        }
-      } else {
-        throw new TypeError("Undefined function: " + expr.name);
-      }
-    case "lookup":
-      var tObj = tcExpr(env, locals, expr.obj);
-      if (tObj.a.tag === "class") {
-        if (env.classes.has(tObj.a.name)) {
-          const [fields, _] = env.classes.get(tObj.a.name);
-          if (fields.has(expr.field)) {
-            return { ...expr, a: fields.get(expr.field), obj: tObj };
-          } else {
-            throw new TypeCheckError(`could not found field ${expr.field} in class ${tObj.a.name}`);
+          if(module === undefined){
+            throw new TypeCheckError(`Cannot find the module ${moduleName}`);
           }
-        } else {
-          throw new TypeCheckError("field lookup on an unknown class");
+
+          const moduleFunc = flookup(expr.method, argTypes, module.functions);
+          if(moduleFunc === undefined){
+            throw new TypeCheckError(`Cannot find method ${callSig} in the module ${moduleName}`);
+          }
+
+          return {a: moduleFunc.returnType, 
+                  tag: "method-call", 
+                  obj: target, 
+                  method: expr.method,
+                  arguments: targetArgs,
+                  callSite: {iden: moduleFunc, isConstructor: false}
+                };
         }
-      } else {
-        throw new TypeCheckError("field lookups require an object");
-      }
-    case "method-call":
-      var tObj = tcExpr(env, locals, expr.obj);
-      var tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-      if (tObj.a.tag === "class") {
-        if (env.classes.has(tObj.a.name)) {
-          const [_, methods] = env.classes.get(tObj.a.name);
-          if (methods.has(expr.method)) {
-            const [methodArgs, methodRet] = methods.get(expr.method);
-            const realArgs = [tObj].concat(tArgs);
-            if (
-              methodArgs.length === realArgs.length &&
-              methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))
-            ) {
-              return { ...expr, a: methodRet, obj: tObj, arguments: tArgs };
-            } else {
-              throw new TypeCheckError(
-                `Method call type mismatch: ${expr.method} --- callArgs: ${JSON.stringify(
-                  realArgs
-                )}, methodArgs: ${JSON.stringify(methodArgs)}`
-              );
+        else{
+          const targetClass = global.classes.get(targetType.name);
+          if(targetClass === undefined){
+            throw new TypeError(`Cannot find the type ${targetType.name}`);
+          }
+          else{
+            const instanceMeth = flookup(expr.method, argTypes, targetClass.instanceMethods);
+            if(instanceMeth === undefined){
+              throw new TypeError(`The type ${targetType.name} has no method ${callSig}`);
             }
-          } else {
-            throw new TypeCheckError(
-              `could not found method ${expr.method} in class ${tObj.a.name}`
-            );
+
+            return {a: instanceMeth.returnType, 
+                    tag: "method-call", 
+                    obj: target, 
+                    method: expr.method,
+                    arguments: targetArgs,
+                    callSite: {iden: instanceMeth, isConstructor: false}
+                  };
           }
-        } else {
-          throw new TypeCheckError("method call on an unknown class");
         }
-      } else {
-        throw new TypeCheckError("method calls require an object");
       }
-    default:
-      throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
+      else{
+        throw new TypeError(`The type ${typeToString(targetType)} has no methods`);
+      }
+    }
+    default: throw new Error(`EXPR ${expr.tag} is unsupported!`);
   }
 }
 
-export function tcLiteral(literal: Literal) {
-  switch (literal.tag) {
-    case "bool":
-      return BOOL;
-    case "num":
-      return NUM;
-    case "none":
-      return NONE;
-    default:
-      unhandledTag(literal);
+function tcStmt(stmt: Stmt<null>, 
+                vars: Array<Map<string, Type>>, 
+                global: GlobalTable,
+                builtIns: Map<string, ModulePresenter>) : Stmt<Type>{
+  switch(stmt.tag){
+    case "assign": {
+      const varType = lookup(stmt.name, vars);
+      if(varType === undefined){
+        throw new Error(`Cannot fint ${stmt.name}`);
+      }
+
+      const typedValue = tcExpr(stmt.value, vars, global, builtIns);
+      if(typedValue.tag === "list-expr"){
+        for(let cont of typedValue.contents){
+          if(!isAssignable(varType, cont.a)){
+            throw new TypeCheckError(`The type ${typeToString(cont.a)} is not assignable to ${typeToString(varType)}`);
+          }
+        }
+
+        return {a: varType, tag: "assign", name: stmt.name, value: typedValue};
+      }
+      else if(!isAssignable(varType, typedValue.a)){
+        throw new TypeCheckError(`The type ${typeToString(typedValue.a)} is not assignable to ${typeToString(varType)}`);
+      }
+
+      return {a: {tag: "none"}, tag: "assign", name: stmt.name, value: typedValue};
+    }
+    case "return":{
+      const returnType = tcExpr(stmt.value, vars, global, builtIns);
+      return {a: returnType.a, tag: "return", value: returnType};
+    }
+    case "expr":{
+      const returnType = tcExpr(stmt.expr, vars, global, builtIns);
+      return {a: returnType.a, tag: "return", value: returnType};
+    }
+    case "if":{
+      const typedCond = tcExpr(stmt.cond, vars, global, builtIns);
+      if(typedCond.a.tag !== "bool"){
+        throw new TypeCheckError(`if-statement conditions must be bools`);
+      }
+
+      const newThen = stmt.thn.map(x => tcStmt(x, vars, global, builtIns));
+      const elseThen = stmt.els.map(x => tcStmt(x, vars, global, builtIns));
+
+      return {a: {tag: "none"}, tag: "if", cond: typedCond, thn: newThen, els: elseThen};
+    }
+    case "pass":{
+      return {a: {tag: "none"}, tag: "pass"};
+    }
+    case "field-assign":{
+      const leftSideType = tcExpr({tag: "lookup", obj: stmt.obj, field: stmt.field}, vars, global, builtIns);
+      const valueType = tcExpr(stmt.value, vars, global, builtIns);
+      if(!isAssignable(leftSideType.a, valueType.a)){
+        throw new TypeCheckError(`The type ${typeToString(valueType.a)} is not assignable to ${typeToString(leftSideType.a)}`);
+      }
+
+      return {a: valueType.a, 
+              tag: "field-assign", 
+              obj: leftSideType,  //DEV_NOTE: This may potentially cause errors. Be careful
+              field: stmt.field, 
+              value: valueType};
+    }
+    default: throw new Error(`STMT ${stmt.tag} is unsupported!`);
   }
+}
+
+function tcClassDef(def: Class<null>, 
+                    global: GlobalTable, 
+                    builtIns: Map<string, ModulePresenter>) : OrganizedClass{
+  //structures for OrganizedClass
+  const newFields : Map<string, VarInit<Type>> = new Map();
+  const newMethods : Map<string, OrganizedFunc> = new Map();
+
+  //for presented
+  const presenter : ClassPresenter = {
+    name: def.name,
+    instanceVars: new Map(),
+    instanceMethods: new Map()
+  }
+
+  for(let v of def.fields){
+    if(!isAssignable(v.type, literalToType(v.value))){
+      throw new TypeCheckError(`The type ${typeToString(literalToType(v.value))} is not assignable to ${typeToString(v.type)}`);
+    }
+    else if(newFields.has(v.name)){
+      throw new TypeCheckError(`Duplicate class variable ${v.name} for class ${def.name}`);
+    }
+
+    presenter.instanceVars.set(v.name, v.type);
+    newFields.set(v.name, {a: literalToType(v.value), 
+                           name: v.name, 
+                           type: v.type, 
+                           value: v.value});
+  }
+
+
+  for(let f of def.methods){
+    const newF = tcFuncDef(f, global, builtIns);
+    const sig = idenToStr(newF.identity);
+    if(presenter.instanceMethods.has(sig)){
+      throw new TypeCheckError(`Duplicate method ${sig} for class ${def.name}`);
+    }
+    presenter.instanceMethods.set(sig, newF.identity);
+    newMethods.set(sig, newF);
+  }
+                    
+  return {name: def.name, fields: newFields, methods: newMethods, presenter: presenter};
+}
+
+function tcFuncDef(def: FunDef<null>, 
+                   global: GlobalTable, 
+                   builtIns: Map<string, ModulePresenter>) : OrganizedFunc{
+  //function signature. Useful for errors
+  const funcIdentity = fdefToIdentity(def);
+
+  //check if return type exists
+  const retMissing = doesTypeExist(def.ret, global);
+  if(retMissing !== undefined){
+    throw new TypeCheckError(`The type ${retMissing} cannot be found!`);
+  }
+
+  //Local scope for this function defintion
+  const localScope: Map<string, Type> = new Map();
+
+  //structures are for the OrganizedFunc to be returned
+  const newParams: Map<string, Type> = new Map();
+  const newLocals: Map<string, VarInit<Type>> = new Map();
+  const newStmts: Array<Stmt<Type>> = new Array();
+
+  //add parameters to local scope
+  for(let param of def.parameters){
+    if(localScope.has(param.name)){
+      throw new TypeCheckError(`Duplicate variable declaration ${param.name}`);
+    }
+
+    //check for type existence
+    const missingType = doesTypeExist(param.type, global);
+    if(missingType !== undefined){
+      throw new TypeCheckError(`The type ${missingType} cannot be found!`);
+    }
+
+    localScope.set(param.name, param.type);
+    newParams.set(param.name, param.type);
+  }
+
+  //add local variables to scope
+  for(let v of def.inits){
+    const missingType = doesTypeExist(v.type, global);
+    if(missingType !== undefined){
+      throw new TypeCheckError(`The type ${missingType} cannot be found!`);
+    }
+
+    const literalType = literalToType(v.value);
+    if(!isAssignable(v.type, literalType)){
+      throw new TypeCheckError(`${literalToType(v.value)} isn't assignable to ${typeToString(v.type)} for variable ${v.name}`);
+    }
+
+    localScope.set(v.name, literalType);
+    newLocals.set(v.name, {a: literalToType(v.value), name: v.name, type: v.type, value: v.value});
+  }
+
+  //a return statement may have been encountered already.
+  //if so, there's no need to check other paths
+  let returnType: Type = {tag: "none"};  //if function returns None, no need to check return
+
+  //check function body
+  for(let i = 0; i < def.body.length; i++){
+    const newStmt: Stmt<Type> = tcStmt(def.body[i], [localScope], global, builtIns);
+    returnType = newStmt.a;
+
+    newStmts.push(newStmt);
+  }
+
+  if(funcIdentity.returnType.tag !== "none"){
+      if(!checkReturn(def.body, funcIdentity.returnType)){
+          throw new Error("The function '"+idenToStr(funcIdentity)+"' must have a return of '"+typeToString(funcIdentity.returnType)+"' on all paths");
+      }
+  }
+
+  /*
+  else if(!checkReturn(def.body, funcIdentity.returnType)){
+    def.bodyStms.push({tag: "ret", expr: {tag: "value", value: {tag: "None"}}});
+  }
+  */
+
+  return {identity: funcIdentity, params: newParams, vars: newLocals, stmts: newStmts};
+}
+
+export function tc(existingEnv: ModulePresenter, 
+                   builtIns: Map<string, ModulePresenter>, 
+                   program: Program<null>): OrganizedModule {
+
+  const curGlobalTable: GlobalTable = {
+    vars: new Map(existingEnv.moduleVars),
+    funcs: new Map(existingEnv.functions),
+    classes: new Map(existingEnv.classes)
+  }
+
+  //first include imports
+  includeImports(curGlobalTable, builtIns, program.stmts);
+
+  //start adding module components
+  //start with classes
+  for(let c of program.classes){
+    if(curGlobalTable.classes.has(c.name)){
+      throw new TypeCheckError(`The class ${c.name} already exists!`);
+    }
+    curGlobalTable.classes.set(c.name, makePresenter(c));
+  }
+
+  //continue with functions
+  for(let f of program.funs){
+    const fSig = fdefToSigStr(f);
+    if(curGlobalTable.funcs.has(fSig)){
+      throw new TypeCheckError(`The function ${fSig} already exists!`);
+    }
+    curGlobalTable.funcs.set(fSig, fdefToIdentity(f));
+  }
+
+  //====================Now we do type checking!
+
+  //These structures are for the OrganizedModule we'll be returning
+  const modVars: Map<string, VarInit<Type>> = new Map();
+  const modFunctions: Map<string, OrganizedFunc> = new Map();
+  const modClasses: Map<string, OrganizedClass> = new Map();
+  const tlStmts: Array<Stmt<Type>> = new Array();
+  const modPresenter: ModulePresenter = {
+    moduleVars: curGlobalTable.vars,
+    functions: curGlobalTable.funcs,
+    classes: curGlobalTable.classes
+  };
+
+  //Check global variables
+  for(let v of program.inits){
+    if(curGlobalTable.vars.has(v.name)){
+      throw new TypeCheckError(`The variable ${v.name} already exists!`);
+    }
+    else{
+      const unfoundType = doesTypeExist(v.type, curGlobalTable);
+      if(unfoundType !== undefined){
+        throw new TypeCheckError(`The type ${unfoundType} cannot be found!`);
+      }
+      else if(!isAssignable(v.type, literalToType(v.value))){
+        throw new TypeCheckError(`For the variable ${v.name}: cannot assign ${literalToType(v.value)} to ${typeToString(v.type)}`);
+      }
+    }
+    
+    curGlobalTable.vars.set(v.name, v.type);
+    modVars.set(v.name, {a: literalToType(v.value), 
+                         name: v.name, 
+                         type: v.type, 
+                         value: v.value});
+  }
+
+  //check functions
+  for(let func of program.funs){
+    const signature = fdefToSigStr(func);
+    const newFunc = tcFuncDef(func, curGlobalTable, builtIns);
+    modFunctions.set(signature, newFunc);
+  }
+
+  //check class
+  for(let classDef of program.classes){
+    const newClassDef = tcClassDef(classDef, curGlobalTable, builtIns);
+    modClasses.set(classDef.name, newClassDef);
+  }
+  
+  //check top-level statements
+  for(let stmt of program.stmts){
+    const newStmt = tcStmt(stmt, [curGlobalTable.vars], curGlobalTable, builtIns);
+    tlStmts.push(newStmt);
+  }
+
+  return {fileVars: modVars, 
+          fileFunctions: modFunctions, 
+          fileClasses: modClasses, 
+          topLevelStmts: tlStmts, 
+          presented: modPresenter};
 }
