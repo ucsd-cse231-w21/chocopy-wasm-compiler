@@ -74,8 +74,12 @@ export type TypeError = {
   message: string;
 };
 
-export function equalType(t1: Type, t2: Type) {
-  return t1 === t2 || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name);
+export function equalType(t1: Type, t2: Type): boolean {
+  return (
+    t1 === t2 ||
+    (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
+    (t1.tag === "list" && t2.tag === "list" && equalType(t1.content_type, t2.content_type))
+  );
 }
 
 export function isNoneOrClass(t: Type) {
@@ -83,7 +87,7 @@ export function isNoneOrClass(t: Type) {
 }
 
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && t2.tag === "class");
+  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list"));
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -329,6 +333,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
+          if (expr.op == BinOp.Plus && tLeft.a.tag === "list" && equalType(tLeft.a, tRight.a)) {
+            return { a: tLeft.a, ...tBin };
+          }
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
             return { a: NUM, ...tBin };
           } else {
@@ -499,19 +506,56 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeCheckError("method calls require an object");
       }
+    case "list-expr":
+      var commonType = null;
+      const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
+      if (listExpr.length == 0) {
+        commonType = NONE;
+      } else {
+        commonType = listExpr[0].a;
+        for (var i = 1; i < listExpr.length; ++i) {
+          var lexprType = listExpr[i].a;
+          if (!equalType(lexprType, commonType)) {
+            if (equalType(commonType, NONE) && isNoneOrClass(lexprType)) {
+              commonType = lexprType;
+            } else if (!(equalType(lexprType, NONE) && isNoneOrClass(commonType))) {
+              throw new TypeCheckError(
+                `list expr type mismatch: ${lexprType}, expect type: ${commonType}`
+              );
+            }
+          }
+        }
+      }
+      return { ...expr, a: { tag: "list", content_type: commonType }, contents: listExpr };
+    // case "bracket-lookup":
+    //   var tObj = tcExpr(env, locals, expr.obj);
+    //   var tKey = tcExpr(env, locals, expr.key);
+    //   if (tObj.a.tag === "list") {
+    //     if (tKey.a.tag === "number") {
+    //       return { ...expr, a: tObj.a.content_type, obj: tObj, key: tKey };
+    //     } else {
+    //       throw new TypeCheckError("list lookups require a number as index");
+    //     }
+    //   } else {
+    //     throw new TypeCheckError("list lookups require a list");
+    //   }
     case "bracket-lookup":
       var obj_t = tcExpr(env, locals, expr.obj);
       var key_t = tcExpr(env, locals, expr.key);
-      var tBracketExpr = { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
-      if (!equalType(obj_t.a, STRING)) {
+      if (obj_t.a == STRING) {
+        if(!equalType(key_t.a, NUM)) {
+          throw new TypeCheckError("String lookup supports only integer indices");
+        }
+        return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
+      } else if (obj_t.a.tag === "list") {
+        if(!equalType(key_t.a, NUM)) {
+          throw new TypeCheckError("List lookup supports only integer indices");
+        }
+        return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.content_type };
+      } else {
         throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
       }
-      if (!equalType(key_t.a, NUM)) {
-        throw new TypeCheckError(
-          "Bracket lookup using " + key_t.a.tag + " type as index is not possible"
-        );
-      }
-      return tBracketExpr;
+
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }

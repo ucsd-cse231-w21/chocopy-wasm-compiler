@@ -85,6 +85,10 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$list_base");
+  definedVars.add("$list_index");
+  definedVars.add("$list_temp");
+  definedVars.add("$list_cmp");
   definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
@@ -240,7 +244,7 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
-      const err: never = target;
+      const err: never = <never>target;
       throw new Error(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
@@ -295,6 +299,123 @@ function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
   return result.flat();
 }
 
+// If concat is 0, then the function generate code for list.copy()
+// If concat is 2, then the function generate code for concat.
+function codeGenListCopy(concat: number): Array<string> {
+  var stmts: Array<string> = [];
+  var loopstmts: Array<string> = [];
+  var condstmts: Array<string> = [];
+  var listType = 10; //temporary list type number
+  var header = [4, 8]; //size, bound relative position
+  stmts.push(...[`(local.set $$list_cmp)`]); //store first address to local var
+  stmts.push(...[`(i32.load (i32.const 0))`, `(local.set $$list_base)`]); //store the starting address for the new list
+  if (concat != 1)
+    stmts.push(...[`(local.get $$list_base)`, "(i32.const " + listType + ")", "(i32.store)"]); //create a new list with type
+
+  //check if the current index has reached the size of the list
+  condstmts.push(
+    ...[
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.get $$list_index)`,
+      `(i32.eq)`,
+    ]
+  );
+
+  //statement for loop through the compared list and add the elements to the new list
+  loopstmts.push(
+    ...[
+      `(local.get $$list_base)`,
+      `(i32.add (i32.const 12))`,
+      `(local.get $$list_index)`,
+      concat == 1 ? `(i32.add (local.get $$list_temp))` : ``,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 12))`,
+      `(local.get $$list_index)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(i32.load)`,
+      `(i32.store)`,
+      `(local.get $$list_index)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_index)`,
+    ]
+  );
+
+  if (concat == 1) {
+    stmts.push(
+      ...[
+        `(local.get $$list_base)`,
+        `(i32.add (i32.const 4))`,
+        `(i32.load)`,
+        `(local.set $$list_temp)`,
+      ]
+    );
+  }
+
+  //while loop structure
+  stmts.push(
+    ...[
+      `(i32.const 0)`,
+      `(local.set $$list_index)`,
+      `(block`,
+      `(loop`,
+      `(br_if 1 ${condstmts.join("\n")})`,
+      `${loopstmts.join("\n")}`,
+      `(br 0)`,
+      `)`,
+      `)`,
+    ]
+  );
+
+  //add/modify header info of the list
+  header.forEach((addr) => {
+    var stmt = null;
+    if (concat == 1) {
+      stmt = [
+        `(local.get $$list_base)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(local.get $$list_base)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(i32.load)`,
+        `(local.get $$list_cmp)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(i32.load)`,
+        `(i32.add)`,
+        `(i32.store)`,
+      ];
+    } else {
+      stmt = [
+        `(local.get $$list_base)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(local.get $$list_cmp)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(i32.load)`,
+        `(i32.store)`,
+      ];
+    }
+    stmts.push(...stmt);
+  });
+
+  if (concat == 2) return stmts.concat(codeGenListCopy(1));
+
+  return stmts.concat([
+    `(local.get $$list_base)`, // Get address for the object (this is the return value)
+    "(i32.const 0)", // Address for our upcoming store instruction
+    `(local.get $$list_base)`, // Load the dynamic heap head offset
+    `(local.get $$list_cmp)`,
+    `(i32.add (i32.const 8))`,
+    `(i32.load)`,
+    `(i32.mul (i32.const 4))`,
+    `(i32.add (i32.const 12))`,
+    `(i32.add)`,
+    "(i32.store)", // Save the new heap offset
+  ]);
+}
+
 function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
     case "builtin1":
@@ -326,6 +447,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
     case "binop":
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
+      if (typeof expr.left.a !== "undefined" && expr.left.a.tag === "list")
+        return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(2)];
       return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)];
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
@@ -438,8 +561,89 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           ]
         );
         return brStmts;
+      } else if (expr.obj.a.tag == "list") {
+        var objStmts = codeGenExpr(expr.obj, env);
+        //This should eval to a number
+        //Multiply it by 4 to use as offset in memory
+        var keyStmts = codeGenExpr(expr.key, env);
+        //Add 3 to keyStmts to jump over type + size + bound
+        //Add that to objStmts base address
+        //Load from there
+        return objStmts.concat(
+          //TODO check for IndexOutOfBounds
+          //Coordinate with error group
+          /*
+          [
+            `(i32.add (i32.4)) ;; retrieve list size`,
+            `(i32.load)`,
+          // size > index
+          ],
+            keyStmts,
+          [
+            `(i32.gt_s) ;; compare list size > index`
+            `(if (then (call $error)) (else (nop))) ;; call IndexOutOfBounds`
+          ],
+            objStmts, //reload list base addr & key stmts?
+          */
+          keyStmts,
+          [
+            `(i32.mul (i32.const 4))`,
+            `(i32.add (i32.const 12)) ;; move past type, size, bound`,
+            `(i32.add) ;; retrieve element location`,
+            `(i32.load) ;; load list element`,
+          ]
+        );
       }
       break;
+
+    case "list-expr":
+      var stmts: Array<string> = [];
+      var listType = 10;
+      var listSize = expr.contents.length;
+      var listBound = (expr.contents.length + 10) * 2;
+      let listHeader = [listType, listSize, listBound];
+      var listindex = 0;
+      expr.contents
+        .slice()
+        .reverse()
+        .forEach((lexpr) => {
+          stmts.push(...[...codeGenExpr(lexpr, env)]);
+        });
+
+      listHeader.forEach((val) => {
+        stmts.push(
+          ...[
+            `(i32.load (i32.const 0))`,
+            `(i32.add (i32.const ${listindex * 4}))`,
+            "(i32.const " + val + ")",
+            "(i32.store)",
+          ]
+        );
+        listindex += 1;
+      });
+
+      expr.contents.forEach((lexpr) => {
+        stmts.push(
+          ...[
+            `(local.set $$list_temp)`,
+            `(i32.load (i32.const 0))`,
+            `(i32.add (i32.const ${listindex * 4}))`,
+            `(local.get $$list_temp)`,
+            "(i32.store)",
+          ]
+        );
+        listindex += 1;
+      });
+
+      //Move heap head to the end of the list and return list address
+      return stmts.concat([
+        "(i32.load (i32.const 0))",
+        "(i32.const 0)",
+        "(i32.load (i32.const 0))",
+        `(i32.add (i32.const ${(listBound + 3) * 4}))`,
+        "(i32.store)",
+      ]);
+
     default:
       unhandledTag(expr);
   }
