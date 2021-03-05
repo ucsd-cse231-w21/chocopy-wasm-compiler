@@ -467,7 +467,7 @@ while False:
 
   print(func("Compiler"))
     `,
-    ["Compiler","m"]
+    ["Compiler", "m"]
   );
 
   assertPrint(
@@ -530,5 +530,4 @@ while False:
   print(c1.func())`,
     ["Q"]
   );
-
 });
