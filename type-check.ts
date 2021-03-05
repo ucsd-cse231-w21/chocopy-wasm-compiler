@@ -523,50 +523,24 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       var callable: Type = { tag: "callable", args, ret: tcExpr(env, locals, expr.ret).a };
       return { ...expr, a: callable };
     case "call_expr":
-      if (expr.name.tag === "id") {
-        if (env.classes.has(expr.name.name)) {
-          // surprise surprise this is actually a constructor
-          const tConstruct: Expr<Type> = { a: CLASS(expr.name.name), tag: "construct", name: expr.name.name };
-          const [_, methods] = env.classes.get(expr.name.name);
-          if (methods.has("__init__")) {
-            const [initArgs, initRet] = methods.get("__init__");
-            if (expr.arguments.length !== initArgs.length - 1)
-              throw new TypeCheckError(
-                "__init__ didn't receive the correct number of arguments from the constructor"
-              );
-            if (initRet !== NONE) throw new TypeCheckError("__init__  must have a void return type");
-            return tConstruct;
-          } else {
-            return tConstruct;
-          }
-        } else if (env.globals.has(expr.name.name) || locals.vars.has(expr.name.name)) {
-          var argTypes: Type[];
-          var retType: Type;
-          if (locals.vars.has(expr.name.name)) {
-            var temp = locals.vars.get(expr.name.name);
-            // should always be true
-            if (temp.tag === "callable") {
-              [argTypes, retType] = [temp.args, temp.ret];
-            }
-          } else {
-            var temp = env.globals.get(expr.name.name);
-            if (temp.tag === "callable") {
-              [argTypes, retType] = [temp.args, temp.ret];
-            }
-          }
-  
-          const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-  
-          if (
-            argTypes.length === expr.arguments.length &&
-            tArgs.every((tArg, i) => isAssignable(env, tArg.a, argTypes[i]))
-          ) {
-            return { ...expr, a: retType, arguments: tArgs };
-          } else {
-            throw new TypeError("Function call type mismatch: " + expr.name);
-          }
+      if (expr.name.tag === "id" && env.classes.has(expr.name.name)) {
+        // surprise surprise this is actually a constructor
+        const tConstruct: Expr<Type> = {
+          a: CLASS(expr.name.name),
+          tag: "construct",
+          name: expr.name.name,
+        };
+        const [_, methods] = env.classes.get(expr.name.name);
+        if (methods.has("__init__")) {
+          const [initArgs, initRet] = methods.get("__init__");
+          if (expr.arguments.length !== initArgs.length - 1)
+            throw new TypeCheckError(
+              "__init__ didn't receive the correct number of arguments from the constructor"
+            );
+          if (initRet !== NONE) throw new TypeCheckError("__init__  must have a void return type");
+          return tConstruct;
         } else {
-          throw new TypeError("Undefined function: " + expr.name);
+          return tConstruct;
         }
       }
 
