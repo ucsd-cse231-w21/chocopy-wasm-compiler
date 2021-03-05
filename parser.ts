@@ -17,7 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, isTagged, STRING } from "./utils";
+import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -196,6 +196,30 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
     case "MemberExpression":
       c.firstChild(); // Focus on object
       var objExpr = traverseExpr(c, s);
+      // c.nextSibling(); // Focus on .
+      // const memberChar = s.substring(c.from, c.to);
+      // //Check if "." or "["
+      // if (memberChar === ".") {
+      //   c.nextSibling(); // Focus on property
+      //   var propName = s.substring(c.from, c.to);
+      //   c.parent();
+      //   return {
+      //     tag: "lookup",
+      //     obj: objExpr,
+      //     field: propName,
+      //   };
+      // } else if (memberChar === "[") {
+      //   c.nextSibling(); // Focus on property
+      //   //Parse Expr used as index
+      //   var propExpr = traverseExpr(c, s);
+      //   c.parent();
+      //   return {
+      //     tag: "bracket-lookup",
+      //     obj: objExpr,
+      //     key: propExpr,
+      //   };
+      // } else {
+      //   throw new Error("Could not parse MemberExpression char");
       c.nextSibling(); // Focus on . or [
       var symbol = s.substring(c.from, c.to);
       if (symbol == "[") {
@@ -285,6 +309,21 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       return {
         tag: "dict",
         entries: keyValuePairs,
+      };
+    case "ArrayExpression":
+      let listExpr: Array<Expr<null>> = [];
+      c.firstChild();
+      c.nextSibling();
+      while (s.substring(c.from, c.to).trim() !== "]") {
+        listExpr.push(traverseExpr(c, s));
+        c.nextSibling(); // Focuses on either "," or ")"
+        c.nextSibling(); // Focuses on a VariableName
+      }
+
+      c.parent();
+      return {
+        tag: "list-expr",
+        contents: listExpr,
       };
 
     default:
@@ -386,6 +425,51 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       c.nextSibling(); // go to value
       var value = traverseExpr(c, s);
       c.parent();
+      // const target = destruct.targets[0].target;
+
+      //   // TODO: The new assign syntax should hook in here
+      //   switch (target.tag) {
+      //     case "lookup":
+      //       return {
+      //         tag: "field-assign",
+      //         obj: target.obj,
+      //         field: target.field,
+      //         value: value,
+      //       };
+      //     case "bracket-lookup":
+      //       return {
+      //         tag: "bracket-assign",
+      //         obj: target.obj,
+      //         key: target.key,
+      //         value: value,
+      //       };
+      //     case "id":
+      //       return {
+      //         tag: "assign",
+      //         name: target.name,
+      //         value: value,
+      //       };
+      //     default:
+      //       throw new Error("Unknown target while parsing assignment");
+      //   }
+      // /*
+      //   if (target.tag === "lookup") {
+      //     return {
+      //       tag: "field-assign",
+      //       obj: target.obj,
+      //       field: target.field,
+      //       value: value,
+      //     };
+      //   } else if (target.tag === "id") {
+      //     return {
+      //       tag: "assign",
+      //       name: target.name,
+      //       value: value,
+      //     };
+      //   } else {
+      //     throw new Error("Unknown target while parsing assignment");
+      //   }
+      //   */
       return {
         tag: "assignment",
         destruct,
@@ -488,6 +572,26 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
   }
 }
 
+export function traverseBracketType(c: TreeCursor, s: string): Type {
+  let bracketTypes = [];
+  c.firstChild();
+  while (c.nextSibling()) {
+    bracketTypes.push(traverseType(c, s));
+    c.nextSibling();
+  }
+  c.parent();
+  if (bracketTypes.length == 1) {
+    //List
+    return LIST(bracketTypes[0]);
+  } else if (bracketTypes.length == 2) {
+    return { tag: "dict", key: bracketTypes[0], value: bracketTypes[1] };
+  } else {
+    throw new Error(
+      "Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to
+    );
+  }
+}
+
 export function traverseType(c: TreeCursor, s: string): Type {
   switch (c.type.name) {
     case "VariableName":
@@ -503,18 +607,7 @@ export function traverseType(c: TreeCursor, s: string): Type {
           return CLASS(name);
       }
     case "ArrayExpression":
-      c.firstChild(); // Focus on [
-      c.nextSibling();
-      let keytype = traverseType(c, s);
-      c.nextSibling(); //Could be , or ]
-      if (s.substring(c.from, c.to) === ",") {
-        c.nextSibling();
-        let valtype = traverseType(c, s);
-        c.parent();
-        return { tag: "dict", key: keytype, value: valtype };
-      }
-      c.parent();
-      throw new Error("Invalid type " + s.substring(c.from, c.to));
+      return traverseBracketType(c, s);
   }
 }
 

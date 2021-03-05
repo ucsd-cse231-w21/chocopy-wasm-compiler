@@ -74,13 +74,14 @@ export type TypeError = {
   message: string;
 };
 
-export function equalType(t1: Type, t2: Type) {
+export function equalType(t1: Type, t2: Type): boolean {
   return (
     // ensure deep match for nested types (example: [int,[int,int]])
     JSON.stringify(t1) === JSON.stringify(t2) ||
     (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
     //if dictionary is initialized to empty {}, then we check for "none" type in key and value
-    (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none")
+    (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none") ||
+    (t1.tag === "list" && t2.tag === "list" && equalType(t1.content_type, t2.content_type))
   );
 }
 
@@ -89,7 +90,10 @@ export function isNoneOrClass(t: Type) {
 }
 
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "dict"));
+  return (
+    equalType(t1, t2) ||
+    (t1.tag === "none" && (t2.tag === "class" || t2.tag === "dict" || t2.tag === "list"))
+  );
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -336,6 +340,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
+          if (expr.op == BinOp.Plus && tLeft.a.tag === "list" && equalType(tLeft.a, tRight.a)) {
+            return { a: tLeft.a, ...tBin };
+          }
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
             return { a: NUM, ...tBin };
           } else {
@@ -476,7 +483,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       }
     case "method-call":
       var tObj = tcExpr(env, locals, expr.obj);
-      var tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
+      let tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
       if (tObj.a.tag === "class") {
         if (env.classes.has(tObj.a.name)) {
           const [_, methods] = env.classes.get(tObj.a.name);
@@ -539,13 +546,34 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         let dictAnnotated = { ...expr, a: dictType, entries: entryTypes };
         return dictAnnotated;
       }
+    case "list-expr":
+      var commonType = null;
+      const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
+      if (listExpr.length == 0) {
+        commonType = NONE;
+      } else {
+        commonType = listExpr[0].a;
+        for (var i = 1; i < listExpr.length; ++i) {
+          var lexprType = listExpr[i].a;
+          if (!equalType(lexprType, commonType)) {
+            if (equalType(commonType, NONE) && isNoneOrClass(lexprType)) {
+              commonType = lexprType;
+            } else if (!(equalType(lexprType, NONE) && isNoneOrClass(commonType))) {
+              throw new TypeCheckError(
+                `list expr type mismatch: ${lexprType}, expect type: ${commonType}`
+              );
+            }
+          }
+        }
+      }
+      return { ...expr, a: { tag: "list", content_type: commonType }, contents: listExpr };
     case "bracket-lookup":
       var tObj = tcExpr(env, locals, expr.obj);
+      var tKey = tcExpr(env, locals, expr.key);
       if (tObj.a.tag === "dict") {
-        let keyType = tObj.a.key;
-        let valueType = tObj.a.value;
-        let tKey = tcExpr(env, locals, expr.key);
-        let keyLookupType = tKey.a;
+        var keyType = tObj.a.key;
+        var valueType = tObj.a.value;
+        var keyLookupType = tKey.a;
         if (!isAssignable(env, keyType, keyLookupType))
           throw new TypeCheckError(
             "Expected key type `" +
@@ -556,21 +584,25 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           );
         return { ...expr, a: valueType, obj: tObj, key: tKey };
       } else if (tObj.a.tag === "string") {
-        var obj_t = tcExpr(env, locals, expr.obj);
-        var key_t = tcExpr(env, locals, expr.key);
-        var tBracketExpr = { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
-        if (obj_t.a != STRING) {
-          throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
+        //var obj_t = tcExpr(env, locals, expr.obj);
+        //var key_t = tcExpr(env, locals, expr.key);
+        var tBracketExpr = { ...expr, obj: tObj, key: tKey, a: tObj.a };
+        if (tObj.a != STRING) {
+          throw new TypeCheckError("Bracket lookup on " + tObj.a.tag + " type not possible");
         }
-        if (key_t.a != NUM) {
+        if (tKey.a != NUM) {
           throw new TypeCheckError(
-            "Bracket lookup using " + key_t.a.tag + " type as index is not possible"
+            "Bracket lookup using " + tKey.a.tag + " type as index is not possible"
           );
         }
         return tBracketExpr;
+      } else if (tObj.a.tag === "list") {
+        if (!equalType(tKey.a, NUM)) {
+          throw new TypeCheckError("List lookup supports only integer indices");
+        }
+        return { ...expr, obj: tObj, key: tKey, a: tObj.a.content_type };
       } else {
-        // list lookup cases go here
-        throw new TypeCheckError("bracket-lookup for lists not implemented");
+        throw new TypeCheckError("Bracket lookup on " + tObj.a.tag + " type not possible");
       }
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
