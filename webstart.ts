@@ -1,6 +1,7 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag } from "./utils";
+import { numpyArray } from "./numpy";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -31,6 +32,10 @@ function print(typ: Type, arg: number): any {
   return arg;
 }
 
+function addImportObjects() {
+  // TODO: interface imported functions here
+}
+
 function webStart() {
   document.addEventListener("DOMContentLoaded", function () {
     var importObject = {
@@ -42,6 +47,7 @@ function webStart() {
         min: Math.min,
         max: Math.max,
         pow: Math.pow,
+        numpy$import$array: (arg: number) => numpyArray(arg) // TODO: move to addImportObjects()
       },
     };
 
