@@ -41,7 +41,7 @@ export function ea(tAst: Program<Type>): Program<Type> {
     classes: tAst.classes,
     stmts: tAst.stmts,
     closures: [].concat(
-      ...tAst.funs.map((f) => eaFunDef(f, globalLocalEnv(tAst.funs.map((f) => f.name))))
+      ...tAst.funs.map((f) => eaFunDef(f, globalLocalEnv(tAst.funs.map((f) => f.name)), true))
     ),
   };
 }
@@ -54,7 +54,7 @@ export function eaClass(cl: Class<Type>): Class<Type> {
     fields: cl.fields,
     // TODO: check nonlocals
     methods: [].concat(
-      ...cl.methods.map((f) => eaFunDef(f, globalLocalEnv(cl.methods.map((f) => f.name))))
+      ...cl.methods.map((f) => eaFunDef(f, globalLocalEnv(cl.methods.map((f) => f.name)), false))
     ),
   };
 }
@@ -68,7 +68,11 @@ export function eaClass(cl: Class<Type>): Class<Type> {
  * @returns The first element should be the closure of `f`, followed by closure of its
  * inner functions.
  */
-export function eaFunDef(f: FunDef<Type>, parentEnv: LocalEnv): ClosureDef<Type>[] {
+export function eaFunDef(
+  f: FunDef<Type>,
+  parentEnv: LocalEnv,
+  isGlobal: boolean
+): ClosureDef<Type>[] {
   // create local variable environment
   const localEnv: LocalEnv = {
     name: f.name,
@@ -86,7 +90,7 @@ export function eaFunDef(f: FunDef<Type>, parentEnv: LocalEnv): ClosureDef<Type>
   const nonlocalSet = new Set<string>();
   const absFunIds = localEnv.funIds.map((n) => localEnv.prefix + n);
   f.funs.forEach((f) => {
-    const cs = eaFunDef(f, localEnv);
+    const cs = eaFunDef(f, localEnv, false);
     innerClosures.push(...cs);
     cs[0].nonlocals.forEach((v) => {
       if (!localEnv.varIds.includes(v) && !absFunIds.includes(v)) {
@@ -105,6 +109,7 @@ export function eaFunDef(f: FunDef<Type>, parentEnv: LocalEnv): ClosureDef<Type>
     nonlocals: [...nonlocalSet],
     nested: f.funs.map((nf) => localEnv.prefix + nf.name),
     inits: f.inits,
+    isGlobal: isGlobal,
     body: processedBody,
   };
 

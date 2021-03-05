@@ -1,7 +1,5 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
-import * as BaseException from "./error";
-import { TypeOfExpression } from "typescript";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -525,6 +523,27 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       var callable: Type = { tag: "callable", args, ret: tcExpr(env, locals, expr.ret).a };
       return { ...expr, a: callable };
     case "call_expr":
+      if (expr.name.tag === "id" && env.classes.has(expr.name.name)) {
+        // surprise surprise this is actually a constructor
+        const tConstruct: Expr<Type> = {
+          a: CLASS(expr.name.name),
+          tag: "construct",
+          name: expr.name.name,
+        };
+        const [_, methods] = env.classes.get(expr.name.name);
+        if (methods.has("__init__")) {
+          const [initArgs, initRet] = methods.get("__init__");
+          if (expr.arguments.length !== initArgs.length - 1)
+            throw new TypeCheckError(
+              "__init__ didn't receive the correct number of arguments from the constructor"
+            );
+          if (initRet !== NONE) throw new TypeCheckError("__init__  must have a void return type");
+          return tConstruct;
+        } else {
+          return tConstruct;
+        }
+      }
+
       var innercall = tcExpr(env, locals, expr.name);
       if (innercall.a.tag === "callable") {
         const [args, ret] = [innercall.a.args, innercall.a.ret];
@@ -534,7 +553,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           args.length === expr.arguments.length &&
           tArgs.every((tArg, i) => isAssignable(env, tArg.a, args[i]))
         ) {
-          return { ...expr, a: ret, arguments: tArgs };
+          return { ...expr, a: ret, name: innercall, arguments: tArgs };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }

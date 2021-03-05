@@ -104,6 +104,8 @@ export async function run(
     (type $callType1 (func (param i32) (result i32)))
     (type $callType2 (func (param i32) (param i32) (result i32)))
     (type $callType3 (func (param i32) (param i32) (param i32) (result i32)))
+    (type $callType4 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
+    (type $callType5 (func (param i32) (param i32) (param i32) (param i32) (param i32) (result i32)))
     ${funRef}
     ${config.functions}
     ${compiled.functions}

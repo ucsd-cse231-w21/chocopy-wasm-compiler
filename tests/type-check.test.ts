@@ -1,37 +1,37 @@
 import { assertTC, assertTCFail } from "./utils.test";
 import { NUM, BOOL, NONE, CALLABLE, CLASS } from "../utils";
 
-describe("type-check", () => {  
-    assertTC(
-        "var callable[[], None]",
-        `
+describe("type-check", () => {
+  assertTC(
+    "var callable[[], None]",
+    `
         f: Callable[[], None] = None
         f`,
-        CALLABLE([], NONE)
-    );
+    CALLABLE([], NONE)
+  );
 
-    assertTC(
-        "var callable[[int, bool], A]",
-        `
+  assertTC(
+    "var callable[[int, bool], A]",
+    `
         f: Callable[[int, bool], A] = None
         f`,
-        CALLABLE([NUM, BOOL], CLASS("A"))
-    );
+    CALLABLE([NUM, BOOL], CLASS("A"))
+  );
 
-    assertTC(
-        "nest-fun-tc",
-        `
+  assertTC(
+    "nest-fun-tc",
+    `
         def f(x: int) -> int:
             def inc() -> int:
-            return x + 1
+                return x + 1
             return inc()
         f(5)`,
-        NUM
-    );
+    NUM
+  );
 
-    assertTC(
-        "double-nest-fun-tc",
-        `
+  assertTC(
+    "double-nest-fun-tc",
+    `
         def f(x : int) -> int:
             def g(y : int) -> int:
                 def k(z: int) -> int:
@@ -39,62 +39,61 @@ describe("type-check", () => {
                 return x + k(5)
             return g(10) + g(7)
         f(6)`,
-        NUM
-    );
+    NUM
+  );
 
-    assertTC(
-        "ret-callable-fun-tc1",
-        `
+  assertTC(
+    "ret-callable-fun-tc1",
+    `
         def f(x : int) -> Callable[[int], bool]:
             def g(y : int) -> bool:
                 return x > y
             return g
         f(6)`,
-        CALLABLE([NUM], BOOL)
-    );
+    CALLABLE([NUM], BOOL)
+  );
 
-    assertTC(
-        "ret-callable-fun-tc2",
-        `
+  assertTC(
+    "ret-callable-fun-tc2",
+    `
         def f(x : int) -> Callable[[int], bool]:
             def g(y : int) -> bool:
                 return x > y
             return g
         f(6)(5)`,
-        BOOL
-    );
+    BOOL
+  );
 
-    assertTC(
-        "arg-ret-callable-fun-tc",
-        `
+  assertTC(
+    "arg-ret-callable-fun-tc",
+    `
         def f(x : int) -> Callable[[int], bool]:
             def g(y : int) -> bool:
                 return x > y
             return g
-        
+
         def id(c : Callable[[int], bool]) -> Callable[[int], bool]:
             return c
-        
-        id(f(10))(5)`,
-        BOOL
-    );
 
-    assertTCFail(
-        "bad assign type callable",
-        `
+        id(f(10))(5)`,
+    BOOL
+  );
+
+  assertTCFail(
+    "bad assign type callable",
+    `
         f: Callable[[int], bool] = None
         def g(x:int)->int:
             return 4
         f = g`
-    );
+  );
 
-
-    assertTC(
-        "method-field-callable-tc",
-        `
+  assertTC(
+    "method-field-callable-tc",
+    `
         class A(object):
             x:Callable[[int],Callable[[],bool]] = None
-        
+
         def f(x:int)->Callable[[],bool]:
             def g()->bool:
                 return x > 5
@@ -102,43 +101,42 @@ describe("type-check", () => {
         a:A = None
         a.x = f
         a.x(5)()`,
-        BOOL
-    );
+    BOOL
+  );
 
-
-    assertTC(
-        "lambda-no-arg-tc",
-        `
+  assertTC(
+    "lambda-no-arg-tc",
+    `
         x:Callable[[],int] = None
         x = lambda : 10
         x()`,
-        NUM
-    );
+    NUM
+  );
 
-    assertTC(
-        "lambda-args-tc",
-        `
+  assertTC(
+    "lambda-args-tc",
+    `
         x:Callable[[int, bool],] = None
         x = lambda a,b : None
         x(1, True)`,
-        NONE
-    );
+    NONE
+  );
 
-    assertTC(
-        "ret-lambda-fun-tc1",
-        `
+  assertTC(
+    "ret-lambda-fun-tc1",
+    `
         def f(x:int)->Callable[[bool],int]:
             return lambda a: x
         f(4)`,
-        CALLABLE([BOOL], NUM)
-    )
+    CALLABLE([BOOL], NUM)
+  );
 
-    assertTC(
-        "ret-lambda-fun-tc2",
-        `
+  assertTC(
+    "ret-lambda-fun-tc2",
+    `
         def f(x:int)->Callable[[bool],int]:
             return lambda a: x
         f(4)(True)`,
-        NUM
-    )
+    NUM
+  );
 });

@@ -54,6 +54,7 @@ export type ClosureDef<A> = {
   nonlocals: Array<string>;
   nested: Array<string>;
   inits: Array<VarInit<A>>;
+  isGlobal: boolean;
   body: Array<Stmt<A>>;
 };
 
