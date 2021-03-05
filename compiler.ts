@@ -135,6 +135,10 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       valStmts.push("(call $addTemp)");
       valStmts.push("return");
 
+      // TODO(alex:mm): this scheme breaks with block expressions (and is
+      //   probably just wrong too)
+      //   Instead, need to place in the calling expression's temporary set
+      //   or the calling function's local set
       // NOTE(alex:mm): We need to put temporaries and escaping pointers into
       //   the calling statement's temp frame, not a new one.
       //
