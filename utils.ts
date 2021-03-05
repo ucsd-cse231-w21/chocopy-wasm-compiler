@@ -58,3 +58,12 @@ export const NONE: Type = { tag: "none" };
 export function CLASS(name: string): Type {
   return { tag: "class", name };
 }
+
+export function jsonStringify(data: any) : string {
+  // JSON.stringify() with bigint support 
+  // reference: https://stackoverflow.com/questions/58249954/json-stringify-and-postgresql-bigint-compliance
+  return JSON.stringify(data, (_, v) => typeof v === 'bigint' ? `${v}#bigint` : v)
+      .replace(/"(-?\d+)#bigint"/g, (_, a) => a);
+}
+
+export const importPostfix : string = "$import";
