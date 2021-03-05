@@ -61,8 +61,7 @@ export type Stmt<A> =
   | { a?: A; tag: "pass" }
   | { a?: A; tag: "continue" }
   | { a?: A; tag: "break" }
-  | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> }
-  | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
+  | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> };
 
 /**
  * Description of assign targets. isDestructured indicates if we are doing

@@ -223,26 +223,6 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: NONE, tag: stmt.tag };
-    case "bracket-assign":
-      let tObject = tcExpr(env, locals, stmt.obj);
-      let tKey = tcExpr(env, locals, stmt.key);
-      let tValue = tcExpr(env, locals, stmt.value);
-      if (tObject.a.tag == "dict") {
-        let keyType = tObject.a.key;
-        let valueType = tObject.a.value;
-        if (!isAssignable(env, keyType, tKey.a))
-          throw new TypeCheckError(
-            "Expected key type `" + keyType.tag + "`; got key type `" + tKey.a.tag + "`"
-          );
-        if (!isAssignable(env, valueType, tValue.a))
-          throw new TypeCheckError(
-            "Expected value type `" + keyType.tag + "`; got value type `" + tValue.a.tag + "`"
-          );
-        return { ...stmt, a: NONE, obj: tObject, key: tKey, value: tValue };
-      } else {
-        // list lookup cases go here
-        throw new TypeCheckError("bracket-assign for lists not implemented");
-      }
     // throw new TypeCheckError("bracket-assign not implemented");
     default:
       unhandledTag(stmt);
