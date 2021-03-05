@@ -273,6 +273,14 @@ f(2)`,
     PyInt(6)
   );
 
+  assertPrint(
+    "while False",
+    `
+while False:
+  print(0)`,
+    [""]
+  );
+
   assert(
     "parenthesized expr",
     `
