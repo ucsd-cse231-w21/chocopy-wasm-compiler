@@ -89,6 +89,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
+  definedVars.add("$string_address"); //needed for string indexing
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs: Array<string> = [];
@@ -262,6 +263,7 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
+  definedVars.add("$string_address"); //needed for string indexing
   // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach(env.locals.add, env.locals);
   def.parameters.forEach((p) => env.locals.add(p.name));
@@ -347,7 +349,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           "(i32.load (i32.const 0))", // Load the dynamic heap head offset
           "(local.set $$string_class)",
           "(i32.load (i32.const 0))",
-          `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the two words we just created for fields
+          `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the k words we just created for fields
           "(i32.store)", // Save the new heap offset
         ]
       );
@@ -399,21 +401,26 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         var brObjStmts = codeGenExpr(expr.obj, env);
         var brKeyStmts = codeGenExpr(expr.key, env);
         var brStmts = [];
-        //First check whether index is out of bounds, if so, throw error by going to print_str. Then index the string.
         brStmts.push(
           ...[
             `${brObjStmts.join("\n")}`, //Load the string object to be indexed
+            `(local.set $$string_address)`,
+            `${brKeyStmts.join("\n")}`, //Gets the index
             `(local.set $$string_index)`,
-            `${brKeyStmts.join("\n")}`, //Add the index * 4 value to the address
-            `(local.get $$string_index)(i32.load)(i32.gt_s)`,
-            `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
             `(local.get $$string_index)`,
-            `(i32.add (i32.mul (i32.const 4)${brKeyStmts.join("\n")}))`, //Add the index * 4 value to the address
+            `(i32.const 0)(i32.lt_s)`, //check for negative index
+            `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$string_index)(i32.add)(local.set $$string_index)))`, //if -ve, we do length + index
+            `(local.get $$string_index)(local.get $$string_address)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
+            `(local.get $$string_index)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
+            `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
+            `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
+            `(local.get $$string_address)`,
+            `(i32.add (i32.mul (i32.const 4)(local.get $$string_index)))`, //Add the index * 4 value to the address
             `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
             `(i32.load)`, //Load the ASCII value of the string index
             `(local.set $$string_val)`, //store value in temp variable
             `(i32.load (i32.const 0))`, //load value at 0
-            `(i32.const 0)`, //Length of string is 1, but store as 4 for easier checking
+            `(i32.const 0)`, //Length of string is 1
             `(i32.store)`, //Store length of string in the first position
             `(i32.load (i32.const 0))`, //Load latest free memory
             `(i32.add (i32.const 4))`, //Add 4 since we have stored string length at beginning
@@ -421,21 +428,12 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
             "(i32.store)", //Store the ASCII value in the new address
           ]
         );
-        //At end of string, we store ASCII value 0 which represents null
-        brStmts.push(
-          ...[
-            `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
-            `(i32.add (i32.const 8))`, // Calc string index offset from heap offset
-            `(i32.const 0)`, // Store ASCII value for 0 (end of string)
-            "(i32.store)", // Store the ASCII value 0 in the new address
-          ]
-        );
         brStmts.push(
           ...[
             "(i32.load (i32.const 0))", // Get address for the indexed character of the string
             "(i32.const 0)", // Address for our upcoming store instruction
             "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-            `(i32.add (i32.const 12))`, // Move heap head beyond the string length
+            `(i32.add (i32.const 8))`, // Move heap head beyond the string length
             "(i32.store)", // Save the new heap offset
           ]
         );
@@ -470,20 +468,11 @@ function allocateStringMemory(string_val: string): Array<string> {
     );
     i += 1;
   }
-  //At end of string, we store ASCII value 0 which represents null
-  stmts.push(
-    ...[
-      `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
-      `(i32.add (i32.const ${i * 4}))`, // Calc string index offset from heap offset
-      `(i32.const 0)`, // Store ASCII value for 0 (end of string)
-      "(i32.store)", // Store the ASCII value 0 in the new address
-    ]
-  );
   return stmts.concat([
     "(i32.load (i32.const 0))", // Get address for the first character of the string
     "(i32.const 0)", // Address for our upcoming store instruction
     "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-    `(i32.add (i32.const ${(string_val.length + 2) * 4}))`, // Move heap head beyond the string length
+    `(i32.add (i32.const ${(string_val.length + 1) * 4}))`, // Move heap head beyond the string length + 1(len at beginning)
     "(i32.store)", // Save the new heap offset
   ]);
 }
