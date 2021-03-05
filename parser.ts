@@ -55,7 +55,7 @@ export function traverseLiteral(c: TreeCursor, s: string): Literal {
         tag: "none",
       };
     default:
-      throw new BaseException.Exception("not literal", "ParsingError", location);
+      throw new BaseException.CompileError(location, "not literal", "ParsingError");
   }
 }
 
@@ -114,10 +114,10 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
         }
         return expr;
       } else {
-        throw new BaseException.Exception(
+        throw new BaseException.CompileError(
+          location,
           "Unknown target while parsing assignment",
-          "ParsingError",
-          location
+          "ParsingError"
         );
       }
 
@@ -171,10 +171,10 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           op = BinOp.Or;
           break;
         default:
-          throw new BaseException.Exception(
+          throw new BaseException.CompileError(
+            location,
             "Could not parse op at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to),
-            "ParsingError",
-            location
+            "ParsingError"
           );
       }
       c.nextSibling(); // go to rhs
@@ -206,10 +206,10 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           op = UniOp.Not;
           break;
         default:
-          throw new BaseException.Exception(
+          throw new BaseException.CompileError(
+            location,
             "Could not parse op at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to),
-            "ParsingError",
-            location
+            "ParsingError"
           );
       }
       c.nextSibling(); // go to expr
@@ -241,10 +241,10 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
         name: "self",
       };
     default:
-      throw new BaseException.Exception(
+      throw new BaseException.CompileError(
+        location,
         "Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to),
-        "ParsingError",
-        location
+        "ParsingError"
       );
   }
 }
@@ -272,10 +272,10 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<Location> {
   let isSimple = true;
   if (!isTagged(target, ASSIGNABLE_TAGS)) {
     target.tag;
-    throw new BaseException.Exception(
+    throw new BaseException.CompileError(
+      location,
       "Unknown target while parsing assignment",
-      "ParsingError",
-      location
+      "ParsingError"
     );
   }
   targets.push({
@@ -286,13 +286,13 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<Location> {
   c.nextSibling(); // move to =
   if (c.name !== "AssignOp") {
     isSimple = false;
-    throw new BaseException.Exception(
+    throw new BaseException.CompileError(
+      location,
       `Multiple assignment currently not supported. Expected "=", got "${s.substring(
         c.from,
         c.to
       )}"`,
-      "ParsingError",
-      location
+      "ParsingError"
     );
   }
   c.prevSibling(); // Move back to previous for parsing to continue
@@ -303,12 +303,12 @@ function traverseDestructure(c: TreeCursor, s: string): Destructure<Location> {
       targets,
     };
   } else if (targets.length === 0) {
-    throw new BaseException.Exception("No assignment targets found", "ParsingError", location);
+    throw new BaseException.CompileError(location, "No assignment targets found", "ParsingError");
   } else {
-    throw new BaseException.Exception(
+    throw new BaseException.CompileError(
+      location,
       "Unsupported non-simple assignment",
-      "ParsingError",
-      location
+      "ParsingError"
     );
   }
 }
@@ -353,10 +353,10 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
           a: location,
         };
       } else {
-        throw new BaseException.Exception(
+        throw new BaseException.CompileError(
+          location,
           "Unknown target while parsing assignment",
-          "ParsingError",
-          location
+          "ParsingError"
         );
       }
     case "ExpressionStatement":
@@ -407,10 +407,10 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
 
       if (!c.nextSibling() || c.name !== "else") {
         // Focus on else
-        throw new BaseException.Exception(
+        throw new BaseException.CompileError(
+          location,
           "if statement missing else block",
-          "ParsingError",
-          location
+          "ParsingError"
         );
       }
       c.nextSibling(); // Focus on : els
@@ -451,15 +451,15 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
     case "PassStatement":
       return { tag: "pass", a: location };
     default:
-      throw new BaseException.Exception(
+      throw new BaseException.CompileError(
+        location,
         "Could not parse stmt at " +
           c.node.from +
           " " +
           c.node.to +
           ": " +
           s.substring(c.from, c.to),
-        "ParsingError",
-        location
+        "ParsingError"
       );
   }
 }
@@ -487,10 +487,10 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<Lo
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
     if (nextTagName !== "TypeDef") {
-      throw new BaseException.Exception(
+      throw new BaseException.CompileError(
+        location,
         "Missed type annotation for parameter " + name,
-        "ParsingError",
-        location
+        "ParsingError"
       );
     }
     c.firstChild(); // Enter TypeDef
@@ -520,7 +520,7 @@ export function traverseVarInit(c: TreeCursor, s: string): VarInit<Location> {
 
   if (c.type.name !== "TypeDef") {
     c.parent();
-    throw new BaseException.Exception("invalid variable init", "ParsingError", location);
+    throw new BaseException.CompileError(location, "invalid variable init", "ParsingError");
   }
   c.firstChild(); // go to :
   c.nextSibling(); // go to type
@@ -598,10 +598,10 @@ export function traverseClass(c: TreeCursor, s: string): Class<Location> {
     } else if (isFunDef(c, s)) {
       methods.push(traverseFunDef(c, s));
     } else {
-      throw new BaseException.Exception(
+      throw new BaseException.CompileError(
+        location,
         `Could not parse the body of class: ${className}`,
-        "ParsingError",
-        location
+        "ParsingError"
       );
     }
   }
@@ -700,10 +700,10 @@ export function traverse(c: TreeCursor, s: string): Program<Location> {
       c.parent();
       return { funs, inits, classes, stmts, a: location };
     default:
-      throw new BaseException.Exception(
+      throw new BaseException.CompileError(
+        location,
         "Could not parse program at " + c.node.from + " " + c.node.to,
-        "ParsingError",
-        location
+        "ParsingError"
       );
   }
 }

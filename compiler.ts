@@ -1,4 +1,16 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, Location } from "./ast";
+import {
+  Stmt,
+  Expr,
+  UniOp,
+  BinOp,
+  Type,
+  Program,
+  Literal,
+  FunDef,
+  VarInit,
+  Class,
+  Location,
+} from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 
@@ -96,7 +108,7 @@ function envLookup(env: GlobalEnv, name: string): number {
   //if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
   if (!env.globals.has(name)) {
     console.log("Could not find " + name + " in ", env);
-    throw new BaseException.Exception(
+    throw new BaseException.InternalException(
       "Report this as a bug to the compiler developer, this shouldn't happen "
     );
   }
@@ -128,7 +140,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       valStmts.push("return");
       return valStmts;
     case "assignment":
-      throw new BaseException.Exception("Destructured assignment not implemented");
+      throw new BaseException.InternalException("Destructured assignment not implemented");
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
@@ -160,7 +172,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       var objTyp = stmt.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new BaseException.Exception(
+        throw new BaseException.InternalException(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
@@ -289,7 +301,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       var objTyp = expr.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new BaseException.Exception(
+        throw new BaseException.InternalException(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
@@ -301,7 +313,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       var objTyp = expr.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new BaseException.Exception(
+        throw new BaseException.InternalException(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
