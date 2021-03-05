@@ -32,12 +32,16 @@ f(5)
           a: { tag: "number" },
           tag: "expr",
           expr: {
-            tag: "call",
-            name: "f",
+            a: { tag: "number" },
+            tag: "call_expr",
+            name: {
+              a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
+              tag: "id",
+              name: "f",
+            },
             arguments: [
               { a: { tag: "number" }, tag: "literal", value: { tag: "num", value: BigInt(5) } },
             ],
-            a: { tag: "number" },
           },
         },
       ],
@@ -91,9 +95,9 @@ f(5)
                   field: "$deref",
                 },
                 right: {
+                  a: { tag: "number" },
                   tag: "literal",
                   value: { tag: "num", value: BigInt(1) },
-                  a: { tag: "number" },
                 },
               },
             },
@@ -130,10 +134,14 @@ f(6)
           tag: "expr",
           expr: {
             a: { tag: "number" },
-            tag: "call",
-            name: "f",
+            tag: "call_expr",
+            name: {
+              a: { tag: "callable", args: [{ tag: "number" }], ret: { tag: "number" } },
+              tag: "id",
+              name: "f",
+            },
             arguments: [
-              { tag: "literal", value: { tag: "num", value: BigInt(6) }, a: { tag: "number" } },
+              { a: { tag: "number" }, tag: "literal", value: { tag: "num", value: BigInt(6) } },
             ],
           },
         },
