@@ -504,11 +504,28 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       //Add 3 to keyStmts to jump over type + size + bound
       //Add that to objStmts base address
       //Load from there
-      return objStmts.concat(keyStmts, [
-        `(i32.mul (i32.const 4))`,
-        `(i32.add (i32.const 12))`,
-        `(i32.add)`,
+      return objStmts.concat(
+      //TODO check for IndexOutOfBounds
+      //Coordinate with error group
+      /*
+      [
+        `(i32.add (i32.4)) ;; retrieve list size`,
         `(i32.load)`,
+      // size > index
+      ],
+        keyStmts,
+      [
+        `(i32.gt_s) ;; compare list size > index`
+        `(if (then (call $error)) (else (nop))) ;; call IndexOutOfBounds`
+      ],
+        objStmts, //reload list base addr & key stmts?
+      */
+        keyStmts,
+      [
+        `(i32.mul (i32.const 4))`,
+        `(i32.add (i32.const 12)) ;; move past type, size, bound`,
+        `(i32.add) ;; retrieve element location`,
+        `(i32.load) ;; load list element`,
       ]);
     case "list-expr":
       var stmts: Array<string> = [];
