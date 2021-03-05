@@ -1,5 +1,5 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
+import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable, jsonStringify } from "./utils";
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -96,7 +96,13 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
     );
     newClasses.set(cls.name, [fields, methods]);
   });
-  return { globals: newGlobs, functions: newFuns, classes: newClasses };
+  // environment linker: imported programs with main program
+  // TODO: test nested imports
+  var envRet = {globals: newGlobs, functions: newFuns, classes: newClasses};
+  program.imports.forEach( (ip) => {
+    envRet =  augmentTEnv(envRet, ip);
+  });
+  return envRet;
 }
 
 export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, GlobalTypeEnv] {
@@ -105,6 +111,7 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   const tInits = program.inits.map((init) => tcInit(env, init));
   const tDefs = program.funs.map((fun) => tcDef(newEnv, fun));
   const tClasses = program.classes.map((cls) => tcClass(newEnv, cls));
+  const tImports = program.imports; // assume imports are non-Python implementations so do nothing?
 
   // program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
   // program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
@@ -121,7 +128,7 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram = { a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody };
+  const aprogram = { a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody , imports: tImports};
   return [aprogram, newEnv];
 }
 
@@ -224,6 +231,8 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
           } expected type: ${fields.get(stmt.field)}`
         );
       return { ...stmt, a: NONE, obj: tObj, value: tVal };
+    case "import":
+      return { ...stmt, a: NONE}
     default:
       unhandledTag(stmt);
   }
@@ -390,6 +399,10 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           if (methods.has(expr.method)) {
             const [methodArgs, methodRet] = methods.get(expr.method);
             const realArgs = [tObj].concat(tArgs);
+            // TODO: remove this and add tc for numpy.array()
+            if (tObj.a.name==="numpy$import"){
+              return { ...expr, a: methodRet, obj: tObj, arguments: tArgs };
+            }
             if (
               methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))
@@ -397,9 +410,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               return { ...expr, a: methodRet, obj: tObj, arguments: tArgs };
             } else {
               throw new TypeCheckError(
-                `Method call type mismatch: ${expr.method} --- callArgs: ${JSON.stringify(
+                `Method call type mismatch: ${expr.method} --- callArgs: ${jsonStringify(
                   realArgs
-                )}, methodArgs: ${JSON.stringify(methodArgs)}`
+                )}, methodArgs: ${jsonStringify(methodArgs)}`
               );
             }
           } else {
