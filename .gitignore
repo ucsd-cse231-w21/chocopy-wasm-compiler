@@ -3,4 +3,9 @@ build
 cli
 *.sw*
 mochawesome-report
+<<<<<<< HEAD
 *.js
+=======
+
+**.DS_Store
+>>>>>>> 67491eae3642a52a4ed51deb6f7ebd5929f2a83a

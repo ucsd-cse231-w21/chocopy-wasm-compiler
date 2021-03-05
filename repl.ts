@@ -27,6 +27,7 @@ export class BasicREPL {
       classes: new Map(),
       locals: new Set(),
       offset: 1,
+      funs: new Map(),
     };
 
     // initialization for range() calss and its constructor.
