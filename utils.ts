@@ -4,6 +4,8 @@ export function PyValue(typ: Type, result: number): Value {
   switch (typ.tag) {
     case "number":
       return PyInt(result);
+    case "string":
+      return PyObj("String", result);
     case "bool":
       return PyBool(Boolean(result));
     case "class":
@@ -53,6 +55,7 @@ export function unhandledTag(arg: { tag: string }): never {
 }
 
 export const NUM: Type = { tag: "number" };
+export const STRING: Type = { tag: "string" };
 export const BOOL: Type = { tag: "bool" };
 export const NONE: Type = { tag: "none" };
 export function CLASS(name: string): Type {

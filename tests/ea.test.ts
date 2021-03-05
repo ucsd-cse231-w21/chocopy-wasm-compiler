@@ -261,14 +261,28 @@ f(6)
           body: [
             {
               a: { tag: "none" },
-              tag: "field-assign",
-              obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
-              field: "$deref",
+              tag: "assignment",
               value: {
                 a: { tag: "number" },
                 tag: "lookup",
                 obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "z_$ref" },
                 field: "$deref",
+              },
+              destruct: {
+                valueType: { tag: "number" },
+                isDestructured: false,
+                targets: [
+                  {
+                    starred: false,
+                    ignore: false,
+                    target: {
+                      a: { tag: "number" },
+                      tag: "lookup",
+                      obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
+                      field: "$deref",
+                    },
+                  },
+                ],
               },
             },
             {

@@ -1,6 +1,16 @@
 /** Escape analysis */
 // import { warn } from "console";
-import { Type, Program, FunDef, Class, ClosureDef, Stmt, Expr } from "./ast";
+import {
+  Type,
+  Program,
+  FunDef,
+  Class,
+  ClosureDef,
+  Stmt,
+  Expr,
+  Destructure,
+  AssignTarget,
+} from "./ast";
 
 /** The seperater used to flatten nested functions */
 export const EA_NAMING_SEP = "_$";
@@ -129,23 +139,33 @@ export function eaFunDef(
 function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
   switch (stmt.tag) {
     case "assignment":
-      return { ...stmt }; // TODO: assume everything escapes by now
+      const targets: AssignTarget<Type>[] = stmt.destruct.targets.map((at) => {
+        if (at.ignore) return at; // do nothing for the ignore case
+        switch (at.target.tag) {
+          case "id":
+            const id = lookupId(at.target.name, e);
+            if (id.varScope == VarScope.GLOBAL) return at; // Globel names should keep the same
+            if (id.varScope == VarScope.NONLOCAL) nSet.add(id.name);
+            return {
+              ...at,
+              target: {
+                a: at.target.a,
+                tag: "lookup",
+                obj: { a: TRef, tag: "id", name: at.target.name + EA_REF_SUFFIX },
+                field: EA_DEREF_FIELD,
+              },
+            };
+          case "lookup":
+            return { ...at, obj: eaExpr(at.target.obj, e, nSet) };
+        }
+      });
 
-    case "assign":
-      const aid = lookupId(stmt.name, e);
-      // TODO: assume all nonlocal is mutable now
-      if (aid.varScope != VarScope.GLOBAL) {
-        if (aid.varScope == VarScope.NONLOCAL) nSet.add(aid.name);
-        return {
-          a: stmt.a,
-          tag: "field-assign",
-          obj: { a: TRef, tag: "id", name: stmt.name + EA_REF_SUFFIX },
-          field: EA_DEREF_FIELD,
-          value: eaExpr(stmt.value, e, nSet),
-        };
-      } else {
-        return { ...stmt, name: aid.name };
-      }
+      const aVlaue = eaExpr(stmt.value, e, nSet);
+      const aDestruct: Destructure<Type> = {
+        ...stmt.destruct,
+        targets: targets,
+      };
+      return { ...stmt, destruct: aDestruct, value: aVlaue }; // TODO: assume everything escapes by now
 
     case "return":
       return { ...stmt, value: eaExpr(stmt.value, e, nSet) };
@@ -170,9 +190,6 @@ function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
 
     case "pass":
       return stmt;
-
-    case "field-assign":
-      return { ...stmt, obj: eaExpr(stmt.obj, e, nSet), value: eaExpr(stmt.value, e, nSet) };
 
     case "continue":
       return stmt;
@@ -278,7 +295,7 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
     case "list-expr":
       throw new Error(`ea not yet implemented!: ${expr.tag}`);
 
-    case "string_slicing":
+    case "slicing":
       throw new Error(`ea not yet implemented!: ${expr.tag}`);
 
     case "dict":
