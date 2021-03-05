@@ -106,22 +106,22 @@ describe("traverseExpr(c, s) function", () => {
   });
 });
 
-describe("traverseStmt(c, s) function", () => {
-  // TODO: add tests here to ensure traverseStmt works as expected
-  it("parses a list-assignment", () => {
-    const source = "items[2] = True";
-    const cursor = parser.parse(source).cursor();
-    cursor.firstChild(); //go to statement
-    const parsedStmt = traverseStmt(cursor, source);
+// describe("traverseStmt(c, s) function", () => {
+//   // TODO: add tests here to ensure traverseStmt works as expected
+//   it("parses a list-assignment", () => {
+//     const source = "items[2] = True";
+//     const cursor = parser.parse(source).cursor();
+//     cursor.firstChild(); //go to statement
+//     const parsedStmt = traverseStmt(cursor, source);
 
-    expect(parsedStmt).to.deep.equal({
-      tag: "bracket-assign",
-      obj: { tag: "id", name: "items" },
-      key: { tag: "literal", value: { tag: "num", value: BigInt(2) } },
-      value: { tag: "literal", value: { tag: "bool", value: true } },
-    });
-  });
-});
+//     expect(parsedStmt).to.deep.equal({
+//       tag: "bracket-assign",
+//       obj: { tag: "id", name: "items" },
+//       key: { tag: "literal", value: { tag: "num", value: BigInt(2) } },
+//       value: { tag: "literal", value: { tag: "bool", value: true } },
+//     });
+//   });
+// });
 
 /*
 describe('traverse(c, s) function', () => {
