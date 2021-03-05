@@ -31,14 +31,19 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
   const RefMap = new Map<string, [number, Literal]>();
   RefMap.set("$deref", [0, {tag: "num", value: BigInt(0)}]);
   newClasses.set("$ref", RefMap);
+  
+  let newOffset = env.offset;
 
   let idx = newFuns.size;
   prog.closures.forEach((clo) => {
     newFuns.set(clo.name, [idx, clo.nonlocals]);
     idx += 1;
+    if (clo.isGlobal) {
+      newGlobals.set(clo.name, newOffset);
+      newOffset += 1;
+    }
   });
 
-  var newOffset = env.offset;
   prog.inits.forEach((v) => {
     newGlobals.set(v.name, newOffset);
     newOffset += 1;
@@ -83,17 +88,6 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
-function getFuns(stmts: Array<Stmt<Type>>): Array<string> {
-  let funs: Array<string> = [];
-  stmts.forEach((stmt) => {
-    if (stmt.tag == "expr" && stmt.expr.tag == "call_expr") {
-      funs.push((stmt.expr.name as any).name);
-    }
-  });
-
-  return funs;
-}
-
 export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   console.log("program", ast);
   const withDefines = augmentEnv(env, ast);
@@ -101,11 +95,6 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
   definedVars.add("$addr");
-
-  const calledFuns = getFuns(ast.stmts);
-  calledFuns.forEach((fun) => {
-    definedVars.add(`${fun}_$ref`);
-  });
 
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
@@ -119,24 +108,50 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   
   // use the called functions to determine top level functions
   // require support from AST
-  const funNames: Array<string> = [];
-  calledFuns.forEach((fun) => {
-    funNames.push(fun);
+  const globalFuns: Array<string> = [];
+  ast.closures.forEach((clo) => {
+    if (clo.isGlobal) {
+      globalFuns.push(clo.name);
+    }
   });
-  const initFuns = initNested(funNames, withDefines);
+  const initFuns = initGlobalFuns(globalFuns, withDefines);
 
   const classes: Array<string> = ast.classes.map((cls) => codeGenClass(cls, withDefines)).flat();
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
+  const memForward = myMemForward(withDefines.offset - env.offset);
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
+  const commands = localDefines.concat(initFuns.concat(inits.concat(memForward.concat(...commandGroups))));
   withDefines.locals.clear();
   return {
     functions: allFuns,
     mainSource: commands.join("\n"),
     newEnv: withDefines,
   };
+}
+
+function initGlobalFuns (funs: Array<string>, env: GlobalEnv): Array<string> {
+  const inits: Array<string> = [];
+  funs.forEach((fun) => {
+    let idx = env.funs.get(fun)[0];
+    let length = env.funs.get(fun)[1].length;
+    let loc = envLookup(env, fun);
+    inits.push(myMemAlloc(`$$addr`, (length+1)*4).join("\n"));
+    inits.push(`(i32.store (local.get $$addr) (i32.const ${idx}))`);
+    inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function`);
+  });
+  // global functions have no nonlocals, assert length == 0
+  return inits;
+}
+
+function myMemForward(n: number): Array<string> {
+  const forward: Array<string> = [];
+  forward.push(`;; update the heap ptr`);
+  forward.push(`(i32.const 0)`);
+  forward.push(`(i32.add (i32.load (i32.const 0)) (i32.const ${n * 4}))`);
+  forward.push(`(i32.store)`);
+  return forward;
 }
 
 function envLookup(env: GlobalEnv, name: string): number {
@@ -314,6 +329,8 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
     ${nonlocals}
     ${nested}
     ${stmts}
+    (i32.const 0)
+    (return)
     )`
   ];
 }
@@ -352,25 +369,6 @@ function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
   const result = methods.map((method) => codeGenFunDef(method, env));
   return result.flat();
 }
-
-// function initFun(fun: string, env: GlobalEnv): Array<string> {
-//   const init: Array<string> = [];
-//   if (env.funs.has(fun)) {
-//     const nonlocals = env.funs.get(fun)[1];
-//     nonlocals.forEach((name, i) => {
-//       if (env.funs.has(name)) {
-//         init.push(initFun(name, env).join("\n"));
-//       } else {
-//         init.push(myMemAlloc("$addr", 1).join("\n"));
-//         init.push(`(i32.store (local.get $addr) (local.get $${name}))`);
-//         init.push(`(i32.store (i32.add (local.get $${fun}}) (i32.const ${(i+1)*4})) (local.get $addr))`);
-//       }
-//     });
-//   }
-//   init.push(`(local.get $${fun}) ;; argument for $funPtr`);
-
-//   return init;
-// }
 
 function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
@@ -422,12 +420,13 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       let funName: string;
       if (nameExpr.tag == "id") {
         // until now, all the function variables are wrapped in references
+        // the 'id's serves for global functions
         funName = nameExpr.name;
-        callExpr.push(`(i32.load (local.get $${funName}_$ref)) ;; argument for $funPtr`)
+        callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $funPtr`)
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
-        callExpr.push(`(call_indirect (type $callType${expr.arguments.length+1}) (i32.load (i32.load (local.get $${funName}_$ref))))`);
+        callExpr.push(`(call_indirect (type $callType${expr.arguments.length+1}) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`);
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
         callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $funPtr`);
