@@ -309,14 +309,14 @@ export class MnS<A extends MarkableAllocator> {
     while (worklist.length > 0) {
       const childPtr = worklist.pop();
       const headerRef = this.heap.getHeader(childPtr);
-      const childSize = headerRef.getSize();
+      const childSize = headerRef.getSize();    // in bytes
       const childTag = headerRef.getTag();
 
       switch (childTag) {
         case TAG_CLASS: {
           // NOTE(alex:mm): use field indices for debug info later
-          for (let fieldIndex = 0n; fieldIndex < childSize / 32n; fieldIndex++) {
-            const fieldValue = this.getField(childPtr + 32n * fieldIndex);
+          for (let fieldIndex = 0n; fieldIndex < childSize / 4n; fieldIndex++) {
+            const fieldValue = this.getField(childPtr + 4n * fieldIndex);
             if (!isPointer(fieldValue)) {
               continue;
             }
