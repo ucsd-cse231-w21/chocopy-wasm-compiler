@@ -195,4 +195,6 @@ for i in range(5):
 
 Till now one of our biggest challenge is overloading and duplicate definition. In python3, users could call range() in multiple versions with either 1, 2 or 3 parameters, however in our compiler, we can only define one range() function, or there will be duplicate definition problems.
 
-
+The second challenge is the break statement. When there are recursive blocks exists inside a for-loop, the wasm br instruction needs a $depth
+parameter to determine which block to break through. Therefore, we have to add a depth recorder inside the type check environment to record
+the current depth and give the value to all break statements.
