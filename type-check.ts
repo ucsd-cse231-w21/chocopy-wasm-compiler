@@ -211,16 +211,16 @@ export function tcStmt(
     case "if":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tThn = tcBlock(env, locals, stmt.thn);
-      const thnTyp = tThn[tThn.length - 1].a;
+      const thnTyp = tThn[tThn.length - 1].a[0];
       const tEls = tcBlock(env, locals, stmt.els);
-      const elsTyp = tEls[tEls.length - 1].a;
+      const elsTyp = tEls[tEls.length - 1].a[0];
       if (tCond.a[0] !== BOOL) {
         // Python allows condition to be not bool. So we create this ConditionTypeError here, which does not exist in real python.
         throw new BaseException.ConditionTypeError(tCond.a[1], tCond.a[0]);
       } else if (thnTyp !== elsTyp) {
         throw new BaseException.SyntaxError(stmt.a, "Types of then and else branches must match");
       }
-      return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
+      return { a: [thnTyp,stmt.a], tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
     case "return":
       if (locals.topLevel)
         throw new BaseException.SyntaxError(stmt.a, "‘return’ outside of functions");
