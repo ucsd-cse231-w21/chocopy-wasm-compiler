@@ -4,12 +4,16 @@ export function PyValue(typ: Type, result: number): Value {
   switch (typ.tag) {
     case "number":
       return PyInt(result);
+    case "string":
+      return PyObj("String", result);
     case "bool":
       return PyBool(Boolean(result));
     case "class":
       return PyObj(typ.name, result);
     case "none":
       return PyNone();
+    case "list":
+      return PyObj(typ.tag + `<${typ.content_type.tag}>`, result);
     default:
       unhandledTag(typ);
   }
@@ -53,8 +57,12 @@ export function unhandledTag(arg: { tag: string }): never {
 }
 
 export const NUM: Type = { tag: "number" };
+export const STRING: Type = { tag: "string" };
 export const BOOL: Type = { tag: "bool" };
 export const NONE: Type = { tag: "none" };
+export function LIST(type: Type): Type {
+  return { tag: "list", content_type: type };
+}
 export function CLASS(name: string): Type {
   return { tag: "class", name };
 }

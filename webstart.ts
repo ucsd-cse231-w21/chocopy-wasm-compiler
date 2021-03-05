@@ -1,7 +1,7 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
-import { NUM, BOOL, NONE, unhandledTag } from "./utils";
 import { themeList_export } from "./themelist";
+import { NUM, STRING, BOOL, NONE, unhandledTag } from "./utils";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -11,10 +11,26 @@ import "codemirror/addon/lint/lint";
 import "./style.scss";
 import { toEditorSettings } from "typescript";
 
+var mem_js: { memory: any };
+
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
     case "number":
       return (arg as number).toString();
+    case "string":
+      if (arg == -1) throw new Error("String index out of bounds");
+      const view = new Int32Array(mem_js.memory.buffer);
+      let string_length = view[arg / 4] + 1;
+      arg = arg + 4;
+      var i = 0;
+      var full_string = "";
+      while (i < string_length) {
+        let ascii_val = view[arg / 4 + i];
+        var char = String.fromCharCode(ascii_val);
+        full_string += char;
+        i += 1;
+      }
+      return full_string;
     case "bool":
       return (arg as boolean) ? "True" : "False";
     case "none":
@@ -37,9 +53,15 @@ function print(typ: Type, arg: number): any {
 function webStart() {
   document.addEventListener("DOMContentLoaded", function () {
     var filecontent: string | ArrayBuffer;
+    const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+    const view = new Int32Array(memory.buffer);
+    view[0] = 4;
+    var memory_js = { memory: memory };
+
     var importObject = {
       imports: {
         print_num: (arg: number) => print(NUM, arg),
+        print_str: (arg: number) => print(STRING, arg),
         print_bool: (arg: number) => print(BOOL, arg),
         print_none: (arg: number) => print(NONE, arg),
         abs: Math.abs,
@@ -47,7 +69,10 @@ function webStart() {
         max: Math.max,
         pow: Math.pow,
       },
+      js: memory_js,
     };
+
+    mem_js = importObject.js;
 
     var repl = new BasicREPL(importObject);
 
@@ -68,7 +93,11 @@ function webStart() {
           elt.innerHTML = result.value ? "True" : "False";
           break;
         case "object":
-          elt.innerHTML = `<${result.name} object at ${result.address}`;
+          if (result.name == "String") {
+            elt.innerText = stringify(STRING, result.address);
+          } else {
+            elt.innerHTML = `<${result.name} object at ${result.address}`;
+          }
           break;
         default:
           throw new Error(`Could not render value: ${result}`);

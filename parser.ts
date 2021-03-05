@@ -17,7 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
+import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -25,6 +25,13 @@ export function traverseLiteral(c: TreeCursor, s: string): Literal {
       return {
         tag: "num",
         value: BigInt(s.substring(c.from, c.to)),
+      };
+    case "String":
+      const str = s.substring(c.from, c.to);
+      const str_trimmed = str.substring(1, str.length - 1);
+      return {
+        tag: "string",
+        value: str_trimmed,
       };
     case "Boolean":
       return {
@@ -43,6 +50,7 @@ export function traverseLiteral(c: TreeCursor, s: string): Literal {
 export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
   switch (c.type.name) {
     case "Number":
+    case "String":
     case "Boolean":
     case "None":
       return {
@@ -188,19 +196,134 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
     case "MemberExpression":
       c.firstChild(); // Focus on object
       var objExpr = traverseExpr(c, s);
-      c.nextSibling(); // Focus on .
-      c.nextSibling(); // Focus on property
-      var propName = s.substring(c.from, c.to);
-      c.parent();
-      return {
-        tag: "lookup",
-        obj: objExpr,
-        field: propName,
-      };
+      // c.nextSibling(); // Focus on .
+      // const memberChar = s.substring(c.from, c.to);
+      // //Check if "." or "["
+      // if (memberChar === ".") {
+      //   c.nextSibling(); // Focus on property
+      //   var propName = s.substring(c.from, c.to);
+      //   c.parent();
+      //   return {
+      //     tag: "lookup",
+      //     obj: objExpr,
+      //     field: propName,
+      //   };
+      // } else if (memberChar === "[") {
+      //   c.nextSibling(); // Focus on property
+      //   //Parse Expr used as index
+      //   var propExpr = traverseExpr(c, s);
+      //   c.parent();
+      //   return {
+      //     tag: "bracket-lookup",
+      //     obj: objExpr,
+      //     key: propExpr,
+      //   };
+      // } else {
+      //   throw new Error("Could not parse MemberExpression char");
+      c.nextSibling(); // Focus on . or [
+      var symbol = s.substring(c.from, c.to);
+      if (symbol == "[") {
+        var start_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(0) } };
+        var end_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(-1) } };
+        var stride_value: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(1) } };
+        var slice_items = "";
+        c.nextSibling();
+        //Seeing how many exprs are inside the []. For eg: a[1:2:3] has 3 expr, a[1:2] has 2 expr
+        while (s.substring(c.from, c.to) != "]") {
+          slice_items += s.substring(c.from, c.to);
+          c.nextSibling();
+        }
+        c.parent();
+        c.firstChild(); //obj
+        c.nextSibling(); // [
+        c.nextSibling(); // start of bracket expr
+        if (slice_items.length == 0) {
+          throw new Error("Need to have some value inside the brackets");
+        }
+        var sliced_list = slice_items.split(":");
+        if (sliced_list.length > 3) throw new Error("Too many arguments to process inside bracket");
+        if (sliced_list[0] != "") {
+          start_index = traverseExpr(c, s);
+          console.log("First case " + s.substring(c.from, c.to));
+          if (sliced_list.length == 1) {
+            //end_index = start_index;
+            console.log("Bracket lookup");
+            c.parent();
+            return { tag: "bracket-lookup", obj: objExpr, key: start_index };
+          }
+          c.nextSibling();
+        }
+        if (c.nextSibling())
+          if (sliced_list[1] != "") {
+            end_index = traverseExpr(c, s);
+            console.log("Second case " + s.substring(c.from, c.to));
+            c.nextSibling();
+          }
+        if (c.nextSibling())
+          if (sliced_list[2] != "") {
+            stride_value = traverseExpr(c, s);
+            console.log("Third case " + s.substring(c.from, c.to));
+            c.nextSibling();
+          }
+        console.log("Final case " + s.substring(c.from, c.to));
+        c.parent();
+        return {
+          tag: "slicing",
+          name: objExpr,
+          start: start_index,
+          end: end_index,
+          stride: stride_value,
+        };
+      } else {
+        c.nextSibling(); // Focus on property
+        var propName = s.substring(c.from, c.to);
+        c.parent();
+        return {
+          tag: "lookup",
+          obj: objExpr,
+          field: propName,
+        };
+      }
     case "self":
       return {
         tag: "id",
         name: "self",
+      };
+    case "ArrayExpression":
+      let listExpr: Array<Expr<null>> = [];
+      c.firstChild();
+      c.nextSibling();
+      while (s.substring(c.from, c.to).trim() !== "]") {
+        listExpr.push(traverseExpr(c, s));
+        c.nextSibling(); // Focuses on either "," or ")"
+        c.nextSibling(); // Focuses on a VariableName
+      }
+
+      c.parent();
+      return {
+        tag: "list-expr",
+        contents: listExpr,
+      };
+    case "DictionaryExpression":
+      // entries: Array<[Expr<A>, Expr<A>]>
+      let keyValuePairs: Array<[Expr<null>, Expr<null>]> = [];
+      c.firstChild(); // Focus on "{"
+      while (c.nextSibling()) {
+        if (s.substring(c.from, c.to) === "}") {
+          // check for empty dict
+          break;
+        }
+        let key = traverseExpr(c, s);
+        c.nextSibling(); // Focus on :
+        c.nextSibling(); // Focus on Value
+        let value = traverseExpr(c, s);
+        keyValuePairs.push([key, value]);
+        c.nextSibling(); // Focus on } or ,
+      }
+      c.parent(); // Pop to DictionaryExpression
+      return {
+        tag: "dict",
+        entries: keyValuePairs,
       };
     default:
       throw new Error(
@@ -223,43 +346,63 @@ export function traverseArguments(c: TreeCursor, s: string): Array<Expr<null>> {
   return args;
 }
 
+// Traverse the next target of an assignment and return it
+function traverseAssignment(c: TreeCursor, s: string): AssignTarget<null> {
+  let target = null;
+  let starred = false;
+  if (c.name === "*") {
+    // Check for "splat" starred operator
+    starred = true;
+    c.nextSibling();
+  }
+  try {
+    target = traverseExpr(c, s);
+  } catch (e) {
+    throw new Error(`Expected assignment expression, got ${s.substring(c.from, c.to)}`);
+  }
+  if (!isTagged(target, ASSIGNABLE_TAGS)) {
+    throw new Error(`Unknown target ${target.tag} while parsing assignment`);
+  }
+  let ignore = target.tag === "id" && target.name === "_"; // Underscores are ignored
+  return {
+    target,
+    ignore,
+    starred,
+  };
+}
+
 // Traverse the lhs of assign operations and return the assignment targets
 function traverseDestructure(c: TreeCursor, s: string): Destructure<null> {
   // TODO: Actually support destructured assignment
-  const targets: AssignTarget<null>[] = [];
-  const target = traverseExpr(c, s);
+  const targets: AssignTarget<null>[] = [traverseAssignment(c, s)]; // We need to traverse initial assign target
+  c.nextSibling();
   let isSimple = true;
-  if (!isTagged(target, ASSIGNABLE_TAGS)) {
-    target.tag;
-    throw new Error("Unknown target while parsing assignment");
+  let haveStarredTarget = targets[0].starred;
+  while (c.name !== "AssignOp") {
+    // While we haven't hit "=" and we have values remaining
+    isSimple = false; // If we have more than one target, it isn't simple.
+    c.nextSibling();
+    if (c.name === "AssignOp")
+      // Assignment list ends with comma, e.g. x, y, = (1, 2)
+      break;
+    let target = traverseAssignment(c, s);
+    if (target.starred) {
+      if (haveStarredTarget)
+        throw new Error("Cannot have multiple starred expressions in assignment");
+      haveStarredTarget = true;
+    }
+    targets.push(target);
+    c.nextSibling(); // move to =
   }
-  targets.push({
-    target,
-    ignore: false,
-    starred: false,
-  });
-  c.nextSibling(); // move to =
-  if (c.name !== "AssignOp") {
-    isSimple = false;
-    throw new Error(
-      `Multiple assignment currently not supported. Expected "=", got "${s.substring(
-        c.from,
-        c.to
-      )}"`
-    );
-  }
+  // Fun fact, "*z, = 1," is valid but "*z = 1," is not.
+  if (isSimple && haveStarredTarget)
+    // We aren't allowed to have a starred target if we only have one target
+    throw new Error("Starred assignment target must be in a list or tuple");
   c.prevSibling(); // Move back to previous for parsing to continue
-
-  if (targets.length === 1 && isSimple) {
-    return {
-      isDestructured: false,
-      targets,
-    };
-  } else if (targets.length === 0) {
-    throw new Error("No assignment targets found");
-  } else {
-    throw new Error("Unsupported non-simple assignment");
-  }
+  return {
+    targets,
+    isDestructured: !isSimple,
+  };
 }
 
 export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
@@ -281,26 +424,56 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       c.nextSibling(); // go to value
       var value = traverseExpr(c, s);
       c.parent();
+      // const target = destruct.targets[0].target;
 
-      const target = destruct.targets[0].target;
-
-      // TODO: The new assign syntax should hook in here
-      if (target.tag === "lookup") {
-        return {
-          tag: "field-assign",
-          obj: target.obj,
-          field: target.field,
-          value: value,
-        };
-      } else if (target.tag === "id") {
-        return {
-          tag: "assign",
-          name: target.name,
-          value: value,
-        };
-      } else {
-        throw new Error("Unknown target while parsing assignment");
-      }
+      //   // TODO: The new assign syntax should hook in here
+      //   switch (target.tag) {
+      //     case "lookup":
+      //       return {
+      //         tag: "field-assign",
+      //         obj: target.obj,
+      //         field: target.field,
+      //         value: value,
+      //       };
+      //     case "bracket-lookup":
+      //       return {
+      //         tag: "bracket-assign",
+      //         obj: target.obj,
+      //         key: target.key,
+      //         value: value,
+      //       };
+      //     case "id":
+      //       return {
+      //         tag: "assign",
+      //         name: target.name,
+      //         value: value,
+      //       };
+      //     default:
+      //       throw new Error("Unknown target while parsing assignment");
+      //   }
+      // /*
+      //   if (target.tag === "lookup") {
+      //     return {
+      //       tag: "field-assign",
+      //       obj: target.obj,
+      //       field: target.field,
+      //       value: value,
+      //     };
+      //   } else if (target.tag === "id") {
+      //     return {
+      //       tag: "assign",
+      //       name: target.name,
+      //       value: value,
+      //     };
+      //   } else {
+      //     throw new Error("Unknown target while parsing assignment");
+      //   }
+      //   */
+      return {
+        tag: "assignment",
+        destruct,
+        value,
+      };
     case "ExpressionStatement":
       c.firstChild();
       const expr = traverseExpr(c, s);
@@ -386,6 +559,36 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       };
     case "PassStatement":
       return { tag: "pass" };
+    case "ContinueStatement":
+      return { tag: "continue" };
+    case "BreakStatement":
+      return { tag: "break" };
+    case "ForStatement":
+      c.firstChild(); // Focus on for
+      c.nextSibling(); // Focus on variable name
+      let name = s.substring(c.from, c.to);
+      c.nextSibling(); // Focus on in / ','
+      var index = null;
+      if (s.substring(c.from, c.to) == ",") {
+        index = name;
+        c.nextSibling(); // Focus on var name
+        name = s.substring(c.from, c.to);
+        c.nextSibling(); // Focus on in
+      }
+      c.nextSibling(); // Focus on iterable expression
+      var iter = traverseExpr(c, s);
+      c.nextSibling(); // Focus on body
+      var body = [];
+      c.firstChild(); // Focus on :
+      while (c.nextSibling()) {
+        body.push(traverseStmt(c, s));
+      }
+      c.parent();
+      c.parent();
+      if (index != null) {
+        return { tag: "for", name: name, index: index, iterable: iter, body: body };
+      }
+      return { tag: "for", name: name, iterable: iter, body: body };
     default:
       throw new Error(
         "Could not parse stmt at " +
@@ -398,12 +601,36 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
   }
 }
 
+export function traverseBracketType(c: TreeCursor, s: string): Type {
+  let bracketTypes = [];
+  c.firstChild();
+  while (c.nextSibling()) {
+    if (s.substring(c.from, c.to) !== ",") {
+      bracketTypes.push(traverseType(c, s));
+    }
+    c.nextSibling();
+  }
+  c.parent();
+  if (bracketTypes.length == 1) {
+    //List
+    return LIST(bracketTypes[0]);
+  } else if (bracketTypes.length == 2) {
+    return { tag: "dict", key: bracketTypes[0], value: bracketTypes[1] };
+  } else {
+    throw new Error(
+      "Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to
+    );
+  }
+}
+
 export function traverseType(c: TreeCursor, s: string): Type {
-  // For now, always a VariableName
   let name = s.substring(c.from, c.to);
+  if (c.node.type.name === "ArrayExpression") return traverseBracketType(c, s);
   switch (name) {
     case "int":
       return NUM;
+    case "str":
+      return STRING;
     case "bool":
       return BOOL;
     default:
@@ -411,10 +638,11 @@ export function traverseType(c: TreeCursor, s: string): Type {
   }
 }
 
-export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<null>> {
+export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
   c.firstChild(); // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
+  let traversedDefaultParam = false; // When a default param is encountered once, all following params must also be default params
   while (c.type.name !== ")") {
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
@@ -427,12 +655,17 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
     let typ = traverseType(c, s);
     c.parent();
     c.nextSibling(); // Move on to comma or ")" or "="
-    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now
+    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now (what would be the proper way to avoid this?)
     if (nextTagName === "AssignOp") {
-      c.nextSibling();
+      traversedDefaultParam = true;
+      c.nextSibling(); // Move on to default value
       let val = traverseLiteral(c, s);
       parameters.push({ name, type: typ, value: val });
+      c.nextSibling(); // Move on to comma
     } else {
+      if (traversedDefaultParam === true) {
+        throw new Error("Expected a default value for " + name);
+      }
       parameters.push({ name, type: typ });
     }
     c.nextSibling(); // Focuses on a VariableName
@@ -619,6 +852,7 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
         hasChild = c.nextSibling();
       }
       c.parent();
+      console.log("parser-output:", { funs, inits, classes, stmts });
       return { funs, inits, classes, stmts };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);

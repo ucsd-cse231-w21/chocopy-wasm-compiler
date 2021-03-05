@@ -76,16 +76,75 @@ export async function run(
   console.log("before updating: ", offsetBefore);
   view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
   console.log("after updating: ", view[0]);
-
+  /*
+  class Range(object):
+    cur : int = 0
+    stop : int = 0
+    step : int = 1
+  def range(s : int)->Range:
+    self:range = None
+    self = range()
+    self.cur = 0
+    self.stop = s
+    self.step = 1
+    return self
+*/
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
+    (func $print_str (import "imports" "print_str") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "print_none") (param i32) (result i32))
     (func $abs (import "imports" "abs") (param i32) (result i32))
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    (func $range (param $s i32) (result i32)
+      (local $self i32)
+      (local $$last i32)
+      (i32.const 0)
+      (local.set $self)
+      (i32.load (i32.const 0))
+      (i32.add (i32.const 0))
+      (i32.const 0)
+      (i32.store)
+      (i32.load (i32.const 0))
+      (i32.add (i32.const 4))
+      (i32.const 0)
+      (i32.store)
+      (i32.load (i32.const 0))
+      (i32.add (i32.const 8))
+      (i32.const 1)
+      (i32.store)
+      (i32.load (i32.const 0))
+      (i32.load (i32.const 0))
+      (i32.const 0)
+      (i32.load (i32.const 0))
+      (i32.add (i32.const 12))
+      (i32.store)
+      (call $Range$__init__)
+      (drop)
+      (local.set $self)
+      (local.get $self)
+      (i32.add (i32.const 0))
+      (i32.const 0)
+      (i32.store)
+      (local.get $self)
+      (i32.add (i32.const 4))
+      (local.get $s)
+      (i32.store)
+      (local.get $self)
+      (i32.add (i32.const 8))
+      (i32.const 1)
+      (i32.store)
+      (local.get $self)
+      return (i32.const 0)
+    (return))
+
+    (func $Range$__init__ (param $self i32) (result i32)
+      (local $$last i32)
+      (i32.const 0)
+    (return))
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
@@ -95,6 +154,7 @@ export async function run(
   )`;
   console.log(wasmSource);
   const result = await runWat(wasmSource, importObject);
+  compiled.newEnv.offset = view[0] / 4;
 
   return [PyValue(progTyp, result), compiled.newEnv, tenv, compiled.functions];
 }
