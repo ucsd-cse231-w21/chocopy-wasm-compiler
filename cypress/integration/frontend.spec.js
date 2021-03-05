@@ -11,7 +11,8 @@ describe("Frontend Tests", () => {
   it("Simple Test Code Mirror", () => {
     cy.get('div[class="CodeMirror cm-s-neo"]').click().find('textarea', { force: true })
       .type("x:int = 0\nx\n", { force: true })
-    cy.get('button[id="run"]').click() // This doesn't do anything?
+    cy.get('button[id="run"]').click() 
+    cy.get('div[id="output"]').contains('pre', '0')
   });
 
   it("Simple Test Repl", () => {
