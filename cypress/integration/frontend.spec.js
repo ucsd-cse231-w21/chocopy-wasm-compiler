@@ -1,18 +1,21 @@
+Cypress.on('uncaught:exception', (err, runnable) => {
+  expect(err.message).to.include("wabt is not defined")
+  return false
+})
+
 describe("Frontend Tests", () => {
   beforeEach(() => {
     cy.visit("/");
-    cy.on('uncaught:exception', (err, runnable) => {
-      expect(err.message).to.include("wabt is not defined")
-      return false
-    })
-  
   });
 
-  it("Sample Test", () => {
-    console.log("Running sample test")
+  it("Simple Test Code Mirror", () => {
+    cy.get('div[class="CodeMirror cm-s-neo"]').click().find('textarea', { force: true })
+      .type("x:int = 0\nx\n", { force: true })
+    cy.get('button[id="run"]').click() // This doesn't do anything?
+  });
+
+  it("Simple Test Repl", () => {
     cy.get('textarea[id="next-code"]').type("x:int = 0\nx\n")
+    cy.get('div[id="output"]').contains('pre', '0')
   });
 });
-
-    // cy.get('div[class="CodeMirror cm-s-neo"]')
-    // .type("x:int = 0\nx")
