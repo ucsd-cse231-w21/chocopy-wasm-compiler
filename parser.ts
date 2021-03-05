@@ -17,7 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
+import { NUM, BOOL, NONE, CLASS, isTagged, STRING } from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -25,6 +25,13 @@ export function traverseLiteral(c: TreeCursor, s: string): Literal {
       return {
         tag: "num",
         value: BigInt(s.substring(c.from, c.to)),
+      };
+    case "String":
+      const str = s.substring(c.from, c.to);
+      const str_trimmed = str.substring(1, str.length - 1);
+      return {
+        tag: "string",
+        value: str_trimmed,
       };
     case "Boolean":
       return {
@@ -43,6 +50,7 @@ export function traverseLiteral(c: TreeCursor, s: string): Literal {
 export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
   switch (c.type.name) {
     case "Number":
+    case "String":
     case "Boolean":
     case "None":
       return {
@@ -188,15 +196,70 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
     case "MemberExpression":
       c.firstChild(); // Focus on object
       var objExpr = traverseExpr(c, s);
-      c.nextSibling(); // Focus on .
-      c.nextSibling(); // Focus on property
-      var propName = s.substring(c.from, c.to);
-      c.parent();
-      return {
-        tag: "lookup",
-        obj: objExpr,
-        field: propName,
-      };
+      c.nextSibling(); // Focus on . or [
+      var symbol = s.substring(c.from, c.to);
+      if (symbol == "[") {
+        var start_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(0) } };
+        var end_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(-1) } };
+        var stride_value: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(1) } };
+        var slice_items = "";
+        c.nextSibling();
+        //Seeing how many exprs are inside the []. For eg: a[1:2:3] has 3 expr, a[1:2] has 2 expr
+        while (s.substring(c.from, c.to) != "]") {
+          slice_items += s.substring(c.from, c.to);
+          c.nextSibling();
+        }
+        c.parent();
+        c.firstChild(); //obj
+        c.nextSibling(); // [
+        c.nextSibling(); // start of bracket expr
+        if (slice_items.length == 0) {
+          throw new Error("Need to have some value inside the brackets");
+        }
+        var sliced_list = slice_items.split(":");
+        if (sliced_list.length > 3) throw new Error("Too many arguments to process inside bracket");
+        if (sliced_list[0] != "") {
+          start_index = traverseExpr(c, s);
+          console.log("First case " + s.substring(c.from, c.to));
+          if (sliced_list.length == 1) {
+            //end_index = start_index;
+            console.log("Bracket lookup");
+            c.parent();
+            return { tag: "bracket-lookup", obj: objExpr, key: start_index };
+          }
+          c.nextSibling();
+        }
+        if (c.nextSibling())
+          if (sliced_list[1] != "") {
+            end_index = traverseExpr(c, s);
+            console.log("Second case " + s.substring(c.from, c.to));
+            c.nextSibling();
+          }
+        if (c.nextSibling())
+          if (sliced_list[2] != "") {
+            stride_value = traverseExpr(c, s);
+            console.log("Third case " + s.substring(c.from, c.to));
+            c.nextSibling();
+          }
+        console.log("Final case " + s.substring(c.from, c.to));
+        c.parent();
+        return {
+          tag: "slicing",
+          name: objExpr,
+          start: start_index,
+          end: end_index,
+          stride: stride_value,
+        };
+      } else {
+        c.nextSibling(); // Focus on property
+        var propName = s.substring(c.from, c.to);
+        c.parent();
+        return {
+          tag: "lookup",
+          obj: objExpr,
+          field: propName,
+        };
+      }
     case "self":
       return {
         tag: "id",
@@ -404,6 +467,8 @@ export function traverseType(c: TreeCursor, s: string): Type {
   switch (name) {
     case "int":
       return NUM;
+    case "str":
+      return STRING;
     case "bool":
       return BOOL;
     default:
