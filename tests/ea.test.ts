@@ -54,6 +54,7 @@ f(5)
           nonlocals: [],
           nested: ["f_$inc"],
           inits: [],
+          isGlobal: true,
           body: [
             {
               a: { tag: "number" },
@@ -80,6 +81,7 @@ f(5)
           nonlocals: ["x"],
           nested: [],
           inits: [],
+          isGlobal: false,
           body: [
             {
               a: { tag: "number" },
@@ -155,6 +157,7 @@ f(6)
           nonlocals: [],
           nested: ["f_$g", "f_$h"],
           inits: [],
+          isGlobal: true,
           body: [
             {
               a: { tag: "number" },
@@ -209,6 +212,7 @@ f(6)
           nonlocals: ["x", "f_$h"],
           nested: [],
           inits: [],
+          isGlobal: false,
           body: [
             {
               a: { tag: "number" },
@@ -253,6 +257,7 @@ f(6)
           nonlocals: ["x"],
           nested: [],
           inits: [],
+          isGlobal: false,
           body: [
             {
               a: { tag: "none" },
