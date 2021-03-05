@@ -304,7 +304,27 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         tag: "list-expr",
         contents: listExpr,
       };
-
+    case "DictionaryExpression":
+      // entries: Array<[Expr<A>, Expr<A>]>
+      let keyValuePairs: Array<[Expr<null>, Expr<null>]> = [];
+      c.firstChild(); // Focus on "{"
+      while (c.nextSibling()) {
+        if (s.substring(c.from, c.to) === "}") {
+          // check for empty dict
+          break;
+        }
+        let key = traverseExpr(c, s);
+        c.nextSibling(); // Focus on :
+        c.nextSibling(); // Focus on Value
+        let value = traverseExpr(c, s);
+        keyValuePairs.push([key, value]);
+        c.nextSibling(); // Focus on } or ,
+      }
+      c.parent(); // Pop to DictionaryExpression
+      return {
+        tag: "dict",
+        entries: keyValuePairs,
+      };
     default:
       throw new Error(
         "Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)
@@ -552,11 +572,12 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
 }
 
 export function traverseBracketType(c: TreeCursor, s: string): Type {
-  // For now, always a VariableName
   let bracketTypes = [];
   c.firstChild();
   while (c.nextSibling()) {
-    bracketTypes.push(traverseType(c, s));
+    if (s.substring(c.from, c.to) !== ",") {
+      bracketTypes.push(traverseType(c, s));
+    }
     c.nextSibling();
   }
   c.parent();
@@ -564,7 +585,7 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
     //List
     return LIST(bracketTypes[0]);
   } else if (bracketTypes.length == 2) {
-    //Dict?
+    return { tag: "dict", key: bracketTypes[0], value: bracketTypes[1] };
   } else {
     throw new Error(
       "Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to

@@ -8,7 +8,8 @@ export type Type =
   | { tag: "string" }
   | { tag: "class"; name: string }
   | { tag: "callable"; args: Array<Type>; ret: Type }
-  | { tag: "list"; content_type: Type };
+  | { tag: "list"; content_type: Type }
+  | { tag: "dict"; key: Type; value: Type };
 
 export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support
@@ -60,8 +61,7 @@ export type Stmt<A> =
   | { a?: A; tag: "pass" }
   | { a?: A; tag: "continue" }
   | { a?: A; tag: "break" }
-  | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> }
-  | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
+  | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> };
 
 /**
  * Description of assign targets. isDestructured indicates if we are doing

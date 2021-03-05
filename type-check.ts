@@ -74,11 +74,13 @@ export type TypeError = {
   message: string;
 };
 
-export function equalType(t1: Type, t2: Type): boolean {
+export function equalType(t1: Type, t2: Type) {
   return (
-    t1 === t2 ||
+    // ensure deep match for nested types (example: [int,[int,int]])
+    JSON.stringify(t1) === JSON.stringify(t2) ||
     (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
-    (t1.tag === "list" && t2.tag === "list" && equalType(t1.content_type, t2.content_type))
+    //if dictionary is initialized to empty {}, then we check for "none" type in key and value
+    (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none")
   );
 }
 
@@ -86,8 +88,12 @@ export function isNoneOrClass(t: Type) {
   return t.tag === "none" || t.tag === "class";
 }
 
+const objtypes = ["class", "list", "dict"];
+function isObjectTypeTag(t: string): boolean {
+  return objtypes.indexOf(t) >= 0;
+}
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list"));
+  return equalType(t1, t2) || (t1.tag === "none" && isObjectTypeTag(t2.tag));
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -221,6 +227,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: NONE, tag: stmt.tag };
+    // throw new TypeCheckError("bracket-assign not implemented");
     default:
       unhandledTag(stmt);
   }
@@ -527,28 +534,62 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         }
       }
       return { ...expr, a: { tag: "list", content_type: commonType }, contents: listExpr };
-    // case "bracket-lookup":
-    //   var tObj = tcExpr(env, locals, expr.obj);
-    //   var tKey = tcExpr(env, locals, expr.key);
-    //   if (tObj.a.tag === "list") {
-    //     if (tKey.a.tag === "number") {
-    //       return { ...expr, a: tObj.a.content_type, obj: tObj, key: tKey };
-    //     } else {
-    //       throw new TypeCheckError("list lookups require a number as index");
-    //     }
-    //   } else {
-    //     throw new TypeCheckError("list lookups require a list");
-    //   }
+    case "dict":
+      let entries = expr.entries;
+      let dictType: Type;
+      // check for the empty dict, example: d = {} -> returns `none`
+      if (!(entries.length > 0)) {
+        dictType = { tag: "dict", key: { tag: "none" }, value: { tag: "none" } };
+        let dictAnnotated = { ...expr, a: dictType, entries: entries };
+        return dictAnnotated;
+      } else {
+        // the dict has one or more key-value pairs
+        // return the types of keys and values, if they are consistent
+        let keyTypes = new Set();
+        let valueTypes = new Set();
+        let entryTypes: Array<[Expr<Type>, Expr<Type>]> = [];
+        for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+          let keyType = tcExpr(env, locals, entries[entryIndex][0]);
+          let valueType = tcExpr(env, locals, entries[entryIndex][1]);
+          entryTypes.push([keyType, valueType]);
+          keyTypes.add(JSON.stringify(keyType.a));
+          valueTypes.add(JSON.stringify(valueType.a));
+        }
+        if (keyTypes.size > 1) {
+          throw new TypeCheckError("Heterogenous `Key` types aren't supported");
+        }
+        if (valueTypes.size > 1) {
+          throw new TypeCheckError("Heterogenous `Value` types aren't supported");
+        }
+        let keyType = tcExpr(env, locals, entries[0][0]);
+        let valueType = tcExpr(env, locals, entries[0][1]);
+        dictType = { tag: "dict", key: keyType.a, value: valueType.a };
+        let dictAnnotated = { ...expr, a: dictType, entries: entryTypes };
+        return dictAnnotated;
+      }
     case "bracket-lookup":
       var obj_t = tcExpr(env, locals, expr.obj);
       var key_t = tcExpr(env, locals, expr.key);
-      if (obj_t.a == STRING) {
-        if(!equalType(key_t.a, NUM)) {
+      if (obj_t.a.tag === "dict") {
+        let keyType = obj_t.a.key;
+        let valueType = obj_t.a.value;
+        let keyLookupType = key_t.a;
+        if (!isAssignable(env, keyType, keyLookupType))
+          throw new TypeCheckError(
+            "Expected key type `" +
+              keyType.tag +
+              "`; got key lookup type `" +
+              keyLookupType.tag +
+              "`"
+          );
+        return { ...expr, a: valueType, obj: obj_t, key: key_t };
+      } else if (obj_t.a.tag == "string") {
+        if (!equalType(key_t.a, NUM)) {
           throw new TypeCheckError("String lookup supports only integer indices");
         }
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
       } else if (obj_t.a.tag === "list") {
-        if(!equalType(key_t.a, NUM)) {
+        if (!equalType(key_t.a, NUM)) {
           throw new TypeCheckError("List lookup supports only integer indices");
         }
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.content_type };

@@ -80,6 +80,11 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
+//Any built-in WASM functions go here
+export function libraryFuns(): string {
+  return dictUtilFuns().join("\n");
+}
+
 export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   const withDefines = augmentEnv(env, ast);
 
@@ -241,6 +246,15 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
       const className = objTyp.name;
       const [offset, _] = env.classes.get(className).get(target.field);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...value, `(i32.store)`];
+    case "bracket-lookup":
+      console.log(target);
+      switch (target.obj.a.tag) {
+        case "dict":
+          return codeGenExpr(target.obj, env).concat(codeGenDictKeyVal(target.key, value, 10, env));
+        case "list":
+        default:
+          throw new Error("Bracket-assign for types other than dict not implemented");
+      }
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
@@ -519,83 +533,16 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
-    case "bracket-lookup":
-      if (expr.a.tag == "string") {
-        var brObjStmts = codeGenExpr(expr.obj, env);
-        var brKeyStmts = codeGenExpr(expr.key, env);
-        var brStmts = [];
-        brStmts.push(
-          ...[
-            `${brObjStmts.join("\n")}`, //Load the string object to be indexed
-            `(local.set $$string_address)`,
-            `${brKeyStmts.join("\n")}`, //Gets the index
-            `(local.set $$string_index)`,
-            `(local.get $$string_index)`,
-            `(i32.const 0)(i32.lt_s)`, //check for negative index
-            `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$string_index)(i32.add)(local.set $$string_index)))`, //if -ve, we do length + index
-            `(local.get $$string_index)(local.get $$string_address)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
-            `(local.get $$string_index)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
-            `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
-            `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
-            `(local.get $$string_address)`,
-            `(i32.add (i32.mul (i32.const 4)(local.get $$string_index)))`, //Add the index * 4 value to the address
-            `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
-            `(i32.load)`, //Load the ASCII value of the string index
-            `(local.set $$string_val)`, //store value in temp variable
-            `(i32.load (i32.const 0))`, //load value at 0
-            `(i32.const 0)`, //Length of string is 1
-            `(i32.store)`, //Store length of string in the first position
-            `(i32.load (i32.const 0))`, //Load latest free memory
-            `(i32.add (i32.const 4))`, //Add 4 since we have stored string length at beginning
-            `(local.get $$string_val)`, //load value in temp variable
-            "(i32.store)", //Store the ASCII value in the new address
-          ]
-        );
-        brStmts.push(
-          ...[
-            "(i32.load (i32.const 0))", // Get address for the indexed character of the string
-            "(i32.const 0)", // Address for our upcoming store instruction
-            "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-            `(i32.add (i32.const 8))`, // Move heap head beyond the string length
-            "(i32.store)", // Save the new heap offset
-          ]
-        );
-        return brStmts;
-      } else if (expr.obj.a.tag == "list") {
-        var objStmts = codeGenExpr(expr.obj, env);
-        //This should eval to a number
-        //Multiply it by 4 to use as offset in memory
-        var keyStmts = codeGenExpr(expr.key, env);
-        //Add 3 to keyStmts to jump over type + size + bound
-        //Add that to objStmts base address
-        //Load from there
-        return objStmts.concat(
-          //TODO check for IndexOutOfBounds
-          //Coordinate with error group
-          /*
-          [
-            `(i32.add (i32.4)) ;; retrieve list size`,
-            `(i32.load)`,
-          // size > index
-          ],
-            keyStmts,
-          [
-            `(i32.gt_s) ;; compare list size > index`
-            `(if (then (call $error)) (else (nop))) ;; call IndexOutOfBounds`
-          ],
-            objStmts, //reload list base addr & key stmts?
-          */
-          keyStmts,
-          [
-            `(i32.mul (i32.const 4))`,
-            `(i32.add (i32.const 12)) ;; move past type, size, bound`,
-            `(i32.add) ;; retrieve element location`,
-            `(i32.load) ;; load list element`,
-          ]
-        );
-      }
-      break;
-
+    case "dict":
+      let dictStmts: Array<string> = [];
+      //Allocate memory on the heap for hashtable. Currently size is 10
+      //It finally pushes address of dict on stack, ie the return value
+      dictStmts = dictStmts.concat(codeGenDictAlloc(10, env, expr.entries.length));
+      expr.entries.forEach((keyval) => {
+        const value = codeGenExpr(keyval[1], env);
+        dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], value, 10, env));
+      });
+      return dictStmts;
     case "list-expr":
       var stmts: Array<string> = [];
       var listType = 10;
@@ -644,9 +591,115 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         "(i32.store)",
       ]);
 
+    case "bracket-lookup":
+      switch (expr.obj.a.tag) {
+        case "dict":
+          return codeGenDictBracketLookup(expr.obj, expr.key, 10, env);
+        case "string":
+          var brObjStmts = codeGenExpr(expr.obj, env);
+          var brKeyStmts = codeGenExpr(expr.key, env);
+          var brStmts = [];
+          brStmts.push(
+            ...[
+              `${brObjStmts.join("\n")}`, //Load the string object to be indexed
+              `(local.set $$string_address)`,
+              `${brKeyStmts.join("\n")}`, //Gets the index
+              `(local.set $$string_index)`,
+              `(local.get $$string_index)`,
+              `(i32.const 0)(i32.lt_s)`, //check for negative index
+              `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$string_index)(i32.add)(local.set $$string_index)))`, //if -ve, we do length + index
+              `(local.get $$string_index)(local.get $$string_address)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
+              `(local.get $$string_index)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
+              `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
+              `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
+              `(local.get $$string_address)`,
+              `(i32.add (i32.mul (i32.const 4)(local.get $$string_index)))`, //Add the index * 4 value to the address
+              `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
+              `(i32.load)`, //Load the ASCII value of the string index
+              `(local.set $$string_val)`, //store value in temp variable
+              `(i32.load (i32.const 0))`, //load value at 0
+              `(i32.const 0)`, //Length of string is 1
+              `(i32.store)`, //Store length of string in the first position
+              `(i32.load (i32.const 0))`, //Load latest free memory
+              `(i32.add (i32.const 4))`, //Add 4 since we have stored string length at beginning
+              `(local.get $$string_val)`, //load value in temp variable
+              "(i32.store)", //Store the ASCII value in the new address
+            ]
+          );
+          brStmts.push(
+            ...[
+              "(i32.load (i32.const 0))", // Get address for the indexed character of the string
+              "(i32.const 0)", // Address for our upcoming store instruction
+              "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+              `(i32.add (i32.const 8))`, // Move heap head beyond the string length
+              "(i32.store)", // Save the new heap offset
+            ]
+          );
+          return brStmts;
+        case "list":
+          var objStmts = codeGenExpr(expr.obj, env);
+          //This should eval to a number
+          //Multiply it by 4 to use as offset in memory
+          var keyStmts = codeGenExpr(expr.key, env);
+          //Add 3 to keyStmts to jump over type + size + bound
+          //Add that to objStmts base address
+          //Load from there
+          return objStmts.concat(
+            //TODO check for IndexOutOfBounds
+            //Coordinate with error group
+            /*
+            [
+              `(i32.add (i32.4)) ;; retrieve list size`,
+              `(i32.load)`,
+            // size > index
+            ],
+              keyStmts,
+            [
+              `(i32.gt_s) ;; compare list size > index`
+              `(if (then (call $error)) (else (nop))) ;; call IndexOutOfBounds`
+            ],
+              objStmts, //reload list base addr & key stmts?
+            */
+            keyStmts,
+            [
+              `(i32.mul (i32.const 4))`,
+              `(i32.add (i32.const 12)) ;; move past type, size, bound`,
+              `(i32.add) ;; retrieve element location`,
+              `(i32.load) ;; load list element`,
+            ]
+          );
+        default:
+          throw new Error("Code gen for bracket-lookup for types other than dict not implemented");
+      }
     default:
       unhandledTag(expr);
   }
+}
+
+function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number): Array<string> {
+  let dictAllocStmts: Array<string> = [];
+  //Ideally this loop should be replaced by call to allocator API to allocate hashtablesize entries on heap.
+  for (let i = 0; i < hashtableSize; i++) {
+    dictAllocStmts.push(
+      ...[
+        `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+        `(i32.add (i32.const ${i * 4}))`, // Calc hash table entry offset from heap offset
+        ...codeGenLiteral({ tag: "none" }, env), // CodeGen for "none" literal
+        "(i32.store)", // Initialize to none
+      ]
+    );
+  }
+  //Push the base address of dict on the stack to be consumed by each of the key:val pair initialization
+  for (let i = 0; i < entries; i++) {
+    dictAllocStmts = dictAllocStmts.concat(["(i32.load (i32.const 0))"]);
+  }
+  return dictAllocStmts.concat([
+    "(i32.load (i32.const 0))", // Get address for the dict (this is the return value)
+    "(i32.const 0)", // Address for our upcoming store instruction
+    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+    `(i32.add (i32.const ${hashtableSize * 4}))`, // Increment heap offset according to hashtable size
+    "(i32.store)", // Save the new heap offset
+  ]);
 }
 
 function allocateStringMemory(string_val: string): Array<string> {
@@ -679,6 +732,278 @@ function allocateStringMemory(string_val: string): Array<string> {
     `(i32.add (i32.const ${(string_val.length + 1) * 4}))`, // Move heap head beyond the string length + 1(len at beginning)
     "(i32.store)", // Save the new heap offset
   ]);
+}
+
+function codeGenDictBracketLookup(
+  obj: Expr<Type>,
+  key: Expr<Type>,
+  hashtableSize: number,
+  env: GlobalEnv
+): Array<string> {
+  let dictKeyValStmts: Array<string> = [];
+  dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(obj, env));
+  dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
+  dictKeyValStmts = dictKeyValStmts.concat([
+    `(i32.const ${hashtableSize})`,
+    "(call $ha$htable$Lookup)",
+  ]);
+  return dictKeyValStmts.concat(["i32.load"]);
+}
+
+//Assumes that base address of dict is pushed onto the stack already
+function codeGenDictKeyVal(
+  key: Expr<Type>,
+  val: string[],
+  hashtableSize: number,
+  env: GlobalEnv
+): Array<string> {
+  let dictKeyValStmts: Array<string> = [];
+  dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
+  dictKeyValStmts = dictKeyValStmts.concat(val);
+  dictKeyValStmts = dictKeyValStmts.concat([
+    `(i32.const ${hashtableSize})`,
+    "(call $ha$htable$Update)",
+  ]);
+  return dictKeyValStmts;
+}
+
+function dictUtilFuns(): Array<string> {
+  let dictFunStmts: Array<string> = [];
+  dictFunStmts.push(
+    ...[
+      "(func $ha$htable$CreateEntry (param $key i32) (param $val i32)",
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $key)",
+      "(i32.store)", // Dumping tag
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(i32.const 4)",
+      "(i32.add)", // Moving to the next block
+      "(local.get $val)",
+      "(i32.store)", // Dumping value
+      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(i32.const 8)",
+      "(i32.add)", // Moving to the next block
+      "(i32.const 0)", //None
+      "(i32.store)", // Dumping None in the next
+      "(return))",
+      "",
+    ]
+  );
+
+  //This function returns a memory address for the value of a key. It returns -1 if not found.
+  dictFunStmts.push(
+    ...[
+      "(func $ha$htable$Lookup (param $baseAddr i32) (param $key i32) (param $hashtablesize i32) (result i32)",
+      "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
+      "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(local $returnVal i32)",
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      "(i32.const 0)",
+      "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
+      "(local.get $baseAddr)",
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
+      "(i32.load)",
+      "(local.set $nodePtr)",
+      "(local.get $nodePtr)",
+      "(i32.const 0)", //None
+      "(i32.eq)",
+      "(if",
+      "(then", // if the literal in bucketAddress is None
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      ")", //close then
+      "(else",
+      "(block",
+      "(loop", // While loop till we find a node whose next is None
+      "(local.get $nodePtr)",
+      "(i32.load)", // Traversing to head of next node
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(local.get $key)",
+      "(i32.eq)", // if tag is same as the provided one
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.const 4)",
+      "(i32.add)", // Value
+      "(local.set $returnVal)",
+      "(i32.const 1)",
+      "(local.set $tagHitFlag)", // Set tagHitFlag to True
+      ")", // closing then
+      ")", // closing if
+      "(local.get $nodePtr)",
+      "(i32.const 8)",
+      "(i32.add)", // Next pointer
+      "(i32.load)",
+      "(local.set $nodePtr)",
+      ")", // Closing then
+      ")", // Closing if
+      "(br_if 0", // Opening br_if
+      "(local.get $nodePtr)",
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      "(local.get $tagHitFlag)",
+      "(i32.eqz)",
+      "(i32.and)",
+      ")", // Closing br_if
+      "(br 1)",
+      ")", // Closing loop
+      ")", // Closing Block
+      ")", //close else
+      ")", // close if
+      "(local.get $returnVal)",
+      "(return))",
+      "",
+    ]
+  );
+
+  dictFunStmts.push(
+    ...[
+      "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
+      "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
+      "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(i32.const 0)",
+      "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
+      "(local.get $baseAddr)",
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
+      "(i32.load)",
+      "(i32.const 0)", //None
+      "(i32.eq)",
+      "(if",
+      "(then", // if the literal in bucketAddress is None
+      "(local.get $key)",
+      "(local.get $val)",
+      "(call $ha$htable$CreateEntry)", //create node
+      "(local.get $baseAddr)", // Recomputing the bucketAddress to update it.
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Recomputed bucketAddress
+      "(i32.load (i32.const 0))",
+      "(i32.store)", //Updated the bucketAddress pointing towards first element.
+      "(i32.const 0)",
+      "(i32.load (i32.const 0))",
+      "(i32.const 12)",
+      "(i32.add)",
+      "(i32.store)", // Updating the empty space address in first block
+      ")", // Closing then
+      "(else", // Opening else
+      "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Recomputed bucketAddress
+      "(i32.load)", //Loading head of linkedList
+      "(i32.load)", //Loading the tag of head
+      "(local.get $key)",
+      "(i32.eq)",
+      "(if", // if tag is same as the provided one
+      "(then",
+      "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Recomputed bucketAddress
+      "(i32.load)", //Loading head of linkedList
+      "(i32.const 4)",
+      "(i32.add)", // Value
+      "(local.get $val)",
+      "(i32.store)", // Updating the value
+      "(i32.const 1)",
+      "(local.set $tagHitFlag)", // Set tagHitFlag to True
+      ")", // closing then
+      ")", // closing if
+      "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Recomputed bucketAddress
+      "(i32.load)", //Loading head of linkedList
+      "(i32.const 8)",
+      "(i32.add)", // Next pointer
+      "(local.set $nodePtr)",
+      "(block",
+      "(loop", // While loop till we find a node whose next is None
+      "(local.get $nodePtr)",
+      "(i32.load)", // Traversing to head of next node
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(i32.load)", //Loading the tag of head
+      "(local.get $key)",
+      "(i32.eq)", // if tag is same as the provided one
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(i32.const 4)",
+      "(i32.add)", // Value
+      "(local.get $val)",
+      "(i32.store)", // Updating the value
+      "(i32.const 1)",
+      "(local.set $tagHitFlag)", // Set tagHitFlag to True
+      ")", // closing then
+      ")", // closing if
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(i32.const 8)",
+      "(i32.add)", // Next pointer
+      "(local.set $nodePtr)",
+      ")", // Closing then
+      ")", // Closing if
+      "(br_if 0", // Opening br_if
+      "(local.get $nodePtr)",
+      "(i32.load)", // Traversing to head of next node
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      ")", // Closing br_if
+      "(br 1)",
+      ")", // Closing loop
+      ")", // Closing Block
+      "(local.get $tagHitFlag)",
+      "(i32.const 0)",
+      "(i32.eq)", // Add a new node only if tag hit is false.
+      "(if",
+      "(then",
+      "(local.get $key)",
+      "(local.get $val)",
+      "(call $ha$htable$CreateEntry)", //create node
+      "(local.get $nodePtr)", // Get the address of "next" block in node, whose next is None.
+      "(i32.load (i32.const 0))",
+      "(i32.store)", // Updated the next pointing towards first element of new node.
+      "(i32.const 0)",
+      "(i32.load (i32.const 0))",
+      "(i32.const 12)",
+      "(i32.add)",
+      "(i32.store)", // Updating the empty space address in first block
+      ")", // Closing then inside else
+      ")", // Closing if inside else
+      ")", // Closing else
+      ")", // Closing if
+      "(return))", //
+    ]
+  );
+  return dictFunStmts;
 }
 
 function codeGenLiteral(literal: Literal, env: GlobalEnv): Array<string> {

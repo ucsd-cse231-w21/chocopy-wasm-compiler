@@ -1,5 +1,5 @@
 import { run, Config } from "./runner";
-import { GlobalEnv } from "./compiler";
+import { GlobalEnv, libraryFuns } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type } from "./ast";
 import { parse } from "./parser";
@@ -29,7 +29,7 @@ export class BasicREPL {
       offset: 1,
     };
     this.currentTypeEnv = defaultTypeEnv;
-    this.functions = "";
+    this.functions = libraryFuns();
   }
   async run(source: string): Promise<Value> {
     const config: Config = {

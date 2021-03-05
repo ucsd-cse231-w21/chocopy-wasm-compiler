@@ -362,6 +362,49 @@ while False:
 
   assert("test", `def f() -> int: return 1`, PyNone());
 
+  assert(
+    "empty-dict-init",
+    `d:[int, int] = None
+          d = {}`,
+    PyNone()
+  );
+
+  assert(
+    "key-val-pair-dict-init",
+    `d:[int, int] = None
+          d = {1:2}
+          `,
+    PyNone()
+  );
+
+  assert(
+    "dict-bracket-assign",
+    `d:[int, int] = None
+          d = {1:2}
+          d[2] = 3`,
+    PyNone()
+  );
+
+  assert(
+    "dict-bracket-lookup",
+    `d:[int, int] = None
+     x:int = 0
+     d = {1:2}
+     x = d[1]
+     x`,
+    PyInt(2)
+  );
+
+  assert(
+    "dict-bracket-lookup-along-collision-chain",
+    `d:[int, int] = None
+     x:int = 0
+     d = {1:2, 11:22, 21:44, (30+1):56, 4:55}
+     x = d[31]
+     x`,
+    PyInt(56)
+  );
+
   asserts("multi-repl", [
     [`def f() -> int: return 1`, PyNone()],
     [`f()`, PyInt(1)],
