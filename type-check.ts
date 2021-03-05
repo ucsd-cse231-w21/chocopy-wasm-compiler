@@ -65,7 +65,6 @@ export const defaultTypeEnv = {
   classes: defaultGlobalClasses,
 };
 
-
 export function emptyGlobalTypeEnv(): GlobalTypeEnv {
   return {
     globals: new Map(),
@@ -79,7 +78,7 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
     vars: new Map(),
     expectedRet: NONE,
     topLevel: true,
-    loop_depth: 0
+    loop_depth: 0,
   };
 }
 
@@ -267,23 +266,25 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
     case "for":
       // check the type of iterator items, then add the item name into local variables with its type
       const fIter = tcExpr(env, locals, stmt.iterable);
-      switch(fIter.a.tag){
-        case 'class':
-          if(fIter.a.name === 'Range'){
+      switch (fIter.a.tag) {
+        case "class":
+          if (fIter.a.name === "Range") {
             locals.vars.set(stmt.name, NUM);
             break;
-          }else{
-            throw new TypeCheckError("for-loop cannot take " + fIter.a.name + ' class as iterator.');
+          } else {
+            throw new TypeCheckError(
+              "for-loop cannot take " + fIter.a.name + " class as iterator."
+            );
           }
-        case 'string':
+        case "string":
           // Character not implemented
           // locals.vars.set(stmt.name, {tag: 'char'});
-          throw new TypeCheckError('for-loop with strings are not implmented.');
-        case 'list':
+          throw new TypeCheckError("for-loop with strings are not implmented.");
+        case "list":
           locals.vars.set(stmt.name, fIter.a.content_type);
           break;
         default:
-          throw new TypeCheckError('Illegal iterating item in for-loop.');
+          throw new TypeCheckError("Illegal iterating item in for-loop.");
       }
       // record the history depth
       const last_depth = locals.loop_depth;
@@ -296,14 +297,21 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       locals.loop_depth = last_depth;
 
       // return type checked stmt
-      return { a: NONE, tag: 'for', name: stmt.name, index: stmt.index, iterable: fIter, body: fBody };
+      return {
+        a: NONE,
+        tag: "for",
+        name: stmt.name,
+        index: stmt.index,
+        iterable: fIter,
+        body: fBody,
+      };
     case "continue":
-      return { a: NONE, tag: 'continue', depth: locals.loop_depth};
+      return { a: NONE, tag: "continue", depth: locals.loop_depth };
     case "break":
-      if(locals.loop_depth < 1){
-        throw new TypeCheckError('Break outside a loop.');
+      if (locals.loop_depth < 1) {
+        throw new TypeCheckError("Break outside a loop.");
       }
-      return { a: NONE, tag: 'break', depth: locals.loop_depth};
+      return { a: NONE, tag: "break", depth: locals.loop_depth };
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);

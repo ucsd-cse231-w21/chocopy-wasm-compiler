@@ -1,4 +1,17 @@
-import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, Destructure, Assignable } from "./ast";
+import {
+  Stmt,
+  Expr,
+  UniOp,
+  BinOp,
+  Type,
+  Program,
+  Literal,
+  FunDef,
+  VarInit,
+  Class,
+  Destructure,
+  Assignable,
+} from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 
@@ -76,17 +89,17 @@ export function libraryFuns(): string {
   return dictUtilFuns().join("\n");
 }
 
-export function makeId<A>(a : A, x : string) : Destructure<A> {
+export function makeId<A>(a: A, x: string): Destructure<A> {
   return {
     isDestructured: false,
     targets: [
       {
         target: { a: a, tag: "id", name: x },
         starred: false,
-        ignore: false
-      }
-    ]
-  }
+        ignore: false,
+      },
+    ],
+  };
 }
 
 export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
@@ -188,36 +201,75 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var iter = codeGenExpr(stmt.iterable, env);
 
-      var rgExpr:Expr<Type> = { a: CLASS("Range"), tag: "id", name: "rg" }
-      var Expr_cur:Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "cur" }
+      var rgExpr: Expr<Type> = { a: CLASS("Range"), tag: "id", name: "rg" };
+      var Expr_cur: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "cur" };
       var Code_cur = codeGenExpr(Expr_cur, env);
 
-      var Expr_stop:Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "stop" }
+      var Expr_stop: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "stop" };
       var Code_stop = codeGenExpr(Expr_stop, env);
 
-      var Expr_step:Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "step" }
+      var Expr_step: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "step" };
       var Code_step = codeGenExpr(Expr_step, env);
 
       // name = cur
-      var ass:Stmt<Type> = { a: NONE, tag: "assignment", destruct: makeId(NUM, stmt.name), value: Expr_cur };
+      var ass: Stmt<Type> = {
+        a: NONE,
+        tag: "assignment",
+        destruct: makeId(NUM, stmt.name),
+        value: Expr_cur,
+      };
       var Code_ass = codeGenStmt(ass, env);
 
       // add step to cur
-      var ncur:Expr<Type> =  { a: NUM, tag: "binop", op: BinOp.Plus, left: Expr_cur, right: Expr_step };
-      var step:Stmt<Type> = { a: NONE, tag: "field-assign", obj: rgExpr, field: "cur", value: ncur }
+      var ncur: Expr<Type> = {
+        a: NUM,
+        tag: "binop",
+        op: BinOp.Plus,
+        left: Expr_cur,
+        right: Expr_step,
+      };
+      var step: Stmt<Type> = {
+        a: NONE,
+        tag: "field-assign",
+        obj: rgExpr,
+        field: "cur",
+        value: ncur,
+      };
       var Code_step = codeGenStmt(step, env);
 
       // stop condition cur<step
-      var Expr_cond:Expr<Type> = { a: BOOL, tag: "binop", op: BinOp.Gte, left: Expr_cur, right: Expr_stop };
+      var Expr_cond: Expr<Type> = {
+        a: BOOL,
+        tag: "binop",
+        op: BinOp.Gte,
+        left: Expr_cur,
+        right: Expr_stop,
+      };
       var Code_cond = codeGenExpr(Expr_cond, env);
 
       // if have index
       if (stmt.index) {
-        var iass:Stmt<Type> = { a: NONE, tag: "assignment", destruct: makeId(NUM, stmt.index), value: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(0) } } };
+        var iass: Stmt<Type> = {
+          a: NONE,
+          tag: "assignment",
+          destruct: makeId(NUM, stmt.index),
+          value: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(0) } },
+        };
         var Code_iass = codeGenStmt(iass, env);
 
-        var nid:Expr<Type> =  { a: NUM, tag: "binop", op: BinOp.Plus, left: { a: NUM, tag: "id", name: stmt.index }, right: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(1) } } };
-        var niass:Stmt<Type> = { a: NONE, tag: "assignment", destruct: makeId(NUM, stmt.index), value: nid };
+        var nid: Expr<Type> = {
+          a: NUM,
+          tag: "binop",
+          op: BinOp.Plus,
+          left: { a: NUM, tag: "id", name: stmt.index },
+          right: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(1) } },
+        };
+        var niass: Stmt<Type> = {
+          a: NONE,
+          tag: "assignment",
+          destruct: makeId(NUM, stmt.index),
+          value: nid,
+        };
         var Code_idstep = codeGenStmt(niass, env);
 
         // iterable should be a Range object
@@ -238,8 +290,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
               ${Code_idstep.join("\n")}
 
               (br 0)
-          ))`
-        ]
+          ))`,
+        ];
       }
 
       // iterable should be a Range object
@@ -257,15 +309,13 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
             ${Code_step.join("\n")}
 
             (br 0)
-        ))`
-      ]
+        ))`,
+      ];
     case "pass":
       return [];
     case "break":
       // break to depth
       return [`(br_if ${stmt.depth} (i32.const 1))`];
-    case "pass":
-      return [];
     default:
       unhandledTag(stmt);
   }
@@ -518,8 +568,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
     case "builtin1":
       const argTyp = expr.a;
-      console.log(argTyp)
-      console.log(expr.name)
+      console.log(argTyp);
+      console.log(expr.name);
       const argStmts = codeGenExpr(expr.arg, env);
       var callName = expr.name;
       if (expr.name === "print" && argTyp === NUM) {

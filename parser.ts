@@ -558,11 +558,11 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
         body,
       };
     case "PassStatement":
-      return { tag: "pass" }
+      return { tag: "pass" };
     case "ContinueStatement":
-      return { tag: "continue" }
+      return { tag: "continue" };
     case "BreakStatement":
-      return { tag: "break" }
+      return { tag: "break" };
     case "ForStatement":
       c.firstChild(); // Focus on for
       c.nextSibling(); // Focus on variable name
@@ -580,15 +580,15 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       c.nextSibling(); // Focus on body
       var body = [];
       c.firstChild(); // Focus on :
-      while(c.nextSibling()) {
+      while (c.nextSibling()) {
         body.push(traverseStmt(c, s));
       }
       c.parent();
       c.parent();
-      if (index!=null) {
-        return { tag: "for", name: name, index: index, iterable: iter, body: body}
+      if (index != null) {
+        return { tag: "for", name: name, index: index, iterable: iter, body: body };
       }
-      return { tag: "for", name: name, iterable: iter, body: body}
+      return { tag: "for", name: name, iterable: iter, body: body };
     default:
       throw new Error(
         "Could not parse stmt at " +
@@ -852,7 +852,7 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
         hasChild = c.nextSibling();
       }
       c.parent();
-      console.log("parser-output:", { funs, inits, classes, stmts })
+      console.log("parser-output:", { funs, inits, classes, stmts });
       return { funs, inits, classes, stmts };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);

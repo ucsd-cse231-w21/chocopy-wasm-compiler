@@ -30,7 +30,7 @@ export class BasicREPL {
     };
 
     // initialization for range() calss and its constructor.
-    const classFields:Map<string, [number, Literal]> = new Map();
+    const classFields: Map<string, [number, Literal]> = new Map();
     classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);
     classFields.set("stop", [1, { tag: "num", value: BigInt(0) }]);
     classFields.set("step", [2, { tag: "num", value: BigInt(1) }]);
