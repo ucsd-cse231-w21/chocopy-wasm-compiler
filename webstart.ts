@@ -1,7 +1,7 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { NUM, STRING, BOOL, NONE, unhandledTag, stringify } from "./utils";
-import { defaultTypeEnv } from './type-check';
+import { defaultTypeEnv } from "./type-check";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -9,7 +9,7 @@ import "codemirror/mode/python/python";
 
 import "./style.scss";
 
-function print(val : Value) {
+function print(val: Value) {
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
   elt.innerText = stringify(val); // stringify(typ, arg, mem);
