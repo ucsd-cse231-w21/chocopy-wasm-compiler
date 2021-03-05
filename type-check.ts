@@ -10,11 +10,11 @@ import {
   VarInit,
   Class,
   Location,
-  Parameter,
   Destructure,
   Assignable,
   ASSIGNABLE_TAGS,
   AssignTarget,
+  Parameter,
 } from "./ast";
 import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
 import * as BaseException from "./error";
@@ -22,7 +22,7 @@ import { at } from "cypress/types/lodash";
 
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
-  functions: Map<string, [Array<Type>, Type]>;
+  functions: Map<string, [Array<Parameter>, Type]>;
   classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>;
 };
 
@@ -30,19 +30,29 @@ export type LocalTypeEnv = {
   vars: Map<string, Type>;
   expectedRet: Type;
   topLevel: boolean;
+  loop_depth: number;
 };
 
 const defaultGlobalFunctions = new Map();
-defaultGlobalFunctions.set("abs", [[NUM], NUM]);
-defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
+defaultGlobalFunctions.set("abs", [[{ type: NUM }], NUM]);
+defaultGlobalFunctions.set("max", [[{ type: NUM }, { type: NUM }], NUM]);
+defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
+defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
+defaultGlobalFunctions.set("range", [[NUM], CLASS("Range")]);
+
+const defaultGlobalClasses = new Map();
+// Range initialization
+const dfields = new Map();
+dfields.set("cur", NUM);
+dfields.set("stop", NUM);
+dfields.set("step", NUM);
+defaultGlobalClasses.set("Range", [dfields, new Map()]);
 
 export const defaultTypeEnv = {
   globals: new Map(),
   functions: defaultGlobalFunctions,
-  classes: new Map(),
+  classes: defaultGlobalClasses,
 };
 
 export function emptyGlobalTypeEnv(): GlobalTypeEnv {
@@ -58,14 +68,17 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
     vars: new Map(),
     expectedRet: NONE,
     topLevel: true,
+    loop_depth: 0,
   };
 }
 
 export function equalType(t1: Type, t2: Type): boolean {
   return (
-    t1 === t2 ||
+    // ensure deep match for nested types (example: [int,[int,int]])
+    JSON.stringify(t1) === JSON.stringify(t2) ||
     (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
-    (t1.tag === "list" && t2.tag === "list" && equalType(t1.content_type, t2.content_type))
+    //if dictionary is initialized to empty {}, then we check for "none" type in key and value
+    (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none")
   );
 }
 
@@ -73,8 +86,12 @@ export function isNoneOrClass(t: Type) {
   return t.tag === "none" || t.tag === "class";
 }
 
+const objtypes = ["class", "list", "dict"];
+function isObjectTypeTag(t: string): boolean {
+  return objtypes.indexOf(t) >= 0;
+}
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list"));
+  return equalType(t1, t2) || (t1.tag === "none" && isObjectTypeTag(t2.tag));
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -90,9 +107,8 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<Location>): Glo
   const newFuns = new Map(env.functions);
   const newClasses = new Map(env.classes);
   program.inits.forEach((init) => newGlobs.set(init.name, init.type));
-  program.funs.forEach((fun) =>
-    newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret])
-  );
+  program.funs.forEach((fun) => newFuns.set(fun.name, [fun.parameters, fun.ret]));
+  //program.funs.forEach(fun => newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
   program.classes.forEach((cls) => {
     const fields = new Map();
     const methods = new Map();
@@ -154,6 +170,8 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<Location>): FunDef<[Type, 
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
+  // type checking defaults
+  fun.parameters.forEach((p) => tcDefault(p.type, p.value));
   fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
   fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
 
@@ -162,15 +180,26 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<Location>): FunDef<[Type, 
     ...fun,
     a: [NONE, fun.a],
     body: tBody,
-    parameters: fun.parameters.map((s) => {
-      return { ...s, a: [s.type, s.a] };
-    }),
     decls: fun.decls.map((s) => {
       return { ...s, a: [undefined, s.a] };
     }), // TODO
     inits: fun.inits.map((s) => tcInit(env, s)),
     funs: fun.funs.map((s) => tcDef(env, s)),
   };
+}
+
+export function tcDefault(paramType: Type, paramLiteral: Literal) {
+  // no default values
+  if (paramLiteral === undefined) {
+    return;
+  } else if (paramLiteral.tag === "num" && paramType.tag === "number") {
+    return;
+  } else if (paramLiteral.tag !== paramType.tag) {
+    throw new BaseException.CompileError(
+      undefined, // TODO
+      "Default value type " + paramLiteral.tag + " does not match param type " + paramType.tag
+    );
+  }
 }
 
 export function tcClass(env: GlobalTypeEnv, cls: Class<Location>): Class<[Type, Location]> {
@@ -205,17 +234,18 @@ export function tcStmt(
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
     case "if":
+      // loop_depth used for potential for loop breaks insiede this if
+      locals.loop_depth += 1;
       var tCond = tcExpr(env, locals, stmt.cond);
       const tThn = tcBlock(env, locals, stmt.thn);
       const thnTyp = tThn[tThn.length - 1].a[0];
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a[0];
-      if (tCond.a[0] !== BOOL) {
-        // Python allows condition to be not bool. So we create this ConditionTypeError here, which does not exist in real python.
-        throw new BaseException.ConditionTypeError(tCond.a[1], tCond.a[0]);
-      } else if (thnTyp !== elsTyp) {
+      // restore loop depth
+      locals.loop_depth -= 1;
+      if (tCond.a[0] !== BOOL) throw new BaseException.ConditionTypeError(tCond.a[1], tCond.a[0]);
+      else if (thnTyp !== elsTyp)
         throw new BaseException.SyntaxError(stmt.a, "Types of then and else branches must match");
-      }
       return { a: [thnTyp, stmt.a], tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
     case "return":
       if (locals.topLevel)
@@ -225,13 +255,91 @@ export function tcStmt(
         throw new BaseException.TypeMismatchError(stmt.a, locals.expectedRet, tRet.a[0]);
       return { a: tRet.a, tag: stmt.tag, value: tRet };
     case "while":
+      // record the history depth
+      const wlast_depth = locals.loop_depth;
+      // set depth information to 1 for potential break and continues
+      locals.loop_depth = 1;
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
+      locals.loop_depth = wlast_depth;
+
       if (!equalType(tCond.a[0], BOOL))
         throw new BaseException.ConditionTypeError(tCond.a[1], tCond.a[0]);
       return { a: [NONE, stmt.a], tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: [NONE, stmt.a], tag: stmt.tag };
+    case "for":
+      // check the type of iterator items, then add the item name into local variables with its type
+      const fIter = tcExpr(env, locals, stmt.iterable);
+      switch (fIter.a[0].tag) {
+        case "class":
+          if (fIter.a[0].name === "Range") {
+            locals.vars.set(stmt.name, NUM);
+            break;
+          } else {
+            throw new BaseException.CompileError(
+              stmt.a,
+              "for-loop cannot take " + fIter.a[0].name + " class as iterator."
+            );
+          }
+        case "string":
+          // Character not implemented
+          // locals.vars.set(stmt.name, {tag: 'char'});
+          throw new BaseException.CompileError(stmt.a, "for-loop with strings are not implmented.");
+        case "list":
+          locals.vars.set(stmt.name, fIter.a[0].content_type);
+          break;
+        default:
+          throw new BaseException.CompileError(stmt.a, "Illegal iterating item in for-loop.");
+      }
+      // record the history depth
+      const last_depth = locals.loop_depth;
+      // set depth information to 1 for potential break and continues
+      locals.loop_depth = 1;
+      // go into body
+      const fBody = tcBlock(env, locals, stmt.body);
+      // delete the temp var information after finished the body, and restore last depth
+      // locals.vars.delete(stmt.name);
+      locals.loop_depth = last_depth;
+
+      // return type checked stmt
+      return {
+        a: [NONE, stmt.a],
+        tag: "for",
+        name: stmt.name,
+        index: stmt.index,
+        iterable: fIter,
+        body: fBody,
+      };
+    case "continue":
+      return { a: [NONE, stmt.a], tag: "continue", depth: locals.loop_depth };
+    case "break":
+      if (locals.loop_depth < 1) {
+        throw new BaseException.SyntaxError(stmt.a, "Break outside a loop.");
+      }
+      return { a: [NONE, stmt.a], tag: "break", depth: locals.loop_depth };
+    case "field-assign":
+      var tObj = tcExpr(env, locals, stmt.obj);
+      const tVal = tcExpr(env, locals, stmt.value);
+      if (tObj.a[0].tag !== "class")
+        throw new BaseException.CompileError(stmt.a, "field assignments require an object");
+      if (!env.classes.has(tObj.a[0].name))
+        throw new BaseException.CompileError(stmt.a, "field assignment on an unknown class");
+      const [fields, _] = env.classes.get(tObj.a[0].name);
+      if (!fields.has(stmt.field))
+        throw new BaseException.CompileError(
+          stmt.a,
+          `could not find field ${stmt.field} in class ${tObj.a[0].name}`
+        );
+      if (!isAssignable(env, tVal.a[0], fields.get(stmt.field)))
+        // throw new BaseException.TypeMismatchError(stmt.a, fields.get(stmt.field) , tVal.a);
+        throw new BaseException.CompileError(
+          stmt.a,
+          `could not assign value of type: ${tVal.a}; field ${
+            stmt.field
+          } expected type: ${fields.get(stmt.field)}`
+        );
+      return { ...stmt, a: [NONE, stmt.a], obj: tObj, value: tVal };
     default:
       unhandledTag(stmt);
   }
@@ -443,31 +551,31 @@ export function tcExpr(
         const tArg = tcExpr(env, locals, expr.arg);
         return { ...expr, a: tArg.a, arg: tArg };
       } else if (env.functions.has(expr.name)) {
-        const [[expectedArgTyp], retTyp] = env.functions.get(expr.name);
+        const [[expectedParam], retTyp] = env.functions.get(expr.name);
         const tArg = tcExpr(env, locals, expr.arg);
 
-        if (isAssignable(env, tArg.a[0], expectedArgTyp)) {
+        if (isAssignable(env, tArg.a[0], expectedParam.type)) {
           return { ...expr, a: [retTyp, expr.a], arg: tArg };
         } else {
-          throw new BaseException.TypeMismatchError(expr.a, expectedArgTyp, tArg.a[0]);
+          throw new BaseException.TypeMismatchError(expr.a, expectedParam.type, tArg.a[0]);
         }
       } else {
         throw new BaseException.NameError(expr.a, expr.name);
       }
     case "builtin2":
       if (env.functions.has(expr.name)) {
-        const [[leftTyp, rightTyp], retTyp] = env.functions.get(expr.name);
+        const [[leftParam, rightParam], retTyp] = env.functions.get(expr.name);
         const tLeftArg = tcExpr(env, locals, expr.left);
         const tRightArg = tcExpr(env, locals, expr.right);
         if (
-          isAssignable(env, leftTyp, tLeftArg.a[0]) &&
-          isAssignable(env, rightTyp, tRightArg.a[0])
+          isAssignable(env, leftParam.type, tLeftArg.a[0]) &&
+          isAssignable(env, rightParam.type, tRightArg.a[0])
         ) {
           return { ...expr, a: [retTyp, expr.a], left: tLeftArg, right: tRightArg };
         } else {
           throw new BaseException.TypeMismatchError(
             expr.a,
-            [leftTyp, rightTyp],
+            [leftParam.type, rightParam.type],
             [tLeftArg.a[0], tRightArg.a[0]]
           );
         }
@@ -506,7 +614,8 @@ export function tcExpr(
           return tConstruct;
         }
       } else if (env.functions.has(expr.name)) {
-        const [argTypes, retType] = env.functions.get(expr.name);
+        const [params, retType] = env.functions.get(expr.name);
+        const argTypes = params.map((p) => p.type);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
         if (
@@ -514,11 +623,34 @@ export function tcExpr(
           tArgs.every((tArg, i) => tArg.a[0] === argTypes[i])
         ) {
           return { ...expr, a: [retType, expr.a], arguments: tArgs };
-        } else if (argTypes.length != expr.arguments.length) {
-          throw new BaseException.TypeError(
-            expr.a,
-            `${expr.name} takes ${argTypes.length} positional arguments but ${expr.arguments.length} were given`
-          );
+        }
+        // case where the function may have default values
+        else if (
+          argTypes.length > expr.arguments.length &&
+          tArgs.every((tArg, i) => tArg.a[0] === argTypes[i])
+        ) {
+          // check if arguments less than number of parameters
+          // first populate all the arguments first.
+          // Then, populate the rest of the values with defaults from params
+          var augArgs = tArgs;
+          var argNums = expr.arguments.length;
+          while (argNums < argTypes.length) {
+            if (params[argNums].value === undefined) {
+              throw new BaseException.CompileError(expr.a, "Missing argument from call");
+            } else {
+              // add default values into arguments as an Expr
+              // TODO : fill in the [Type, Location] for this literal in the following loc
+              // Example : fun(x : int, y : int = 1)
+              // augArgs = [{a: [INT, Location], ...}, {literal "1"}]
+              augArgs = augArgs.concat({
+                tag: "literal",
+                value: params[argNums].value,
+                a: undefined /* fill in here */,
+              });
+            }
+            argNums = argNums + 1;
+          }
+          return { ...expr, a: [retType, expr.a], arguments: augArgs };
         } else {
           throw new BaseException.TypeMismatchError(
             expr.a,
@@ -607,22 +739,57 @@ export function tcExpr(
         a: [{ tag: "list", content_type: commonType }, expr.a],
         contents: listExpr,
       };
-    // case "bracket-lookup":
-    //   var tObj = tcExpr(env, locals, expr.obj);
-    //   var tKey = tcExpr(env, locals, expr.key);
-    //   if (tObj.a.tag === "list") {
-    //     if (tKey.a.tag === "number") {
-    //       return { ...expr, a: tObj.a.content_type, obj: tObj, key: tKey };
-    //     } else {
-    //       throw new TypeCheckError("list lookups require a number as index");
-    //     }
-    //   } else {
-    //     throw new TypeCheckError("list lookups require a list");
-    //   }
+    case "dict":
+      let entries = expr.entries;
+      let dictType: Type;
+      // check for the empty dict, example: d = {} -> returns `none`
+      if (!(entries.length > 0)) {
+        dictType = { tag: "dict", key: { tag: "none" }, value: { tag: "none" } };
+        return {
+          ...expr,
+          a: [dictType, expr.a],
+          entries: expr.entries.map((s) => {
+            return [tcExpr(env, locals, s[0]), tcExpr(env, locals, s[1])];
+          }),
+        };
+      } else {
+        // the dict has one or more key-value pairs
+        // return the types of keys and values, if they are consistent
+        let keyTypes = new Set();
+        let valueTypes = new Set();
+        let entryTypes: Array<[Expr<[Type, Location]>, Expr<[Type, Location]>]> = [];
+        for (let entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+          let keyType = tcExpr(env, locals, entries[entryIndex][0]);
+          let valueType = tcExpr(env, locals, entries[entryIndex][1]);
+          entryTypes.push([keyType, valueType]);
+          keyTypes.add(JSON.stringify(keyType.a[0]));
+          valueTypes.add(JSON.stringify(valueType.a[0]));
+        }
+        if (keyTypes.size > 1) {
+          throw new BaseException.CompileError(expr.a, "Heterogenous `Key` types aren't supported");
+        }
+        if (valueTypes.size > 1) {
+          throw new BaseException.CompileError(
+            expr.a,
+            "Heterogenous `Value` types aren't supported"
+          );
+        }
+        let keyType = tcExpr(env, locals, entries[0][0]);
+        let valueType = tcExpr(env, locals, entries[0][1]);
+        dictType = { tag: "dict", key: keyType.a[0], value: valueType.a[0] };
+        return { ...expr, a: [dictType, expr.a], entries: entryTypes };
+      }
     case "bracket-lookup":
       var obj_t = tcExpr(env, locals, expr.obj);
       var key_t = tcExpr(env, locals, expr.key);
-      if (obj_t.a[0] == STRING) {
+      if (obj_t.a[0].tag === "dict") {
+        let keyType = obj_t.a[0].key;
+        let valueType = obj_t.a[0].value;
+        let keyLookupType = key_t.a[0];
+        if (!isAssignable(env, keyType, keyLookupType))
+          throw new BaseException.TypeMismatchError(expr.a, keyType, keyLookupType);
+        return { ...expr, a: [valueType, expr.a], obj: obj_t, key: key_t };
+      } else if (obj_t.a[0].tag == "string") {
         if (!equalType(key_t.a[0], NUM)) {
           throw new BaseException.CompileError(
             expr.a,

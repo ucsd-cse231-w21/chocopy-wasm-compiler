@@ -359,7 +359,27 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
         tag: "list-expr",
         contents: listExpr,
       };
-
+    case "DictionaryExpression":
+      // entries: Array<[Expr<A>, Expr<A>]>
+      let keyValuePairs: Array<[Expr<Location>, Expr<Location>]> = [];
+      c.firstChild(); // Focus on "{"
+      while (c.nextSibling()) {
+        if (s.substring(c.from, c.to) === "}") {
+          // check for empty dict
+          break;
+        }
+        let key = traverseExpr(c, s);
+        c.nextSibling(); // Focus on :
+        c.nextSibling(); // Focus on Value
+        let value = traverseExpr(c, s);
+        keyValuePairs.push([key, value]);
+        c.nextSibling(); // Focus on } or ,
+      }
+      c.parent(); // Pop to DictionaryExpression
+      return {
+        tag: "dict",
+        entries: keyValuePairs,
+      };
     default:
       throw new BaseException.CompileError(
         location,
@@ -619,6 +639,36 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       };
     case "PassStatement":
       return { tag: "pass", a: location };
+    case "ContinueStatement":
+      return { tag: "continue", a: location };
+    case "BreakStatement":
+      return { tag: "break", a: location };
+    case "ForStatement":
+      c.firstChild(); // Focus on for
+      c.nextSibling(); // Focus on variable name
+      let name = s.substring(c.from, c.to);
+      c.nextSibling(); // Focus on in / ','
+      var index = null;
+      if (s.substring(c.from, c.to) == ",") {
+        index = name;
+        c.nextSibling(); // Focus on var name
+        name = s.substring(c.from, c.to);
+        c.nextSibling(); // Focus on in
+      }
+      c.nextSibling(); // Focus on iterable expression
+      var iter = traverseExpr(c, s);
+      c.nextSibling(); // Focus on body
+      var body = [];
+      c.firstChild(); // Focus on :
+      while (c.nextSibling()) {
+        body.push(traverseStmt(c, s));
+      }
+      c.parent();
+      c.parent();
+      if (index != null) {
+        return { tag: "for", name: name, index: index, iterable: iter, body: body, a: location };
+      }
+      return { tag: "for", name: name, iterable: iter, body: body, a: location };
     default:
       throw new BaseException.CompileError(
         location,
@@ -634,11 +684,12 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
 }
 
 export function traverseBracketType(c: TreeCursor, s: string): Type {
-  // For now, always a VariableName
   let bracketTypes = [];
   c.firstChild();
   while (c.nextSibling()) {
-    bracketTypes.push(traverseType(c, s));
+    if (s.substring(c.from, c.to) !== ",") {
+      bracketTypes.push(traverseType(c, s));
+    }
     c.nextSibling();
   }
   c.parent();
@@ -646,7 +697,7 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
     //List
     return LIST(bracketTypes[0]);
   } else if (bracketTypes.length == 2) {
-    //Dict?
+    return { tag: "dict", key: bracketTypes[0], value: bracketTypes[1] };
   } else {
     throw new Error(
       "Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to
@@ -669,11 +720,12 @@ export function traverseType(c: TreeCursor, s: string): Type {
   }
 }
 
-export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<Location>> {
+export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
   var location: Location;
   c.firstChild(); // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
+  let traversedDefaultParam = false; // When a default param is encountered once, all following params must also be default params
   while (c.type.name !== ")") {
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
@@ -690,13 +742,18 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<Lo
     let typ = traverseType(c, s);
     c.parent();
     c.nextSibling(); // Move on to comma or ")" or "="
-    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now
+    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now (what would be the proper way to avoid this?)
     if (nextTagName === "AssignOp") {
-      c.nextSibling();
+      traversedDefaultParam = true;
+      c.nextSibling(); // Move on to default value
       let val = traverseLiteral(c, s);
-      parameters.push({ name, type: typ, value: val, a: location });
+      parameters.push({ name, type: typ, value: val });
+      c.nextSibling(); // Move on to comma
     } else {
-      parameters.push({ name, type: typ, a: location });
+      if (traversedDefaultParam === true) {
+        throw new BaseException.CompileError(location, "Expected a default value for " + name);
+      }
+      parameters.push({ name, type: typ });
     }
     c.nextSibling(); // Focuses on a VariableName
   }

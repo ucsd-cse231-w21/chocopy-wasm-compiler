@@ -8,13 +8,14 @@ export type Type =
   | { tag: "string" }
   | { tag: "class"; name: string }
   | { tag: "callable"; args: Array<Type>; ret: Type }
-  | { tag: "list"; content_type: Type };
+  | { tag: "list"; content_type: Type }
+  | { tag: "dict"; key: Type; value: Type };
 
 export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support
   | { a?: A; tag: "nonlocal"; name: string };
 
-export type Parameter<A> = { a?: A; name: string; type: Type; value?: Literal };
+export type Parameter = { name: string; type: Type; value?: Literal };
 
 export type Program<A> = {
   a?: A;
@@ -36,7 +37,7 @@ export type VarInit<A> = { a?: A; name: string; type: Type; value: Literal };
 export type FunDef<A> = {
   a?: A;
   name: string;
-  parameters: Array<Parameter<A>>;
+  parameters: Array<Parameter>;
   ret: Type;
   decls: Array<Scope<A>>;
   inits: Array<VarInit<A>>;
@@ -58,16 +59,10 @@ export type Stmt<A> =
   | { a?: A; tag: "if"; cond: Expr<A>; thn: Array<Stmt<A>>; els: Array<Stmt<A>> }
   | { a?: A; tag: "while"; cond: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "pass" }
-  | { a?: A; tag: "continue" }
-  | { a?: A; tag: "break" }
-  | {
-      a?: A;
-      tag: "for";
-      name: string;
-      index?: Expr<A>;
-      iterable: Expr<A>;
-      body: Array<Stmt<A>>;
-    }
+  | { a?: A; tag: "field-assign"; obj: Expr<A>; field: string; value: Expr<A> }
+  | { a?: A; tag: "continue"; depth?: number }
+  | { a?: A; tag: "break"; depth?: number } // depth is used for wasm 'br' instruction
+  | { a?: A; tag: "for"; name: string; index?: string; iterable: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
 
 /**

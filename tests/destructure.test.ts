@@ -95,6 +95,20 @@ x`,
     PyInt(9)
   );
 
+  assert(
+    "destruct-with-dict",
+    `
+class Tuple(object):
+  one: int = 9
+  two: bool = False
+d:[int, int] = None
+y: bool = True
+d = {1:2}
+d[1], y = Tuple()
+d[1]`,
+    PyInt(9)
+  );
+
   asserts("march-4-test-case-1", [
     [
       `
@@ -292,6 +306,33 @@ describe("traverseDestructure()", () => {
         name: "z",
         tag: "id",
       },
+    });
+  });
+
+  it("allows fields in assignment", () => {
+    const assign = parse("d[2], y = z").stmts[0];
+    expect(assign).to.eql({
+      destruct: {
+        isDestructured: true,
+        targets: [
+          {
+            ignore: false,
+            starred: false,
+            target: {
+              tag: "bracket-lookup",
+              obj: { tag: "id", name: "d" },
+              key: { tag: "literal", value: { tag: "num", value: 2n } },
+            },
+          },
+          {
+            ignore: false,
+            starred: false,
+            target: { name: "y", tag: "id" },
+          },
+        ],
+      },
+      tag: "assignment",
+      value: { name: "z", tag: "id" },
     });
   });
 });
