@@ -1,5 +1,5 @@
 /** Escape analysis */
-import { warn } from "console";
+// import { warn } from "console";
 import { Type, Program, FunDef, Class, ClosureDef, Stmt, Expr } from "./ast";
 
 /** The seperater used to flatten nested functions */
@@ -211,7 +211,7 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
       return { ...expr, left: eaExpr(expr.left, e, nSet), right: eaExpr(expr.right, e, nSet) };
 
     case "call":
-      warn("Use call_expr instead to support first class functions.");
+      // warn("Use call_expr instead to support first class functions.");
       return eaExpr(
         {
           a: expr.a,
