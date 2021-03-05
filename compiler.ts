@@ -20,23 +20,19 @@ export const emptyEnv: GlobalEnv = {
 };
 
 export const nTagBits = 1;
-const INT_LITERAL_MAX = BigInt(2**(31 - nTagBits) - 1);
-const INT_LITERAL_MIN = BigInt(-(2**(31 - nTagBits)));
+const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
+const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
 
-export const encodeLiteral : Array<string> = [
+export const encodeLiteral: Array<string> = [
   `(i32.const ${nTagBits})`,
   "(i32.shl)",
   "(i32.const 1)", // literals are tagged with a 1 in the LSB
-  "(i32.add)"
-]
+  "(i32.add)",
+];
 
-export const decodeLiteral : Array<string> = [
-  `(i32.const ${nTagBits})`,
-  "(i32.shr_s)"
-]
+export const decodeLiteral: Array<string> = [`(i32.const ${nTagBits})`, "(i32.shr_s)"];
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
-
+export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
 
@@ -156,12 +152,16 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       return exprStmts.concat([`(local.set $$last)`]);
     case "if":
       var condExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
-      var thnStmts = stmt.thn.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
-      var elsStmts = stmt.els.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
-      return [`${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join("\n")}))`]
+      var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
+      var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
+      return [
+        `${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join(
+          "\n"
+        )}))`,
+      ];
     case "while":
       var wcondExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
-      var bodyStmts = stmt.body.map(innerStmt => codeGenStmt(innerStmt, env)).flat();
+      var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [
         `(block (loop (br_if 1 ${wcondExpr.join("\n")}\n(i32.eqz)) ${bodyStmts.join(
           "\n"
@@ -245,12 +245,19 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       } else if (expr.name === "print" && argTyp === NONE) {
         return argStmts.concat([`(call $print_none)`]);
       }
-      return argStmts.concat([...decodeLiteral,`(call $${callName})`,...encodeLiteral]);
+      return argStmts.concat([...decodeLiteral, `(call $${callName})`, ...encodeLiteral]);
     case "builtin2":
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
       // we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
-      return [...leftStmts, ...decodeLiteral, ...rightStmts, ...decodeLiteral, `(call $${expr.name})`, ...encodeLiteral];
+      return [
+        ...leftStmts,
+        ...decodeLiteral,
+        ...rightStmts,
+        ...decodeLiteral,
+        `(call $${expr.name})`,
+        ...encodeLiteral,
+      ];
     case "literal":
       return codeGenLiteral(expr.value);
     case "id":
@@ -263,9 +270,16 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
       if (expr.op == BinOp.Is) {
-        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral]
+        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
       } else {
-        return [...lhsStmts, ...decodeLiteral, ...rhsStmts, ...decodeLiteral, codeGenBinOp(expr.op), ...encodeLiteral]
+        return [
+          ...lhsStmts,
+          ...decodeLiteral,
+          ...rhsStmts,
+          ...decodeLiteral,
+          codeGenBinOp(expr.op),
+          ...encodeLiteral,
+        ];
       }
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
@@ -274,6 +288,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           return [...exprStmts, "(call $$bignum_neg)"];
         case UniOp.Not:
           return [`(i32.const 0)`, ...exprStmts, ...decodeLiteral, `(i32.eq)`, ...encodeLiteral];
+        default:
+          return unreachable(expr);
       }
     case "call":
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
@@ -330,22 +346,22 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   }
 }
 
-function codeGenBigInt(num : bigint) : Array<string> {
+function codeGenBigInt(num: bigint): Array<string> {
   const WORD_SIZE = 4;
   const mask = BigInt(0x7fffffff);
   var sign = 1;
   var size = 0;
   // fields ? [(0, sign), (1, size)]
   if (num < 0n) {
-    sign = 0
-    num *= -1n
+    sign = 0;
+    num *= -1n;
   }
-  var words : bigint[] = [];
+  var words: bigint[] = [];
   do {
     words.push(num & mask);
     num >>= 31n;
-    size += 1
-  } while (num > 0n)
+    size += 1;
+  } while (num > 0n);
   // size MUST be > 0
   var alloc = [
     // eventually we will be able to call something like alloc(size+2)
@@ -356,15 +372,15 @@ function codeGenBigInt(num : bigint) : Array<string> {
     "(i32.load (i32.const 0))", // Load dynamic heap head offset
     `(i32.add (i32.const ${1 * WORD_SIZE}))`, // move offset another 4 for size
     `(i32.const ${size})`, // size is only 32 bits :(
-    "(i32.store)" // store size
-  ]
+    "(i32.store)", // store size
+  ];
   words.forEach((w, i) => {
     alloc = alloc.concat([
       "(i32.load (i32.const 0))", // Load dynamic heap head offset
       `(i32.add (i32.const ${(2 + i) * WORD_SIZE}))`, // advance pointer
       `(i32.const ${w})`,
       ...encodeLiteral,
-      "(i32.store)" // store
+      "(i32.store)", // store
     ]);
   });
   alloc = alloc.concat([
@@ -373,14 +389,14 @@ function codeGenBigInt(num : bigint) : Array<string> {
     `(i32.add (i32.const ${(2 + size) * WORD_SIZE}))`, // this is how much space we need
     "(i32.store)", // store new offset
     "(i32.load (i32.const 0))", // reload offset
-    `(i32.sub (i32.const ${(2 + size) * WORD_SIZE}))` // this is the addr for the number
+    `(i32.sub (i32.const ${(2 + size) * WORD_SIZE}))`, // this is the addr for the number
   ]);
   console.log(words, size, sign);
   return alloc;
 }
 
-function codeGenLiteral(literal : Literal) : Array<string> {
-  switch(literal.tag) {
+function codeGenLiteral(literal: Literal): Array<string> {
+  switch (literal.tag) {
     case "num":
       if (literal.value <= INT_LITERAL_MAX && literal.value >= INT_LITERAL_MIN) {
         return [`(i32.const ${literal.value})`, ...encodeLiteral];

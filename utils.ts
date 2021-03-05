@@ -7,17 +7,17 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
       if (result & 1) {
         return PyInt(result >> nTagBits);
       } else {
-        var idx : number = Number(result) / 4;
+        var idx: number = Number(result) / 4;
         var sign = mem[idx];
-        var size = mem[idx+1];
+        var size = mem[idx + 1];
         var i = 1;
         var num = 0n;
         while (i <= size) {
-          var dig = mem[idx+1+i];
+          var dig = mem[idx + 1 + i];
           num += BigInt(dig >>> nTagBits) << BigInt((i - 1) * (32 - nTagBits));
-          i += 1
+          i += 1;
         }
-        if (!sign) num = -num
+        if (!sign) num = -num;
         return PyBigInt(num);
       }
     case "bool":

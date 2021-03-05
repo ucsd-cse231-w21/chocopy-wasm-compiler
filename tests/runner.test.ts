@@ -1,4 +1,4 @@
-import { PyInt, PyBigInt, PyBool, PyNone, PyObj } from '../utils';
+import { PyInt, PyBigInt, PyBool, PyNone, PyObj } from "../utils";
 import { assert, asserts, assertPrint } from "./utils.test";
 
 // We write end-to-end tests here to make sure the compiler works as expected.
@@ -7,17 +7,17 @@ import { assert, asserts, assertPrint } from "./utils.test";
 describe("run", () => {
   // runWasm('i64 return value', '(module (func (export "exported_func") (result i64) (i64.const 234)))', BigInt(234));
 
-  assert('big num', "-1000000000000", PyBigInt(-1000000000000n));
+  assert("big num", "-1000000000000", PyBigInt(-1000000000000n));
 
-  assert('add', "2 + 3", PyInt(2 + 3));
+  assert("add", "2 + 3", PyInt(2 + 3));
 
   assert("add3", "2 + 3 + 4", PyInt(2 + 3 + 4));
 
-  assert('add-overflow', "4294967295 + 1", PyBigInt(4294967296n));
+  assert("add-overflow", "4294967295 + 1", PyBigInt(4294967296n));
 
   assert("sub", "1 - 2", PyInt(1 - 2));
 
-  assert('sub-underflow', "0 - 4294967295 - 1", PyBigInt(-4294967296n));
+  assert("sub-underflow", "0 - 4294967295 - 1", PyBigInt(-4294967296n));
 
   assert("mul", "2 * 3 * 4", PyInt(2 * 3 * 4));
 
@@ -263,15 +263,25 @@ f(2)`,
     PyInt(1)
   );
 
-  assert("big num print (positive)", `
+  assert(
+    "big num print (positive)",
+    `
     print(4294967296)
-  `, PyBigInt(4294967296n));
+  `,
+    PyBigInt(4294967296n)
+  );
 
-  assert("big num print (negative)", `
+  assert(
+    "big num print (negative)",
+    `
     print(-1000000000000)
-  `, PyBigInt(-1000000000000n));
+  `,
+    PyBigInt(-1000000000000n)
+  );
 
-  assert("while true", `
+  assert(
+    "while true",
+    `
   x : int = 3
   fib : int = 1
   while x > 1:

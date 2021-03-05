@@ -1,6 +1,5 @@
 import { encodeLiteral, decodeLiteral } from "./compiler";
-export const bignumfunctions = 
-`
+export const bignumfunctions = `
 (func $$bignum_neg
   (param $x i32)
   (result i32) 
@@ -58,5 +57,4 @@ export const bignumfunctions =
   )
   (local.get $x)
 )
-`
-;
+`;
