@@ -290,7 +290,7 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
         importStatement.compName = componentName;
       }
       else{
-        // "import target as alias"
+        // "import targetModule as alias"
         c.nextSibling(); //goes to the target module
 
         const targetModule = s.substring(c.from, c.to);
@@ -457,6 +457,9 @@ export function traverseType(c: TreeCursor, s: string): Type {
     case "bool":
       return BOOL;
     default:
+      if (importedNames.has(name)){
+        return CLASS(importedNames.get(name)); // alias name->full name
+      }
       return CLASS(name);
   }
 }
@@ -561,12 +564,29 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
 
 export function traverseImports(program: Program<null>): Program<null> {
   // key: alias -> value: name
+  const importPostfix = "$import";
   importedNames.forEach( (name: string, alias: string) => {
     switch(name){
       case "numpy":
-      // separate numpy from other imports; assume numpy imports single ndarray class
+      // import numpy as np; a : np = None; a = np.array([10])
+      // = import numpy; class numpy_wrapper: def array(self, list) : numpy : ...; np : numpy_wrapper = None;
+      //   class numpy: <dtype, shape fields> <add(), dot() methods>; 
+      //   a: numpy = None; a = np.array([10]) 
         program.classes.push({
-          name: "numpy",
+          name: "numpy"+importPostfix, 
+          fields: [],
+          methods: [{name: "array", 
+                     parameters: [{name: "object", type: {tag: "number"}}], // assume number for now; wait for list parsing
+                     ret: {tag: "class", name: "numpy"}, 
+                     decls: [], inits: [], funs: [], body: [] }]
+        });
+        program.inits.push({
+          name: alias,
+          type: {tag: "class", name: "numpy"+importPostfix},
+          value: {tag: "none"}
+        })
+        program.classes.push({
+          name: "numpy", // should use name; also overwrite alias->name in checkType()
           fields: numpyFields,
           methods: numpyMethods
         })
@@ -661,6 +681,10 @@ export function isClassDef(c: TreeCursor, s: string): boolean {
   return c.type.name === "ClassDefinition";
 }
 
+export function isImport(c: TreeCursor, s: string): boolean {
+  return c.type.name === "ImportStatement";
+}
+
 export function traverse(c: TreeCursor, s: string): Program<null> {
   switch (c.node.type.name) {
     case "Script":
@@ -677,6 +701,8 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
           funs.push(traverseFunDef(c, s));
         } else if (isClassDef(c, s)) {
           classes.push(traverseClass(c, s));
+        } else if (isImport(c, s)){
+          stmts.push(traverseStmt(c, s));
         } else {
           break;
         }
