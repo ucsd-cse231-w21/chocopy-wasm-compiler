@@ -52,14 +52,12 @@ export type Closure<A> = {
 };
 
 export type Stmt<A> =
-  | { a?: A; tag: "assignment"; target: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
-  | { a?: A; tag: "assign"; name: string; value: Expr<A> }
+  | { a?: A; tag: "assignment"; destruct: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
   | { a?: A; tag: "return"; value: Expr<A> }
   | { a?: A; tag: "expr"; expr: Expr<A> }
   | { a?: A; tag: "if"; cond: Expr<A>; thn: Array<Stmt<A>>; els: Array<Stmt<A>> }
   | { a?: A; tag: "while"; cond: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "pass" }
-  | { a?: A; tag: "field-assign"; obj: Expr<A>; field: string; value: Expr<A> }
   | { a?: A; tag: "continue" }
   | { a?: A; tag: "break" }
   | {
@@ -72,7 +70,18 @@ export type Stmt<A> =
     }
   | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
 
+/**
+ * Description of assign targets. isDestructured indicates if we are doing
+ * object destructuring and targets is an array of targets. One case where this
+ * distinction is important is with single element tuples:
+ *
+ * `(a,) = (1,)` vs. `a = (1,)`
+ *
+ * The first assigns `a = 1` while the second results in `a = (1,)`
+ */
 export interface Destructure<A> {
+  // Info about the value that is being destructured
+  valueType?: A;
   isDestructured: boolean;
   targets: AssignTarget<A>[];
 }
@@ -85,13 +94,14 @@ export interface AssignTarget<A> {
 
 // List of tags in Assignable. unfortunately, TS can't generate a JS array from a type,
 // so we instead must explicitly declare one.
-export const ASSIGNABLE_TAGS = ["id", "lookup"] as const;
+export const ASSIGNABLE_TAGS = ["id", "lookup", "bracket-lookup"] as const;
 /**
  * Subset of Expr types which are valid as assign targets
  */
 export type Assignable<A> =
   | { a?: A; tag: "id"; name: string }
-  | { a?: A; tag: "lookup"; obj: Expr<A>; field: string };
+  | { a?: A; tag: "lookup"; obj: Expr<A>; field: string }
+  | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
 
 export type Expr<A> =
   | { a?: A; tag: "literal"; value: Literal }
@@ -123,14 +133,7 @@ export type Expr<A> =
     }
   | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
-  | {
-      a?: A;
-      tag: "string_slicing";
-      name: Expr<A>;
-      start: Expr<A>;
-      end: Expr<A>;
-      stride: Expr<A>;
-    }
+  | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
   | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
 

@@ -11,9 +11,14 @@ import {
   Class,
   Location,
   Parameter,
+  Destructure,
+  Assignable,
+  ASSIGNABLE_TAGS,
+  AssignTarget,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
+import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
 import * as BaseException from "./error";
+import { at } from "cypress/types/lodash";
 
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
@@ -56,8 +61,12 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
   };
 }
 
-export function equalType(t1: Type, t2: Type) {
-  return t1 === t2 || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name);
+export function equalType(t1: Type, t2: Type): boolean {
+  return (
+    t1 === t2 ||
+    (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
+    (t1.tag === "list" && t2.tag === "list" && equalType(t1.content_type, t2.content_type))
+  );
 }
 
 export function isNoneOrClass(t: Type) {
@@ -65,7 +74,7 @@ export function isNoneOrClass(t: Type) {
 }
 
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && t2.tag === "class");
+  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list"));
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -185,26 +194,13 @@ export function tcStmt(
 ): Stmt<[Type, Location]> {
   switch (stmt.tag) {
     case "assignment":
-      throw new BaseException.CompileError(
-        stmt.a,
-        "Destructured assignment not implemented",
-        undefined
-      );
-    case "assign":
-      const tValExpr = tcExpr(env, locals, stmt.value);
-      var nameTyp;
-      if (locals.vars.has(stmt.name)) {
-        nameTyp = locals.vars.get(stmt.name);
-      } else if (env.globals.has(stmt.name)) {
-        nameTyp = env.globals.get(stmt.name);
-      } else {
-        throw new BaseException.NameError(stmt.a, stmt.name);
-      }
-      if (!isAssignable(env, tValExpr.a[0], nameTyp)) {
-        //throw new BaseException.Exception("Non-assignable types");
-        throw new BaseException.TypeMismatchError(stmt.a, nameTyp, tValExpr.a[0]);
-      }
-      return { a: [NONE, stmt.a], tag: stmt.tag, name: stmt.name, value: tValExpr };
+      const tValueExpr = tcExpr(env, locals, stmt.value);
+      return {
+        a: [NONE, stmt.a],
+        tag: stmt.tag,
+        value: tValueExpr,
+        destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a[0]),
+      };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
@@ -236,26 +232,108 @@ export function tcStmt(
       return { a: [NONE, stmt.a], tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: [NONE, stmt.a], tag: stmt.tag };
-    case "field-assign":
-      var tObj = tcExpr(env, locals, stmt.obj);
-      const tVal = tcExpr(env, locals, stmt.value);
-      if (tObj.a[0].tag !== "class") {
-        throw new BaseException.AttributeError(stmt.a, tObj.a[0], stmt.field);
-      }
-      if (!env.classes.has(tObj.a[0].name)) {
-        throw new BaseException.NameError(stmt.a, tObj.a[0].name);
-      }
-      const [fields, _] = env.classes.get(tObj.a[0].name);
-      if (!fields.has(stmt.field)) {
-        throw new BaseException.AttributeError(stmt.a, tObj.a[0], stmt.field);
-      }
-      if (!isAssignable(env, tVal.a[0], fields.get(stmt.field))) {
-        throw new BaseException.TypeMismatchError(stmt.a, fields.get(stmt.field), tVal.a[0]);
-      }
-      return { ...stmt, a: [NONE, stmt.a], obj: tObj, value: tVal };
     default:
       unhandledTag(stmt);
   }
+}
+
+/**
+ * Type check a Destructure<null>. This requires explicitly passing in the type of the value this
+ * assignment will receive.
+ * @param env GlobalTypeEnv
+ * @param locals LocalTypeEnv
+ * @param destruct Destructure description of assign targets
+ * @param value Type of the value passed into this destructure
+ */
+function tcDestructure(
+  env: GlobalTypeEnv,
+  locals: LocalTypeEnv,
+  destruct: Destructure<Location>,
+  value: Type
+): Destructure<[Type, Location]> {
+  /**
+   * Type check an AssignTarget<null>. Ensures that the target is valid and that its type is compatible with the
+   * value being assignment
+   * @param {AssignTarget<null>} aTarget - The target to be type checked
+   * @param {Type} valueType - The type of the value being assigned to the target
+   */
+  function tcTarget(
+    aTarget: AssignTarget<Location>,
+    valueType: Type
+  ): AssignTarget<[Type, Location]> {
+    let { target, starred, ignore } = aTarget;
+    const tTarget = tcAssignable(env, locals, target);
+    const targetType = tTarget.a;
+    if (!isAssignable(env, valueType, targetType[0]))
+      throw new BaseException.TypeMismatchError(aTarget.target.a, valueType, targetType[0]);
+    return {
+      starred,
+      ignore,
+      target: tTarget,
+    };
+  }
+
+  if (!destruct.isDestructured) {
+    let target = tcTarget(destruct.targets[0], value);
+    return {
+      valueType: [value, destruct.valueType],
+      isDestructured: false,
+      targets: [target],
+    };
+  }
+
+  let types: Type[] = [];
+  if (value.tag === "class") {
+    // This is a temporary hack to get destructuring working (reuse for tuples later?)
+    let cls = env.classes.get(value.name);
+    if (cls === undefined)
+      throw new BaseException.InternalException(
+        `Class ${value.name} not found in global environment. This is probably a parsing bug.`
+      );
+    let attrs = cls[0];
+    attrs.forEach((val) => types.push(val));
+    let starOffset = 0;
+    let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map((target, i, targets) => {
+      if (i >= types.length)
+        throw new BaseException.ValueError(
+          `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+        );
+      if (target.starred) {
+        starOffset = types.length - targets.length; // How many values will be assigned to the starred target
+        throw new BaseException.CompileError(destruct.valueType, "Starred values not supported");
+      }
+      let valueType = types[i + starOffset];
+      return tcTarget(target, valueType);
+    });
+
+    if (types.length > destruct.targets.length + starOffset)
+      throw new BaseException.ValueError(
+        `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      );
+
+    return {
+      isDestructured: destruct.isDestructured,
+      targets: tTargets,
+      valueType: [value, destruct.valueType],
+    };
+  } else {
+    throw new BaseException.CompileError(
+      destruct.valueType,
+      `Type ${value.tag} cannot be destructured`
+    );
+  }
+}
+
+function tcAssignable(
+  env: GlobalTypeEnv,
+  locals: LocalTypeEnv,
+  target: Assignable<Location>
+): Assignable<[Type, Location]> {
+  const expr = tcExpr(env, locals, target);
+  if (!isTagged(expr, ASSIGNABLE_TAGS)) {
+    throw new BaseException.CompileError(target.a, `Cannot assing to target type ${expr.tag}`);
+  }
+  return expr;
 }
 
 export function tcExpr(
@@ -276,6 +354,13 @@ export function tcExpr(
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
+          if (
+            expr.op == BinOp.Plus &&
+            tLeft.a[0].tag === "list" &&
+            equalType(tLeft.a[0], tRight.a[0])
+          ) {
+            return { ...tBin, a: [tLeft.a[0], expr.a] };
+          }
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
             return { ...tBin, a: [NUM, expr.a] };
           } else {
@@ -499,6 +584,64 @@ export function tcExpr(
       } else {
         throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
       }
+    case "list-expr":
+      var commonType = null;
+      const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
+      if (listExpr.length == 0) {
+        commonType = NONE;
+      } else {
+        commonType = listExpr[0].a[0];
+        for (var i = 1; i < listExpr.length; ++i) {
+          var lexprType = listExpr[i].a[0];
+          if (!equalType(lexprType, commonType)) {
+            if (equalType(commonType, NONE) && isNoneOrClass(lexprType)) {
+              commonType = lexprType;
+            } else if (!(equalType(lexprType, NONE) && isNoneOrClass(commonType))) {
+              throw new BaseException.TypeMismatchError(expr.a, commonType, lexprType);
+            }
+          }
+        }
+      }
+      return {
+        ...expr,
+        a: [{ tag: "list", content_type: commonType }, expr.a],
+        contents: listExpr,
+      };
+    // case "bracket-lookup":
+    //   var tObj = tcExpr(env, locals, expr.obj);
+    //   var tKey = tcExpr(env, locals, expr.key);
+    //   if (tObj.a.tag === "list") {
+    //     if (tKey.a.tag === "number") {
+    //       return { ...expr, a: tObj.a.content_type, obj: tObj, key: tKey };
+    //     } else {
+    //       throw new TypeCheckError("list lookups require a number as index");
+    //     }
+    //   } else {
+    //     throw new TypeCheckError("list lookups require a list");
+    //   }
+    case "bracket-lookup":
+      var obj_t = tcExpr(env, locals, expr.obj);
+      var key_t = tcExpr(env, locals, expr.key);
+      if (obj_t.a[0] == STRING) {
+        if (!equalType(key_t.a[0], NUM)) {
+          throw new BaseException.CompileError(
+            expr.a,
+            "String lookup supports only integer indices"
+          );
+        }
+        return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
+      } else if (obj_t.a[0].tag === "list") {
+        if (!equalType(key_t.a[0], NUM)) {
+          throw new BaseException.CompileError(expr.a, "List lookup supports only integer indices");
+        }
+        return { ...expr, obj: obj_t, key: key_t, a: [obj_t.a[0].content_type, expr.a] };
+      } else {
+        throw new BaseException.CompileError(
+          expr.a,
+          "Bracket lookup on " + obj_t.a[0].tag + " type not possible"
+        );
+      }
+
     default:
       throw new BaseException.CompileError(expr.a, `unimplemented type checking for expr: ${expr}`);
   }
@@ -512,6 +655,8 @@ export function tcLiteral(literal: Literal) {
       return NUM;
     case "none":
       return NONE;
+    case "string":
+      return STRING;
     default:
       unhandledTag(literal);
   }
