@@ -3,3 +3,5 @@ build
 cli
 *.sw*
 mochawesome-report
+
+**.DS_Store

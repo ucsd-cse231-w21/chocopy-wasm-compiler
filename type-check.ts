@@ -155,7 +155,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
 export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, GlobalTypeEnv] {
   const locals = emptyLocalTypeEnv();
   const newEnv = augmentTEnv(env, program);
-  console.log(newEnv);
+  // console.log(newEnv);
   const tInits = program.inits.map((init) => tcInit(env, init));
   const tDefs = program.funs.map((fun) => tcDef(newEnv, fun));
   const tClasses = program.classes.map((cls) => tcClass(newEnv, cls));
@@ -271,8 +271,8 @@ export function tcNestDef(
     });
   });
 
-  console.log(`Nested Env:  !!!!`);
-  console.log(locals);
+  // console.log(`Nested Env:  !!!!`);
+  // console.log(locals);
   nestEnv.vars.forEach((vtype, vname) => {
     if (!locals.vars.has(vname)) {
       locals.vars.set(vname, vtype);

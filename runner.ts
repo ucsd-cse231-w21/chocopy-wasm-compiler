@@ -11,6 +11,7 @@ import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
 import { Value } from "./ast";
 import { PyValue, NONE } from "./utils";
+import { ea } from "./ea";
 
 export type Config = {
   importObject: any;
@@ -62,7 +63,8 @@ export async function run(
     returnExpr = "(local.get $$last)";
   }
   let globalsBefore = (config.env.globals as Map<string, number>).size;
-  const compiled = compiler.compile(tprogram, config.env);
+  const eaProgram = ea(tprogram);
+  const compiled = compiler.compile(eaProgram, config.env);
   let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;
@@ -77,6 +79,18 @@ export async function run(
   view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
   console.log("after updating: ", view[0]);
 
+  const funs = compiled.newEnv.funs;
+  let sorted_funs = new Array<string>(funs.size);
+  funs.forEach((v, k) => {
+    sorted_funs[v[0]] = `$${k}`;
+  });
+
+  let funRef = 
+  `
+  (table ${funs.size} funcref)
+  (elem (i32.const 0) ${sorted_funs.join(" ")})
+  `
+
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
@@ -86,6 +100,11 @@ export async function run(
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    (type $callType0 (func (result i32)))
+    (type $callType1 (func (param i32) (result i32)))
+    (type $callType2 (func (param i32) (param i32) (result i32)))
+    (type $callType3 (func (param i32) (param i32) (param i32) (result i32)))
+    ${funRef}
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
