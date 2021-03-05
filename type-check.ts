@@ -279,7 +279,7 @@ export function tcExpr(
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
             return { ...tBin, a: [NUM, expr.a] };
           } else {
-            throw new BaseException.UnsupportedOprandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
@@ -289,7 +289,7 @@ export function tcExpr(
           if (equalType(tLeft.a[0], tRight.a[0])) {
             return { ...tBin, a: [BOOL, expr.a] };
           } else {
-            throw new BaseException.UnsupportedOprandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
@@ -301,7 +301,7 @@ export function tcExpr(
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
             return { ...tBin, a: [BOOL, expr.a] };
           } else {
-            throw new BaseException.UnsupportedOprandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
@@ -311,14 +311,14 @@ export function tcExpr(
           if (equalType(tLeft.a[0], BOOL) && equalType(tRight.a[0], BOOL)) {
             return { ...tBin, a: [BOOL, expr.a] };
           } else {
-            throw new BaseException.UnsupportedOprandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
           }
         case BinOp.Is:
           if (!isNoneOrClass(tLeft.a[0]) || !isNoneOrClass(tRight.a[0]))
-            throw new BaseException.UnsupportedOprandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
@@ -334,13 +334,13 @@ export function tcExpr(
           if (equalType(tExpr.a[0], NUM)) {
             return tUni;
           } else {
-            throw new BaseException.UnsupportedOprandTypeError(expr.a, expr.op, [tExpr.a[0]]);
+            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [tExpr.a[0]]);
           }
         case UniOp.Not:
           if (equalType(tExpr.a[0], BOOL)) {
             return tUni;
           } else {
-            throw new BaseException.UnsupportedOprandTypeError(expr.a, expr.op, [tExpr.a[0]]);
+            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [tExpr.a[0]]);
           }
         default:
           return unreachable(expr);

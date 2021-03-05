@@ -2,10 +2,9 @@
 referrence: https://docs.python.org/3/library/exceptions.html
 Use instanceof to get additional properties of each Error type, if necessary.
 
-+-- Exception
++-- InternalException -> This error is used for debugging in compiler, should not show up.
 
 +-- RuntimeError (DynamicError)
-		+-- KeyboardInterrupt
 		+-- StopInteration
 		+-- ArithmeticError
     |   +-- OverflowError
@@ -25,9 +24,9 @@ Use instanceof to get additional properties of each Error type, if necessary.
     +-- SyntaxError
     |   +-- IndentationError
     +-- TypeError
-    +-- UnsupportedOprandTypeError -> This error class is for TypeError related to operator like + - // * ....
-		+-- TypeMismatchError -> This error class is for TypeError that is allowed in Python but not in our project
-		+-- ConditionTypeError -> This error class is for condition type check in while and if, which does not exist in real python.
+    |		+-- UnsupportedOperandTypeError -> This error class is for TypeError related to operator like + - // * ....
+		|		+-- TypeMismatchError -> This error class is for TypeError that is allowed in Python but not in our project
+		|		+-- ConditionTypeError -> This error class is for condition type check in while and if, which does not exist in real python.
 */
 
 import { type } from "cypress/types/jquery";
@@ -35,23 +34,6 @@ import { stringInput } from "lezer-tree";
 import { BinOp, UniOp, Location, Type } from "./ast";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
-export class KeyboardInterrupt extends Error {
-  __proto__: Error;
-  constructor(message?: string) {
-    const trueProto = new.target.prototype;
-    super(message);
-    this.name = "KeyboardInterrupt";
-
-    // Maintains proper stack trace for where our error was thrown (only available on V8)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, KeyboardInterrupt);
-    }
-
-    // Alternatively use Object.setPrototypeOf if you have an ES6 environment.
-    this.__proto__ = trueProto;
-  }
-}
-
 export class InternalException extends Error {
   __proto__: Error;
 
@@ -67,16 +49,13 @@ export class InternalException extends Error {
 
 export class RuntimeError extends Error {
   __proto__: Error;
-
+  // TODO - error-reporting
+  // stacktrace for runtimeError
   constructor(message?: string, name = "RuntimeError") {
     const trueProto = new.target.prototype;
     super(message);
     this.name = name;
 
-    // Maintains proper stack trace for where our error was thrown (only available on V8)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, RuntimeError);
-    }
     // Alternatively use Object.setPrototypeOf if you have an ES6 environment.
     this.__proto__ = trueProto;
   }
@@ -111,15 +90,15 @@ export class ArithmeticError extends RuntimeError {
 
 // e.g. math.exp(1000)
 export class OverflowError extends ArithmeticError {
-  constructor(message?: string, name = "OverflowError") {
-    super(message, name);
+  constructor(message?: string) {
+    super(message, "OverflowError");
   }
 }
 
 // e.g. 7/0
 export class ZeroDivisionError extends ArithmeticError {
-  constructor(message = "division by zero", name = "ZeroDivisionError") {
-    super(message, name);
+  constructor(message = "division by zero") {
+    super(message, "ZeroDivisionError");
   }
 }
 
@@ -128,7 +107,7 @@ export class AttributeError extends CompileError {
   obj: Type;
   attr: string;
   constructor(loc: Location, obj: Type, attr: string) {
-    var message = `'${obj.tag}' object has no attribute '${attr}'`;
+    var message = `'${obj.tag == "class" ? obj.name : obj.tag} ' object has no attribute '${attr}'`;
     super(loc, message, "AttributeError");
     this.obj = obj;
     this.attr = attr;
@@ -149,14 +128,14 @@ export class IndexError extends LookupError {
 }
 
 export class KeyError extends LookupError {
-  constructor(keyName: string, name = "KeyError") {
-    super(`'${keyName}'`, name);
+  constructor(keyName: string) {
+    super(`'${keyName}'`, "KeyError");
   }
 }
 
 export class MemoryError extends RuntimeError {
-  constructor(message?: string, name = "MemoryError") {
-    super(message, name);
+  constructor(message?: string) {
+    super(message, "MemoryError");
   }
 }
 
@@ -170,15 +149,15 @@ export class NameError extends CompileError {
 
 export class UnboundLocalError extends NameError {
   varName: string;
-  constructor(loc: Location, varName: string, name = "UnboundLocalError") {
-    super(loc, `local variable '${varName}' referenced before assignment`, name);
+  constructor(loc: Location, varName: string) {
+    super(loc, `local variable '${varName}' referenced before assignment`, "UnboundLocalError");
     this.varName = varName;
   }
 }
 
 export class RecursionError extends RuntimeError {
-  constructor(name = "RecursionError") {
-    super("maximum recursion depth exceeded", name);
+  constructor() {
+    super("maximum recursion depth exceeded", "RecursionError");
   }
 }
 
@@ -189,8 +168,8 @@ export class SyntaxError extends CompileError {
 }
 
 export class IndentationError extends SyntaxError {
-  constructor(loc: Location, message = `unexpected indent`, name = "IndentationError") {
-    super(loc, message, name);
+  constructor(loc: Location, message = `unexpected indent`) {
+    super(loc, message, "IndentationError");
   }
 }
 
@@ -220,14 +199,14 @@ export class TypeMismatchError extends TypeError {
       this.expect = expect;
       this.got = got as Type[];
     } else {
-      super(loc, `Expected type '${expect.tag}'; got type '${(got as Type).tag}'`);
+      super(loc, `Expected type '${expect.tag}'; got type '${(got as Type).tag}'`, name);
       this.expect = [expect];
       this.got = [got as Type];
     }
   }
 }
 
-export class UnsupportedOprandTypeError extends TypeError {
+export class UnsupportedOperandTypeError extends TypeError {
   op: BinOp | UniOp;
   oprand: Type[];
   constructor(loc: Location, op: BinOp | UniOp, oprand: Type[], name = "TypeError") {
@@ -242,10 +221,10 @@ export class UnsupportedOprandTypeError extends TypeError {
   }
 }
 
-export class ConditionTypeError extends CompileError {
+export class ConditionTypeError extends TypeError {
   type: Type;
-  constructor(loc: Location, got: Type, name = "ConditionTypeError") {
-    super(loc, `Condition Expression Cannot be of type '${got.tag}'`, name);
+  constructor(loc: Location, got: Type) {
+    super(loc, `Condition Expression Cannot be of type '${got.tag}'`, "ConditionTypeError");
     this.type = got;
   }
 }
@@ -256,8 +235,11 @@ export class ValueError extends RuntimeError {
   }
 }
 
-export class UnicodeError extends RuntimeError {
-  constructor(codec: string, character: string, pos: number, name = "UnicodeError") {
-    super(`'${codec}' codec can't encode character '${character}' in position ${pos}`, name);
+export class UnicodeError extends ValueError {
+  constructor(codec: string, character: string, pos: number) {
+    super(
+      `'${codec}' codec can't encode character '${character}' in position ${pos}`,
+      "UnicodeError"
+    );
   }
 }
