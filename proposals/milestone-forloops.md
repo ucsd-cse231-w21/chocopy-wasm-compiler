@@ -19,11 +19,75 @@ We've decided to only support `for` loops with `range()` and adjust our programs
 ```python
 i:int = 0
 for i in range(5):
+  print(i)
   if i == 3:
     break
-    print(i)
   else:
-    print(i)
+    pass
+```
+
+## test cases for newly added features:
+
+1. iterate for 0 loops
+```typescript
+  assert(
+    "for range(0)",
+    `
+    i:int = 0
+    for i in range(5):
+        print(i)
+    i
+    `,
+    pyInt(-1)
+  );
+```
+
+2. iterate for 10 loops
+
+```typescript
+  assert(
+    "for range(10)",
+    `
+    i:int = -1
+    for i in range(10):
+        print(i)
+    i
+    `,
+    pyInt(9)
+  );
+```
+
+3. break outside for-loop
+
+```typescript
+  assertTCFail(
+    "break outside loop",
+    `
+    i:int = 0
+    break
+    for i in range(5):
+        print(i)
+    `,
+    pyInt(9)
+  );
+```
+
+4. break
+```typescript
+  assert(
+    "break at 5",
+    `
+    i:int = -1
+    for i in range(10):
+        print(i)
+        if i == 5:
+            break
+        else:
+            pass
+    i
+    `,
+    pyInt(5)
+  );
 ```
 
 ## Updates to the examples we plan for March 11
