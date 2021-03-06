@@ -13,7 +13,8 @@
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
     "plugin:prettier/recommended",
-    "prettier"
+    "prettier",
+    "plugin:cypress/recommended"
   ],
   "rules": {
     // TODO: Change no-var and prefer-const to warnings in the future

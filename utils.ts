@@ -66,3 +66,8 @@ export function LIST(type: Type): Type {
 export function CLASS(name: string): Type {
   return { tag: "class", name };
 }
+
+export function CALLABLE(args: Array<Type>, ret: Type): Type {
+  const params = args.map((t, i) => ({ name: `callable_${i}`, type: t }));
+  return { tag: "callable", args: params, ret };
+}
