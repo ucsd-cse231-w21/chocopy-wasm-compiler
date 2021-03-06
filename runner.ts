@@ -88,6 +88,10 @@ export async function run(source : string, config: Config) : Promise<[Value, com
     (func $$big_mod (import "imports" "__big_num_mod") (param i32) (param i32) (result i32))
     (func $$big_eq (import "imports" "__big_num_eq") (param i32) (param i32) (result i32))
     (func $$big_ne (import "imports" "__big_num_ne") (param i32) (param i32) (result i32))
+    (func $$big_lt (import "imports" "__big_num_lt") (param i32) (param i32) (result i32))
+    (func $$big_lte (import "imports" "__big_num_lte") (param i32) (param i32) (result i32))
+    (func $$big_gt (import "imports" "__big_num_gt") (param i32) (param i32) (result i32))
+    (func $$big_gte (import "imports" "__big_num_gte") (param i32) (param i32) (result i32))
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}

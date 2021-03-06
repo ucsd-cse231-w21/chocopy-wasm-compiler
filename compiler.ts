@@ -248,12 +248,11 @@ function codeGenExpr(expr : Expr<Type>, env: GlobalEnv) : Array<string> {
       if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral]
       }
-      else if (expr.op == BinOp.Plus || expr.op == BinOp.Minus || expr.op == BinOp.Mul 
-        || expr.op == BinOp.IDiv || expr.op == BinOp.Mod || expr.op == BinOp.Eq
-        || expr.op == BinOp.Neq) {
-        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
-      } else {
+      else if(expr.op == BinOp.And || expr.op == BinOp.Or){
         return [...lhsStmts, ...decodeLiteral, ...rhsStmts, ...decodeLiteral, codeGenBinOp(expr.op), ...encodeLiteral]
+      }
+      else {
+        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
       }
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
@@ -382,13 +381,13 @@ function codeGenBinOp(op : BinOp) : string {
     case BinOp.Neq:
       return "(call $$ne)"
     case BinOp.Lte:
-      return "(i32.le_s)"
+      return "(call $$lte)"
     case BinOp.Gte:
-      return "(i32.ge_s)"
+      return "(call $$gte)"
     case BinOp.Lt:
-      return "(i32.lt_s)"
+      return "(call $$lt)"
     case BinOp.Gt:
-      return "(i32.gt_s)"
+      return "(call $$gt)"
     case BinOp.Is:
       return "(i32.eq)";
     case BinOp.And:
@@ -396,4 +395,5 @@ function codeGenBinOp(op : BinOp) : string {
     case BinOp.Or:
       return "(i32.or)"
   }
+
 }

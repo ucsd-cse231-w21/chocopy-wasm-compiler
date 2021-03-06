@@ -45,7 +45,11 @@ export class BasicREPL {
     this.importObject.imports.__big_num_div =  (x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x/y})
     this.importObject.imports.__big_num_mod = (x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x%y})
     this.importObject.imports.__big_num_eq =(x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x===y})
-    this.importObject.imports.__big_num_ne =(x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{console.log(x + ' '+y);return x!==y})
+    this.importObject.imports.__big_num_ne =(x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x!==y})
+    this.importObject.imports.__big_num_lt =(x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x<y})
+    this.importObject.imports.__big_num_lte =(x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x<=y})
+    this.importObject.imports.__big_num_gt =(x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x>y})
+    this.importObject.imports.__big_num_gte =(x: number, y: number) => this.binOpInterface(x,y,(x: bigint, y:bigint)=>{return x>=y})
 
 
     this.currentTypeEnv = defaultTypeEnv;
