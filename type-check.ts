@@ -240,7 +240,8 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
     locals.vars.set(init.name, tcInit(env, init).type);
   });
   fun.decls.forEach((decl) => {
-    throw new Error(`Invalid Nonlocal Variable ${decl.name}`);
+    if (decl.tag == "nonlocal") throw new Error(`Invalid Nonlocal Variable ${decl.name}`);
+    if (!env.globals.has(decl.name)) throw new Error(`Invalid global Variable ${decl.name}`);
   });
   fun.funs.forEach((func) => {
     locals.functions.set(func.name, [func.parameters, func.ret]);
