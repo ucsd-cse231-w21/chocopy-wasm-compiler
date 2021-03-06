@@ -78,12 +78,12 @@ type CompileResult = {
   newEnv: GlobalEnv;
 };
 
-function myMemForward(n: number): Array<string> {
-  const forward: Array<string> = [];
-  forward.push(`;; update the heap ptr`);
-  forward.push(`(i32.store (i32.const 0) (i32.add (i32.load (i32.const 0)) (i32.const ${n * 4})))`);
-  return forward;
-}
+// function myMemForward(n: number): Array<string> {
+//   const forward: Array<string> = [];
+//   forward.push(`;; update the heap ptr`);
+//   forward.push(`(i32.store (i32.const 0) (i32.add (i32.load (i32.const 0)) (i32.const ${n * 4})))`);
+//   return forward;
+// }
 
 function myMemAlloc(name: string, size: number): Array<string> {
   const allocs: Array<string> = [];
@@ -178,7 +178,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       if (env.locals.has(stmt.name)) {
         return valStmts.concat([`(local.set $${stmt.name})`]);
       } else {
-        const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
+        const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; global variable ${stmt.name}`];
         return locationToStore.concat(valStmts).concat([`(i32.store)`]);
       }
     case "expr":
@@ -211,7 +211,11 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(stmt.field);
       var valStmts = codeGenExpr(stmt.value, env);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      if (stmt.field == "$deref") {
+        return [...objStmts, ...valStmts, `(i32.store)`];
+      } else {
+        return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      }
     default:
       unhandledTag(stmt);
   }
@@ -222,7 +226,7 @@ function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`];
   } else {
-    const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; ${init.name}`];
+    const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; global variable ${init.name}`];
     return locationToStore.concat(value).concat([`(i32.store)`]);
   }
 }
@@ -250,13 +254,13 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
   return inits;
 }
 
-const funPtr = "$funPtr"; // the first extra argument
+const fPTR = "$$fPTR"; // the first extra argument
 
 function initNonlocals(nonlocals: Array<string>): Array<string> {
-  // extract the references for nonlocals from the '$funPtr'
+  // extract the references for nonlocals from the '$fPTR'
   const inits: Array<string> = [];
   nonlocals.forEach((v, i) => {
-    inits.push(`(i32.load (i32.add (local.get ${funPtr}) (i32.const ${(i + 1) * 4})))`);
+    inits.push(`(i32.load (i32.add (local.get ${fPTR}) (i32.const ${(i + 1) * 4})))`);
     inits.push(`(local.set $${v}_$ref)`);
   });
 
@@ -279,7 +283,8 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   definedVars.add("$last");
   definedVars.add("$addr");
   def.nonlocals.forEach((v) => definedVars.add(`${v}_$ref`)); // nonlocals are reference, ending with '_$ref'
-  def.nested.forEach((v) => definedVars.add(`${v}_$ref`)); // nested functions are references of function ptrs, ending with _$ref
+  def.nested.forEach((f) => definedVars.add(`${f}_$ref`)); // nested functions are references of function ptrs, ending with _$ref
+  // ToDo, optimize after EA
   def.inits.forEach((v) => definedVars.add(`${v.name}`));
   def.inits.forEach((v) => definedVars.add(`${v.name}_$ref`));
   def.parameters.forEach((p) => definedVars.add(`${p.name}_$ref`));
@@ -304,7 +309,7 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   env.locals.clear();
 
   return [
-`(func $${def.name} (param ${funPtr} i32) ${params} (result i32)
+`(func $${def.name} (param ${fPTR} i32) ${params} (result i32)
 ${localDefs}
 ${inits}
 ${refs}
@@ -327,10 +332,7 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
 
   const localDefines = makeLocals(definedVars);
   const locals = localDefines.join("\n");
-  const inits = def.inits
-    .map((init) => codeGenInit(init, env))
-    .flat()
-    .join("\n");
+  const inits = def.inits.map((init) => codeGenInit(init, env)).flat().join("\n");
   var params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
   var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
   var stmtsBody = stmts.join("\n");
@@ -374,7 +376,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return codeGenLiteral(expr.value, env);
     case "id":
       if (env.locals.has(expr.name)) {
-        return [`(local.get $${expr.name})`];
+        return [`(local.get $${expr.name}) ;; local ${expr.name}`];
       } else {
         return [`(i32.const ${envLookup(env, expr.name)})`, `(i32.load)`];
       }
@@ -404,7 +406,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         // until now, all the function variables are wrapped in references
         // the 'id's serves for global functions
         funName = nameExpr.name;
-        callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $funPtr`);
+        callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $fPTR`);
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
@@ -413,12 +415,22 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         );
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
-        callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $funPtr`);
+        callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $fPTR`);
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
         callExpr.push(
           `(call_indirect (type $callType${expr.arguments.length + 1}) (i32.load (i32.load (local.get $${funName}))))`
+        );
+      } else if (nameExpr.tag == "call_expr") {
+        callExpr.push(codeGenExpr(nameExpr, env).join("\n"));
+        callExpr.push(`(local.set $$addr)`);
+        callExpr.push(`(local.get $$addr) ;; function ptr for the extra argument`);
+        expr.arguments.forEach((arg) => {
+          callExpr.push(codeGenExpr(arg, env).join("\n"));
+        });
+        callExpr.push(
+          `(call_indirect (type $callType${expr.arguments.length + 1}) (i32.load (local.get $$addr)))`
         );
       } else {
         throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);
@@ -429,35 +441,51 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       env.classes.get(expr.name).forEach(([offset, initVal], field) =>
         stmts.push(
           ...[
-            `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
-            `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
+            `(i32.load (i32.const 0)) ;; allocate memory for ${expr.name} object`, // Load the dynamic heap head offset
+            `(i32.add (i32.const ${offset * 4})) ;; field offset for ${field}`, // Calc field offset from heap offset
             ...codeGenLiteral(initVal, env), // Initialize field
-            "(i32.store)", // Put the default field value on the heap
+            `(i32.store) ;; store for ${field}`, // Put the default field value on the heap
           ]
         )
       );
       return stmts.concat([
-        "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
-        "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
-        "(i32.const 0)", // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-        `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the two words we just created for fields
-        "(i32.store)", // Save the new heap offset
+        "(i32.load (i32.const 0)) ;; object address to return", // Get address for the object (this is the return value)
+        "(i32.load (i32.const 0)) ;; object address used for call __init__", // Get address for the object (this is the return value)
+        "(i32.const 0) ;; address to store heap ptr", // Address for our upcoming store instruction
+        "(i32.load (i32.const 0)) ;; current heap ptr", // Load the dynamic heap head offset
+        `(i32.add (i32.const ${env.classes.get(expr.name).size * 4})) ;; `, // Move heap head beyond the two words we just created for fields
+        "(i32.store) ;; store the updated heap ptr", // Save the new heap offset
         `(call $${expr.name}$__init__)`, // call __init__
         "(drop)",
       ]);
     case "method-call":
-      var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
-      if (objTyp.tag !== "class") {
-        // I don't think this error can happen
-        throw new Error(
-          "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
-        );
+      let clsName = (expr.obj.a as any).name;
+      if (env.classes.get(clsName).has(expr.method)) {
+        let callExpr: Array<string> = [];
+        let argsExprs = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+        callExpr.push(codeGenExpr(expr.obj, env).join("\n"));
+        callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
+        callExpr.push(`(i32.load) ;; load the function pointer for the extra argument`);
+        callExpr.push(argsExprs.join("\n"));
+        callExpr.push(codeGenExpr(expr.obj, env).join("\n"));
+        callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
+        callExpr.push(`(i32.load) ;; load the function pointer`);
+        callExpr.push(`(i32.load) ;; load the function index`);
+        callExpr.push(`(call_indirect (type $callType${expr.arguments.length + 1}))`);
+        return callExpr;
+      } else {
+        var objStmts = codeGenExpr(expr.obj, env);
+        var objTyp = expr.obj.a;
+        if (objTyp.tag !== "class") {
+          // I don't think this error can happen
+          throw new Error(
+            "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
+          );
+        }
+        var className = objTyp.name;
+        var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+        return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
       }
-      var className = objTyp.name;
-      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
@@ -469,7 +497,11 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
+      if (expr.field == "$deref") {
+        return [...objStmts, `(i32.load) ;; dereference`];
+      } else {
+        return [...objStmts, `(i32.add (i32.const ${offset * 4})) ;; offset for ${expr.field}`, `(i32.load)`];
+      }
     default:
       unhandledTag(expr);
   }
