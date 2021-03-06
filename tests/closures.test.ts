@@ -1,20 +1,20 @@
-import { assert, asserts } from "./utils.test";
+import { assert } from "./utils.test";
 import { PyInt, PyBool, PyNone } from "../utils";
 
-describe("Closures group's test cases on the proposal", () => {
-  {
-    const src = `
+describe("Closures", () => {
+  it("1: A trivial nested function without escape", () => {
+    let src = `
     def f(x: int) -> int:
       def inc() -> int:
         return x + 1
       return inc()
     f(5)
     `;
-    assert("1. Trivial nested function without escape", src, PyInt(6));
-  }
+    assert("", src, PyInt(6));
+  });
 
-  {
-    const src = `
+  it("2: A trivial `nonlocal` usage", () => {
+    let src = `
     def f(x : int) -> int:
       def g(y : int) -> int:
         return x + h(y)
@@ -25,11 +25,12 @@ describe("Closures group's test cases on the proposal", () => {
       return g(10) + g(7)
     f(6)
     `;
-    assert("2. Trivial `nonlocal` usage", src, PyInt(35));
-  }
+    assert("", src, PyInt(35));
+  });
 
-  {
-    const src = `
+  it("3: A trivial case where `nonlocal` can be eliminated", () => {
+    let src =
+    `
     def f() -> int:
       x: int = 0
       def g() -> int:
@@ -38,47 +39,51 @@ describe("Closures group's test cases on the proposal", () => {
       return g()
     f()
     `;
-    assert("3. A trivial case where `nonlocal` can be eliminated", src, PyInt(1));
-  }
 
-  {
-    const src = `
-    def f(x : int)->Callable[[int],int]:
+    assert("", src, PyInt(1));
+  });
+
+  it("5: A trivial escaped function", () => {
+    let src =
+    `
+    def f(x : int)->Callable[[int], int]:
       def g(y : int) -> int:
         return x + y
       return g
 
-    g_where_x_is_6: Callable[[int],int] = None
+    g_where_x_is_6: Callable[[int], int] = None
     g_where_x_is_6 = f(6)
-    g_where_x_is_6(5)
-    `;
-    assert("5. Function escapes when it is returned", src, PyInt(11));
-  }
+    print(g_where_x_is_6(5))
+    `
+    assert("", src, PyInt(11));
+  });
 
-  {
-    const src = `
+  it("6: Closure with a variable of object type", () => {
+    let src =
+    `
     class A(object):
-      x:int = 1
+      a: int = 1
 
-    def f(a:A)->Callable[[int],int]:
+    def f(a: A) -> Callable[[int], int]:
       def g(y: int) -> int:
-        a.x = a.x + y
-        return a.x
+        a.a = a.a + y
+        return a.a
       return g
 
-    a:A = None
+    a: A = None
     g: Callable[[int], int] = None
     a = A()
-    a.x = 6
+    a.a = 6
     g = f(a)
-    a.x = 10
-    g(2) + a.x
-    `;
-    assert("6. Closure with variable of object type", src, PyInt(24));
-  }
+    a.a = 10
+    g(2) + a.a
+    `
+    assert("", src, PyInt(24));
+  });
 
-  {
-    const src = `
+  it("7: Multiple escaped closures", () => {
+    let src = 
+    `
     class Triplet(object):
       fst:Callable[[], int] = None
       snd:Callable[[], int] = None
@@ -99,27 +104,25 @@ describe("Closures group's test cases on the proposal", () => {
         return x
       r = Triplet()
       x = 100
+
       r.fst = inc
       r.snd = dec
       r.thd = curr
+      
       return r
+    
+    tuple: Triplet = None
+    tuple = foo()
+    tuple.fst()
+    `
+    assert("", src, PyInt(101));
+  });
 
-    r: Triplet = None
-    r = foo()
-    `;
-    asserts("7. A modified example from Feb 9 lecture (nonlocal, inc/dec)", [
-      [src, PyNone()],
-      ["r.fst()", PyInt(101)],
-      ["r.snd()", PyInt(100)],
-      ["r.fst()", PyInt(101)],
-      ["r.thd()", PyInt(101)],
-    ]);
-  }
-
-  {
-    const src = `
-    def f(x : int) -> Callable[[int], bool]:
-      def g(y : int) -> bool:
+  it("8: Chained `call_expr`", () => {
+    let src =
+    `
+    def f(x: int) -> Callable[[int], bool]:
+      def g(y: int) -> bool:
         return x > y
       return g
 
@@ -127,16 +130,13 @@ describe("Closures group's test cases on the proposal", () => {
       return c
 
     id(f(10))(5)
-    `;
-    assert(
-      "8. An non-escaping function passed to another function as a callable argument",
-      src,
-      PyBool(true)
-    );
-  }
+    `
+    assert("", src, PyBool(true));
+  });
 
-  {
-    const src = `
+  it("9: A case of callable type arguments", () => {
+    let src = 
+    `
     class MyTupleInt(object):
       fst: int = 0
       snd: int = 0
@@ -158,25 +158,24 @@ describe("Closures group's test cases on the proposal", () => {
 
     add_2 = add_n(2)
     r = map2(3, 5, add_2)
-    `;
-    asserts("7. An escaping function passed to another function as a callable argument", [
-      [src, PyNone()],
-      ["r.fst", PyInt(5)],
-      ["r.snd", PyInt(7)],
-    ]);
-  }
+    r.fst
+    r.snd
+    `
+    assert("", src, PyInt(7));
+  });
 
-  {
-    const src = `
+  it("10: Indirect escape", () => {
+    let src =
+    `
     def f(x:int) -> Callable[[], int]:
       def g() -> int:
         return h()
       def h() -> int:
         return x + 1
-      return g
+    return g
 
     f(10)()
-    `;
-    assert("10. An escaping function calls its non-escaping sibling", src, PyInt(11));
-  }
+    `
+    assert("", src, PyInt(11));
+  });
 });
