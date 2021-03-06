@@ -816,7 +816,7 @@ export function tcExpr(
             } else {
               // add default values into arguments as an Expr
               augArgs = augArgs.concat([
-                tcExpr(env, locals, { tag: "literal", value: params[argNums].value }),
+                tcExpr(env, locals, { a: undefined, tag: "literal", value: params[argNums].value }),
               ]);
             }
             argNums = argNums + 1;

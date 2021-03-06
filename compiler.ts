@@ -436,7 +436,9 @@ function codeGenDestructure(
       });
     } else {
       // Currently assumes that the valueType of our destructure is an object
-      throw new Error("Destructuring not supported yet for types other than 'class'");
+      throw new BaseException.InternalException(
+        "Destructuring not supported yet for types other than 'class'"
+      );
     }
   } else {
     const target = destruct.targets[0];
@@ -480,13 +482,15 @@ function codeGenAssignable(
           return codeGenExpr(target.obj, env).concat(codeGenDictKeyVal(target.key, value, 10, env));
         case "list":
         default:
-          throw new Error("Bracket-assign for types other than dict not implemented");
+          throw new BaseException.InternalException(
+            "Bracket-assign for types other than dict not implemented"
+          );
       }
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
       const err: never = <never>target;
-      throw new Error(`Unknown target ${JSON.stringify(err)} (compiler)`);
+      throw new BaseException.InternalException(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
 
@@ -845,7 +849,9 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           }) (i32.load (i32.load (local.get $${funName}))))`
         );
       } else {
-        throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);
+        throw new BaseException.InternalException(
+          `Compile Error. Invalid name of tag ${nameExpr.tag}`
+        );
       }
       return callExpr;
     case "construct":
@@ -1039,7 +1045,9 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             ]
           );
         default:
-          throw new Error("Code gen for bracket-lookup for types other than dict not implemented");
+          throw new BaseException.InternalException(
+            "Code gen for bracket-lookup for types other than dict not implemented"
+          );
       }
     default:
       unhandledTag(expr);

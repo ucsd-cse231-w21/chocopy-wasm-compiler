@@ -93,6 +93,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
 
       if (callExpr.tag === "call_expr" || callExpr.tag === "method-call") {
         return {
+          a: location,
           tag: "call_expr",
           name: callExpr,
           arguments: args,
@@ -127,7 +128,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           expr = {
             a: location,
             tag: "call_expr",
-            name: { tag: "id", name: callName },
+            name: { a: location, tag: "id", name: callName },
             arguments: args,
           };
           // expr = { tag: "call", name: callName, arguments: args };
@@ -272,14 +273,17 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
       var symbol = s.substring(c.from, c.to);
       if (symbol == "[") {
         var start_index: Expr<Location> = {
+          a: location,
           tag: "literal",
           value: { tag: "num", value: BigInt(0) },
         };
         var end_index: Expr<Location> = {
+          a: location,
           tag: "literal",
           value: { tag: "num", value: BigInt(-1) },
         };
         var stride_value: Expr<Location> = {
+          a: location,
           tag: "literal",
           value: { tag: "num", value: BigInt(1) },
         };
@@ -368,6 +372,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
 
       c.parent();
       return {
+        a: location,
         tag: "list-expr",
         contents: listExpr,
       };
@@ -389,6 +394,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
       }
       c.parent(); // Pop to DictionaryExpression
       return {
+        a: location,
         tag: "dict",
         entries: keyValuePairs,
       };
@@ -413,9 +419,9 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
         c.nextSibling(); // go to expression
         const ret = traverseExpr(c, s);
         c.parent();
-        return { tag: "lambda", args: lambdaArgs, ret };
+        return { a: location, tag: "lambda", args: lambdaArgs, ret };
       } else {
-        throw new Error("Invalid Lambda Expression");
+        throw new BaseException.CompileError(location, "Invalid Lambda Expression");
       }
 
     default:
@@ -723,6 +729,7 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
 
 export function traverseBracketType(c: TreeCursor, s: string): Type {
   let bracketTypes = [];
+  var location = getSourcePos(c, s);
   c.firstChild();
   while (c.nextSibling()) {
     if (s.substring(c.from, c.to) !== ",") {
@@ -737,7 +744,8 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
   } else if (bracketTypes.length == 2) {
     return { tag: "dict", key: bracketTypes[0], value: bracketTypes[1] };
   } else {
-    throw new Error(
+    throw new BaseException.CompileError(
+      location,
       "Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to
     );
   }
@@ -764,9 +772,10 @@ export function traverseType(c: TreeCursor, s: string): Type {
 
 export function traverseCallable(c: TreeCursor, s: string): Type {
   c.firstChild(); // Focus on Callable
+  var location = getSourcePos(c, s);
   const name = s.substring(c.from, c.to);
   if (name !== "Callable") {
-    throw new Error("Invalid Callable");
+    throw new BaseException.CompileError(location, "Invalid Callable");
   }
   c.nextSibling(); // [
   c.nextSibling(); // Focus on Arg Array
@@ -778,7 +787,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
     var temp = c;
     while (temp.type.name !== "]") {
       if (temp.type.name !== "VariableName") {
-        throw new Error("Invalid Callable arg type");
+        throw new BaseException.CompileError(location, "Invalid Callable arg type");
       }
       args.push(traverseType(c, s));
       c.nextSibling(); // , or ]
@@ -786,7 +795,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
     }
     c.parent();
   } else {
-    throw new Error("Invalid Callable");
+    throw new BaseException.CompileError(location, "Invalid Callable");
   }
 
   let ret: Type = NONE;
@@ -802,7 +811,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
     }
   }
   if (temp.type.name !== "]") {
-    throw new Error("Invalid Callable return type");
+    throw new BaseException.CompileError(location, "Invalid Callable return type");
   }
   c.parent();
   const params: Array<Parameter> = args.map((t: Type, i: number) => ({
@@ -884,12 +893,12 @@ export function traverseScope(c: TreeCursor, s: string): Scope<Location> {
   switch (scope) {
     case "global":
       c.parent();
-      throw new Error("Glocal declaration not supported.");
+      throw new BaseException.CompileError(location, "Glocal declaration not supported.");
     case "nonlocal":
       c.parent();
       return { tag: "nonlocal", name, a: location };
     default:
-      throw Error("Invalid ScopeStatement");
+      throw new BaseException.CompileError(location, "Invalid ScopeStatement");
   }
 }
 
@@ -969,6 +978,7 @@ export function traverseClass(c: TreeCursor, s: string): Class<Location> {
 
   if (!methods.find((method) => method.name === "__init__")) {
     methods.push({
+      a: location,
       name: "__init__",
       parameters: [{ name: "self", type: CLASS(className) }],
       ret: NONE,
