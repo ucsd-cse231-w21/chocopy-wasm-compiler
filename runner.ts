@@ -78,6 +78,7 @@ export async function run(
   console.log("before updating: ", offsetBefore);
   view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
   console.log("after updating: ", view[0]);
+  console.log("mem view:", view);
 
   const funs = compiled.newEnv.funs;
   let sorted_funs = new Array<string>(funs.size);
@@ -86,34 +87,36 @@ export async function run(
   });
 
   let funRef = 
-  `
-  (table ${funs.size} funcref)
-  (elem (i32.const 0) ${sorted_funs.join(" ")})
-  `
+`
+(table ${funs.size} funcref)
+(elem (i32.const 0) ${sorted_funs.join(" ")})
+`
 
-  const wasmSource = `(module
-    (import "js" "memory" (memory 1))
-    (func $print_num (import "imports" "print_num") (param i32) (result i32))
-    (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
-    (func $print_none (import "imports" "print_none") (param i32) (result i32))
-    (func $abs (import "imports" "abs") (param i32) (result i32))
-    (func $min (import "imports" "min") (param i32) (param i32) (result i32))
-    (func $max (import "imports" "max") (param i32) (param i32) (result i32))
-    (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
-    (type $callType0 (func (result i32)))
-    (type $callType1 (func (param i32) (result i32)))
-    (type $callType2 (func (param i32) (param i32) (result i32)))
-    (type $callType3 (func (param i32) (param i32) (param i32) (result i32)))
-    (type $callType4 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
-    (type $callType5 (func (param i32) (param i32) (param i32) (param i32) (param i32) (result i32)))
-    ${funRef}
-    ${config.functions}
-    ${compiled.functions}
-    (func (export "exported_func") ${returnType}
-      ${compiled.mainSource}
-      ${returnExpr}
-    )
-  )`;
+  const wasmSource = 
+`(module
+(import "js" "memory" (memory 1))
+(func $print_num (import "imports" "print_num") (param i32) (result i32))
+(func $print_bool (import "imports" "print_bool") (param i32) (result i32))
+(func $print_none (import "imports" "print_none") (param i32) (result i32))
+(func $abs (import "imports" "abs") (param i32) (result i32))
+(func $min (import "imports" "min") (param i32) (param i32) (result i32))
+(func $max (import "imports" "max") (param i32) (param i32) (result i32))
+(func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+(type $callType0 (func (result i32)))
+(type $callType1 (func (param i32) (result i32)))
+(type $callType2 (func (param i32) (param i32) (result i32)))
+(type $callType3 (func (param i32) (param i32) (param i32) (result i32)))
+(type $callType4 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
+(type $callType5 (func (param i32) (param i32) (param i32) (param i32) (param i32) (result i32)))
+(type $callType6 (func (param i32) (param i32) (param i32) (param i32) (param i32) (param i32) (result i32)))
+${funRef}
+${config.functions}
+${compiled.functions}
+(func (export "exported_func") ${returnType}
+${compiled.mainSource}
+${returnExpr}
+)
+)`;
   console.log(wasmSource);
   const result = await runWat(wasmSource, importObject);
 
