@@ -442,7 +442,7 @@ describe("defaults", () => {
     `
   def foo(x : int = 3) -> int:
     return x
-  
+
   foo()`,
     PyInt(3)
   );
@@ -452,7 +452,7 @@ describe("defaults", () => {
     `
   def foo(x : int = 3) -> int:
     return x
-  
+
   foo(5)`,
     PyInt(5)
   );
@@ -462,7 +462,7 @@ describe("defaults", () => {
     `
   def foo(x : int = 3, y : int = 4) -> int:
     return x + y
-  
+
   foo(5)`,
     PyInt(9)
   );
@@ -472,7 +472,7 @@ describe("defaults", () => {
     `
   def add_default_10(x : int, y : int = 10) -> int:
 	  return x + y
-	
+
   print(add_default_10(20))
   print(add_default_10(20, 5))`,
     ["30", "25"]
@@ -494,7 +494,7 @@ describe("defaults", () => {
     `
   def foo(x : int, y : int = 4) -> int:
     return x + y
-  
+
   foo()`
   );
 
@@ -652,4 +652,16 @@ describe("defaults", () => {
   print(c1.func())`,
     ["Q"]
   );
+
+  assert("string-length", `len("abc")`, PyInt(3));
+
+  assert(
+    "string-length-variable",
+    `
+  a:str="ABCD"
+  len(a)`,
+    PyInt(4)
+  );
+
+  assert("empty-string-length", `len("")`, PyInt(0));
 });

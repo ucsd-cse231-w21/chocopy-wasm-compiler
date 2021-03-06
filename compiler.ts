@@ -139,6 +139,11 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
   definedVars.add("$string_address"); //needed for string indexing
+  definedVars.add("$slice_start"); //needed for string slicing
+  definedVars.add("$slice_end"); //needed for string slicing
+  definedVars.add("$slice_stride"); //needed for string slicing
+  definedVars.add("$counter"); //needed for string slicing
+  definedVars.add("$length"); //needed for string slicing
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs: Array<string> = [];
@@ -538,6 +543,11 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
   definedVars.add("$string_address"); //needed for string indexing
+  definedVars.add("$slice_start"); //needed for string slicing
+  definedVars.add("$slice_end"); //needed for string slicing
+  definedVars.add("$slice_stride"); //needed for string slicing
+  definedVars.add("$counter"); //needed for string slicing
+  definedVars.add("$length"); //needed for string slicing
   def.nonlocals.forEach((v) => definedVars.add(`${v}_$ref`)); // nonlocals are reference, ending with '_$ref'
   def.nested.forEach((v) => definedVars.add(`${v}_$ref`)); // nested functions are references of function ptrs, ending with _$ref
   def.inits.forEach((v) => definedVars.add(`${v.name}`));
@@ -590,6 +600,11 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
   definedVars.add("$string_address"); //needed for string indexing
+  definedVars.add("$slice_start"); //needed for string slicing
+  definedVars.add("$slice_end"); //needed for string slicing
+  definedVars.add("$slice_stride"); //needed for string slicing
+  definedVars.add("$counter"); //needed for string slicing
+  definedVars.add("$length"); //needed for string slicing
   // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach(env.locals.add, env.locals);
   def.parameters.forEach((p) => env.locals.add(p.name));
@@ -754,6 +769,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         callName = "print_bool";
       } else if (expr.name === "print" && argTyp === NONE) {
         callName = "print_none";
+      } else if (expr.name === "len") {
+        return [`${argStmts.join("\n")}(i32.load)(i32.add(i32.const 1))`];
       }
       return argStmts.concat([`(call $${callName})`]);
     case "builtin2":
@@ -1012,6 +1029,64 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           );
         default:
           throw new Error("Code gen for bracket-lookup for types other than dict not implemented");
+      }
+    case "slicing":
+      switch (expr.name.a.tag) {
+        case "string":
+          // name, start, end, stride
+          var nameStmts = codeGenExpr(expr.name, env);
+          var startStmts = codeGenExpr(expr.start, env);
+          var endStmts = codeGenExpr(expr.end, env);
+          var strideStmts = codeGenExpr(expr.stride, env);
+          var sliceStmts = [];
+          sliceStmts.push(
+            ...[
+              `${nameStmts.join("\n")}`, //Load the string object to be indexed
+              `(local.set $$string_address)`,
+              //new
+              `${startStmts.join("\n")}`, //Load the start index for slicing
+              `(local.set $$slice_start)`,
+              `${endStmts.join("\n")}`, //Load the end index for slicing
+              `(local.set $$slice_end)`,
+              `${strideStmts.join("\n")}`, //Load the stride value for slicing
+              `(local.set $$slice_stride)`,
+              `(i32.rem_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(local.get $$slice_stride))`,
+              `(i32.div_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(local.get $$slice_stride))`,//find length = end - start
+              `(i32.add)`,
+              `(local.set $$length)`,//set length local
+              `(i32.load (i32.const 0))`, //load value at 0 to get heap head offset
+              `(local.set $$string_index)`,
+              `(local.get $$string_index)`,
+              `(local.get $$length)(i32.sub(i32.const 1))`, //Length of new sliced string - 1
+              `(i32.store)`, //Store length of sliced string in the first position
+              `(i32.add(local.get $$string_index)(i32.const 4))(local.set $$string_index)`,
+              `(block (loop (br_if 1 (i32.le_s(local.get $$slice_start)(local.get $$slice_end))(i32.eqz))`,//while loop start
+              `(local.get $$string_address)`,
+              `(i32.add (i32.mul (i32.const 4)(local.get $$slice_start)))`, //Add the index * 4 value to the address
+              `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
+              `(i32.load)`, //Load the ASCII value of the string index
+              `(local.set $$string_val)`,
+              `(local.get $$string_index)`,
+              `(local.get $$string_val)`,
+              `(i32.store)`, //Store the ASCII value in the new address
+              `(i32.add(local.get $$string_index)(i32.const 4))(local.set $$string_index)`,
+              `(local.get $$slice_start)(i32.add(local.get $$slice_stride))(local.set $$slice_start)`,
+              `(br 0) ))`,// while loop end
+            ]
+          );
+          sliceStmts.push(
+            ...[
+              "(i32.load (i32.const 0))", // Get start address for the sliced string
+              "(i32.const 0)", // Address for our upcoming store instruction
+              "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+              `(i32.add (i32.mul (i32.const 4)(local.get $$length)))`,
+              `(i32.add (i32.const 4))`,
+              "(i32.store)", // Save the new heap offset
+            ]
+          );
+          return sliceStmts;
+        default:
+          throw new Error("Code gen for slicing not implemented");
       }
     default:
       unhandledTag(expr);

@@ -670,6 +670,12 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       if (expr.name === "print") {
         const tArg = tcExpr(env, locals, expr.arg);
         return { ...expr, a: tArg.a, arg: tArg };
+      } else if (expr.name === "len") {
+        const tArg = tcExpr(env, locals, expr.arg);
+        if (!equalType(tArg.a, STRING)) {
+          throw new TypeError("Cannot find length of " + tArg.a + " type");
+        }
+        return { ...expr, a: NUM, arg: tArg };
       } else if (env.functions.has(expr.name)) {
         const [[expectedParam], retTyp] = env.functions.get(expr.name);
         const tArg = tcExpr(env, locals, expr.arg);
@@ -915,7 +921,19 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
       }
-
+    case "slicing":
+      var obj_name = tcExpr(env, locals, expr.name);
+      var start = tcExpr(env, locals, expr.start);
+      var end = tcExpr(env, locals, expr.end);
+      var stride = tcExpr(env, locals, expr.stride);
+      //Lists group just need to add an || condition below to check if the "obj_name" type is also a list
+      if (!equalType(obj_name.a, STRING)) {
+        throw new TypeCheckError("Slicing operation cannot be done on " + obj_name.a + " type");
+      }
+      if (!equalType(start.a, NUM) || !equalType(end.a, NUM) || !equalType(stride.a, NUM)) {
+        throw new TypeCheckError("Slicing parameters must be of num type");
+      }
+      return { ...expr, name: obj_name, a: obj_name.a, start: start, end: end, stride: stride };
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
