@@ -545,16 +545,23 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
       const varName = s.substring(c.node.from, c.node.to);
       const varPos = getSourcePos(c, s);
       
-      c.nextSibling(); // Skip in keyword
+      c.nextSibling(); // Go to in keyword
+      c.nextSibling(); // Skip the in keyword
 
       const str: Expr = traverseExpr(c, s);
 
       c.nextSibling(); // Go to the body
 
+      c.firstChild();
+      c.nextSibling();
+
       var forBody: Array<Stmt> = [];
       do {
-	whileBody = whileBody.concat(traverseStmt(c, s));
+	forBody = forBody.concat(traverseStmt(c, s));
       } while (c.nextSibling());
+
+      c.parent();
+      c.parent();
       
       return {
 	tag: "for",

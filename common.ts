@@ -8,12 +8,14 @@ export const FALSE_VAL = "4611686018427387904"; // 1<<62
 export const NONE_VAL  = "2305843009213693952"; // 1<<61
 export const PTR_VAL   = "1152921504606846976"; // 1<<60
 export const STR_VAL   =  "576460752303423488"; // 1<<59
+export const CHAR_VAL  =  "288230376151711744"; // 1<<58
 
 export const FALSE_BI = BigInt(1) << BigInt(62);
 export const TRUE_BI  = FALSE_BI + BigInt(1);
 export const NONE_BI  = BigInt(1) << BigInt(61);
 export const PTR_BI   = BigInt(1) << BigInt(60);
 export const STR_BI   = BigInt(1) << BigInt(59);
+export const CHAR_BI  = BigInt(1) << BigInt(58);
 
 export function i64ToValue(val: any, classMap: Map<number, string> = new Map()): Value {
   if (val == undefined) {
@@ -45,9 +47,10 @@ export function i64ToValue(val: any, classMap: Map<number, string> = new Map()):
 	  result = { tag: "object", name: className, address: Number(lower32) };
 	  break;
 	case (STR_BI >> BigInt(32)):
-	  console.log("Got a string");
-	  
 	  result = { tag: "str", off: Number(lower32) };
+	  break;
+	case (CHAR_BI >> BigInt(32)):
+	  result = { tag: "char", off: Number(lower32) };
 	  break;
 	default:
 	  if (upper32 != BigInt(0) && (upper32 + BigInt(1)) != BigInt(0)) {
@@ -98,7 +101,7 @@ export function neqT(type1: Type, type2: Type): boolean {
 }
 
 export function canAssignNone(type1: Type): boolean {
-  return type1.tag == "class";
+  return type1.tag == "class" || type1.tag == "str";
 }
 
 export function strToType(str: string): Type {

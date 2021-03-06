@@ -88,6 +88,31 @@ tc_uExp(pos: Pos, op: string, exprType: Type, source: string) {
 }
 
 export function
+tc_for(stmt: Stmt, source: string, gblEnv: GlobalEnv, funEnv: EnvType = <EnvType>{},
+	classEnv: Type = undefined) : [Stmt, Type] {
+  if (stmt.tag == "for") {
+    const iterTypeExpr: Expr = {tag: "id", name: stmt.varName.str, pos: stmt.varName.pos};
+    const iterTypeExprTC = tc_expr(iterTypeExpr, source, gblEnv, funEnv, classEnv);
+    const iterType = iterTypeExprTC[1];
+    
+    if (neqT(iterType, StrT)) {
+      typeError(stmt.varName.pos, `While condition expected a str, found ${tr(iterType)}.`,
+		source);
+    }
+
+    // Check the body
+    stmt.body = stmt.body.map(s => {
+      const res = tc_stmt(s, source, gblEnv, funEnv, classEnv);
+      return res[0];
+    });
+    
+    return [stmt, NoneT];
+  } else {
+    internalError();
+  }    
+}
+
+export function
 tc_class(stmt: Stmt, source: string, gblEnv: GlobalEnv, funEnv: EnvType = <EnvType>{}) : [Stmt, Type] {
   if (stmt.tag == "class") {
     const classEnv: Type = {tag: "class", name: stmt.name.str};
@@ -199,6 +224,8 @@ export function
 tc_stmt(stmt: Stmt, source: string, gblEnv: GlobalEnv, funEnv: EnvType = <EnvType>{},
 	classEnv: Type = undefined) : [Stmt, Type] {
   switch (stmt.tag) {
+    case "for":
+      return tc_for(stmt, source, gblEnv, funEnv, classEnv);
     case "class":
       return tc_class(stmt, source, gblEnv, funEnv);
     case "expr":

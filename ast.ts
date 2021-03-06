@@ -10,6 +10,7 @@ export type Value =
   | { tag: "num", value: number }
   | { tag: "object", name: string, address: number}
   | { tag: "str", off: number }
+  | { tag: "char", off: number } // Internal character representation
 
 export type Type =
   | {tag: "number"}

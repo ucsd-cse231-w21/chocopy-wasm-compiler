@@ -49,6 +49,8 @@ export class BasicREPL {
 	return NONE_BI;
       } else if (res.tag == "str") {
 	return importObject.imports.print_str(res.off);
+      } else if (res.tag == "char") {
+	return importObject.imports.print_char(res.off);
       } else if (res.tag == "none") {
 	importObject.imports.print_none(undefined);
       } else {
@@ -107,6 +109,18 @@ export class BasicREPL {
       
       return importObject.imports.print({tag: "class", name: classObj.name}, undefined);
     };
+
+    this.importObject.imports.print_char = (off: any) => {
+      const memBuffer: ArrayBuffer = (importObject as any).js.memory.buffer;
+      const memUint8 = new Uint8Array(memBuffer);
+      
+      const nextChar = String.fromCharCode(memUint8[off]);
+
+      const typ: Type = {tag: "str"};
+      importObject.imports.print_txt(nextChar);
+
+      return NONE_BI;
+    }
     
     this.importObject.imports.assert_non_none = (arg : any): any => {
       const res = i64ToValue(arg, this.importObject.tableOffset);
@@ -173,8 +187,9 @@ export class BasicREPL {
     };
 
     this.importObject.imports.str_eq = (offBigInt1: any, offBigInt2: any): any => {
-      const off1: number = Number(offBigInt1 - STR_BI);
-      const off2: number = Number(offBigInt2 - STR_BI);
+      const lower32Mask = ((BigInt(1)<<BigInt(32)) - BigInt(1));
+      const off1: number = Number(offBigInt1 & lower32Mask);
+      const off2: number = Number(offBigInt2 & lower32Mask);
 
       const memUint8 = importObject.imports.get_uint8_repr();
       

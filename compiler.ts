@@ -355,10 +355,91 @@ function codeGenMemberExpr(expr: Expr, env: envM.GlobalEnv, source: string, loca
   }
 }
 
+
+
+function
+codeGenForLoop(stmt: Stmt, env : envM.GlobalEnv, source: string, localParams: Array<Parameter> = [], classT: Type = undefined) : Array<string> {
+  if (stmt.tag == "for") {
+    var result: Array<string> = [];
+
+    // Set the iterator to the start of the string
+    const iterVar: Expr = { tag: "id", pos: stmt.varName.pos, name: stmt.varName.str };
+    const startVal: string[] = codeGenExpr(stmt.str, env, localParams, source, classT);
+    const patchStrToChar = [`(i64.const ${cmn.STR_BI}) ;; Fixing the tag bit`,
+			    `(i64.sub)`,
+			    `(i64.const ${cmn.CHAR_BI})`,
+			    `(i64.add)`];
+    
+    if (getLocal(localParams, stmt.varName.str)) {
+      result = result.concat([startVal[0],
+			      `(i64.load)`,
+			      ...patchStrToChar]);
+      result = result.concat(`(local.set $${stmt.varName.str})`);
+    } else {
+      result = result.concat([`(i32.const ${getEnv(stmt.varName.pos, env, stmt.varName.str, source)}) ;; ${stmt.varName.str}`,
+			      startVal[0],
+			      `(i64.load)`,
+			      ...patchStrToChar,
+			      `(i64.store)`]);
+    }
+    
+    // Generate the if block header
+    result = result.concat("(block (loop ");
+
+    // Push the condition to the stack
+    result = result.concat(codeGenExpr(iterVar, env, localParams, source, classT));
+
+    // Get the end ptr for the string
+    result = result.concat([startVal[0],
+			    `(i64.load)`,
+			    startVal[0],
+			    `(i64.load)`,
+			    `(call $str$len)`,
+			    // `(i64.const -1)`,
+			    // `(i64.add)`,
+			    `(i64.add)`,
+			    ...patchStrToChar]);
+    
+    // Check if the iter is past the string end
+    result = result.concat(`(i64.ge_s)`);
+    
+    // Fix the size
+    result = result.concat("(br_if 1)");
+
+    // Add the whileBody
+    stmt.body.forEach(s => {
+      result = result.concat(codeGen(s, env, source, localParams, classT));
+    });
+
+    // Increment the iterator
+    var incrCode = codeGenExpr(iterVar, env, localParams, source, classT);
+    incrCode = incrCode.concat([`(i64.const 1)`,
+				`(i64.add)`]);
+    if (getLocal(localParams, stmt.varName.str)) {
+      result = result.concat(incrCode);
+      result = result.concat(`(local.set $${stmt.varName.str})`);
+    } else {
+      result = result.concat([`(i32.const ${getEnv(stmt.varName.pos, env, stmt.varName.str, source)}) ;; ${stmt.varName.str}`]);
+      result = result.concat(incrCode);
+      result = result.concat(`(i64.store)`);
+    }
+
+    // Close while body
+    result = result.concat("(br 0)");
+    result = result.concat(")) ");
+
+    return result;
+  } else {
+    err.internalError();
+  }
+}
+
 function codeGen(stmt: Stmt, env : envM.GlobalEnv, source: string, localParams: Array<Parameter> = [], classT: Type = undefined) : Array<string> {
   switch(stmt.tag) {
     case "class":
       return codeGenClass(stmt, env, source, classT);
+    case "for":
+      return codeGenForLoop(stmt, env, source, localParams, classT);
     case "pass":
       return ["(nop)", ``];
     case "func":
