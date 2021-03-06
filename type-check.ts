@@ -532,7 +532,7 @@ function tcDestructure(
       valueType = tcExpr(env, locals, expr).a[0];
     }
     if (!isAssignable(env, valueType, targetType[0]))
-      throw new BaseException.TypeMismatchError(aTarget.target.a, valueType, targetType[0]);
+      throw new BaseException.TypeMismatchError(aTarget.target.a, targetType[0], valueType);
     return {
       starred,
       ignore,
