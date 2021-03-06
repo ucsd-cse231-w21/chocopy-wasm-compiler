@@ -86,6 +86,8 @@ export async function run(source : string, config: Config) : Promise<[Value, com
     (func $$big_mul (import "imports" "__big_num_mul") (param i32) (param i32) (result i32))
     (func $$big_div (import "imports" "__big_num_div") (param i32) (param i32) (result i32))
     (func $$big_mod (import "imports" "__big_num_mod") (param i32) (param i32) (result i32))
+    (func $$big_eq (import "imports" "__big_num_eq") (param i32) (param i32) (result i32))
+    (func $$big_ne (import "imports" "__big_num_ne") (param i32) (param i32) (result i32))
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
