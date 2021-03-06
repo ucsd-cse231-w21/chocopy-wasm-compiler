@@ -255,7 +255,7 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<Location>): FunDef<[Type, 
       return { ...s, a: [undefined, s.a] };
     }), // TODO
     inits: fun.inits.map((s) => tcInit(env, s)),
-    funs: fun.funs.map((s) => tcDef(env, s)),
+    funs: tDefs,
   };
 }
 
@@ -312,9 +312,10 @@ export function tcNestDef(
 
   const tDefs = fun.funs.map((fun) => tcNestDef(env, locals, fun));
   const tBody = tcBlock(env, locals, fun.body);
-  return { ...fun, 
-    a: [NONE, fun.a], 
-    funs: tDefs, 
+  return {
+    ...fun,
+    a: [NONE, fun.a],
+    funs: tDefs,
     body: tBody,
     decls: fun.decls.map((s) => {
       return { ...s, a: [undefined, s.a] };

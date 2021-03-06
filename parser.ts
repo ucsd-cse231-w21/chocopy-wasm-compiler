@@ -887,7 +887,7 @@ export function traverseScope(c: TreeCursor, s: string): Scope<Location> {
       throw new Error("Glocal declaration not supported.");
     case "nonlocal":
       c.parent();
-      return { tag: "nonlocal", name, a: location};
+      return { tag: "nonlocal", name, a: location };
     default:
       throw Error("Invalid ScopeStatement");
   }

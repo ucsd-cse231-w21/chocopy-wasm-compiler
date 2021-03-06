@@ -12,7 +12,7 @@ import {
   AssignTarget,
   Location,
 } from "./ast";
-import * as BaseException from "./error"
+import * as BaseException from "./error";
 
 /** The seperater used to flatten nested functions */
 export const EA_NAMING_SEP = "_$";
@@ -144,7 +144,11 @@ export function eaFunDef(
  * function. Add used name/identifier to this set.
  * @returns Converted statement
  */
-function eaStmt(stmt: Stmt<[Type, Location]>, e: LocalEnv, nSet: Set<string>): Stmt<[Type, Location]> {
+function eaStmt(
+  stmt: Stmt<[Type, Location]>,
+  e: LocalEnv,
+  nSet: Set<string>
+): Stmt<[Type, Location]> {
   switch (stmt.tag) {
     case "assignment":
       const targets: AssignTarget<[Type, Location]>[] = stmt.destruct.targets.map((at) => {
@@ -225,7 +229,11 @@ function eaStmt(stmt: Stmt<[Type, Location]>, e: LocalEnv, nSet: Set<string>): S
  * function. Add used name/identifier to this set.
  * @returns Converted expression
  */
-function eaExpr(expr: Expr<[Type, Location]>, e: LocalEnv, nSet: Set<string>): Expr<[Type, Location]> {
+function eaExpr(
+  expr: Expr<[Type, Location]>,
+  e: LocalEnv,
+  nSet: Set<string>
+): Expr<[Type, Location]> {
   switch (expr.tag) {
     case "literal":
       return expr;
