@@ -137,6 +137,11 @@ describe("traverseExpr(c, s) function", () => {
 
     expect(parsedExpr).to.deep.equal({
       tag: "list-expr",
+      a: {
+        col: 0,
+        length: 9,
+        line: 1,
+      },
       contents: [
         {
           a: {
@@ -301,6 +306,11 @@ describe("parse(source) function", () => {
       singleVarAssignment(
         "d",
         {
+          a: {
+            col: 4,
+            length: 2,
+            line: 1,
+          },
           tag: "dict",
           entries: [],
         },
@@ -329,6 +339,11 @@ describe("parse(source) function", () => {
       singleVarAssignment(
         "d",
         {
+          a: {
+            col: 4,
+            length: 8,
+            line: 1,
+          },
           tag: "dict",
           entries: [
             [
@@ -378,6 +393,11 @@ describe("parse(source) function", () => {
       singleVarAssignment(
         "d",
         {
+          a: {
+            col: 4,
+            length: 12,
+            line: 1,
+          },
           tag: "dict",
           entries: [
             [
@@ -392,6 +412,11 @@ describe("parse(source) function", () => {
               },
               {
                 tag: "dict",
+                a: {
+                  col: 7,
+                  length: 8,
+                  line: 1,
+                },
                 entries: [
                   [
                     {
@@ -520,7 +545,15 @@ describe("parse(source) function", () => {
                 line: 5,
               },
               tag: "call_expr",
-              name: { tag: "id", name: "g" },
+              name: {
+                a: {
+                  col: 24,
+                  length: 3,
+                  line: 5,
+                },
+                tag: "id",
+                name: "g",
+              },
               arguments: [],
             },
           },
@@ -652,6 +685,11 @@ describe("parse(source) function", () => {
         },
         tag: "expr",
         expr: {
+          a: {
+            col: 0,
+            length: 10,
+            line: 1,
+          },
           tag: "call_expr",
           name: {
             a: {
@@ -660,7 +698,15 @@ describe("parse(source) function", () => {
               line: 1,
             },
             tag: "call_expr",
-            name: { tag: "id", name: "id" },
+            name: {
+              a: {
+                col: 0,
+                length: 7,
+                line: 1,
+              },
+              tag: "id",
+              name: "id",
+            },
             arguments: [
               {
                 a: {
@@ -669,7 +715,15 @@ describe("parse(source) function", () => {
                   line: 1,
                 },
                 tag: "call_expr",
-                name: { tag: "id", name: "f" },
+                name: {
+                  a: {
+                    col: 3,
+                    length: 3,
+                    line: 1,
+                  },
+                  tag: "id",
+                  name: "f",
+                },
                 arguments: [],
               },
             ],
@@ -721,6 +775,11 @@ describe("parse(source) function", () => {
             method: "id",
             arguments: [],
           },
+          a: {
+            col: 0,
+            length: 9,
+            line: 1,
+          },
           arguments: [
             {
               a: {
@@ -748,6 +807,11 @@ describe("parse(source) function", () => {
         },
         tag: "expr",
         expr: {
+          a: {
+            col: 0,
+            length: 17,
+            line: 1,
+          },
           tag: "lambda",
           args: ["a"],
           ret: {
@@ -793,6 +857,11 @@ describe("parse(source) function", () => {
         },
         tag: "expr",
         expr: {
+          a: {
+            col: 0,
+            length: 19,
+            line: 1,
+          },
           tag: "lambda",
           args: ["a", "b", "c"],
           ret: {
