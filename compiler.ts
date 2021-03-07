@@ -240,6 +240,26 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
       const className = objTyp.name;
       const [offset, _] = env.classes.get(className).get(target.field);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...value, `(i32.store)`];
+    case "bracket-lookup":
+      const listObjStmts = codeGenExpr(target.obj, env);
+      const listTyp = target.obj.a;
+      if (listTyp.tag !== "list") {
+        // I don't think this error can happen
+        throw new Error(
+          "Report this as a bug to the compiler developer, this shouldn't happen " + listTyp.tag
+        );
+      }
+      const listKeyStmts = codeGenExpr(target.key, env);
+      //Add base + (3*4) + (key*4)
+      //TODO key is bigNum handling
+      const listLocationToStore = [
+        ...listObjStmts,
+        `(i32.add (i32.const 12)) ;; move past type, size, bound`,
+        ...listKeyStmts,
+        `(i32.mul (i32.const 4)) `,
+        `(i32.add)`
+      ]
+      return [...listLocationToStore, ...value, "(i32.store)"];
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
