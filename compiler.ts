@@ -511,13 +511,17 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
-      if (objTyp.tag !== "class") {
+      if (objTyp.tag !== "class" && objTyp.tag !== "dict") {
         // I don't think this error can happen
         throw new Error(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
-      var className = objTyp.name;
+      if (objTyp.tag === "class") {
+        var className = objTyp.name;
+      } else {
+        var className = "dict";
+      }
       var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
     case "lookup":
@@ -768,6 +772,148 @@ function codeGenDictKeyVal(
 
 function dictUtilFuns(): Array<string> {
   let dictFunStmts: Array<string> = [];
+  //This function clears dictionary.
+  dictFunStmts.push(
+    ...[
+      "(func $dict$clear (param $baseAddr i32)",
+      "(local.get $baseAddr)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-1
+
+      "(local.get $baseAddr)",
+      "(i32.const 4)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-2
+
+      "(local.get $baseAddr)",
+      "(i32.const 8)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-3
+
+      "(local.get $baseAddr)",
+      "(i32.const 12)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-4
+
+      "(local.get $baseAddr)",
+      "(i32.const 16)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-5
+
+      "(local.get $baseAddr)",
+      "(i32.const 20)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-6
+
+      "(local.get $baseAddr)",
+      "(i32.const 24)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-7
+
+      "(local.get $baseAddr)",
+      "(i32.const 28)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-8
+
+      "(local.get $baseAddr)",
+      "(i32.const 32)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-9
+
+      "(local.get $baseAddr)",
+      "(i32.const 36)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-10
+
+      "(return))",
+      "",
+    ]
+  );
+
+  //This function pops a key.
+  dictFunStmts.push(
+    ...[
+      "(func $dict$pop (param $baseAddr i32) (param $key i32) (result i32)",
+      "(local $prevPtr i32)", // Local variable to store the address of previous "next" nodes in linkedList
+      "(local $currPtr i32)", // Local variable to store the address of current "head" nodes in linkedList
+      "(local $returnVal i32)",
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      "(local.get $baseAddr)",
+      "(local.get $key)",
+      "(local.get $hashtablesize)",
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
+      "(local.set $prevPtr)", // prevPtr equal to bucketAddress
+      "(local.get $prevPtr)",
+      "(i32.load)",
+      "(i32.const 0)", //None
+      "(i32.eq)",
+      "(if",
+      "(then", // if the literal in bucketAddress is None i.e. checking if the bucket is empty
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      ")", //close then
+      "(else",
+      "(local.get $prevPtr)",
+      "(i32.load)", // Address of the head of linkedList.
+      "(local.set $currPtr)", // currPtr stores the address of the head of the first node.
+      "(block",
+      "(loop",
+      "(local.get $currPtr)",
+      "(i32.load)",
+      "(local.get $key)",
+      "(i32.eq)", // if tag is same as the provided one
+      "(if",
+      "(then",
+      "(local.get $currPtr)",
+      "(i32.const 4)",
+      "(i32.add)",
+      "(local.set $returnVal)", // setting the returnValue to the address of value in the node.
+      "(local.get $prevPtr)",
+      "(local.get $currPtr)",
+      "(i32.const 8)",
+      "(i32.add)",
+      "(i32.load)",
+      "(i32.store)", // Updating the address of next in previous node to the next of the current node.
+      "(local.get $currPtr)",
+      "(i32.const 8)",
+      "(i32.add)",
+      "(local.set $prevPtr)", // Updating the prevPtr to the next of the current node.
+      "(local.get $currPtr)",
+      "(i32.const 8)",
+      "(i32.add)",
+      "(i32.load)",
+      "(local.set $currPtr)", // Updating the currPtr
+      ")", // closing then
+      ")", // closing if
+      "(br_if 0", // Opening br_if
+      "(local.get $currPtr)",
+      "(i32.const 0)", //None
+      "(i32.ne)", // If currPtr not None
+      ")", // Closing br_if
+      "(br 1)",
+      ")", // Closing loop
+      ")", // Closing Block
+      ")", //close else
+      ")", // close if
+      "(local.get $returnVal)",
+      "(i32.load)",
+      "(return))",
+      "",
+    ]
+  );
+
   dictFunStmts.push(
     ...[
       "(func $ha$htable$CreateEntry (param $key i32) (param $val i32)",

@@ -510,6 +510,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         } else {
           throw new TypeCheckError("method call on an unknown class");
         }
+      } else if (tObj.a.tag === "dict") {
+        // Add typechecking here for dict method call
+        return;
       } else {
         throw new TypeCheckError("method calls require an object");
       }
