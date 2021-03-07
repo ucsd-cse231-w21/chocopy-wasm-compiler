@@ -811,4 +811,13 @@ describe("defaults", () => {
   print("Design"[2:4:-1])`,
     [""]
   );
+
+  assert(
+    "string-length-variable-empty-slice",
+    `
+  a:str="ABCD"
+  a=a[4:2:1]
+  len(a)`,
+    PyInt(0)
+  );
 });

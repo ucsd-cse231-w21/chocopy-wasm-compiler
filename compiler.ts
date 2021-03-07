@@ -1115,7 +1115,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
               `(i32.eq (i32.const 0))`,
               `(if (result i32)(then `,//if
               `(i32.load (i32.const 0))`,
-              `(i32.const 0)`,//length for empty string
+              `(i32.const -1)`,//length for empty string
               `(i32.store)`,
               `(i32.load (i32.const 0))`,//return value
               `(i32.const 0)`, //To store new heap head offset
