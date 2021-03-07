@@ -16,6 +16,7 @@ import {
 } from "./ast";
 import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
 import * as BaseException from "./error";
+import exp from "constants";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -284,11 +285,14 @@ function tcDestructure(
         throw new Error(
           `Not enough values to unpack (expected at least ${i}, got ${types.length})`
         );
+      let valueType;
       if (target.starred) {
         starOffset = types.length - targets.length; // How many values will be assigned to the starred target
+        // TODO: Update this code to account for the spread operator
         throw new TypeCheckError("Starred values not supported");
+      } else {
+        valueType = types[i + starOffset];
       }
-      let valueType = types[i + starOffset];
       return tcTarget(target, valueType);
     });
 
@@ -297,6 +301,17 @@ function tcDestructure(
         `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
       );
 
+    return {
+      isDestructured: destruct.isDestructured,
+      targets: tTargets,
+      valueType: value,
+    };
+  } else if (value.tag == "list") {
+    // Since we can't know the exact length of the list, we'll have to check that the list length matches the number
+    // of assign targets at runtime.
+    let tTargets: AssignTarget<Type>[] = destruct.targets.map((target) =>
+      tcTarget(target, target.starred ? value : value.content_type)
+    );
     return {
       isDestructured: destruct.isDestructured,
       targets: tTargets,
@@ -315,6 +330,8 @@ function tcAssignable(
   const expr = tcExpr(env, locals, target);
   if (!isTagged(expr, ASSIGNABLE_TAGS)) {
     throw new TypeCheckError(`Cannot assing to target type ${expr.tag}`);
+  } else if (expr.a.tag === "string" && expr.tag === "bracket-lookup") {
+    throw new TypeCheckError("String does not support item assignment");
   }
   return expr;
 }
@@ -543,19 +560,32 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       var obj_t = tcExpr(env, locals, expr.obj);
       var key_t = tcExpr(env, locals, expr.key);
       if (obj_t.a == STRING) {
-        if(!equalType(key_t.a, NUM)) {
+        if (!equalType(key_t.a, NUM)) {
           throw new TypeCheckError("String lookup supports only integer indices");
         }
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
       } else if (obj_t.a.tag === "list") {
-        if(!equalType(key_t.a, NUM)) {
+        if (!equalType(key_t.a, NUM)) {
           throw new TypeCheckError("List lookup supports only integer indices");
         }
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.content_type };
       } else {
         throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
       }
-
+    case "slicing":
+      let name = tcExpr(env, locals, expr.name);
+      if (name.a.tag !== "string" && name.a.tag !== "list")
+        throw new TypeCheckError(`Type ${name.a.tag} is not subscriptable`);
+      let start = tcExpr(env, locals, expr.start);
+      let end = tcExpr(env, locals, expr.end);
+      let stride = tcExpr(env, locals, expr.stride);
+      if (
+        (start.a.tag !== "number" && start.a.tag !== "none") ||
+        (end.a.tag !== "number" && end.a.tag !== "none") ||
+        (stride.a.tag !== "number" && stride.a.tag !== "none")
+      )
+        throw new TypeCheckError("Slice indices must be integers or None");
+      return { tag: "slicing", name, start, end, stride, a: name.a };
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }

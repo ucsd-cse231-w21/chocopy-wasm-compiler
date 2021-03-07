@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { parse } from "../parser";
-import { PyInt, PyBool, PyNone, PyObj, NUM, CLASS, BOOL } from "../utils";
+import { PyInt, PyBool, PyNone, PyObj, NUM, CLASS, BOOL, LIST } from "../utils";
 import { assert, assertFail, asserts, assertTC, assertTCFail } from "./utils.test";
 
 describe("Destructure integration (class based. to be converted to tuples)", () => {
@@ -133,6 +133,65 @@ y: bool = False
 z: OtherObject = None
 y, z, x = Tuple()
   `
+  );
+});
+
+describe("Destructure lists", () => {
+  assertTC(
+    "destructure list to ids",
+    `
+    listy: [int] = None
+    a: int = 0
+    b: int = 0
+    c: int = 0
+    d: int = 0
+    listy = [1, 3, 4, 7]
+    a, b, c, d = listy
+    c
+    `,
+    NUM
+  );
+
+  assertTC(
+    "destructure list to lookups",
+    `
+    class BoolContainer(object):
+      a: bool = False
+      b: bool = True
+      c: bool = False
+      d: bool = False
+    listy: [bool] = None
+    bc: BoolContainer = None
+        listy = [True, False, False, True]
+    bc = BoolContainer()
+    bc.a, bc.b, bc.c, bc.d = listy
+    bc.d
+    `,
+    BOOL
+  );
+
+  assertTC(
+    "destructure list to bracket-lookups",
+    `
+    listy: [int] = None
+    listy = [1, 4, 5, 9]
+    listy[0], listy[1], listy[2], listy[3] = listy
+    listy[1]
+    `,
+    NUM
+  );
+
+  assertTC(
+    "destructure list with starred assignment",
+    `
+    list_parent: [bool] = None
+    list_child: [bool] = None
+    booly: bool = False
+    list_parent = [False, True, False, True]
+    booly, *list_child, booly = list_parent
+    list_child
+    `,
+    LIST(BOOL)
   );
 });
 
