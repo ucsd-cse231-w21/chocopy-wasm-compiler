@@ -4,7 +4,6 @@ import {Type} from "../ast";
 import { BasicREPL } from "../repl";
 import { NUM, BOOL, NONE, unhandledTag } from "../utils";
 import { readFileSync } from 'fs';
-import { otherModule } from "./builtins";
 
 
 /*

@@ -1,6 +1,14 @@
+import { ModulePresenter } from "./types";
+import { Value, Type } from "./ast";
+import { type } from "cypress/types/jquery";
+
 export type ProgramStore = {
-  typeStore : GlobalTable,
+  typeStore : TypeStore,
   memStore: MemoryStore,
+}
+
+export type TypeStore = {
+  
 }
 
 export type MemoryStore = {
@@ -17,7 +25,12 @@ export type MemoryStore = {
   /*
    Maps typecodes to their class names
    */
-  fileTypes: Map<number, string>
+  fileTypes: Map<number, string>,
+
+  /**
+   * Maps class names to their typecodes
+   */
+  typeCodes: Map<string, number>,
 
   heap: Array<Instance>,
   heapIndex: number
@@ -31,11 +44,11 @@ export type Instance = {
   attributes: Array<Value>
 }
 
-function instanciate(typecode: number, store: ProgramStore) : number{
+function instanciate(typecode: number, store: ProgramStore) : number {
   const heapAddress = store.memStore.heapIndex;
 
   const className = store.memStore.fileTypes.get(typecode);
-  const classDef = store.typeStore.classMap.get(className);
+  const classDef = store.typeStore.classes.get(className);
 
   console.log("-----------> instantiating!!! "+className);
 
@@ -75,7 +88,6 @@ function objMut(address: number, attrIndex: number, newValue: number, store: Pro
   const attrValue = store.memStore.heap[address];
 
   //console.log("------ATTRIBUTE MUTATION!!! "+attrValue.typeName);
-  
   if(attrValue.typeName === "none"){
     throw new Error("Heap object at index "+address+" is None!");
   }
@@ -112,7 +124,7 @@ function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
   */
 
   if(varInfo.declrType.tag === "number"){
-    store.memStore.fileVariables[varIndex].val =  {tag: "num", value: newValue};
+    store.memStore.fileVariables[varIndex].val =  {tag: "num", value: BigInt(newValue)};
   }
   else if(varInfo.declrType.tag === "bool"){
     store.memStore.fileVariables[varIndex].val = {tag: "bool", value: newValue === 0? false : true};
@@ -145,7 +157,7 @@ function globalRetr(varIndex: number, store: ProgramStore) : number {
   switch(varInfo.val.tag){
     case "bool": {return varInfo.val.value ? 1 : 0}
     case "none": {return 0}
-    case "num": {return varInfo.val.value}
+    case "num": {return Number(varInfo.val.value)}
     case "object": {return varInfo.val.address}
   }
 }
