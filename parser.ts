@@ -85,7 +85,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       } else if (callExpr.tag === "id") {
         const callName = callExpr.name;
         var expr: Expr<null>;
-        if (callName === "print" || callName === "abs") {
+        if (callName === "print" || callName === "abs" || callName === "range") {
           expr = {
             tag: "builtin1",
             name: callName,

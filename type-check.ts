@@ -51,7 +51,7 @@ defaultGlobalFunctions.set("max", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
-defaultGlobalFunctions.set("range", [[NUM], CLASS("Range")]);
+defaultGlobalFunctions.set("range", [[{ type: NUM }], CLASS("Range")]);
 
 const defaultGlobalClasses = new Map();
 // Range initialization

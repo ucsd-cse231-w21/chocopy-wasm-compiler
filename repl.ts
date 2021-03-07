@@ -31,7 +31,7 @@ export class BasicREPL {
       funs: new Map(),
     };
 
-    // initialization for range() calss and its constructor.
+    // initialization for range() class and its constructor.
     const classFields: Map<string, [number, Literal]> = new Map();
     classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);
     classFields.set("stop", [1, { tag: "num", value: BigInt(0) }]);

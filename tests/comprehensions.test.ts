@@ -1,13 +1,15 @@
 import { assertPrint } from "./utils.test";
 
 describe("comprehensions test", () => {
+
   assertPrint(
     "Always false comprehension",
     `
     a: Range = None
-    a = [i for i in range(0,5) if False]
-    while a.has_next():
-      print(a.next())
+    a = [i for i in range(5) if False]
+    while a.cur <= a.stop:
+      print(a.cur)
+      a.cur = a.cur + a.step
   `,
     [""]
   );
