@@ -106,6 +106,7 @@ export async function run(
 */
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
+    (func $print (import "imports" "print") (param i32) (result i32))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
     (func $print_str (import "imports" "print_str") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
@@ -178,5 +179,6 @@ export async function run(
   const result = await runWat(wasmSource, importObject);
   compiled.newEnv.offset = view[0] / 4;
 
-  return [PyValue(progTyp, result), compiled.newEnv, tenv, compiled.functions];
+  console.log("About to return", progTyp, result);
+  return [PyValue(progTyp, result, view), compiled.newEnv, tenv, compiled.functions];
 }
