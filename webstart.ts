@@ -1,7 +1,8 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { themeList_export } from "./themelist";
-import { NUM, STRING, BOOL, NONE, unhandledTag } from "./utils";
+import { defaultTypeEnv } from "./type-check";
+import { NUM, BOOL, NONE, PyValue, unhandledTag } from "./utils";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -13,40 +14,27 @@ import { toEditorSettings } from "typescript";
 
 var mem_js: { memory: any };
 
-function stringify(typ: Type, arg: any): string {
-  switch (typ.tag) {
-    case "number":
-      return (arg as number).toString();
-    case "string":
-      if (arg == -1) throw new Error("String index out of bounds");
-      const view = new Int32Array(mem_js.memory.buffer);
-      let string_length = view[arg / 4] + 1;
-      arg = arg + 4;
-      var i = 0;
-      var full_string = "";
-      while (i < string_length) {
-        let ascii_val = view[arg / 4 + i];
-        var char = String.fromCharCode(ascii_val);
-        full_string += char;
-        i += 1;
-      }
-      return full_string;
+function stringify(result: Value): string {
+  switch (result.tag) {
+    case "num":
+      return result.value.toString();
     case "bool":
-      return (arg as boolean) ? "True" : "False";
+      return result.value ? "True" : "False";
     case "none":
       return "None";
-    case "class":
-      return typ.name;
+    case "object":
+      return `<${result.name} object at ${result.address}`;
     default:
-      unhandledTag(typ);
+      throw new Error(`Could not render value: ${result}`);
   }
 }
 
-function print(typ: Type, arg: number): any {
+function print(typ: Type, arg: number, mem: any): any {
   console.log("Logging from WASM: ", arg);
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
-  elt.innerText = stringify(typ, arg);
+  const val = PyValue(typ, arg, mem);
+  elt.innerText = stringify(val); // stringify(typ, arg, mem);
   return arg;
 }
 
@@ -60,10 +48,20 @@ function webStart() {
 
     var importObject = {
       imports: {
+<<<<<<< HEAD
         print_num: (arg: number) => print(NUM, arg),
         print_str: (arg: number) => print(STRING, arg),
         print_bool: (arg: number) => print(BOOL, arg),
         print_none: (arg: number) => print(NONE, arg),
+=======
+        print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_num: (arg: number) =>
+          print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_bool: (arg: number) =>
+          print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_none: (arg: number) =>
+          print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+>>>>>>> 361647a910d05fdaa2b90c6360c87d90b3aab0e4
         abs: Math.abs,
         min: Math.min,
         max: Math.max,
@@ -85,6 +83,7 @@ function webStart() {
       const elt = document.createElement("pre");
       elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
+<<<<<<< HEAD
       switch (result.tag) {
         case "num":
           elt.innerText = String(result.value);
@@ -102,6 +101,9 @@ function webStart() {
         default:
           throw new Error(`Could not render value: ${result}`);
       }
+=======
+      elt.innerText = stringify(result);
+>>>>>>> 361647a910d05fdaa2b90c6360c87d90b3aab0e4
     }
 
     function renderError(result: any): void {

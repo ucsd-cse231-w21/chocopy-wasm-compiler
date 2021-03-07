@@ -3,6 +3,7 @@ import { GlobalEnv, libraryFuns } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
+import { bignumfunctions } from "./bignumfunctions";
 
 interface REPL {
   run(source: string): Promise<any>;
@@ -38,7 +39,7 @@ export class BasicREPL {
     this.currentEnv.classes.set("Range", classFields);
 
     this.currentTypeEnv = defaultTypeEnv;
-    this.functions = libraryFuns();
+    this.functions = libraryFuns() + "\n\n" + bignumfunctions;
   }
   async run(source: string): Promise<Value> {
     const config: Config = {
