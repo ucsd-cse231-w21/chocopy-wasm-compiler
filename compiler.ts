@@ -850,7 +850,7 @@ function dictUtilFuns(): Array<string> {
       "(local.set $returnVal)", // Initialize returnVal to -1
       "(local.get $baseAddr)",
       "(local.get $key)",
-      "(local.get $hashtablesize)",
+      "(i32.const 10)", // Hard-coding hashtable size
       "(i32.rem_s)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
@@ -965,12 +965,6 @@ function dictUtilFuns(): Array<string> {
       "(else",
       "(block",
       "(loop", // While loop till we find a node whose next is None
-      // "(local.get $nodePtr)",
-      // "(i32.load)", // Traversing to head of next node
-      // "(i32.const 0)", //None
-      // "(i32.ne)", // If nodePtr not None
-      // "(if",
-      // "(then",
       "(local.get $nodePtr)",
       "(i32.load)", //Loading head of linkedList
       "(local.get $key)",
@@ -990,8 +984,6 @@ function dictUtilFuns(): Array<string> {
       "(i32.add)", // Next pointer
       "(i32.load)",
       "(local.set $nodePtr)",
-      // ")", // Closing then
-      // ")", // Closing if
       "(br_if 0", // Opening br_if
       "(local.get $nodePtr)",
       "(i32.const 0)", //None
