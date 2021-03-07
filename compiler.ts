@@ -767,7 +767,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       } else if (expr.name === "print" && argTyp === NONE) {
         return argStmts.concat([`(call $print_none)`]);
       }
-      return argStmts.concat([...decodeLiteral, `(call $${callName})`, ...encodeLiteral]);
+      return argStmts.concat([`(call $${callName})`]);
     case "builtin2":
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
@@ -893,7 +893,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         );
       }
       var className = objTyp.name;
-      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat().concat()
       return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
@@ -978,6 +978,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
               `${brObjStmts.join("\n")}`, //Load the string object to be indexed
               `(local.set $$string_address)`,
               `${brKeyStmts.join("\n")}`, //Gets the index
+              ...decodeLiteral,
               `(local.set $$string_index)`,
               `(local.get $$string_index)`,
               `(i32.const 0)(i32.lt_s)`, //check for negative index
@@ -1036,6 +1037,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
             */
             keyStmts,
             [
+              ...decodeLiteral,
               `(i32.mul (i32.const 4))`,
               `(i32.add (i32.const 12)) ;; move past type, size, bound`,
               `(i32.add) ;; retrieve element location`,

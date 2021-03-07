@@ -2,7 +2,7 @@ import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { themeList_export } from "./themelist";
 import { defaultTypeEnv } from "./type-check";
-import { NUM, BOOL, NONE, PyValue, unhandledTag } from "./utils";
+import { NUM, BOOL, NONE, STRING, PyValue, unhandledTag } from "./utils";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -20,6 +20,8 @@ function stringify(result: Value): string {
       return result.value.toString();
     case "bool":
       return result.value ? "True" : "False";
+    case "string":
+      return result.value;
     case "none":
       return "None";
     case "object":
@@ -48,20 +50,15 @@ function webStart() {
 
     var importObject = {
       imports: {
-<<<<<<< HEAD
-        print_num: (arg: number) => print(NUM, arg),
-        print_str: (arg: number) => print(STRING, arg),
-        print_bool: (arg: number) => print(BOOL, arg),
-        print_none: (arg: number) => print(NONE, arg),
-=======
         print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_str: (arg: number) =>
+          print(STRING, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
         print_num: (arg: number) =>
           print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
         print_bool: (arg: number) =>
           print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
         print_none: (arg: number) =>
           print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
->>>>>>> 361647a910d05fdaa2b90c6360c87d90b3aab0e4
         abs: Math.abs,
         min: Math.min,
         max: Math.max,
@@ -83,27 +80,7 @@ function webStart() {
       const elt = document.createElement("pre");
       elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
-<<<<<<< HEAD
-      switch (result.tag) {
-        case "num":
-          elt.innerText = String(result.value);
-          break;
-        case "bool":
-          elt.innerHTML = result.value ? "True" : "False";
-          break;
-        case "object":
-          if (result.name == "String") {
-            elt.innerText = stringify(STRING, result.address);
-          } else {
-            elt.innerHTML = `<${result.name} object at ${result.address}`;
-          }
-          break;
-        default:
-          throw new Error(`Could not render value: ${result}`);
-      }
-=======
       elt.innerText = stringify(result);
->>>>>>> 361647a910d05fdaa2b90c6360c87d90b3aab0e4
     }
 
     function renderError(result: any): void {

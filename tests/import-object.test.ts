@@ -57,7 +57,7 @@ export const importObject = {
     print_str: (arg: number) => print(STRING, arg),
     print_bool: (arg: number) => print(BOOL, arg),
     print_none: (arg: number) => print(NONE, arg),
-    abs: Math.abs,
+    abs: function(n : number) { return (Math.abs(n >> 1) << 1) + 1; },
     min: Math.min,
     max: Math.max,
     pow: Math.pow,

@@ -178,5 +178,6 @@ export async function run(
   const result = await runWat(wasmSource, importObject);
   compiled.newEnv.offset = view[0] / 4;
 
+  console.log("About to return", progTyp, result);
   return [PyValue(progTyp, result, view), compiled.newEnv, tenv, compiled.functions];
 }
