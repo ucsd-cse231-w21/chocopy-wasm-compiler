@@ -673,6 +673,19 @@ describe("defaults", () => {
   );
 
   assertPrint(
+    "print-string-index-nested-index",
+    `
+  a:str="ABC"
+  b:str="DEF"
+
+  def f(x:str)->int:
+    return len(x)
+
+  print(a[f(b[2])])`,
+    ["B"]
+  );
+
+  assertPrint(
     "print-string-slicing-basic-multiple",
     `
   print("Design"[2:4])`,

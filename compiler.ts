@@ -960,10 +960,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           var brStmts = [];
           brStmts.push(
             ...[
-              `${brObjStmts.join("\n")}`, //Load the string object to be indexed
-              `(local.set $$string_address)`,
               `${brKeyStmts.join("\n")}`, //Gets the index
               `(local.set $$string_index)`,
+              `${brObjStmts.join("\n")}`, //Load the string object to be indexed
+              `(local.set $$string_address)`,
               `(local.get $$string_index)`,
               `(i32.const 0)(i32.lt_s)`, //check for negative index
               `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$string_index)(i32.add)(local.set $$string_index)))`, //if -ve, we do length + index
