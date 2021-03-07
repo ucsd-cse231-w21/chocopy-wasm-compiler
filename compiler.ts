@@ -793,8 +793,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       const rhsStmts = codeGenExpr(expr.right, env);
       if (typeof expr.left.a !== "undefined" && expr.left.a.tag === "list") {
         return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(2)];
-      }
-      else if (expr.op == BinOp.Is) {
+      } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
       } else {
         return [
@@ -893,7 +892,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         );
       }
       var className = objTyp.name;
-      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat().concat()
+      var argsStmts = expr.arguments
+        .map((arg) => codeGenExpr(arg, env))
+        .flat()
+        .concat();
       return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);

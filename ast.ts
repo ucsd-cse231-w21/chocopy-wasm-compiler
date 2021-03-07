@@ -165,7 +165,7 @@ export enum UniOp {
 
 export type Value =
   | Literal
-  | { tag: "string"; value: string, address: number }
+  | { tag: "string"; value: string; address: number }
   | { tag: "object"; name: string; address: number }
   | { tag: "callable"; name: string; address: number };
 
