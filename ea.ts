@@ -162,7 +162,10 @@ function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
               },
             };
           case "lookup":
-            return { ...at, obj: eaExpr(at.target.obj, e, nSet) };
+            return { ...at, target: { ...at.target, obj: eaExpr(at.target.obj, e, nSet) } };
+          case "bracket-lookup": {
+            throw new Error('Not implemented yet: "bracket-lookup" case');
+          }
         }
       });
 
