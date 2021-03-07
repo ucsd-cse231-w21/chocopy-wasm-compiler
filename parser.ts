@@ -234,9 +234,11 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       c.nextSibling(); // Focus on . or [
       var symbol = s.substring(c.from, c.to);
       if (symbol == "[") {
-        var start_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(0) } };
-        var end_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(-1) } };
+        //var start_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(0) } };
+        //var end_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(-1) } };
         var stride_value: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(1) } };
+        var start_index: Expr<null> = null;
+        var end_index: Expr<null> = null;
         var slice_items = "";
         c.nextSibling();
         //Seeing how many exprs are inside the []. For eg: a[1:2:3] has 3 expr, a[1:2] has 2 expr
@@ -257,7 +259,6 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
           start_index = traverseExpr(c, s);
           console.log("First case " + s.substring(c.from, c.to));
           if (sliced_list.length == 1) {
-            //end_index = start_index;
             console.log("Bracket lookup");
             c.parent();
             return { tag: "bracket-lookup", obj: objExpr, key: start_index };

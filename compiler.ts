@@ -1035,23 +1035,78 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         case "string":
           // name, start, end, stride
           var nameStmts = codeGenExpr(expr.name, env);
-          var startStmts = codeGenExpr(expr.start, env);
-          var endStmts = codeGenExpr(expr.end, env);
+          var startStmts = null;
+          var endStmts = null;
+          if(expr.end!==null){
+            endStmts = codeGenExpr(expr.end, env);
+          }
+          if(expr.start !== null){
+            startStmts = codeGenExpr(expr.start, env);
+          }
           var strideStmts = codeGenExpr(expr.stride, env);
           var sliceStmts = [];
           sliceStmts.push(
             ...[
               `${nameStmts.join("\n")}`, //Load the string object to be indexed
               `(local.set $$string_address)`,
-              //new
-              `${startStmts.join("\n")}`, //Load the start index for slicing
-              `(local.set $$slice_start)`,
-              `${endStmts.join("\n")}`, //Load the end index for slicing
-              `(local.set $$slice_end)`,
               `${strideStmts.join("\n")}`, //Load the stride value for slicing
               `(local.set $$slice_stride)`,
-              `(i32.rem_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(local.get $$slice_stride))`,
-              `(i32.div_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(local.get $$slice_stride))`,//find length = end - start
+            ]);
+          if(startStmts === null){
+            sliceStmts.push(
+              ...[
+                `(local.get $$slice_stride)`,
+                `(i32.const 0)(i32.lt_s)`,
+                `(if (then (local.get $$string_address)(i32.load)(local.set $$slice_start) )(else`,
+                `(i32.const 0)`,//get the string length
+                `(local.set $$slice_start)`,
+                `))`,//close if
+              ]
+            );
+          }else{
+            sliceStmts.push(
+              ...[
+                `${startStmts.join("\n")}`, //Load the start index for slicing
+                `(local.set $$slice_start)`,
+                `(local.get $$slice_start)`,
+                `(i32.const 0)(i32.lt_s)`, //check for negative start index
+                `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$slice_start)(i32.add)(local.set $$slice_start)))`, //if -ve, we do length + index
+                // `(local.get $$string_index)(local.get $$string_address)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
+                // `(local.get $$string_index)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
+                // `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
+                // `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
+              ]
+            );
+          }
+          if(endStmts === null){
+            sliceStmts.push(
+              ...[
+                `(local.get $$slice_stride)`,
+                `(i32.const 0)(i32.lt_s)`,
+                `(if (then (i32.sub(i32.const 0)(i32.const 1)) (local.set $$slice_end) )(else`,
+                `(local.get $$string_address)(i32.load)(i32.add(i32.const 1))`,//get the string length
+                `(local.set $$slice_end)`,
+                `))`,//close if
+              ]
+            );
+          }else{
+            sliceStmts.push(
+              ...[
+                `${endStmts.join("\n")}`, //Load the end index for slicing
+                `(local.set $$slice_end)`,
+                `(local.get $$slice_end)`,
+                `(i32.const 0)(i32.lt_s)`, //check for negative end index
+                `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$slice_end)(i32.add)(local.set $$slice_end)))`, //if -ve, we do length + index
+                // `(local.get $$string_index)(local.get $$string_address)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
+                // `(local.get $$string_index)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
+                // `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
+                // `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
+              ]);
+          }
+          sliceStmts.push(
+            ...[
+              `(i32.rem_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(call $abs)(local.get $$slice_stride)(call $abs))`,
+              `(i32.div_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(call $abs)(local.get $$slice_stride)(call $abs))`,//find length = end - start
               `(i32.add)`,
               `(local.set $$length)`,//set length local
               `(i32.load (i32.const 0))`, //load value at 0 to get heap head offset
@@ -1060,7 +1115,14 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
               `(local.get $$length)(i32.sub(i32.const 1))`, //Length of new sliced string - 1
               `(i32.store)`, //Store length of sliced string in the first position
               `(i32.add(local.get $$string_index)(i32.const 4))(local.set $$string_index)`,
-              `(block (loop (br_if 1 (i32.le_s(local.get $$slice_start)(local.get $$slice_end))(i32.eqz))`,//while loop start
+              `(block (loop (br_if 1`,
+              `(local.get $$slice_stride)`,
+              `(i32.const 0)(i32.ge_s)`,
+              `(if (result i32) (then (i32.lt_s(local.get $$slice_start)(local.get $$slice_end)))(else`,
+              `(i32.gt_s(local.get $$slice_start)(local.get $$slice_end))`,//get the string length
+              `))`,//close if
+              //`(i32.ne(local.get $$slice_start)(local.get $$slice_end))`,
+              `(i32.eqz))`,//while loop start
               `(local.get $$string_address)`,
               `(i32.add (i32.mul (i32.const 4)(local.get $$slice_start)))`, //Add the index * 4 value to the address
               `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index

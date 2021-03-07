@@ -923,14 +923,22 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       }
     case "slicing":
       var obj_name = tcExpr(env, locals, expr.name);
-      var start = tcExpr(env, locals, expr.start);
-      var end = tcExpr(env, locals, expr.end);
+      // var start = tcExpr(env, locals, expr.start);
+      // var end = tcExpr(env, locals, expr.end);
+      var start = null;
+      var end = null;
+      if(expr.end!==null){
+        end = tcExpr(env, locals, expr.end);
+      }
+      if(expr.start!==null){
+        start = tcExpr(env, locals, expr.start);
+      }
       var stride = tcExpr(env, locals, expr.stride);
       //Lists group just need to add an || condition below to check if the "obj_name" type is also a list
       if (!equalType(obj_name.a, STRING)) {
         throw new TypeCheckError("Slicing operation cannot be done on " + obj_name.a + " type");
       }
-      if (!equalType(start.a, NUM) || !equalType(end.a, NUM) || !equalType(stride.a, NUM)) {
+      if ((start!==null && !equalType(start.a, NUM)) || (end!==null && !equalType(end.a, NUM)) || !equalType(stride.a, NUM)) {
         throw new TypeCheckError("Slicing parameters must be of num type");
       }
       return { ...expr, name: obj_name, a: obj_name.a, start: start, end: end, stride: stride };
