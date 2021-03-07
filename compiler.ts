@@ -3,6 +3,7 @@ import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 import { OrganizedModule } from "./types";
 import { BuiltInModule } from "./builtins/builtins";
+import { type } from "cypress/types/jquery";
 
 export type LabeledComps = {
   classes : Map<string, number>,
@@ -14,58 +15,107 @@ export type CallSite =
 {tag: "external", level: string, label: string} | 
 {tag: "local", label: string}
 
+export type IdenType = 
+{tag: "localvar"} |
+{tag: "globalvar", index: number} |
+{tag: "module", originalName: string} 
+
 const INTANCTIATE = "1nstanciate";
 const GLOBAL_REF = "2ref";
 const GLOBAL_STORE = "3store";
 const OBJ_DEREF = "4objref";
 const OBJ_MUTATE = "5mutate";
+const ALLOC_PRIM = "6prim"; //first argument (1 for bool, 2 for int), second argument is the value
+const TEMP_VAR = "1emp"; //used for returning values at the end of functions
+
+
+function lookup(name: string, maps: Array<Map<string, IdenType>>) : IdenType {
+  for(let m of maps){
+    const found = m.get(name);
+    if(found !== undefined){
+      return found;
+    }
+  }
+  return undefined;
+}
 
 export function compile(progam: OrganizedModule, builtins: Map<string, BuiltInModule>, labels: LabeledComps) : Array<string> {
+  const allInstrs = new Array<string>();
+
+  //account for import statements first
+  const topLvlIdens = new Map<string, IdenType>();
+  for(let i of progam.imports){
+    if(i.tag === "import"){
+      if(i.isFromStmt){
+
+      }
+      else{
+        topLvlIdens.set(i.alias === undefined ? 
+                          i.target : 
+                          i.alias, {tag: "module", originalName: i.target});
+      }
+    }
+  }
+  
+  //now, add on global variables
+  for(let vName of progam.fileVars.keys()){
+
+  }
 
   return undefined;
 }
 
 
-function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
+function codeGenStmt(stmt: Stmt<Type>, idens: Array<Map<string, IdenType>>, labels: LabeledComps): Array<string> {
   switch (stmt.tag) {
-    // case "fun":
-    //   const definedVars = getLocals(stmt.body);
-    //   definedVars.add("$last");
-    //   stmt.parameters.forEach(p => definedVars.delete(p.name));
-    //   definedVars.forEach(env.locals.add, env.locals);
-    //   stmt.parameters.forEach(p => env.locals.add(p.name));
-
-    //   const localDefines = makeLocals(definedVars);
-    //   const locals = localDefines.join("\n");
-    //   var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-    //   var stmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-    //   var stmtsBody = stmts.join("\n");
-    //   env.locals.clear();
-    //   return [`(func $${stmt.name} ${params} (result i32)
-    //     ${locals}
-    //     ${stmtsBody}
-    //     (i32.const 0)
-    //     (return))`];
-    case "import":
-      console.log(" ---- import encountered at compile, skipping ----");
-      return [];
-    case "return":
-      var valStmts = codeGenExpr(stmt.value, env);
-      valStmts.push("return");
-      return valStmts;
-    case "assignment":
-      throw new Error("Destructured assignment not implemented");
-    case "assign":
-      var valStmts = codeGenExpr(stmt.value, env);
-      if (env.locals.has(stmt.name)) {
-        return valStmts.concat([`(local.set $${stmt.name})`]);
-      } else {
-        const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
-        return locationToStore.concat(valStmts).concat([`(i32.store)`]);
+    case "assign":{
+      const result = lookup(stmt.name, idens);
+      if(result === undefined){
+        //this should be a fatal error. 
+        //Type checking should have caught this
+        throw new Error(`Unfound identifier ${stmt.name}`);
       }
-    case "expr":
-      var exprStmts = codeGenExpr(stmt.expr, env);
-      return exprStmts.concat([`(local.set $$last)`]);
+      else {
+        const valueInstr = codeGenExpr(stmt.value, idens, labels);
+
+        if(result.tag === "localvar"){
+          return [`(local.set $${stmt.tag} ${valueInstr})`];
+        }
+        else if(result.tag === "globalvar"){
+          return [`(call $${GLOBAL_STORE} (i32.const ${result.index}) ${valueInstr})`];
+        }
+        else{
+          //this shouldn't happen as type checking wouldn't allow it
+          throw new Error(`Fatal error at re-assigning an import statement ${JSON.stringify(stmt)}`);
+        }
+      }
+      break;
+    }
+    case "return":{
+      return [`(local.set $${TEMP_VAR} ${codeGenExpr(stmt.value, idens, labels)})`];
+    }
+    case "expr": {
+      return [codeGenExpr(stmt.expr, idens, labels), "(drop)"];
+    }
+    case "if": {
+      const condInstrs = codeGenExpr(stmt.cond, idens, labels);
+      const thenBranch = stmt.thn.map(x => codeGenStmt(x, idens, labels));
+      const elseBranch = stmt.els.map(x => codeGenStmt(x, idens, labels));
+
+      return [`(if ${condInstrs} (then ${thenBranch.join("\n")}) (else ${elseBranch.join("\n")}) )`];
+    }
+    case "pass": {
+      return [];
+    }
+    case "field-assign": {
+      const objInstrs = codeGenExpr(stmt.obj, idens, labels);
+
+    }
+    case "while-loop":
+
+    default: throw new Error(`Unsupported statement type ${stmt.tag}`);
+
+    /*
     case "if":
       var condExpr = codeGenExpr(stmt.cond, env);
       var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
@@ -96,7 +146,12 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
     default:
       unhandledTag(stmt);
+      */
   }
+}
+
+function codeGenExpr(expr: Expr, idens: Array<Map<string, IdenType>>, labels: LabeledComps): string {
+  
 }
 
 function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {

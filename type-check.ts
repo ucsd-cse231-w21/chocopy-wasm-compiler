@@ -22,65 +22,6 @@ export type GlobalTable = {
   classes: Map<string, ClassPresenter>
 }
 
-const defaultGlobalFunctions = new Map();
-defaultGlobalFunctions.set("abs", [[NUM], NUM]);
-defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("pow", [[NUM, NUM], NUM]);
-defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
-
-/**
- * Looks up a vairable's type from a list of variable maps.
- * If the varibale cannot be found, undefined is returned
- */
-/*
-function flookup(fname: string, fpTypes: Array<Type>,
-  funcMap: Map<string, FuncIdentity>) : FuncIdentity {
-  let fsig = funcCallToFSig(fname, fpTypes);
-  console.log("========flookup: "+fsig);
-
-  if(funcMap.has(fsig)){
-    return funcMap.get(fsig);
-  }
-  else{
-    //account for None and object types
-    const ofSameName = Array.from(
-                  funcMap.entries()).filter(
-                      x => x[1].name == fname && 
-                          x[1].paramType.length == fpTypes.length);
-
-    for(let [ x , iden] of ofSameName){
-    console.log("candidate: "+x);
-    let incompatabilityFound = false;
-
-    for(let i = 0; i < iden.paramType.length; i++){
-    const declaredType = iden.paramType[i];
-    const receivedType = fpTypes[i];
-
-    if( (declaredType.tag === "class" && 
-        ( ( (receivedType.tag === "none") || 
-            (receivedType.tag === "class" && receivedType.name === declaredType.name) ) || 
-          (declaredType.name === "object") ) ) || 
-
-        (declaredType.tag === receivedType.tag)){
-        continue;
-    }
-    else{
-        incompatabilityFound = true;
-        break;
-    }
-    }
-
-    if(!incompatabilityFound){
-    return iden;
-    }
-  }
-
-  return undefined;
-  }
-} 
-*/
-
 function flookup(fname: string, 
                  fpTypes: Array<Type>,
                  funcMap: Map<string, FuncIdentity>) : FuncIdentity {
@@ -516,6 +457,10 @@ function tcStmt(stmt: Stmt<null>,
                 global: GlobalTable,
                 builtIns: Map<string, ModulePresenter>) : Stmt<Type>{
   switch(stmt.tag){
+    case "import": {
+      //ignore. This has already been accounted for
+      break;
+    }
     case "assign": {
       const varType = lookup(stmt.name, vars);
       if(varType === undefined){
@@ -559,6 +504,16 @@ function tcStmt(stmt: Stmt<null>,
     }
     case "pass":{
       return {a: {tag: "none"}, tag: "pass"};
+    }
+    case "while": {
+      const condTyped = tcExpr(stmt.cond, vars, global, builtIns);
+
+      if(condTyped.a.tag !== "bool"){
+        throw new TypeCheckError(`While loop condition must evaluate to a boolean.`);
+      }
+
+      const typedBody = stmt.body.map(x => tcStmt(x, vars, global, builtIns));
+      return {a: {tag: "none"}, tag: "while", cond: condTyped, body: typedBody};
     }
     case "field-assign":{
       const leftSideType = tcExpr({tag: "lookup", obj: stmt.obj, field: stmt.field}, vars, global, builtIns);
@@ -776,13 +731,20 @@ export function tc(existingEnv: ModulePresenter,
     modClasses.set(classDef.name, newClassDef);
   }
   
+  const imports = new Array<Stmt<null>>();
   //check top-level statements
   for(let stmt of program.stmts){
-    const newStmt = tcStmt(stmt, [curGlobalTable.vars], curGlobalTable, builtIns);
-    tlStmts.push(newStmt);
+    if(stmt.tag === "import"){
+      imports.push(stmt);
+    }
+    else{
+      const newStmt = tcStmt(stmt, [curGlobalTable.vars], curGlobalTable, builtIns);
+      tlStmts.push(newStmt);
+    }
   }
 
-  return {fileVars: modVars, 
+  return {imports: imports,
+          fileVars: modVars, 
           fileFunctions: modFunctions, 
           fileClasses: modClasses, 
           topLevelStmts: tlStmts, 

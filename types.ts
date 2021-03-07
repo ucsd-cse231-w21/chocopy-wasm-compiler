@@ -8,6 +8,7 @@ import { Class, FunDef, VarInit , Stmt, Type, typeToString, Literal} from "./ast
  * and organized
  */
 export type OrganizedModule = {
+    imports: Array<Stmt<null>>,
     fileVars: Map<string, VarInit<Type>>,
     fileFunctions: Map<string, OrganizedFunc>,
     fileClasses: Map<string, OrganizedClass>,

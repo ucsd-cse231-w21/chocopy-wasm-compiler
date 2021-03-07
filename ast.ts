@@ -127,8 +127,8 @@ export type Stmt<A> =
   | { a?: A; tag: "if"; cond: Expr<A>; thn: Array<Stmt<A>>; els: Array<Stmt<A>> }
   | { a?: A; tag: "pass" }
   | { a?: A; tag: "field-assign"; obj: Expr<A>; field: string; value: Expr<A> }
+  | { a?: A; tag: "while"; cond: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "assignment"; target: Destructure<A>; value: Expr<A> } //unsupported for builtins at the moment
-  | { a?: A; tag: "while"; cond: Expr<A>; body: Array<Stmt<A>> } //unsupported for builtins at the moment
   | { a?: A; tag: "continue" } //unsupported for builtins at the moment
   | { a?: A; tag: "break" } //unsupported for builtins at the moment
   | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> } //unsupported for builtins at the moment
