@@ -97,7 +97,11 @@ type CompileResult = {
 function myMemAlloc(name: string, size: number): Array<string> {
   const allocs: Array<string> = [];
   allocs.push(`(local.set ${name} (i32.load (i32.const 0))) ;; allocate memory for ${name}`);
-  allocs.push(`(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${size * 4}))) ;; update the heap ptr`);
+  allocs.push(
+    `(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${
+      size * 4
+    }))) ;; update the heap ptr`
+  );
   return allocs;
 }
 
@@ -162,20 +166,18 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
     }
   });
   const initFuns = initGlobalFuns(globalFuns, withDefines);
-  
+
   const classes: Array<string> = ast.classes.map((cls) => codeGenClass(cls, withDefines)).flat();
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
 
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
-  
+
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(
-    initFuns.concat(inits.concat(...commandGroups))
-  );
+  const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
 
   withDefines.locals.clear();
-  
+
   return {
     functions: allFuns,
     mainSource: commands.join("\n"),
@@ -190,11 +192,11 @@ function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
     let idx = fun_info[0];
     let length = fun_info[1].length;
     let loc = envLookup(env, fun);
-    inits.push(myMemAlloc(`$$addr`, (length + 1)).join("\n"));
+    inits.push(myMemAlloc(`$$addr`, length + 1).join("\n"));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function reference`);
   });
-  
+
   // global functions have no nonlocals, assert length == 0
   return inits;
 }
@@ -443,7 +445,9 @@ function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`];
   } else {
-    const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; global variable ${init.name}`];
+    const locationToStore = [
+      `(i32.const ${envLookup(env, init.name)}) ;; global variable ${init.name}`,
+    ];
     return locationToStore.concat(value).concat([`(i32.store)`]);
   }
 }
@@ -463,7 +467,9 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
       // the dependent variable 'v' exists in the parent scope
-      inits.push(`(i32.store (i32.add (local.get $$addr) (i32.const ${(i + 1) * 4})) (local.get $${v}_$ref))`);
+      inits.push(
+        `(i32.store (i32.add (local.get $$addr) (i32.const ${(i + 1) * 4})) (local.get $${v}_$ref))`
+      );
     });
     inits.push(`(i32.store (local.get $${fun}_$ref) (local.get $$addr))`);
   });
@@ -520,18 +526,24 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   def.parameters.forEach((p) => env.locals.add(p.name));
 
   const localDefs = makeLocals(definedVars).join("\n");
-  const inits = def.inits.map((init) => codeGenInit(init, env)).flat().join("\n");
+  const inits = def.inits
+    .map((init) => codeGenInit(init, env))
+    .flat()
+    .join("\n");
   const refs = initRef(extraRefs).join("\n");
   const nonlocals = initNonlocals(def.nonlocals).join("\n");
   const nested = initNested(def.nested, env).join("\n");
 
   let params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
-  let stmts = def.body.map((stmt) => codeGenStmt(stmt, env)).flat().join("\n");
-  
+  let stmts = def.body
+    .map((stmt) => codeGenStmt(stmt, env))
+    .flat()
+    .join("\n");
+
   env.locals.clear();
 
   return [
-`(func $${def.name} (param ${fPTR} i32) ${params} (result i32)
+    `(func $${def.name} (param ${fPTR} i32) ${params} (result i32)
 ${localDefs}
 ${inits}
 ${refs}
@@ -559,7 +571,10 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
 
   const localDefines = makeLocals(definedVars);
   const locals = localDefines.join("\n");
-  const inits = def.inits.map((init) => codeGenInit(init, env)).flat().join("\n");
+  const inits = def.inits
+    .map((init) => codeGenInit(init, env))
+    .flat()
+    .join("\n");
   var params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
   var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
   var stmtsBody = stmts.join("\n");
@@ -761,7 +776,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
         callExpr.push(
-          `(call_indirect (type $callType${expr.arguments.length + 1}) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
+          `(call_indirect (type $callType${
+            expr.arguments.length + 1
+          }) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
         );
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
@@ -770,7 +787,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
         callExpr.push(
-          `(call_indirect (type $callType${expr.arguments.length + 1}) (i32.load (i32.load (local.get $${funName}))))`
+          `(call_indirect (type $callType${
+            expr.arguments.length + 1
+          }) (i32.load (i32.load (local.get $${funName}))))`
         );
       } else if (nameExpr.tag == "call_expr") {
         callExpr.push(codeGenExpr(nameExpr, env).join("\n"));
@@ -780,7 +799,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
         callExpr.push(
-          `(call_indirect (type $callType${expr.arguments.length + 1}) (i32.load (local.get $$addr)))`
+          `(call_indirect (type $callType${
+            expr.arguments.length + 1
+          }) (i32.load (local.get $$addr)))`
         );
       } else {
         throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);

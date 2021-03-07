@@ -101,8 +101,8 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         } else {
           expr = {
             tag: "call_expr",
-            name: {tag: "id", name: callName},
-            arguments: args
+            name: { tag: "id", name: callName },
+            arguments: args,
           };
           // expr = { tag: "call", name: callName, arguments: args };
         }
