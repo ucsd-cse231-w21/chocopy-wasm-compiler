@@ -10,14 +10,14 @@ describe("ea(tAst) function", () => {
   // Use this function in debug prompt to get the result
   // JSON.stringify(fAst, (key, value) => (typeof value === "bigint" ? value.toString() : value));
 
-  it.skip("ea case 1", () => {
+  it("ea case 1", () => {
     const code = `
-def f(x: int) -> int:
-  def inc() -> int:
-    return x + 1
-  return inc()
-f(5)
-`;
+    def f(x: int) -> int:
+      def inc() -> int:
+        return x + 1
+      return inc()
+    f(5)
+    `;
     const parsed = parse(code);
     const [tAst, _] = tc(emptyGlobalTypeEnv(), parsed);
     const fAst = ea(tAst);
@@ -37,7 +37,7 @@ f(5)
             name: {
               a: {
                 tag: "callable",
-                args: [{ tag: "number" }],
+                args: [{ name: "x", type: { tag: "number" } }],
                 ret: { tag: "number" },
                 isVar: false,
               },
@@ -114,18 +114,18 @@ f(5)
     });
   });
 
-  it.skip("ea case 2", () => {
+  it("ea case 2", () => {
     const code = `
-def f(x : int) -> int:
-  def g(y : int) -> int:
-    return x + h(y)
-  def h(z : int) -> int:
-    nonlocal x
-    x = z
-    return x + 1
-  return g(10) + g(7)
-f(6)
-`;
+    def f(x : int) -> int:
+      def g(y : int) -> int:
+        return x + h(y)
+      def h(z : int) -> int:
+        nonlocal x
+        x = z
+        return x + 1
+      return g(10) + g(7)
+    f(6)
+    `;
     const parsed = parse(code);
     const [tAst, _] = tc(emptyGlobalTypeEnv(), parsed);
     const fAst = ea(tAst);
@@ -145,7 +145,7 @@ f(6)
             name: {
               a: {
                 tag: "callable",
-                args: [{ tag: "number" }],
+                args: [{ name: "x", type: { tag: "number" } }],
                 ret: { tag: "number" },
                 isVar: false,
               },
@@ -182,7 +182,7 @@ f(6)
                   name: {
                     a: {
                       tag: "callable",
-                      args: [{ tag: "number" }],
+                      args: [{ name: "y", type: { tag: "number" } }],
                       ret: { tag: "number" },
                       isVar: false,
                     },
@@ -204,7 +204,7 @@ f(6)
                   name: {
                     a: {
                       tag: "callable",
-                      args: [{ tag: "number" }],
+                      args: [{ name: "y", type: { tag: "number" } }],
                       ret: { tag: "number" },
                       isVar: false,
                     },
@@ -253,7 +253,7 @@ f(6)
                   name: {
                     a: {
                       tag: "callable",
-                      args: [{ tag: "number" }],
+                      args: [{ name: "z", type: { tag: "number" } }],
                       ret: { tag: "number" },
                       isVar: false,
                     },
