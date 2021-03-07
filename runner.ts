@@ -12,6 +12,7 @@ import { GlobalTypeEnv, tc } from "./type-check";
 import { Value } from "./ast";
 import { PyValue, NONE } from "./utils";
 import { importMemoryManager, MemoryManager } from "./alloc";
+import { ea } from "./ea";
 
 export type Config = {
   importObject: any;
@@ -64,7 +65,8 @@ export async function run(
     returnExpr = "(local.get $$last)";
   }
   let globalsBefore = (config.env.globals as Map<string, number>).size;
-  const compiled = compiler.compile(tprogram, config.env, config.memoryManager);
+  const eaProgram = ea(tprogram);
+  const compiled = compiler.compile(eaProgram, config.env, config.memoryManager);
   let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;
@@ -82,9 +84,35 @@ export async function run(
     importMemoryManager(importObject, memoryManager);
   }
 
+  const funs = compiled.newEnv.funs;
+  let sorted_funs = new Array<string>(funs.size);
+  funs.forEach((v, k) => {
+    sorted_funs[v[0]] = `$${k}`;
+  });
+
+  let funRef = `
+  (table ${funs.size} funcref)
+  (elem (i32.const 0) ${sorted_funs.join(" ")})
+  `;
+
+  /*
+  class Range(object):
+    cur : int = 0
+    stop : int = 0
+    step : int = 1
+  def range(s : int)->Range:
+    self:range = None
+    self = range()
+    self.cur = 0
+    self.stop = s
+    self.step = 1
+    return self
+*/
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
+    (func $print (import "imports" "print") (param i32) (result i32))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
+    (func $print_str (import "imports" "print_str") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "print_none") (param i32) (result i32))
     (func $abs (import "imports" "abs") (param i32) (result i32))
@@ -102,6 +130,59 @@ export async function run(
     (func $releaseLocals (import "imports" "releaseLocals"))
     (func $forceCollect (import "imports" "forceCollect"))
 
+    (func $range (param $s i32) (result i32)
+      (local $self i32)
+      (local $$last i32)
+      (i32.const 0)
+      (local.set $self)
+      (i32.load (i32.const 0))
+      (i32.add (i32.const 0))
+      (i32.const 0)
+      (i32.store)
+      (i32.load (i32.const 0))
+      (i32.add (i32.const 4))
+      (i32.const 0)
+      (i32.store)
+      (i32.load (i32.const 0))
+      (i32.add (i32.const 8))
+      (i32.const 1)
+      (i32.store)
+      (i32.load (i32.const 0))
+      (i32.load (i32.const 0))
+      (i32.const 0)
+      (i32.load (i32.const 0))
+      (i32.add (i32.const 12))
+      (i32.store)
+      (call $Range$__init__)
+      (drop)
+      (local.set $self)
+      (local.get $self)
+      (i32.add (i32.const 0))
+      (i32.const 0)
+      (i32.store)
+      (local.get $self)
+      (i32.add (i32.const 4))
+      (local.get $s)
+      (i32.store)
+      (local.get $self)
+      (i32.add (i32.const 8))
+      (i32.const 1)
+      (i32.store)
+      (local.get $self)
+      return (i32.const 0)
+    (return))
+
+    (func $Range$__init__ (param $self i32) (result i32)
+      (local $$last i32)
+      (i32.const 0)
+    (return))
+    (type $callType0 (func (result i32)))
+    (type $callType1 (func (param i32) (result i32)))
+    (type $callType2 (func (param i32) (param i32) (result i32)))
+    (type $callType3 (func (param i32) (param i32) (param i32) (result i32)))
+    (type $callType4 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
+    (type $callType5 (func (param i32) (param i32) (param i32) (param i32) (param i32) (result i32)))
+    ${funRef}
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
@@ -111,6 +192,8 @@ export async function run(
   )`;
   console.log(wasmSource);
   const result = await runWat(wasmSource, importObject);
+  const view = new Int32Array(importObject.js.memory.buffer);
 
-  return [PyValue(progTyp, result), compiled.newEnv, tenv, compiled.functions];
+  console.log("About to return", progTyp, result);
+  return [PyValue(progTyp, result, view), compiled.newEnv, tenv, compiled.functions];
 }

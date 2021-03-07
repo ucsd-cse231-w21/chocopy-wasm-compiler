@@ -16,6 +16,14 @@ before(function () {
   console.log = function () {};
 });
 
+export function skipassert(name: string, source: string, expected: Value) {
+  it.skip(name, async () => {
+    const repl = new BasicREPL(importObject);
+    const result = await repl.run(source);
+    expect(result).to.deep.eq(expected);
+  });
+}
+
 export function assert(name: string, source: string, expected: Value) {
   it(name, async () => {
     const repl = new BasicREPL(importObject);
@@ -80,4 +88,24 @@ export function assertTCFail(name: string, source: string) {
       expect(e).to.instanceof(Error);
     }
   });
+}
+
+export function singleVarAssignment<T>(name: string, value: T) {
+  return {
+    tag: "assignment",
+    destruct: {
+      isDestructured: false,
+      targets: [
+        {
+          ignore: false,
+          starred: false,
+          target: {
+            name,
+            tag: "id",
+          },
+        },
+      ],
+    },
+    value,
+  };
 }
