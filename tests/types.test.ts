@@ -3,6 +3,7 @@ import { NUM, BOOL, NONE } from "../utils";
 
 describe("tc", () => {
   assertTC("number", "1", NUM);
+  assertTC("big number", "4294967296", NUM);
   assertTC("true", "True", BOOL);
   assertTC("false", "False", BOOL);
 
@@ -129,5 +130,49 @@ describe("tc", () => {
   c = C().new(3, 4)
   c.x`,
     NUM
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+  d : [int,int] = None
+  d = {1:False, 2:True}`
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+    a:[int, [int, int]] = None
+    a = {2:True}`
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+    a:[int, [int, int]] = None
+    a = {2:{3:True}}`
+  );
+
+  assertTCFail(
+    "dict-incomplete-assignment",
+    `
+  d: [int, int] = None
+  d = {4}`
+  );
+
+  assertTCFail(
+    "dict-bad-lookup",
+    `
+  d: [int, int] = None
+  d = {4:5, 1:4}
+  d[True]`
+  );
+
+  assertTCFail(
+    "dict-bad-assign",
+    `
+  a:[int,int]=None
+  a = {}
+  a[8] = True`
   );
 });

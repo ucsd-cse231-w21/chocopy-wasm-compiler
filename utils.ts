@@ -1,13 +1,41 @@
 import { Value, Type } from "./ast";
+import { nTagBits } from "./compiler";
 
-export function PyValue(typ: Type, result: number): Value {
+export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
-    case "number":
-      return PyInt(result);
     case "string":
-      return PyObj("String", result);
+      if (result == -1) throw new Error("String index out of bounds");
+      const view = new Int32Array(mem);
+      let string_length = view[result / 4] + 1;
+      let data = result + 4;
+      var i = 0;
+      var full_string = "";
+      while (i < string_length) {
+        let ascii_val = view[data / 4 + i];
+        var char = String.fromCharCode(ascii_val);
+        full_string += char;
+        i += 1;
+      }
+      return PyString(full_string, result);
+    case "number":
+      if (result & 1) {
+        return PyInt(result >> nTagBits);
+      } else {
+        var idx: number = Number(result) / 4;
+        var sign = mem[idx];
+        var size = mem[idx + 1];
+        var i = 1;
+        var num = 0n;
+        while (i <= size) {
+          var dig = mem[idx + 1 + i];
+          num += BigInt(dig >>> nTagBits) << BigInt((i - 1) * (32 - nTagBits));
+          i += 1;
+        }
+        if (!sign) num = -num;
+        return PyBigInt(num);
+      }
     case "bool":
-      return PyBool(Boolean(result));
+      return PyBool(Boolean(result >> nTagBits));
     case "class":
       return PyObj(typ.name, result);
     case "none":
@@ -19,8 +47,16 @@ export function PyValue(typ: Type, result: number): Value {
   }
 }
 
+export function PyString(s: string, address: number): Value {
+  return { tag: "string", value: s, address: address };
+}
+
 export function PyInt(n: number): Value {
   return { tag: "num", value: BigInt(n) };
+}
+
+export function PyBigInt(n: bigint): Value {
+  return { tag: "num", value: n };
 }
 
 export function PyBool(b: boolean): Value {
@@ -65,4 +101,9 @@ export function LIST(type: Type): Type {
 }
 export function CLASS(name: string): Type {
   return { tag: "class", name };
+}
+
+export function CALLABLE(args: Array<Type>, ret: Type): Type {
+  const params = args.map((t, i) => ({ name: `callable_${i}`, type: t }));
+  return { tag: "callable", args: params, ret };
 }

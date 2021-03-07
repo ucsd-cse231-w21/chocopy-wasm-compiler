@@ -97,4 +97,27 @@ describe("LIST TEST", () => {
   `;
   assertPrint("List Access & Assign with Expr as Index (prints)", source, ["4"]);
   assert("List Access & Assign with Expr as Index", source, PyInt(60));
+    var source = `
+    items : [int] = None
+    items = [1,2,3]
+    items.append(1)
+    items[3]
+    `
+    assert("List Append", source, PyInt(1));
+
+    var source = `
+    items : [int] = None
+    items = [1,2,3]
+    items.index(4)
+    `
+    assert("List index miss", source, PyInt(-1));
+
+    var source = `
+    items : [int] = None
+    items = [1,2,3]
+    items.index(3)
+    `
+    assert("List index found", source, PyInt(2));
+
+
 });

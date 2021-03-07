@@ -69,7 +69,13 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       let args = traverseArguments(c, s);
       c.parent(); // pop CallExpression
 
-      if (callExpr.tag === "lookup") {
+      if (callExpr.tag === "call_expr" || callExpr.tag === "method-call") {
+        return {
+          tag: "call_expr",
+          name: callExpr,
+          arguments: args,
+        };
+      } else if (callExpr.tag === "lookup") {
         return {
           tag: "method-call",
           obj: callExpr.obj,
@@ -93,7 +99,12 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
             right: args[1],
           };
         } else {
-          expr = { tag: "call", name: callName, arguments: args };
+          expr = {
+            tag: "call_expr",
+            name: { tag: "id", name: callName },
+            arguments: args,
+          };
+          // expr = { tag: "call", name: callName, arguments: args };
         }
         return expr;
       } else {
@@ -304,6 +315,52 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         tag: "list-expr",
         contents: listExpr,
       };
+    case "DictionaryExpression":
+      // entries: Array<[Expr<A>, Expr<A>]>
+      let keyValuePairs: Array<[Expr<null>, Expr<null>]> = [];
+      c.firstChild(); // Focus on "{"
+      while (c.nextSibling()) {
+        if (s.substring(c.from, c.to) === "}") {
+          // check for empty dict
+          break;
+        }
+        let key = traverseExpr(c, s);
+        c.nextSibling(); // Focus on :
+        c.nextSibling(); // Focus on Value
+        let value = traverseExpr(c, s);
+        keyValuePairs.push([key, value]);
+        c.nextSibling(); // Focus on } or ,
+      }
+      c.parent(); // Pop to DictionaryExpression
+      return {
+        tag: "dict",
+        entries: keyValuePairs,
+      };
+    case "LambdaExpression":
+      c.firstChild(); // go to lambda
+      c.nextSibling(); // go to ParamList
+      var temp = c;
+      const lambdaArgs: string[] = [];
+      if (temp.type.name === "ParamList") {
+        // check if empty ParamList
+        if (c.firstChild()) {
+          do {
+            var variable = temp.type.name;
+            if (variable === "VariableName") {
+              lambdaArgs.push(s.substring(c.from, c.to));
+            }
+          } while (c.nextSibling());
+          c.parent();
+        }
+
+        c.nextSibling(); // go to :
+        c.nextSibling(); // go to expression
+        const ret = traverseExpr(c, s);
+        c.parent();
+        return { tag: "lambda", args: lambdaArgs, ret };
+      } else {
+        throw new Error("Invalid Lambda Expression");
+      }
 
     default:
       throw new Error(
@@ -539,24 +596,50 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<null> {
       };
     case "PassStatement":
       return { tag: "pass" };
+    case "ContinueStatement":
+      return { tag: "continue" };
+    case "BreakStatement":
+      return { tag: "break" };
+    case "ForStatement":
+      c.firstChild(); // Focus on for
+      c.nextSibling(); // Focus on variable name
+      let name = s.substring(c.from, c.to);
+      c.nextSibling(); // Focus on in / ','
+      var index = null;
+      if (s.substring(c.from, c.to) == ",") {
+        index = name;
+        c.nextSibling(); // Focus on var name
+        name = s.substring(c.from, c.to);
+        c.nextSibling(); // Focus on in
+      }
+      c.nextSibling(); // Focus on iterable expression
+      var iter = traverseExpr(c, s);
+      c.nextSibling(); // Focus on body
+      var body = [];
+      c.firstChild(); // Focus on :
+      while (c.nextSibling()) {
+        body.push(traverseStmt(c, s));
+      }
+      c.parent();
+      c.parent();
+      if (index != null) {
+        return { tag: "for", name: name, index: index, iterable: iter, body: body };
+      }
+      return { tag: "for", name: name, iterable: iter, body: body };
     default:
       throw new Error(
-        "Could not parse stmt at " +
-          c.node.from +
-          " " +
-          c.node.to +
-          ": " +
-          s.substring(c.from, c.to)
+        `Could not parse stmt at ${c.node.from} ${c.node.to}: ${s.substring(c.from, c.to)}`
       );
   }
 }
 
 export function traverseBracketType(c: TreeCursor, s: string): Type {
-  // For now, always a VariableName
   let bracketTypes = [];
   c.firstChild();
   while (c.nextSibling()) {
-    bracketTypes.push(traverseType(c, s));
+    if (s.substring(c.from, c.to) !== ",") {
+      bracketTypes.push(traverseType(c, s));
+    }
     c.nextSibling();
   }
   c.parent();
@@ -564,7 +647,7 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
     //List
     return LIST(bracketTypes[0]);
   } else if (bracketTypes.length == 2) {
-    //Dict?
+    return { tag: "dict", key: bracketTypes[0], value: bracketTypes[1] };
   } else {
     throw new Error(
       "Can Not Parse Type " + s.substring(c.from, c.to) + " " + c.node.from + " " + c.node.to
@@ -583,14 +666,69 @@ export function traverseType(c: TreeCursor, s: string): Type {
     case "bool":
       return BOOL;
     default:
-      return CLASS(name);
+      if (c.type.name === "MemberExpression") {
+        return traverseCallable(c, s);
+      } else {
+        return CLASS(name);
+      }
   }
 }
 
-export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<null>> {
+export function traverseCallable(c: TreeCursor, s: string): Type {
+  c.firstChild(); // Focus on Callable
+  const name = s.substring(c.from, c.to);
+  if (name !== "Callable") {
+    throw new Error("Invalid Callable");
+  }
+  c.nextSibling(); // [
+  c.nextSibling(); // Focus on Arg Array
+
+  const args: Array<Type> = [];
+  if (c.type.name === "ArrayExpression") {
+    c.firstChild(); // [
+    c.nextSibling(); // arg or ]
+    var temp = c;
+    while (temp.type.name !== "]") {
+      if (temp.type.name !== "VariableName") {
+        throw new Error("Invalid Callable arg type");
+      }
+      args.push(traverseType(c, s));
+      c.nextSibling(); // , or ]
+      c.nextSibling(); // arg
+    }
+    c.parent();
+  } else {
+    throw new Error("Invalid Callable");
+  }
+
+  let ret: Type = NONE;
+  c.nextSibling(); // ,
+  c.nextSibling();
+  var tempname = c.type.name;
+  if (tempname !== "]") {
+    if (tempname === "None") {
+      c.nextSibling();
+    } else {
+      ret = traverseType(c, s);
+      c.nextSibling();
+    }
+  }
+  if (temp.type.name !== "]") {
+    throw new Error("Invalid Callable return type");
+  }
+  c.parent();
+  const params: Array<Parameter> = args.map((t: Type, i: number) => ({
+    name: `callable_${i}`,
+    type: t,
+  }));
+  return { tag: "callable", args: params, ret };
+}
+
+export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
   c.firstChild(); // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
+  let traversedDefaultParam = false; // When a default param is encountered once, all following params must also be default params
   while (c.type.name !== ")") {
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
@@ -603,12 +741,17 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
     let typ = traverseType(c, s);
     c.parent();
     c.nextSibling(); // Move on to comma or ")" or "="
-    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now
+    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now (what would be the proper way to avoid this?)
     if (nextTagName === "AssignOp") {
-      c.nextSibling();
+      traversedDefaultParam = true;
+      c.nextSibling(); // Move on to default value
       let val = traverseLiteral(c, s);
       parameters.push({ name, type: typ, value: val });
+      c.nextSibling(); // Move on to comma
     } else {
+      if (traversedDefaultParam === true) {
+        throw new Error("Expected a default value for " + name);
+      }
       parameters.push({ name, type: typ });
     }
     c.nextSibling(); // Focuses on a VariableName
@@ -639,6 +782,23 @@ export function traverseVarInit(c: TreeCursor, s: string): VarInit<null> {
   return { name, type, value };
 }
 
+export function traverseScope(c: TreeCursor, s: string): Scope<null> {
+  c.firstChild(); // go to scope
+  var scope = s.substring(c.from, c.to);
+  c.nextSibling(); // go to varname
+  var name = s.substring(c.from, c.to);
+  switch (scope) {
+    case "global":
+      c.parent();
+      throw new Error("Glocal declaration not supported.");
+    case "nonlocal":
+      c.parent();
+      return { tag: "nonlocal", name };
+    default:
+      throw Error("Invalid ScopeStatement");
+  }
+}
+
 export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
   c.firstChild(); // Focus on def
   c.nextSibling(); // Focus on name of function
@@ -657,11 +817,17 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
   var inits = [];
   var body = [];
 
-  var hasChild = c.nextSibling();
+  const decls: Scope<null>[] = [];
+  const funs: FunDef<null>[] = [];
 
+  var hasChild = c.nextSibling();
   while (hasChild) {
     if (isVarInit(c, s)) {
       inits.push(traverseVarInit(c, s));
+    } else if (isScope(c, s)) {
+      decls.push(traverseScope(c, s));
+    } else if (isFunDef(c, s)) {
+      funs.push(traverseFunDef(c, s));
     } else {
       break;
     }
@@ -673,14 +839,8 @@ export function traverseFunDef(c: TreeCursor, s: string): FunDef<null> {
     hasChild = c.nextSibling();
   }
 
-  // console.log("Before pop to body: ", c.type.name);
   c.parent(); // Pop to Body
-  // console.log("Before pop to def: ", c.type.name);
   c.parent(); // Pop to FunctionDefinition
-
-  // TODO: Closure group: fill decls and funs to make things work
-  const decls: Scope<null>[] = [];
-  const funs: FunDef<null>[] = [];
 
   return { name, parameters, ret, inits, decls, funs, body };
 }
@@ -760,6 +920,14 @@ export function isVarInit(c: TreeCursor, s: string): boolean {
   }
 }
 
+export function isScope(c: TreeCursor, s: string): boolean {
+  if (c.type.name === "ScopeStatement") {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 export function isFunDef(c: TreeCursor, s: string): boolean {
   return c.type.name === "FunctionDefinition";
 }
@@ -795,7 +963,8 @@ export function traverse(c: TreeCursor, s: string): Program<null> {
         hasChild = c.nextSibling();
       }
       c.parent();
-      return { funs, inits, classes, stmts };
+      console.log("parser-output:", { funs, inits, classes, stmts });
+      return { funs, inits, classes, stmts, closures: [] };
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }
