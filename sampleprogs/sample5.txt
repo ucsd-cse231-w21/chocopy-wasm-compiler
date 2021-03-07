@@ -1,0 +1,24 @@
+
+class Fact(object):
+    glob: int = 0
+
+    def fact(self: Fact, n: int) -> int:
+        self.glob = 10
+        return self.glob
+    
+    def reflect(self: Fact, other: Fact) -> int:
+        return other.glob
+        
+test: Fact = None
+test2: Fact = None
+
+test = Fact()
+test2 = Fact()
+
+test2.glob = 20
+
+print(test.reflect(test2))
+
+test2 = None
+test2.glob
+

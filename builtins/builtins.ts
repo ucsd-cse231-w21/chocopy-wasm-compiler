@@ -2,7 +2,7 @@ import { Type, typeToString, Value } from "../ast";
 import { ClassPresenter, FuncIdentity, ModulePresenter } from "../types";
 import { NONE } from "../utils";
 
-const otherModule : BuiltInModule = new class implements BuiltInModule {
+export const otherModule : BuiltInModule = new class implements BuiltInModule {
     readonly name: string;
     readonly classes : Map<string, BuiltInClass>;
     readonly variables: Map<string, BuiltVariable>;
@@ -148,3 +148,10 @@ export function attachPresenter(b: BuiltInModule) {
     b.presenter = presenter;
 }
 
+export function gatherPresenters(modules: Map<string, BuiltInModule>) {
+    const ret: Map<string, ModulePresenter> = new Map();
+    for(let [name, mod] of modules.entries()){
+        ret.set(name , mod.presenter);
+    }
+    return ret;
+}

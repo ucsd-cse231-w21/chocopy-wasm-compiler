@@ -1,0 +1,5 @@
+x:int = 0
+if True:
+  x = 5
+else:
+  x = 3

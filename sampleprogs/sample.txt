@@ -1,0 +1,15 @@
+
+class Hello(object):
+    var1:int = 10
+    var2:bool = True
+
+    def method1(self: Hello, x: int, y:int) -> int:
+        z: int = 0
+        z = x + y
+        self.var1 = x
+        return z
+
+
+x: Hello = None
+x = Hello()
+x = None

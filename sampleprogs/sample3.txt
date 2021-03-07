@@ -1,0 +1,7 @@
+class C(object):
+    x : int = 123
+    
+c : C = None
+c = C()
+c.x = 42
+c.x

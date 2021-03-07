@@ -1,0 +1,22 @@
+class LinkedList(object):
+    head: Node = None
+
+    def length(self: LinkedList) -> int:
+        return self.lenHelper(self.head)
+
+    def lenHelper(self: LinkedList, cur: Node) -> int:
+        if cur == None:
+            return 0
+        else:
+            return 1 + self.lenHelper(cur.next)
+
+class Node(object):
+    value: int = 0
+    next: Node = None
+
+
+x: LinkedList = None
+x = LinkedList()
+
+x.head = Node()
+x.head.value = 10

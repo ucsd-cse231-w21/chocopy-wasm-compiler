@@ -383,7 +383,7 @@ function tcExpr(expr: Expr<null>,
                 callSite: {iden: target, isConstructor: false}};
       }
       else if(global.classes.has(expr.name)){
-        return {a: target.returnType, 
+        return {a: {tag: "class", name: expr.name}, 
                 tag: "call", 
                 name: expr.name, 
                 arguments: typedArgExprs, 
@@ -544,7 +544,7 @@ function tcStmt(stmt: Stmt<null>,
     }
     case "expr":{
       const returnType = tcExpr(stmt.expr, vars, global, builtIns);
-      return {a: returnType.a, tag: "return", value: returnType};
+      return {a: returnType.a, tag: "expr", expr: returnType};
     }
     case "if":{
       const typedCond = tcExpr(stmt.cond, vars, global, builtIns);
@@ -684,17 +684,15 @@ function tcFuncDef(def: FunDef<null>,
     newStmts.push(newStmt);
   }
 
-  if(funcIdentity.returnType.tag !== "none"){
-      if(!checkReturn(def.body, funcIdentity.returnType)){
-          throw new Error("The function '"+idenToStr(funcIdentity)+"' must have a return of '"+typeToString(funcIdentity.returnType)+"' on all paths");
-      }
+  if(!checkReturn(def.body, funcIdentity.returnType)){
+    if(funcIdentity.returnType.tag !== "none"){
+      throw new TypeCheckError(`The function ${idenToStr(funcIdentity)} must have 
+                                a return type of ${typeToString(funcIdentity.returnType)}`);
+    }
+    else{
+      newStmts.push({tag: "return", value: {tag: "literal", value: {tag: "none"}}});
+    }
   }
-
-  /*
-  else if(!checkReturn(def.body, funcIdentity.returnType)){
-    def.bodyStms.push({tag: "ret", expr: {tag: "value", value: {tag: "None"}}});
-  }
-  */
 
   return {identity: funcIdentity, params: newParams, vars: newLocals, stmts: newStmts};
 }
@@ -704,9 +702,9 @@ export function tc(existingEnv: ModulePresenter,
                    program: Program<null>): OrganizedModule {
 
   const curGlobalTable: GlobalTable = {
-    vars: new Map(existingEnv.moduleVars),
-    funcs: new Map(existingEnv.functions),
-    classes: new Map(existingEnv.classes)
+    vars: existingEnv === undefined ? new Map() : new Map(existingEnv.moduleVars),
+    funcs: existingEnv === undefined ? new Map() : new Map(existingEnv.functions),
+    classes: existingEnv === undefined ? new Map() : new Map(existingEnv.classes)
   }
 
   //first include imports

@@ -1,0 +1,3 @@
+class C(object):
+    x : int = 0
+not (C() is None)

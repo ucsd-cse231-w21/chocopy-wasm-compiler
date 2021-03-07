@@ -1,108 +1,30 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
-import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import * as BaseException from "./error";
+import { OrganizedModule } from "./types";
+import { BuiltInModule } from "./builtins/builtins";
 
-// https://learnxinyminutes.com/docs/wasm/
-
-// Numbers are offsets into global memory
-export type GlobalEnv = {
-  globals: Map<string, number>;
-  classes: Map<string, Map<string, [number, Literal]>>;
-  imports : Set<string>,
-  locals: Set<string>;
-  offset: number;
-};
-
-export const emptyEnv: GlobalEnv = {
-  globals: new Map(),
-  classes: new Map(),
-  locals: new Set(),
-  imports: new Set(),
-  offset: 0
-};
-
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>, builtIns: Map<string, GlobalTypeEnv>): GlobalEnv {
-  const newGlobals = new Map(env.globals);
-  const newClasses = new Map(env.classes);
-
-  var newOffset = env.offset;
-  prog.inits.forEach((v) => {
-    newGlobals.set(v.name, newOffset);
-    newOffset += 1;
-  });
-  prog.classes.forEach((cls) => {
-    const classFields = new Map();
-    cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
-    newClasses.set(cls.name, classFields);
-  });
-  return {
-    globals: newGlobals,
-    classes: newClasses,
-    locals: env.locals,
-    imports: new Set(builtIns.keys()),
-    offset: newOffset
-  };
+export type LabeledComps = {
+  classes : Map<string, number>,
+  funcs: Map<string, CallSite>, //maps function signatures to function labels
+  globalVars: Map<string, number> // maps global variables to their indices
 }
 
-type CompileResult = {
-  functions: string;
-  mainSource: string;
-  newEnv: GlobalEnv;
-};
+export type CallSite = 
+{tag: "external", level: string, label: string} | 
+{tag: "local", label: string}
 
-// export function getLocals(ast : Array<Stmt>) : Set<string> {
-//   const definedVars : Set<string> = new Set();
-//   ast.forEach(s => {
-//     switch(s.tag) {
-//       case "define":
-//         definedVars.add(s.name);
-//         break;
-//     }
-//   });
-//   return definedVars;
-// }
+const INTANCTIATE = "1nstanciate";
+const GLOBAL_REF = "2ref";
+const GLOBAL_STORE = "3store";
+const OBJ_DEREF = "4objref";
+const OBJ_MUTATE = "5mutate";
 
-export function makeLocals(locals: Set<string>): Array<string> {
-  const localDefines: Array<string> = [];
-  locals.forEach((v) => {
-    localDefines.push(`(local $${v} i32)`);
-  });
-  return localDefines;
+export function compile(progam: OrganizedModule, builtins: Map<string, BuiltInModule>, labels: LabeledComps) : Array<string> {
+
+  return undefined;
 }
 
-export function compile(ast: Program<Type>, env: GlobalEnv, builtIns: Map<string, GlobalTypeEnv>): CompileResult {
-  const withDefines = augmentEnv(env, ast, builtIns);
-
-  const definedVars: Set<string> = new Set(); //getLocals(ast);
-  definedVars.add("$last");
-  definedVars.forEach(env.locals.add, env.locals);
-  const localDefines = makeLocals(definedVars);
-  const funs: Array<string> = [];
-  ast.funs.forEach((f) => {
-    funs.push(codeGenDef(f, withDefines).join("\n"));
-  });
-  const classes: Array<string> = ast.classes.map((cls) => codeGenClass(cls, withDefines)).flat();
-  const allFuns = funs.concat(classes).join("\n\n");
-  // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
-  const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
-  const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(inits.concat(...commandGroups));
-  withDefines.locals.clear();
-  return {
-    functions: allFuns,
-    mainSource: commands.join("\n"),
-    newEnv: withDefines,
-  };
-}
-
-function envLookup(env: GlobalEnv, name: string): number {
-  if (!env.globals.has(name)) {
-    console.log("Could not find " + name + " in ", env);
-    throw new Error("Could not find name " + name);
-  }
-  return env.globals.get(name) * 4; // 4-byte values
-}
 
 function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
   switch (stmt.tag) {
