@@ -1,38 +1,95 @@
 @import "codemirror/lib/codemirror.css";
-@import "codemirror/theme/neo.css";
+@import "codemirror/addon/hint/show-hint.css";
+@import "codemirror/addon/lint/lint.css";
+@import "sass/theme_import.scss";
 
 .editor {
   float: left;
-  width: 49%;
+  width: 50%;
   margin: 0;
-  padding: 0;
-  height: 100%;
+  padding: 0px;
+  height: 600px;
+
+
+  .line-error {
+    background: #FBC2C4 !important;
+    color: #8a1f11 !important;
+  }
+  .error-marker {
+    color: black;
+    width: 10px !important;
+    background-color: #ff0000;
+  }
+  
+  .error-marker{
+    .error-message {
+      display: none;
+      position: absolute;
+      background-color: #ddd;
+      border: 1px solid #999;
+      padding: 6px;
+      width: 140px;
+      left: 15px;
+      top: -1em;
+    }
+  }
+  
+  .error-marker:hover{
+    .error-message {
+      display: block;
+    }
+  }
 }
 .user-code {
   width: 100%;
-  height: 80em;
+  height: 100%;
   resize: none;
   overflow: scroll;
   font-family: monospace;
 }
 .interactions {
-  float: right;
-  width: 49%;
-  margin-left: 1em;
-  padding: 0;
-  height: 100%;
+  float: left;
+  width: 50%;
+  //margin-left: 1em;
+  padding: 0px;
+  height: 600px;
+  overflow-y: scroll;
+  scrollbar-color: rebeccapurple green;
+  scrollbar-width: thin;
 }
 .repl-code {
   height: 2em;
-  width: 30em;
+  width: 90%;
   text-align: left;
   font-family: monospace;
 }
 .prompt {
+  height: 2em;
+  width:5%;
   vertical-align: middle;
+  text-align: center;
 }
 .output pre {
   max-width: 100%;
   white-space: break-spaces;
   line-break: anywhere;
 }
+
+.clear {
+  float: right;
+  display: block;
+}
+.clearfix{
+  clear: both;
+}
+
+@media only screen and (max-width: 800px) {
+  .interactions{
+    width: 100%;
+    height: 100%;
+  }
+  .editor{
+    width: 100%;
+  }
+}
+ 

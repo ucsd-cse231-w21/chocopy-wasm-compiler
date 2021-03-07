@@ -5,3 +5,4 @@ cli
 mochawesome-report
 .idea
 *.js
+**.DS_Store

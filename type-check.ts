@@ -34,13 +34,15 @@ export class TypeCheckError extends Error {
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
   functions: Map<string, [Array<Parameter>, Type]>;
-  classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>;
+  classes: Map<string, [Map<string, Type>, Map<string, [Array<Parameter>, Type]>]>;
 };
 
 export type LocalTypeEnv = {
   vars: Map<string, Type>;
   expectedRet: Type;
+  functions: Map<string, [Array<Parameter>, Type]>;
   topLevel: boolean;
+  loop_depth: number;
 };
 
 const defaultGlobalFunctions = new Map();
@@ -49,11 +51,20 @@ defaultGlobalFunctions.set("max", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
+defaultGlobalFunctions.set("range", [[NUM], CLASS("Range")]);
+
+const defaultGlobalClasses = new Map();
+// Range initialization
+const dfields = new Map();
+dfields.set("cur", NUM);
+dfields.set("stop", NUM);
+dfields.set("step", NUM);
+defaultGlobalClasses.set("Range", [dfields, new Map()]);
 
 export const defaultTypeEnv = {
   globals: new Map(),
   functions: defaultGlobalFunctions,
-  classes: new Map(),
+  classes: defaultGlobalClasses,
 };
 
 export function emptyGlobalTypeEnv(): GlobalTypeEnv {
@@ -68,7 +79,9 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
   return {
     vars: new Map(),
     expectedRet: NONE,
+    functions: new Map(),
     topLevel: true,
+    loop_depth: 0,
   };
 }
 
@@ -90,15 +103,31 @@ export function equalType(t1: Type, t2: Type) {
     JSON.stringify(t1) === JSON.stringify(t2) ||
     (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
     //if dictionary is initialized to empty {}, then we check for "none" type in key and value
-    (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none")
+    (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none") ||
+    (t1.tag === "callable" && t2.tag === "callable" && equalCallabale(t1, t2))
   );
+}
+
+export function equalCallabale(t1: Type, t2: Type): boolean {
+  if (t1.tag === "callable" && t2.tag === "callable") {
+    if (t1.args.length !== t2.args.length) {
+      return false;
+    }
+    for (var i = 0; i < t1.args.length; i++) {
+      if (!equalType(t1.args[i].type, t2.args[i].type)) {
+        return false;
+      }
+    }
+    return equalType(t1.ret, t2.ret);
+  }
+  return false;
 }
 
 export function isNoneOrClass(t: Type) {
   return t.tag === "none" || t.tag === "class";
 }
 
-const objtypes = ["class", "list", "dict"];
+const objtypes = ["class", "list", "dict", "callable"];
 function isObjectTypeTag(t: string): boolean {
   return objtypes.indexOf(t) >= 0;
 }
@@ -118,16 +147,46 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   const newGlobs = new Map(env.globals);
   const newFuns = new Map(env.functions);
   const newClasses = new Map(env.classes);
-  program.inits.forEach((init) => newGlobs.set(init.name, init.type));
-  program.funs.forEach((fun) => newFuns.set(fun.name, [fun.parameters, fun.ret]));
-  //program.funs.forEach(fun => newFuns.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
+  program.inits.forEach((init) => {
+    if (newGlobs.has(init.name)) {
+      throw new TypeCheckError(`Duplicate variable ${init.name}`);
+    }
+    newGlobs.set(init.name, init.type);
+  });
+  program.funs.forEach((fun) => {
+    newFuns.set(fun.name, [fun.parameters, fun.ret]);
+    if (newGlobs.has(fun.name)) {
+      throw new TypeCheckError(`Duplicate variable ${fun.name}`);
+    }
+    newGlobs.set(fun.name, {
+      tag: "callable",
+      args: fun.parameters,
+      ret: fun.ret,
+      isVar: false,
+    });
+  });
+
   program.classes.forEach((cls) => {
     const fields = new Map();
     const methods = new Map();
-    cls.fields.forEach((field) => fields.set(field.name, field.type));
-    cls.methods.forEach((method) =>
-      methods.set(method.name, [method.parameters.map((p) => p.type), method.ret])
-    );
+    cls.fields.forEach((field) => {
+      if (fields.has(field.name)) {
+        throw new TypeCheckError(`Duplicate variable ${field.name}`);
+      }
+      fields.set(field.name, field.type);
+    });
+    cls.methods.forEach((method) => {
+      methods.set(method.name, [method.parameters, method.ret]);
+      if (fields.has(method.name)) {
+        throw new TypeCheckError(`Duplicate variable ${method.name}`);
+      }
+      fields.set(method.name, {
+        tag: "callable",
+        args: method.parameters,
+        ret: method.ret,
+        isVar: false,
+      });
+    });
     newClasses.set(cls.name, [fields, methods]);
   });
   return { globals: newGlobs, functions: newFuns, classes: newClasses };
@@ -140,9 +199,6 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   const tDefs = program.funs.map((fun) => tcDef(newEnv, fun));
   const tClasses = program.classes.map((cls) => tcClass(newEnv, cls));
 
-  // program.inits.forEach(init => env.globals.set(init.name, tcInit(init)));
-  // program.funs.forEach(fun => env.functions.set(fun.name, [fun.parameters.map(p => p.type), fun.ret]));
-  // program.funs.forEach(fun => tcDef(env, fun));
   // Strategy here is to allow tcBlock to populate the locals, then copy to the
   // global env afterwards (tcBlock changes locals)
   const tBody = tcBlock(newEnv, locals, program.stmts);
@@ -155,7 +211,14 @@ export function tc(env: GlobalTypeEnv, program: Program<null>): [Program<Type>, 
   for (let name of locals.vars.keys()) {
     newEnv.globals.set(name, locals.vars.get(name));
   }
-  const aprogram = { a: lastTyp, inits: tInits, funs: tDefs, classes: tClasses, stmts: tBody };
+  const aprogram: Program<Type> = {
+    a: lastTyp,
+    inits: tInits,
+    funs: tDefs,
+    classes: tClasses,
+    stmts: tBody,
+    closures: [],
+  };
   return [aprogram, newEnv];
 }
 
@@ -172,13 +235,94 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   var locals = emptyLocalTypeEnv();
   locals.expectedRet = fun.ret;
   locals.topLevel = false;
-  // type checking defaults
-  fun.parameters.forEach((p) => tcDefault(p.type, p.value));
-  fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
-  fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
 
+  fun.parameters.forEach((p) => {
+    if (locals.vars.has(p.name)) {
+      throw new TypeCheckError(`Duplicate variable ${p.name}`);
+    }
+    locals.vars.set(p.name, p.type);
+  });
+  fun.inits.forEach((init) => {
+    if (locals.vars.has(init.name)) {
+      throw new TypeCheckError(`Duplicate variable ${init.name}`);
+    }
+    locals.vars.set(init.name, tcInit(env, init).type);
+  });
+  fun.decls.forEach((decl) => {
+    throw new Error(`Invalid Nonlocal Variable ${decl.name}`);
+  });
+  fun.funs.forEach((func) => {
+    locals.functions.set(func.name, [func.parameters, func.ret]);
+    if (locals.vars.has(func.name)) {
+      throw new TypeCheckError(`Duplicate variable ${func.name}`);
+    }
+    locals.vars.set(func.name, {
+      tag: "callable",
+      args: func.parameters,
+      ret: func.ret,
+      isVar: false,
+    });
+  });
+
+  const tDefs = fun.funs.map((fun) => tcNestDef(env, locals, fun));
   const tBody = tcBlock(env, locals, fun.body);
-  return { ...fun, a: NONE, body: tBody };
+  return { ...fun, a: NONE, funs: tDefs, body: tBody };
+}
+
+export function tcNestDef(
+  env: GlobalTypeEnv,
+  nestEnv: LocalTypeEnv,
+  fun: FunDef<null>
+): FunDef<Type> {
+  var locals = emptyLocalTypeEnv();
+  locals.expectedRet = fun.ret;
+  locals.topLevel = false;
+
+  fun.parameters.forEach((p) => {
+    if (locals.vars.has(p.name)) {
+      throw new TypeCheckError(`Duplicate variable ${p.name}`);
+    }
+    locals.vars.set(p.name, p.type);
+  });
+  fun.inits.forEach((init) => {
+    if (locals.vars.has(init.name)) {
+      throw new TypeCheckError(`Duplicate variable ${init.name}`);
+    }
+    locals.vars.set(init.name, tcInit(env, init).type);
+  });
+  fun.decls.forEach((decl) => {
+    if (locals.vars.has(decl.name) || !nestEnv.vars.has(decl.name)) {
+      throw new Error(`Invalid Nonlocal Variable ${decl.name}`);
+    }
+  });
+
+  fun.funs.forEach((func) => {
+    locals.functions.set(func.name, [func.parameters, func.ret]);
+    if (locals.vars.has(func.name)) {
+      throw new TypeCheckError(`Duplicate variable ${func.name}`);
+    }
+    locals.vars.set(func.name, {
+      tag: "callable",
+      args: func.parameters.map((p) => p),
+      ret: func.ret,
+      isVar: false,
+    });
+  });
+
+  nestEnv.vars.forEach((vtype, vname) => {
+    if (!locals.vars.has(vname)) {
+      locals.vars.set(vname, vtype);
+    }
+  });
+  nestEnv.functions.forEach((vtype, vname) => {
+    if (!locals.functions.has(vname)) {
+      locals.functions.set(vname, vtype);
+    }
+  });
+
+  const tDefs = fun.funs.map((fun) => tcNestDef(env, locals, fun));
+  const tBody = tcBlock(env, locals, fun.body);
+  return { ...fun, a: NONE, funs: tDefs, body: tBody };
 }
 
 export function tcDefault(paramType: Type, paramLiteral: Literal) {
@@ -208,6 +352,19 @@ export function tcBlock(
   return stmts.map((stmt) => tcStmt(env, locals, stmt));
 }
 
+export function tcLambda(locals: LocalTypeEnv, expr: Expr<null>, expected: Type) {
+  if (expr.tag === "lambda" && expected.tag === "callable") {
+    const args = expr.args;
+    if (args.length === expected.args.length) {
+      for (let i = 0; i < args.length; i++) {
+        locals.vars.set(args[i], expected.args[i].type);
+      }
+    } else {
+      throw new TypeError("Function call type mismatch: Lambda");
+    }
+  }
+}
+
 export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null>): Stmt<Type> {
   switch (stmt.tag) {
     case "assignment":
@@ -216,42 +373,119 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         a: NONE,
         tag: stmt.tag,
         value: tValueExpr,
-        destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a),
+        destruct: tcDestructure(env, locals, stmt.destruct, tValueExpr.a, stmt.value),
       };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
     case "if":
+      // loop_depth used for potential for loop breaks insiede this if
+      locals.loop_depth += 1;
       var tCond = tcExpr(env, locals, stmt.cond);
       const tThn = tcBlock(env, locals, stmt.thn);
       const thnTyp = tThn[tThn.length - 1].a;
       const tEls = tcBlock(env, locals, stmt.els);
       const elsTyp = tEls[tEls.length - 1].a;
+      // restore loop depth
+      locals.loop_depth -= 1;
       if (tCond.a !== BOOL) throw new TypeCheckError("Condition Expression Must be a bool");
       else if (thnTyp !== elsTyp)
         throw new TypeCheckError("Types of then and else branches must match");
       return { a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
     case "return":
       if (locals.topLevel) throw new TypeCheckError("cannot return outside of functions");
+
+      if (stmt.value.tag === "lambda" && locals.expectedRet.tag === "callable") {
+        tcLambda(locals, stmt.value, locals.expectedRet);
+      }
+
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a, locals.expectedRet))
         throw new TypeCheckError(
-          "expected return type `" +
-            (locals.expectedRet as any).name +
-            "`; got type `" +
-            (tRet.a as any).name +
-            "`"
+          `expected return type\`${(locals.expectedRet as any).name}\`; got type \`${
+            (tRet.a as any).name
+          }\``
         );
       return { a: tRet.a, tag: stmt.tag, value: tRet };
     case "while":
+      // record the history depth
+      const wlast_depth = locals.loop_depth;
+      // set depth information to 1 for potential break and continues
+      locals.loop_depth = 1;
       var tCond = tcExpr(env, locals, stmt.cond);
       const tBody = tcBlock(env, locals, stmt.body);
+      locals.loop_depth = wlast_depth;
+
       if (!equalType(tCond.a, BOOL))
         throw new TypeCheckError("Condition Expression Must be a bool");
       return { a: NONE, tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: NONE, tag: stmt.tag };
-    // throw new TypeCheckError("bracket-assign not implemented");
+    case "for":
+      // check the type of iterator items, then add the item name into local variables with its type
+      const fIter = tcExpr(env, locals, stmt.iterable);
+      switch (fIter.a.tag) {
+        case "class":
+          if (fIter.a.name === "Range") {
+            locals.vars.set(stmt.name, NUM);
+            break;
+          } else {
+            throw new TypeCheckError(
+              "for-loop cannot take " + fIter.a.name + " class as iterator."
+            );
+          }
+        case "string":
+          // Character not implemented
+          // locals.vars.set(stmt.name, {tag: 'char'});
+          throw new TypeCheckError("for-loop with strings are not implmented.");
+        case "list":
+          locals.vars.set(stmt.name, fIter.a.content_type);
+          break;
+        default:
+          throw new TypeCheckError("Illegal iterating item in for-loop.");
+      }
+      // record the history depth
+      const last_depth = locals.loop_depth;
+      // set depth information to 1 for potential break and continues
+      locals.loop_depth = 1;
+      // go into body
+      const fBody = tcBlock(env, locals, stmt.body);
+      // delete the temp var information after finished the body, and restore last depth
+      // locals.vars.delete(stmt.name);
+      locals.loop_depth = last_depth;
+
+      // return type checked stmt
+      return {
+        a: NONE,
+        tag: "for",
+        name: stmt.name,
+        index: stmt.index,
+        iterable: fIter,
+        body: fBody,
+      };
+    case "continue":
+      return { a: NONE, tag: "continue", depth: locals.loop_depth };
+    case "break":
+      if (locals.loop_depth < 1) {
+        throw new TypeCheckError("Break outside a loop.");
+      }
+      return { a: NONE, tag: "break", depth: locals.loop_depth };
+    case "field-assign":
+      var tObj = tcExpr(env, locals, stmt.obj);
+      const tVal = tcExpr(env, locals, stmt.value);
+      if (tObj.a.tag !== "class") throw new TypeCheckError("field assignments require an object");
+      if (!env.classes.has(tObj.a.name))
+        throw new TypeCheckError("field assignment on an unknown class");
+      const [fields, _] = env.classes.get(tObj.a.name);
+      if (!fields.has(stmt.field))
+        throw new TypeCheckError(`could not find field ${stmt.field} in class ${tObj.a.name}`);
+      if (!isAssignable(env, tVal.a, fields.get(stmt.field)))
+        throw new TypeCheckError(
+          `could not assign value of type: ${tVal.a}; field ${
+            stmt.field
+          } expected type: ${fields.get(stmt.field)}`
+        );
+      return { ...stmt, a: NONE, obj: tObj, value: tVal };
     default:
       unhandledTag(stmt);
   }
@@ -264,12 +498,14 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
  * @param locals LocalTypeEnv
  * @param destruct Destructure description of assign targets
  * @param value Type of the value passed into this destructure
+ * @param expr Expr of the value passed into this destructure (only used for lambda expr)
  */
 function tcDestructure(
   env: GlobalTypeEnv,
   locals: LocalTypeEnv,
   destruct: Destructure<null>,
-  value: Type
+  value: Type,
+  expr: Expr<null>
 ): Destructure<Type> {
   /**
    * Type check an AssignTarget<null>. Ensures that the target is valid and that its type is compatible with the
@@ -281,6 +517,12 @@ function tcDestructure(
     let { target, starred, ignore } = aTarget;
     const tTarget = tcAssignable(env, locals, target);
     const targetType = tTarget.a;
+
+    if (expr.tag === "lambda") {
+      tcLambda(locals, expr, targetType);
+      valueType = tcExpr(env, locals, expr).a;
+    }
+
     if (!isAssignable(env, valueType, targetType))
       throw new TypeCheckError(`Non-assignable types: Cannot assign ${valueType} to ${targetType}`);
     return {
@@ -308,7 +550,11 @@ function tcDestructure(
         `Class ${value.name} not found in global environment. This is probably a parsing bug.`
       );
     let attrs = cls[0];
-    attrs.forEach((val) => types.push(val));
+    // attrs.forEach((val) => types.push(val));
+    attrs.forEach((val) => {
+      if (val.tag === "callable" && val.isVar == false) return; // method should not count
+      types.push(val);
+    });
     let starOffset = 0;
     let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
       if (i >= types.length)
@@ -461,11 +707,23 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeError("Undefined function: " + expr.name);
       }
-    case "call":
-      if (env.classes.has(expr.name)) {
+    case "lambda":
+      throw new BaseException.TypeError("Lambda is not supported");
+    /*
+      var args: Type[] = [];
+      expr.args.forEach((arg) => args.push(locals.vars.get(arg)));
+      var callable: Type = { tag: "callable", args, ret: tcExpr(env, locals, expr.ret).a };
+      return { ...expr, a: callable };
+      */
+    case "call_expr":
+      if (expr.name.tag === "id" && env.classes.has(expr.name.name)) {
         // surprise surprise this is actually a constructor
-        const tConstruct: Expr<Type> = { a: CLASS(expr.name), tag: "construct", name: expr.name };
-        const [_, methods] = env.classes.get(expr.name);
+        const tConstruct: Expr<Type> = {
+          a: CLASS(expr.name.name),
+          tag: "construct",
+          name: expr.name.name,
+        };
+        const [_, methods] = env.classes.get(expr.name.name);
         if (methods.has("__init__")) {
           const [initArgs, initRet] = methods.get("__init__");
           if (expr.arguments.length !== initArgs.length - 1)
@@ -477,16 +735,21 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         } else {
           return tConstruct;
         }
-      } else if (env.functions.has(expr.name)) {
-        const [params, retType] = env.functions.get(expr.name);
-        const argTypes = params.map((p) => p.type);
+      }
+
+      var innercall = tcExpr(env, locals, expr.name);
+      if (innercall.a.tag === "callable") {
+        const [args, ret] = [innercall.a.args, innercall.a.ret];
+        const params = args;
+        const retType = ret;
+        const argTypes = args.map((p) => p.type);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
         if (
-          argTypes.length === expr.arguments.length &&
-          tArgs.every((tArg, i) => tArg.a === argTypes[i])
+          args.length === expr.arguments.length &&
+          tArgs.every((tArg, i) => isAssignable(env, tArg.a, argTypes[i]))
         ) {
-          return { ...expr, a: retType, arguments: expr.arguments };
+          return { ...expr, a: retType, name: innercall, arguments: tArgs };
         }
         // case where the function may have default values
         else if (
@@ -496,24 +759,28 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           // check if arguments less than number of parameters
           // first populate all the arguments first.
           // Then, populate the rest of the values with defaults from params
-          var augArgs = expr.arguments;
-          var argNums = expr.arguments.length;
+          var augArgs = tArgs;
+          var argNums = tArgs.length;
           while (argNums < argTypes.length) {
             if (params[argNums].value === undefined) {
               throw new Error("Missing argument from call");
             } else {
               // add default values into arguments as an Expr
-              augArgs = augArgs.concat({ tag: "literal", value: params[argNums].value });
+              augArgs = augArgs.concat([
+                tcExpr(env, locals, { tag: "literal", value: params[argNums].value }),
+              ]);
             }
             argNums = argNums + 1;
           }
-          return { ...expr, a: retType, arguments: augArgs };
+          return { ...expr, a: ret, name: innercall, arguments: augArgs };
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
       } else {
         throw new TypeError("Undefined function: " + expr.name);
       }
+    case "call":
+      throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
       if (tObj.a.tag === "class") {
@@ -535,10 +802,22 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       var tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
       if (tObj.a.tag === "class") {
         if (env.classes.has(tObj.a.name)) {
-          const [_, methods] = env.classes.get(tObj.a.name);
-          if (methods.has(expr.method)) {
-            const [methodArgs, methodRet] = methods.get(expr.method);
-            const realArgs = [tObj].concat(tArgs);
+          const [fields, methods] = env.classes.get(tObj.a.name);
+
+          var methodArgs: Type[];
+          var methodRet: Type;
+          if (fields.has(expr.method)) {
+            var temp = fields.get(expr.method);
+            // should always be true
+            if (temp.tag === "callable") {
+              [methodArgs, methodRet] = [temp.args.map((p) => p.type), temp.ret];
+            }
+
+            var realArgs: Expr<Type>[] = tArgs;
+            if (methods.has(expr.method)) {
+              realArgs = [tObj].concat(tArgs);
+            }
+            console.log(methodArgs);
             if (
               methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))

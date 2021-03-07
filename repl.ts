@@ -1,8 +1,9 @@
 import { run, Config } from "./runner";
 import { GlobalEnv, libraryFuns } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
-import { Value, Type } from "./ast";
+import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
+import { bignumfunctions } from "./bignumfunctions";
 
 interface REPL {
   run(source: string): Promise<any>;
@@ -27,9 +28,18 @@ export class BasicREPL {
       classes: new Map(),
       locals: new Set(),
       offset: 1,
+      funs: new Map(),
     };
+
+    // initialization for range() calss and its constructor.
+    const classFields: Map<string, [number, Literal]> = new Map();
+    classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);
+    classFields.set("stop", [1, { tag: "num", value: BigInt(0) }]);
+    classFields.set("step", [2, { tag: "num", value: BigInt(1) }]);
+    this.currentEnv.classes.set("Range", classFields);
+
     this.currentTypeEnv = defaultTypeEnv;
-    this.functions = libraryFuns();
+    this.functions = libraryFuns() + "\n\n" + bignumfunctions;
   }
   async run(source: string): Promise<Value> {
     const config: Config = {
