@@ -1051,6 +1051,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
               `(local.set $$string_address)`,
               `${strideStmts.join("\n")}`, //Load the stride value for slicing
               `(local.set $$slice_stride)`,
+              `(i32.eq(local.get $$slice_stride)(i32.const 0))`,
+              `(if (then (i32.const -2)(call $print_str)(drop)))`, //Check if stride value is 0
             ]);
           if(startStmts === null){
             sliceStmts.push(
@@ -1071,10 +1073,6 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
                 `(local.get $$slice_start)`,
                 `(i32.const 0)(i32.lt_s)`, //check for negative start index
                 `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$slice_start)(i32.add)(local.set $$slice_start)))`, //if -ve, we do length + index
-                // `(local.get $$string_index)(local.get $$string_address)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
-                // `(local.get $$string_index)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
-                // `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
-                // `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
               ]
             );
           }
@@ -1083,7 +1081,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
               ...[
                 `(local.get $$slice_stride)`,
                 `(i32.const 0)(i32.lt_s)`,
-                `(if (then (i32.sub(i32.const 0)(i32.const 1)) (local.set $$slice_end) )(else`,
+                `(if (then (i32.const -1) (local.set $$slice_end) )(else`,
                 `(local.get $$string_address)(i32.load)(i32.add(i32.const 1))`,//get the string length
                 `(local.set $$slice_end)`,
                 `))`,//close if
@@ -1097,12 +1095,37 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
                 `(local.get $$slice_end)`,
                 `(i32.const 0)(i32.lt_s)`, //check for negative end index
                 `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$slice_end)(i32.add)(local.set $$slice_end)))`, //if -ve, we do length + index
-                // `(local.get $$string_index)(local.get $$string_address)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
-                // `(local.get $$string_index)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
-                // `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
-                // `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
               ]);
           }
+          sliceStmts.push(
+            ...[
+              `(local.get $$slice_stride)`,
+              `(i32.const 0)(i32.ge_s)`, //check for negative end index
+              `(if (result i32)(then `,
+              `(i32.gt_s(local.get $$slice_end)(local.get $$string_address)(i32.load)(i32.add(i32.const 1)))`,
+              `(if (then (local.get $$string_address)(i32.load)(i32.add(i32.const 1))(local.set $$slice_end) ))`,
+              `(i32.lt_s(local.get $$slice_start)(local.get $$slice_end))`,
+              `)`,//end then
+              `(else`,
+              `(i32.gt_s(local.get $$slice_start)(local.get $$string_address)(i32.load))`,
+              `(if (then (local.get $$string_address)(i32.load)(local.set $$slice_start) ))`,
+              `(i32.lt_s(local.get $$slice_end)(local.get $$slice_start))`,
+              `)`,//end else
+              `)`,//end if
+              `(i32.eq (i32.const 0))`,
+              `(if (result i32)(then `,//if
+              `(i32.load (i32.const 0))`,
+              `(i32.const 0)`,//length for empty string
+              `(i32.store)`,
+              `(i32.load (i32.const 0))`,//return value
+              `(i32.const 0)`, //To store new heap head offset
+              `(i32.load (i32.const 0))`,
+              `(i32.add (i32.const 4))`,
+              `(i32.store)`,
+              `)`,//close then
+              `(else`,
+            ]
+          );
           sliceStmts.push(
             ...[
               `(i32.rem_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(call $abs)(local.get $$slice_stride)(call $abs))`,
@@ -1121,7 +1144,6 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
               `(if (result i32) (then (i32.lt_s(local.get $$slice_start)(local.get $$slice_end)))(else`,
               `(i32.gt_s(local.get $$slice_start)(local.get $$slice_end))`,//get the string length
               `))`,//close if
-              //`(i32.ne(local.get $$slice_start)(local.get $$slice_end))`,
               `(i32.eqz))`,//while loop start
               `(local.get $$string_address)`,
               `(i32.add (i32.mul (i32.const 4)(local.get $$slice_start)))`, //Add the index * 4 value to the address
@@ -1144,6 +1166,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
               `(i32.add (i32.mul (i32.const 4)(local.get $$length)))`,
               `(i32.add (i32.const 4))`,
               "(i32.store)", // Save the new heap offset
+              "))",//close else and if
             ]
           );
           return sliceStmts;

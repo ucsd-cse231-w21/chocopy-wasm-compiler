@@ -19,6 +19,7 @@ function stringify(typ: Type, arg: any): string {
       return (arg as number).toString();
     case "string":
       if (arg == -1) throw new Error("String index out of bounds");
+      if (arg == -2) throw new Error("Slice step cannot be zero");
       const view = new Int32Array(mem_js.memory.buffer);
       let string_length = view[arg / 4] + 1;
       arg = arg + 4;
