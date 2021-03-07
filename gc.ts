@@ -309,7 +309,7 @@ export class MnS<A extends MarkableAllocator> {
     while (worklist.length > 0) {
       const childPtr = worklist.pop();
       const headerRef = this.heap.getHeader(childPtr);
-      const childSize = headerRef.getSize();    // in bytes
+      const childSize = headerRef.getSize(); // in bytes
       const childTag = headerRef.getTag();
 
       switch (childTag) {
