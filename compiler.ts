@@ -94,13 +94,6 @@ type CompileResult = {
   newEnv: GlobalEnv;
 };
 
-// function myMemForward(n: number): Array<string> {
-//   const forward: Array<string> = [];
-//   forward.push(`;; update the heap ptr`);
-//   forward.push(`(i32.store (i32.const 0) (i32.add (i32.load (i32.const 0)) (i32.const ${n * 4})))`);
-//   return forward;
-// }
-
 function myMemAlloc(name: string, size: number): Array<string> {
   const allocs: Array<string> = [];
   allocs.push(`(local.set ${name} (i32.load (i32.const 0))) ;; allocate memory for ${name}`);
@@ -140,11 +133,11 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$addr"); // address of the allocated memory
   definedVars.add("$list_base");
   definedVars.add("$list_index");
   definedVars.add("$list_temp");
   definedVars.add("$list_cmp");
-  definedVars.add("$addr"); // by closure group
   definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
@@ -157,6 +150,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   ast.funs.forEach((f) => {
     funs.push(codeGenFunDef(f, withDefines).join("\n"));
   });
+
   ast.closures.forEach((clo) => {
     funs.push(codeGenClosureDef(clo, withDefines).join("\n"));
   });
@@ -167,19 +161,17 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
       globalFuns.push(clo.name);
     }
   });
+  const initFuns = initGlobalFuns(globalFuns, withDefines);
   
   const classes: Array<string> = ast.classes.map((cls) => codeGenClass(cls, withDefines)).flat();
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
 
-  const initFuns = initGlobalFuns(globalFuns, withDefines);
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
-  // const memForward = myMemForward(withDefines.offset - env.offset);
-  const memForward: Array<string> = [];
   
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
   const commands = localDefines.concat(
-    initFuns.concat(inits.concat(memForward.concat(...commandGroups)))
+    initFuns.concat(inits.concat(...commandGroups))
   );
 
   withDefines.locals.clear();
@@ -219,7 +211,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
       return [
         ...valueCode,
-        "local.set $$destruct",
+        "(local.set $$destruct)",
         ...codeGenDestructure(stmt.destruct, getValue, env),
       ];
     case "expr":
@@ -798,19 +790,19 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var stmts: Array<string> = [];
       stmts.push(
         ...[
-          "(i32.const 0)", // Address for our upcoming store instruction
+          "(i32.const 0) ;; to store the updated heap ptr", // Address for our upcoming store instruction
           "(i32.load (i32.const 0))", // Load the dynamic heap head offset
           "(local.set $$string_class)",
           "(i32.load (i32.const 0))",
           `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the k words we just created for fields
-          "(i32.store)", // Save the new heap offset
+          "(i32.store) ;; to store the updated heap ptr", // Save the new heap offset
         ]
       );
       env.classes.get(expr.name).forEach(([offset, initVal], field) =>
         stmts.push(
           ...[
-            `(local.get $$string_class)`,
-            `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
+            `(local.get $$string_class) ;; object address for ${expr.name}`,
+            `(i32.add (i32.const ${offset * 4})) ;; offset for ${field}`, // Calc field offset from heap offset
             ...codeGenLiteral(initVal, env), // Initialize field
             `(i32.store) ;; store for ${field}`, // Put the default field value on the heap
           ]
@@ -821,7 +813,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           "(local.get $$string_class)",
           `(call $${expr.name}$__init__)`, // call __init__
           "(drop)",
-          "(local.get $$string_class)",
+          "(local.get $$string_class) ;; return the address of the constructed object",
         ]
       );
       return stmts;
@@ -864,7 +856,11 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
+      if (expr.field == "$deref") {
+        return [...objStmts, `(i32.load) ;; dereference`];
+      } else {
+        return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
+      }
     case "dict":
       let dictStmts: Array<string> = [];
       //Allocate memory on the heap for hashtable. Currently size is 10
