@@ -664,4 +664,151 @@ describe("defaults", () => {
   );
 
   assert("empty-string-length", `len("")`, PyInt(0));
+
+  assertPrint(
+    "print-string-slicing-basic-one",
+    `
+  print("Design"[2:3])`,
+    ["s"]
+  );
+
+  assertPrint(
+    "print-string-slicing-basic-multiple",
+    `
+  print("Design"[2:4])`,
+    ["si"]
+  );
+
+  assertPrint(
+    "print-string-slicing-basic-from-start",
+    `
+  print("Design"[0:2])`,
+    ["De"]
+  );
+
+  assertPrint(
+    "print-string-slicing-basic-till-end",
+    `
+  print("Design"[2:6])`,
+    ["sign"]
+  );
+
+  assertPrint(
+    "print-string-slicing-from-start-without-start",
+    `
+  print("Design"[:2])`,
+    ["De"]
+  );
+
+  assertPrint(
+    "print-string-slicing-till-end-without-end",
+    `
+  print("Design"[2:])`,
+    ["sign"]
+  );
+
+  assertPrint(
+    "print-string-slicing-full-without-start-or-end",
+    `
+  print("Design"[:])`,
+    ["Design"]
+  );
+
+  assertPrint(
+    "print-string-slicing-neg-start-pos-end",
+    `
+  print("Design"[-3:5])`,
+    ["ig"]
+  );
+
+  assertPrint(
+    "print-string-slicing-neg-start-till-end",
+    `
+  print("Design"[-3:])`,
+    ["ign"]
+  );
+
+  assertPrint(
+    "print-string-slicing-neg-start-neg-end",
+    `
+  print("Design"[-3:-1])`,
+    ["ig"]
+  );
+
+  assertPrint(
+    "print-string-pos-1-stride-slicing-neg-start-neg-end",
+    `
+  print("Design"[-3:-1:1])`,
+    ["ig"]
+  );
+
+  assertPrint(
+    "print-string-pos-2-stride-slicing-neg-start-neg-end",
+    `
+  print("Design"[0:6:2])`,
+    ["Dsg"]
+  );
+
+  assertPrint(
+    "print-string-pos-3-stride-slicing-neg-start-neg-end",
+    `
+  print("Design"[0:6:3])`,
+    ["Di"]
+  );
+
+  assertPrint(
+    "print-string-empty-start-empty-end-neg-stride",
+    `
+  print("Design"[::-1])`,
+    ["ngiseD"]
+  );
+
+  assertPrint(
+    "print-string-neg-1-stride-slicing-neg-start-neg-end",
+    `
+  print("Design"[-1:-3:-1])`,
+    ["ng"]
+  );
+
+  assertPrint(
+    "print-string-neg-2-stride-slicing-neg-start-neg-end",
+    `
+  print("Design"[-1:-6:-2])`,
+    ["nie"]
+  );
+
+  assertPrint(
+    "print-string-neg-3-stride-slicing-neg-start-empty-end",
+    `
+  print("Design"[-1::-3])`,
+    ["ns"]
+  );
+
+  assertPrint(
+    "print-string-pos-stride-slicing-end>length",
+    `
+  print("Design"[0:20:1])`,
+    ["Design"]
+  );
+
+  assertPrint(
+    "print-string-neg-stride-slicing-start>=length",
+    `
+  print("Design"[25:3:-1])`,
+    ["ng"]
+  );
+
+  assertPrint(
+    "print-string-pos-stride-slicing-start>=end",
+    `
+  print("Design"[4:2:1])`,
+    [""]
+  );
+
+  assertPrint(
+    "print-string-neg-stride-slicing-end>=start",
+    `
+  print("Design"[2:4:-1])`,
+    [""]
+  );
 });
