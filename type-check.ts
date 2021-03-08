@@ -477,7 +477,7 @@ export function tcStmt(
       return { a: [NONE, stmt.a], tag: "break", depth: locals.loop_depth };
     case "continue":
       if (locals.loop_depth < 1) {
-        throw new BaseException.CompileError(stmt.a, "Continue outside a loop.");
+        throw new BaseException.SyntaxError(stmt.a, "Continue outside a loop.");
       }
       const depth = locals.loop_depth - 1;
       return { a: [NONE, stmt.a], tag: "continue", depth: depth };
