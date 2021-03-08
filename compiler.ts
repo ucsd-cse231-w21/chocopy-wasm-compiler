@@ -840,7 +840,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
             return valStmts;
           case 2:
             var valStmts = [`(i32.const 0)`];
-            valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
             valStmts.push(`(call $${expr.name})`);
             return valStmts;
           case 3:
