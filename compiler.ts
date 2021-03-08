@@ -357,7 +357,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
           (block
             (loop
 
-              (br_if 1 (${Code_cond.join("\n")}))
+              (br_if 1 (${Code_cond.join("\n")} ${decodeLiteral.join("\n")}))
 
               ${Code_ass.join("\n")}
               ${bodyStmts.join("\n")}
@@ -365,8 +365,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
               ${Code_idstep.join("\n")}
 
               (br 0)
-          ))`,
-            `(${Code_cond.join("\n")})(call $print_bool)`,
+          ))`
         ];
       }
       // iterable should be a Range object
@@ -384,14 +383,13 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         (block
           (loop
             (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
-            
+
             ${Code_ass.join("\n")}
             ${bodyStmts.join("\n")}
             ${Code_step.join("\n")}
 
             (br 0)
-        ))`,
-        ,
+        ))`
       ];
     case "pass":
       return [];
