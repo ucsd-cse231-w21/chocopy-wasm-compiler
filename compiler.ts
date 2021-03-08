@@ -15,7 +15,7 @@ import {
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { MemoryManager, TAG_CLASS, TAG_DICT } from "./alloc";
+import { MemoryManager, TAG_CLASS, TAG_DICT, TAG_STRING } from "./alloc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -1161,10 +1161,17 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number
 function allocateStringMemory(string_val: string): Array<string> {
   const stmts = [];
   var i = 1;
-  //Storing the length of the string at the beginning
+  // NOTE(alex:mm): It looks like characters are stored in 4 bytes?
+  const allocSizeBytes = (string_val.length + 1) * 4;
+  // Storing the length of the string at the beginning
+  // TODO(alex:mm): Where is the length storing code?
   stmts.push(
     ...[
-      `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+      `(i32.const ${Number(TAG_STRING)})  ;; heap-tag: string`,
+      `(i32.const ${allocSizeBytes})`,
+      `(call $gcalloc)`,
+      `(local.set $$allocPointer)`,
+      `(local.get $$allocPointer)`,
       `(i32.const ${string_val.length - 1})`, // Store ASCII value for 0 (end of string)
       "(i32.store)", // Store the ASCII value 0 in the new address
     ]
@@ -1173,7 +1180,7 @@ function allocateStringMemory(string_val: string): Array<string> {
     const char_ascii = string_val.charCodeAt(i - 1);
     stmts.push(
       ...[
-        `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+        `(local.get $$allocPointer)`,
         `(i32.add (i32.const ${i * 4}))`, // Calc string index offset from heap offset
         `(i32.const ${char_ascii})`, // Store the ASCII value of the string index
         "(i32.store)", // Store the ASCII value in the new address
@@ -1182,11 +1189,7 @@ function allocateStringMemory(string_val: string): Array<string> {
     i += 1;
   }
   return stmts.concat([
-    "(i32.load (i32.const 0))", // Get address for the first character of the string
-    "(i32.const 0)", // Address for our upcoming store instruction
-    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-    `(i32.add (i32.const ${(string_val.length + 1) * 4}))`, // Move heap head beyond the string length + 1(len at beginning)
-    "(i32.store)", // Save the new heap offset
+    `(local.get $$allocPointer)`,   // return the allocated pointer
   ]);
 }
 
