@@ -895,22 +895,29 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
+
+        // NOTE(alex:mm): necessary in order to root the return value
+        callExpr.push(`(call $pushCaller)`);
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
           }) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
         );
+        callExpr.push(`(call $popCaller)`);
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
         callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $funPtr`);
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
+        // NOTE(alex:mm): necessary in order to root the return value
+        callExpr.push(`(call $pushCaller)`);
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
           }) (i32.load (i32.load (local.get $${funName}))))`
         );
+        callExpr.push(`(call $popCaller)`);
       } else {
         throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);
       }
