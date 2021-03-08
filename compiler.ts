@@ -474,6 +474,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           return unreachable(expr);
       }
     case "call":
+      if(expr.name === "dict"){   //dict constructor call
+        return codeGenExpr(expr.arguments[0], env);     //call code gen for the dict argument 
+      }                                         
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;

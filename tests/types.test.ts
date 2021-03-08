@@ -174,4 +174,12 @@ describe("tc", () => {
   a = {}
   a[8] = True`
   );
+
+  assertTCFail(
+    "dict-bad-constructor-init",
+    `
+  a:[int,int]=None
+  a = dict(1)`
+  );
+
 });

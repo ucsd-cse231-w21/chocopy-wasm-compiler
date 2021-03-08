@@ -370,9 +370,24 @@ while False:
   );
 
   assert(
+    "empty-dict-constructor init",
+    `d:[int, int] = None
+          d = dict({})`,
+    PyNone()
+  );
+
+  assert(
     "key-val-pair-dict-init",
     `d:[int, int] = None
           d = {1:2}
+          `,
+    PyNone()
+  );
+
+  assert(
+    "key-val-pair-dict-constructor-init",
+    `d:[int, int] = None
+          d = dict({1:2, 3:4})
           `,
     PyNone()
   );
