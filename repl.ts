@@ -63,6 +63,6 @@ export class BasicREPL {
     };
     const parsed = parse(source);
     const [result, _] = await tc(this.currentTypeEnv, parsed);
-    return result.a;
+    return result.a[0];
   }
 }

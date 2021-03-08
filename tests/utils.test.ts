@@ -1,7 +1,7 @@
 import "mocha";
 import { expect } from "chai";
 import { BasicREPL } from "../repl";
-import { Value } from "../ast";
+import { Value, Location } from "../ast";
 import { importObject } from "./import-object.test";
 import { fail } from "assert";
 
@@ -89,16 +89,25 @@ export function assertTCFail(name: string, source: string) {
   });
 }
 
-export function singleVarAssignment<T>(name: string, value: T) {
+export function singleVarAssignment<T>(
+  name: string,
+  value: T,
+  loc1: Location,
+  loc2: Location,
+  loc3: Location
+) {
   return {
+    a: loc3,
     tag: "assignment",
     destruct: {
+      valueType: loc1,
       isDestructured: false,
       targets: [
         {
           ignore: false,
           starred: false,
           target: {
+            a: loc2,
             name,
             tag: "id",
           },
