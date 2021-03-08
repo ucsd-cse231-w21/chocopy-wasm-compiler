@@ -285,7 +285,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var Code_stop = codeGenExpr(Expr_stop, env);
 
       var Expr_step: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "step" };
-      var Code_step = codeGenExpr(Expr_step, env);
+      var Code_step_expr = codeGenExpr(Expr_step, env);
 
       // name = cur
       var ass: Stmt<Type> = {
@@ -376,10 +376,10 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         ${iter.join("\n")}
         (i32.store)
 
-        ${Code_cond.join("\n")}(call $print_bool)
+        ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
         ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
         ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
-        ${Code_step.join("\n")}(call $print_num)(local.set $$last)
+        ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
 
         (block
           (loop
@@ -838,14 +838,14 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       if (expr.name === "range") {
         switch (expr.arguments.length) {
           case 1:
-            var valStmts = [`(i32.const 0)`];
+            var valStmts = [`(i32.const 1)`];
             valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
-            valStmts.push(`(i32.const 1)`);
+            valStmts.push(`(i32.const 3)`);
             valStmts.push(`(call $${expr.name})`);
             console.log("1var",valStmts)
             return valStmts;
           case 2:
-            var valStmts = [`(i32.const 0)`];
+            var valStmts = [`(i32.const 1)`];
             valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
             valStmts.push(`(call $${expr.name})`);
             console.log("2var",valStmts)
