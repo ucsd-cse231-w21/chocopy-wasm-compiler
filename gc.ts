@@ -175,14 +175,27 @@ export class RootSet {
   //
   tempsStack: Array<Set<Pointer>>;
 
+  // Holds the temporary set of a function call expression
+  tempPlacementStack: Array<number>;
+
   constructor(memory: Uint8Array) {
     this.memory = memory;
 
     this.globals = new Set();
     this.localsStack = [];
     this.tempsStack = [];
+    this.tempPlacementStack = [];
 
     this.captureTempsFlag = false;
+  }
+
+  returnTemp(value: bigint) {
+    if (this.tempPlacementStack.length === 0) {
+      throw new Error("Unable to find a temp set to return a value to");
+    }
+
+    const index = this.tempPlacementStack[this.tempPlacementStack.length - 1];
+    this.tempsStack[index].add(value);
   }
 
   addTemp(value: bigint) {
@@ -197,6 +210,16 @@ export class RootSet {
   captureTemps() {
     this.captureTempsFlag = true;
     this.tempsStack.push(new Set());
+  }
+
+  pushCaller() {
+    this.tempPlacementStack.push(this.tempsStack.length - 1);
+  }
+
+  popCaller() {
+    if (this.tempPlacementStack.pop() === undefined) {
+      throw new Error("Popping an empty temp placement stack");
+    }
   }
 
   releaseTemps() {

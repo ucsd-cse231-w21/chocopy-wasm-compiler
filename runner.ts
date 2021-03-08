@@ -93,7 +93,10 @@ export async function run(
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
 
     (func $gcalloc (import "imports" "gcalloc") (param i32) (param i32) (result i32))
+    (func $pushCaller (import "imports" "pushCaller"))
+    (func $popCaller (import "imports" "popCaller"))
     (func $addTemp (import "imports" "addTemp") (param i32) (result i32))
+    (func $returnTemp (import "imports" "returnTemp") (param i32) (result i32))
     (func $captureTemps (import "imports" "captureTemps"))
     (func $releaseTemps (import "imports" "releaseTemps"))
     (func $pushFrame (import "imports" "pushFrame"))
