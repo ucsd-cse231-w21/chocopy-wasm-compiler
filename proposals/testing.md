@@ -55,10 +55,10 @@ broken up into any number of logical components, but only at the statement level
 that each component is also a valid eChocoPy program in the presence of a REPL. Then, we will compare
 the result of evaluating components sequentially in the REPL with evaluating components cumulatively in
 Python-that is, if we want to evaluate component 3, we would feed component 3 to the REPL, but feed
-the concatenation of components 1,2,3 to Python. Additionally, we will use the 
-[Cypress](https://www.cypress.io/) testing framework to test our generated programs in the context of 
+the concatenation of components 1,2,3 to Python. Additionally, we will use the
+[Cypress](https://www.cypress.io/) testing framework to test our generated programs in the context of
 the REPL webpage, as well as expose the Cypress interface
-to other groups to allow them to write their own Cypress tests. We chose Cypress over Selenium due to 
+to other groups to allow them to write their own Cypress tests. We chose Cypress over Selenium due to
 Edward's previous experience with Cypress.
 
 ## Evaluation/Functionality
@@ -74,7 +74,7 @@ Our program generation grammar will include:
 - Binary operations
 - Unary operations
 - Functions
-  - Function Defintion
+  - Function Definition
   - Function Call
 - Classes
   - Class Definition
@@ -90,7 +90,7 @@ compile the Python program to WASM, and evaluate the stdout/stderr of each subpr
 To create subprocesses from TypeScript, we plan to use [python-shell](https://github.com/extrabacon/python-shell).
 
 Users will still be able to write and run local unit tests via `npm run test`.
-Our fuzzing framework will instead be avaiable with `npm run fuzz`. This testing
+Our fuzzing framework will instead be available with `npm run fuzz`. This testing
 script will continually generate new programs of interest, evaluate the
 programs, and write the evaluation results to a file. These programs will be evaluated using
 Cypress, and will likely run continuously in an AWS instance.
@@ -110,7 +110,7 @@ The subset of our AST we plan to finish includes everything but _Classes_:
 - Binary operations
 - Unary operations
 - Functions
-  - Function Defintion
+  - Function Definition
   - Function Call
 
 ## References

@@ -3,6 +3,7 @@ import { GlobalEnv, libraryFuns } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
+import { bignumfunctions } from "./bignumfunctions";
 
 interface REPL {
   run(source: string): Promise<any>;
@@ -27,6 +28,7 @@ export class BasicREPL {
       classes: new Map(),
       locals: new Set(),
       offset: 1,
+      funs: new Map(),
     };
 
     // initialization for range() calss and its constructor.
@@ -37,7 +39,7 @@ export class BasicREPL {
     this.currentEnv.classes.set("Range", classFields);
 
     this.currentTypeEnv = defaultTypeEnv;
-    this.functions = libraryFuns();
+    this.functions = libraryFuns() + "\n\n" + bignumfunctions;
   }
   async run(source: string): Promise<Value> {
     const config: Config = {
@@ -61,6 +63,6 @@ export class BasicREPL {
     };
     const parsed = parse(source);
     const [result, _] = await tc(this.currentTypeEnv, parsed);
-    return result.a;
+    return result.a[0];
   }
 }

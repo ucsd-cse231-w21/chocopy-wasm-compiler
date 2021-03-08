@@ -7,9 +7,16 @@ export type Type =
   | { tag: "none" }
   | { tag: "string" }
   | { tag: "class"; name: string }
-  | { tag: "callable"; args: Array<Type>; ret: Type }
   | { tag: "list"; content_type: Type }
-  | { tag: "dict"; key: Type; value: Type };
+  | { tag: "dict"; key: Type; value: Type }
+  | CallableType;
+
+export type CallableType = {
+  tag: "callable";
+  args: Array<Parameter>;
+  ret: Type;
+  isVar?: boolean; // is a variable
+};
 
 export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support
@@ -23,6 +30,7 @@ export type Program<A> = {
   inits: Array<VarInit<A>>;
   classes: Array<Class<A>>;
   stmts: Array<Stmt<A>>;
+  closures: Array<ClosureDef<A>>;
 };
 
 export type Class<A> = {
@@ -45,11 +53,17 @@ export type FunDef<A> = {
   body: Array<Stmt<A>>;
 };
 
-export type Closure<A> = {
+/** Compiled as a function in wasm */
+export type ClosureDef<A> = {
   a?: A;
   name: string;
-  fields: Array<VarInit<A>>;
-  apply: FunDef<A>;
+  parameters: Array<Parameter>; // excluding the nonlocal pointer
+  ret: Type;
+  nonlocals: Array<string>;
+  nested: Array<string>;
+  inits: Array<VarInit<A>>;
+  isGlobal: boolean;
+  body: Array<Stmt<A>>;
 };
 
 export type Stmt<A> =
@@ -109,11 +123,25 @@ export type Expr<A> =
   | { a?: A; tag: "id"; name: string }
   | { a?: A; tag: "lookup"; obj: Expr<A>; field: string }
   // END ASSIGNABLE EXPRS
-  | { a?: A; tag: "method-call"; obj: Expr<A>; method: string; arguments: Array<Expr<A>> }
+  | {
+      a?: A;
+      tag: "method-call";
+      obj: Expr<A>;
+      method: string;
+      arguments: Array<Expr<A>>;
+    }
   | { a?: A; tag: "construct"; name: string }
   | { a?: A; tag: "lambda"; args: Array<string>; ret: Expr<A> }
-  | { a?: A; tag: "comprehension"; expr: Expr<A>; field: string; iter: Expr<A>; cond?: Expr<A> }
+  | {
+      a?: A;
+      tag: "comprehension";
+      expr: Expr<A>;
+      field: string;
+      iter: Expr<A>;
+      cond?: Expr<A>;
+    }
   | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
+  | { a?: A; tag: "call_expr"; name: Expr<A>; arguments: Array<Expr<A>> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
   | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
@@ -150,6 +178,7 @@ export enum UniOp {
 
 export type Value =
   | Literal
+  | { tag: "string"; value: string; address: number }
   | { tag: "object"; name: string; address: number }
   | { tag: "callable"; name: string; address: number };
 

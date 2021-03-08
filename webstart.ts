@@ -1,7 +1,8 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { themeList_export } from "./themelist";
-import { NUM, STRING, BOOL, NONE, unhandledTag } from "./utils";
+import { defaultTypeEnv } from "./type-check";
+import { NUM, BOOL, NONE, STRING, PyValue, unhandledTag } from "./utils";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -13,40 +14,29 @@ import { toEditorSettings } from "typescript";
 
 var mem_js: { memory: any };
 
-function stringify(typ: Type, arg: any): string {
-  switch (typ.tag) {
-    case "number":
-      return (arg as number).toString();
-    case "string":
-      if (arg == -1) throw new Error("String index out of bounds");
-      const view = new Int32Array(mem_js.memory.buffer);
-      let string_length = view[arg / 4] + 1;
-      arg = arg + 4;
-      var i = 0;
-      var full_string = "";
-      while (i < string_length) {
-        let ascii_val = view[arg / 4 + i];
-        var char = String.fromCharCode(ascii_val);
-        full_string += char;
-        i += 1;
-      }
-      return full_string;
+function stringify(result: Value): string {
+  switch (result.tag) {
+    case "num":
+      return result.value.toString();
     case "bool":
-      return (arg as boolean) ? "True" : "False";
+      return result.value ? "True" : "False";
+    case "string":
+      return result.value;
     case "none":
       return "None";
-    case "class":
-      return typ.name;
+    case "object":
+      return `<${result.name} object at ${result.address}`;
     default:
-      unhandledTag(typ);
+      throw new Error(`Could not render value: ${result}`);
   }
 }
 
-function print(typ: Type, arg: number): any {
+function print(typ: Type, arg: number, mem: any): any {
   console.log("Logging from WASM: ", arg);
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
-  elt.innerText = stringify(typ, arg);
+  const val = PyValue(typ, arg, mem);
+  elt.innerText = stringify(val); // stringify(typ, arg, mem);
   return arg;
 }
 
@@ -60,10 +50,15 @@ function webStart() {
 
     var importObject = {
       imports: {
-        print_num: (arg: number) => print(NUM, arg),
-        print_str: (arg: number) => print(STRING, arg),
-        print_bool: (arg: number) => print(BOOL, arg),
-        print_none: (arg: number) => print(NONE, arg),
+        print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_str: (arg: number) =>
+          print(STRING, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_num: (arg: number) =>
+          print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_bool: (arg: number) =>
+          print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print_none: (arg: number) =>
+          print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
         abs: Math.abs,
         min: Math.min,
         max: Math.max,
@@ -85,30 +80,21 @@ function webStart() {
       const elt = document.createElement("pre");
       elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
-      switch (result.tag) {
-        case "num":
-          elt.innerText = String(result.value);
-          break;
-        case "bool":
-          elt.innerHTML = result.value ? "True" : "False";
-          break;
-        case "object":
-          if (result.name == "String") {
-            elt.innerText = stringify(STRING, result.address);
-          } else {
-            elt.innerHTML = `<${result.name} object at ${result.address}`;
-          }
-          break;
-        default:
-          throw new Error(`Could not render value: ${result}`);
-      }
+      elt.innerText = stringify(result);
     }
 
-    function renderError(result: any): void {
+    function renderError(result: any, source: string): void {
       const elt = document.createElement("pre");
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
-      elt.innerText = String(result);
+      var text = "";
+      if (result.loc != undefined){
+        text = `line ${result.loc.line}: ${source
+          .split(/\r?\n/)
+          [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
+        highlightLine(result.loc.line - 1, result.message);
+      }
+      elt.innerText = text.concat("\n").concat(String(result));
     }
 
     function setupRepl() {
@@ -137,7 +123,7 @@ function webStart() {
               console.log("run finished");
             })
             .catch((e) => {
-              renderError(e);
+              renderError(e, source);
               console.log("run failed", e);
             });
         }
@@ -159,8 +145,8 @@ function webStart() {
           console.log("run finished");
         })
         .catch((e) => {
-          renderError(e);
-          console.log("run failed", e);
+          renderError(e, source.value);
+          console.log("run failed", e.stack);
         });
     });
 
@@ -267,11 +253,11 @@ function webStart() {
   });
 }
 // Simple helper to highlight line given line number
-function highlightLine(actualLineNumber: number): void {
+function highlightLine(actualLineNumber: number, msg: string): void {
   var ele = document.querySelector(".CodeMirror") as any;
   var editor = ele.CodeMirror;
   //Set line CSS class to the line number & affecting the background of the line with the css class of line-error
-  editor.setGutterMarker(actualLineNumber, "error", makeMarker("test error message"));
+  editor.setGutterMarker(actualLineNumber, "error", makeMarker(msg));
   editor.addLineClass(actualLineNumber, "background", "line-error");
 }
 function makeMarker(msg: any): any {
