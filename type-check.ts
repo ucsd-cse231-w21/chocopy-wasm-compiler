@@ -463,18 +463,19 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         } else {
           throw new TypeError("Function call type mismatch: " + expr.name);
         }
-      } else if(expr.name === "dict") {
-           if (expr.arguments.length !== 1){
-            throw new TypeError("Expected only 1 argument in function call: " + expr.name);
-           }
-           let tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-           let tRet = tArg[0].a;         //dict constructor will take only 1 argument
-           if (tArg[0].a.tag !== "dict"){
-            throw new TypeError("Function call type mismatch: " + expr.name + ". Expected dict type as argument.");
-           }
-           return { ...expr, a: tRet, arguments: tArg };
-      }
-      else {
+      } else if (expr.name === "dict") {
+        if (expr.arguments.length !== 1) {
+          throw new TypeError("Expected only 1 argument in function call: " + expr.name);
+        }
+        let tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
+        let tRet = tArg[0].a; //dict constructor will take only 1 argument
+        if (tArg[0].a.tag !== "dict") {
+          throw new TypeError(
+            "Function call type mismatch: " + expr.name + ". Expected dict type as argument."
+          );
+        }
+        return { ...expr, a: tRet, arguments: tArg };
+      } else {
         throw new TypeError("Undefined function: " + expr.name);
       }
     case "lookup":
