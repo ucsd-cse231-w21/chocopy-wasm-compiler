@@ -5,20 +5,20 @@ describe("FOR LOOP TEST", () => {
   //Programs described in the writeup, with additional changes
   //as necessary to actually test functionality
   assert(
-    "for range(0)",
+    "for range(5)",
     `
     i:int = 0
     for i in range(5):
         print(i)
     i
     `,
-    PyInt(-1)
+    PyInt(4)
   );
 
   assert(
     "for range(10)",
     `
-    i:int = -1
+    i:int = 0
     for i in range(10):
         print(i)
     i
@@ -39,7 +39,7 @@ describe("FOR LOOP TEST", () => {
   assert(
     "break at 5",
     `
-    i:int = -1
+    i:int = 0
     for i in range(10):
         print(i)
         if i == 5:
