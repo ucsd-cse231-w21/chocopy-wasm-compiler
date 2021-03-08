@@ -33,6 +33,11 @@ describe("traverseExpr(c, s) function", () => {
 
     // Note: we have to use deep equality when comparing objects
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 3,
+        line: 1,
+      },
       tag: "literal",
       value: {
         tag: "num",
@@ -50,6 +55,11 @@ describe("traverseExpr(c, s) function", () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 4,
+        line: 1,
+      },
       tag: "literal",
       value: { tag: "none" },
     });
@@ -63,9 +73,22 @@ describe("traverseExpr(c, s) function", () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 8,
+        line: 1,
+      },
       tag: "uniop",
       op: UniOp.Not,
-      expr: { tag: "literal", value: { tag: "bool", value: true } },
+      expr: {
+        a: {
+          col: 4,
+          length: 4,
+          line: 1,
+        },
+        tag: "literal",
+        value: { tag: "bool", value: true },
+      },
     });
   });
 
@@ -77,10 +100,31 @@ describe("traverseExpr(c, s) function", () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 5,
+        line: 1,
+      },
       tag: "binop",
       op: BinOp.Minus,
-      left: { tag: "literal", value: { tag: "num", value: BigInt(7) } },
-      right: { tag: "literal", value: { tag: "num", value: BigInt(3) } },
+      left: {
+        a: {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        tag: "literal",
+        value: { tag: "num", value: BigInt(7) },
+      },
+      right: {
+        a: {
+          col: 4,
+          length: 1,
+          line: 1,
+        },
+        tag: "literal",
+        value: { tag: "num", value: BigInt(3) },
+      },
     });
   });
 
@@ -93,10 +137,39 @@ describe("traverseExpr(c, s) function", () => {
 
     expect(parsedExpr).to.deep.equal({
       tag: "list-expr",
+      a: {
+        col: 0,
+        length: 9,
+        line: 1,
+      },
       contents: [
-        { tag: "literal", value: { tag: "num", value: BigInt(1) } },
-        { tag: "literal", value: { tag: "num", value: BigInt(2) } },
-        { tag: "literal", value: { tag: "num", value: BigInt(3) } },
+        {
+          a: {
+            col: 1,
+            length: 1,
+            line: 1,
+          },
+          tag: "literal",
+          value: { tag: "num", value: BigInt(1) },
+        },
+        {
+          a: {
+            col: 4,
+            length: 1,
+            line: 1,
+          },
+          tag: "literal",
+          value: { tag: "num", value: BigInt(2) },
+        },
+        {
+          a: {
+            col: 7,
+            length: 1,
+            line: 1,
+          },
+          tag: "literal",
+          value: { tag: "num", value: BigInt(3) },
+        },
       ],
     });
   });
@@ -110,9 +183,30 @@ describe("traverseExpr(c, s) function", () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 8,
+        line: 1,
+      },
       tag: "bracket-lookup",
-      obj: { tag: "id", name: "items" },
-      key: { tag: "literal", value: { tag: "num", value: BigInt(6) } },
+      obj: {
+        a: {
+          col: 0,
+          length: 5,
+          line: 1,
+        },
+        tag: "id",
+        name: "items",
+      },
+      key: {
+        a: {
+          col: 6,
+          length: 1,
+          line: 1,
+        },
+        tag: "literal",
+        value: { tag: "num", value: BigInt(6) },
+      },
     });
   });
 });
@@ -153,7 +247,23 @@ describe("parse(source) function", () => {
   it("parse a number", () => {
     const parsed = parse("987");
     expect(parsed.stmts).to.deep.equal([
-      { tag: "expr", expr: { tag: "literal", value: { tag: "num", value: BigInt(987) } } },
+      {
+        a: {
+          col: 0,
+          length: 3,
+          line: 1,
+        },
+        tag: "expr",
+        expr: {
+          a: {
+            col: 0,
+            length: 3,
+            line: 1,
+          },
+          tag: "literal",
+          value: { tag: "num", value: BigInt(987) },
+        },
+      },
     ]);
   });
 });
@@ -193,48 +303,162 @@ describe("parse(source) function", () => {
   it("parse an empty dict expression", () => {
     const parsed = parse("d = {}");
     expect(parsed.stmts).to.deep.equal([
-      singleVarAssignment("d", {
-        tag: "dict",
-        entries: [],
-      }),
+      singleVarAssignment(
+        "d",
+        {
+          a: {
+            col: 4,
+            length: 2,
+            line: 1,
+          },
+          tag: "dict",
+          entries: [],
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 6,
+          line: 1,
+        }
+      ),
     ]);
   });
 
   it("parse a dict expression", () => {
     const parsed = parse("d = {2:True}");
     expect(parsed.stmts).to.deep.equal([
-      singleVarAssignment("d", {
-        tag: "dict",
-        entries: [
-          [
-            { tag: "literal", value: { tag: "num", value: 2n } },
-            { tag: "literal", value: { tag: "bool", value: true } },
+      singleVarAssignment(
+        "d",
+        {
+          a: {
+            col: 4,
+            length: 8,
+            line: 1,
+          },
+          tag: "dict",
+          entries: [
+            [
+              {
+                a: {
+                  col: 5,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "num", value: 2n },
+              },
+              {
+                a: {
+                  col: 7,
+                  length: 4,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "bool", value: true },
+              },
+            ],
           ],
-        ],
-      }),
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 12,
+          line: 1,
+        }
+      ),
     ]);
   });
 
   it("parse a nested dict expression", () => {
     const parsed = parse("d = {2:{4:True}}");
     expect(parsed.stmts).to.deep.equal([
-      singleVarAssignment("d", {
-        tag: "dict",
-        entries: [
-          [
-            { tag: "literal", value: { tag: "num", value: 2n } },
-            {
-              tag: "dict",
-              entries: [
-                [
-                  { tag: "literal", value: { tag: "num", value: 4n } },
-                  { tag: "literal", value: { tag: "bool", value: true } },
+      singleVarAssignment(
+        "d",
+        {
+          a: {
+            col: 4,
+            length: 12,
+            line: 1,
+          },
+          tag: "dict",
+          entries: [
+            [
+              {
+                a: {
+                  col: 5,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "num", value: 2n },
+              },
+              {
+                tag: "dict",
+                a: {
+                  col: 7,
+                  length: 8,
+                  line: 1,
+                },
+                entries: [
+                  [
+                    {
+                      a: {
+                        col: 8,
+                        length: 1,
+                        line: 1,
+                      },
+                      tag: "literal",
+                      value: { tag: "num", value: 4n },
+                    },
+                    {
+                      a: {
+                        col: 10,
+                        length: 4,
+                        line: 1,
+                      },
+                      tag: "literal",
+                      value: { tag: "bool", value: true },
+                    },
+                  ],
                 ],
-              ],
-            },
+              },
+            ],
           ],
-        ],
-      }),
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 16,
+          line: 1,
+        }
+      ),
     ]);
   });
 
@@ -262,6 +486,11 @@ describe("parse(source) function", () => {
         `);
     expect(parsed.funs).to.deep.equal([
       {
+        a: {
+          col: 13,
+          length: 110,
+          line: 2,
+        },
         name: "f",
         parameters: [{ name: "x", type: { tag: "number" } }],
         ret: { tag: "number" },
@@ -269,19 +498,64 @@ describe("parse(source) function", () => {
         inits: [],
         funs: [
           {
+            a: {
+              col: 17,
+              length: 45,
+              line: 3,
+            },
             name: "g",
             parameters: [],
             ret: { tag: "number" },
             decls: [],
             inits: [],
             funs: [],
-            body: [{ tag: "return", value: { tag: "id", name: "x" } }],
+            body: [
+              {
+                a: {
+                  col: 21,
+                  length: 8,
+                  line: 4,
+                },
+                tag: "return",
+                value: {
+                  a: {
+                    col: 28,
+                    length: 1,
+                    line: 4,
+                  },
+                  tag: "id",
+                  name: "x",
+                },
+              },
+            ],
           },
         ],
         body: [
           {
+            a: {
+              col: 17,
+              length: 10,
+              line: 5,
+            },
             tag: "return",
-            value: { tag: "call_expr", name: { tag: "id", name: "g" }, arguments: [] },
+            value: {
+              a: {
+                col: 24,
+                length: 3,
+                line: 5,
+              },
+              tag: "call_expr",
+              name: {
+                a: {
+                  col: 24,
+                  length: 3,
+                  line: 5,
+                },
+                tag: "id",
+                name: "g",
+              },
+              arguments: [],
+            },
           },
         ],
       },
@@ -300,6 +574,11 @@ describe("parse(source) function", () => {
         `);
     expect(parsed.funs).to.deep.equal([
       {
+        a: {
+          col: 13,
+          length: 208,
+          line: 2,
+        },
         name: "f",
         parameters: [{ name: "x", type: { tag: "number" } }],
         ret: { tag: "callable", args: [], ret: { tag: "bool" } },
@@ -307,27 +586,90 @@ describe("parse(source) function", () => {
         inits: [],
         funs: [
           {
+            a: {
+              col: 17,
+              length: 34,
+              line: 3,
+            },
             name: "k",
             parameters: [],
             ret: { tag: "none" },
             decls: [],
             inits: [],
             funs: [],
-            body: [{ tag: "pass" }],
+            body: [
+              {
+                a: {
+                  col: 21,
+                  length: 4,
+                  line: 4,
+                },
+                tag: "pass",
+              },
+            ],
           },
           {
+            a: {
+              col: 17,
+              length: 80,
+              line: 5,
+            },
             name: "g",
             parameters: [],
             ret: { tag: "bool" },
-            decls: [{ tag: "nonlocal", name: "x" }],
+            decls: [
+              {
+                a: {
+                  col: 21,
+                  length: 10,
+                  line: 6,
+                },
+                tag: "nonlocal",
+                name: "x",
+              },
+            ],
             inits: [],
             funs: [],
             body: [
-              { tag: "return", value: { tag: "literal", value: { tag: "bool", value: true } } },
+              {
+                a: {
+                  col: 21,
+                  length: 11,
+                  line: 7,
+                },
+                tag: "return",
+                value: {
+                  a: {
+                    col: 28,
+                    length: 4,
+                    line: 7,
+                  },
+                  tag: "literal",
+                  value: { tag: "bool", value: true },
+                },
+              },
             ],
           },
         ],
-        body: [{ tag: "return", value: { tag: "id", name: "g" } }],
+        body: [
+          {
+            a: {
+              col: 17,
+              length: 8,
+              line: 8,
+            },
+            tag: "return",
+            value: {
+              a: {
+                col: 24,
+                length: 1,
+                line: 8,
+              },
+              tag: "id",
+              name: "g",
+            },
+          },
+        ],
       },
     ]);
   });
@@ -336,15 +678,67 @@ describe("parse(source) function", () => {
     const parsed = parse(`id(f())(5)`);
     expect(parsed.stmts).to.deep.equal([
       {
+        a: {
+          col: 0,
+          length: 10,
+          line: 1,
+        },
         tag: "expr",
         expr: {
+          a: {
+            col: 0,
+            length: 10,
+            line: 1,
+          },
           tag: "call_expr",
           name: {
+            a: {
+              col: 0,
+              length: 7,
+              line: 1,
+            },
             tag: "call_expr",
-            name: { tag: "id", name: "id" },
-            arguments: [{ tag: "call_expr", name: { tag: "id", name: "f" }, arguments: [] }],
+            name: {
+              a: {
+                col: 0,
+                length: 7,
+                line: 1,
+              },
+              tag: "id",
+              name: "id",
+            },
+            arguments: [
+              {
+                a: {
+                  col: 3,
+                  length: 3,
+                  line: 1,
+                },
+                tag: "call_expr",
+                name: {
+                  a: {
+                    col: 3,
+                    length: 3,
+                    line: 1,
+                  },
+                  tag: "id",
+                  name: "f",
+                },
+                arguments: [],
+              },
+            ],
           },
-          arguments: [{ tag: "literal", value: { tag: "num", value: 5n } }],
+          arguments: [
+            {
+              a: {
+                col: 8,
+                length: 1,
+                line: 1,
+              },
+              tag: "literal",
+              value: { tag: "num", value: 5n },
+            },
+          ],
         },
       },
     ]);
@@ -354,11 +748,49 @@ describe("parse(source) function", () => {
     const parsed = parse(`a.id()(5)`);
     expect(parsed.stmts).to.deep.equal([
       {
+        a: {
+          col: 0,
+          length: 9,
+          line: 1,
+        },
         tag: "expr",
         expr: {
           tag: "call_expr",
-          name: { tag: "method-call", obj: { tag: "id", name: "a" }, method: "id", arguments: [] },
-          arguments: [{ tag: "literal", value: { tag: "num", value: 5n } }],
+          name: {
+            a: {
+              col: 0,
+              length: 6,
+              line: 1,
+            },
+            tag: "method-call",
+            obj: {
+              a: {
+                col: 0,
+                length: 1,
+                line: 1,
+              },
+              tag: "id",
+              name: "a",
+            },
+            method: "id",
+            arguments: [],
+          },
+          a: {
+            col: 0,
+            length: 9,
+            line: 1,
+          },
+          arguments: [
+            {
+              a: {
+                col: 7,
+                length: 1,
+                line: 1,
+              },
+              tag: "literal",
+              value: { tag: "num", value: 5n },
+            },
+          ],
         },
       },
     ]);
@@ -368,15 +800,46 @@ describe("parse(source) function", () => {
     const parsed = parse(`lambda a : a + 10`);
     expect(parsed.stmts).to.deep.equal([
       {
+        a: {
+          col: 0,
+          length: 17,
+          line: 1,
+        },
         tag: "expr",
         expr: {
+          a: {
+            col: 0,
+            length: 17,
+            line: 1,
+          },
           tag: "lambda",
           args: ["a"],
           ret: {
+            a: {
+              col: 11,
+              length: 6,
+              line: 1,
+            },
             tag: "binop",
             op: BinOp.Plus,
-            left: { tag: "id", name: "a" },
-            right: { tag: "literal", value: { tag: "num", value: 10n } },
+            left: {
+              a: {
+                col: 11,
+                length: 1,
+                line: 1,
+              },
+              tag: "id",
+              name: "a",
+            },
+            right: {
+              a: {
+                col: 15,
+                length: 2,
+                line: 1,
+              },
+              tag: "literal",
+              value: { tag: "num", value: 10n },
+            },
           },
         },
       },
@@ -387,11 +850,29 @@ describe("parse(source) function", () => {
     const parsed = parse(`lambda a, b, c : 10`);
     expect(parsed.stmts).to.deep.equal([
       {
+        a: {
+          col: 0,
+          length: 19,
+          line: 1,
+        },
         tag: "expr",
         expr: {
+          a: {
+            col: 0,
+            length: 19,
+            line: 1,
+          },
           tag: "lambda",
           args: ["a", "b", "c"],
-          ret: { tag: "literal", value: { tag: "num", value: 10n } },
+          ret: {
+            a: {
+              col: 17,
+              length: 2,
+              line: 1,
+            },
+            tag: "literal",
+            value: { tag: "num", value: 10n },
+          },
         },
       },
     ]);

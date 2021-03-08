@@ -11,6 +11,7 @@ import {
   VarInit,
   Class,
   Destructure,
+  Location,
   Assignable,
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
@@ -48,7 +49,7 @@ export const encodeLiteral: Array<string> = [
 
 export const decodeLiteral: Array<string> = [`(i32.const ${nTagBits})`, "(i32.shr_s)"];
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
+export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
   const newFuns = new Map(env.funs);
@@ -136,8 +137,7 @@ export function makeId<A>(a: A, x: string): Destructure<A> {
   };
 }
 
-export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
-  console.log("program", ast);
+export function compile(ast: Program<[Type, Location]>, env: GlobalEnv): CompileResult {
   const withDefines = augmentEnv(env, ast);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
@@ -213,14 +213,17 @@ function myMemForward(n: number): Array<string> {
 }
 
 function envLookup(env: GlobalEnv, name: string): number {
+  //if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
   if (!env.globals.has(name)) {
     console.log("Could not find " + name + " in ", env);
-    throw new Error("Could not find name " + name);
+    throw new BaseException.InternalException(
+      "Report this as a bug to the compiler developer, this shouldn't happen "
+    );
   }
   return env.globals.get(name) * 4; // 4-byte values
 }
 
-function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
+function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string> {
   switch (stmt.tag) {
     // case "fun":
     //   const definedVars = getLocals(stmt.body);
@@ -277,35 +280,54 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var iter = codeGenExpr(stmt.iterable, env);
 
-      var rgExpr: Expr<Type> = { a: CLASS("Range"), tag: "id", name: "rg" };
-      var Expr_cur: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "cur" };
+      var rgExpr: Expr<[Type, Location]> = {
+        a: [CLASS("Range"), stmt.a[1]],
+        tag: "id",
+        name: "rg",
+      };
+      var Expr_cur: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
+        tag: "lookup",
+        obj: rgExpr,
+        field: "cur",
+      };
       var Code_cur = codeGenExpr(Expr_cur, env);
 
-      var Expr_stop: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "stop" };
+      var Expr_stop: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
+        tag: "lookup",
+        obj: rgExpr,
+        field: "stop",
+      };
       var Code_stop = codeGenExpr(Expr_stop, env);
 
-      var Expr_step: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "step" };
+      var Expr_step: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
+        tag: "lookup",
+        obj: rgExpr,
+        field: "step",
+      };
       var Code_step = codeGenExpr(Expr_step, env);
 
       // name = cur
-      var ass: Stmt<Type> = {
-        a: NONE,
+      var ass: Stmt<[Type, Location]> = {
+        a: [NONE, stmt.a[1]],
         tag: "assignment",
-        destruct: makeId(NUM, stmt.name),
+        destruct: makeId([NUM, stmt.a[1]], stmt.name),
         value: Expr_cur,
       };
       var Code_ass = codeGenStmt(ass, env);
 
       // add step to cur
-      var ncur: Expr<Type> = {
-        a: NUM,
+      var ncur: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
         tag: "binop",
         op: BinOp.Plus,
         left: Expr_cur,
         right: Expr_step,
       };
-      var step: Stmt<Type> = {
-        a: NONE,
+      var step: Stmt<[Type, Location]> = {
+        a: [NONE, stmt.a[1]],
         tag: "field-assign",
         obj: rgExpr,
         field: "cur",
@@ -314,8 +336,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var Code_step = codeGenStmt(step, env);
 
       // stop condition cur<step
-      var Expr_cond: Expr<Type> = {
-        a: BOOL,
+      var Expr_cond: Expr<[Type, Location]> = {
+        a: [BOOL, stmt.a[1]],
         tag: "binop",
         op: BinOp.Gte,
         left: Expr_cur,
@@ -325,25 +347,25 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
       // if have index
       if (stmt.index) {
-        var iass: Stmt<Type> = {
-          a: NONE,
+        var iass: Stmt<[Type, Location]> = {
+          a: [NONE, stmt.a[1]],
           tag: "assignment",
-          destruct: makeId(NUM, stmt.index),
-          value: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(0) } },
+          destruct: makeId([NUM, stmt.a[1]], stmt.index),
+          value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(0) } },
         };
         var Code_iass = codeGenStmt(iass, env);
 
-        var nid: Expr<Type> = {
-          a: NUM,
+        var nid: Expr<[Type, Location]> = {
+          a: [NUM, stmt.a[1]],
           tag: "binop",
           op: BinOp.Plus,
-          left: { a: NUM, tag: "id", name: stmt.index },
-          right: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(1) } },
+          left: { a: [NUM, stmt.a[1]], tag: "id", name: stmt.index },
+          right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
         };
-        var niass: Stmt<Type> = {
-          a: NONE,
+        var niass: Stmt<[Type, Location]> = {
+          a: [NONE, stmt.a[1]],
           tag: "assignment",
-          destruct: makeId(NUM, stmt.index),
+          destruct: makeId([NUM, stmt.a[1]], stmt.index),
           value: nid,
         };
         var Code_idstep = codeGenStmt(niass, env);
@@ -403,11 +425,15 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
  * @param value WASM code literal value for fetching the referenced value. E.g. "(local.get $$myValue)"
  * @param env GlobalEnv
  */
-function codeGenDestructure(destruct: Destructure<Type>, value: string, env: GlobalEnv): string[] {
+function codeGenDestructure(
+  destruct: Destructure<[Type, Location]>,
+  value: string,
+  env: GlobalEnv
+): string[] {
   let assignStmts: string[] = [];
 
   if (destruct.isDestructured) {
-    const objTyp = destruct.valueType;
+    const objTyp = destruct.valueType[0];
     if (objTyp.tag === "class") {
       const className = objTyp.name;
       const classFields = env.classes.get(className).values();
@@ -423,7 +449,9 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
       });
     } else {
       // Currently assumes that the valueType of our destructure is an object
-      throw new Error("Destructuring not supported yet for types other than 'class'");
+      throw new BaseException.InternalException(
+        "Destructuring not supported yet for types other than 'class'"
+      );
     }
   } else {
     const target = destruct.targets[0];
@@ -435,7 +463,11 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
   return assignStmts;
 }
 
-function codeGenAssignable(target: Assignable<Type>, value: string[], env: GlobalEnv): string[] {
+function codeGenAssignable(
+  target: Assignable<[Type, Location]>,
+  value: string[],
+  env: GlobalEnv
+): string[] {
   switch (target.tag) {
     case "id": // Variables
       if (env.locals.has(target.name)) {
@@ -446,10 +478,10 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
       }
     case "lookup": // Field lookup
       const objStmts = codeGenExpr(target.obj, env);
-      const objTyp = target.obj.a;
+      const objTyp = target.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new Error(
+        throw new BaseException.InternalException(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
@@ -457,22 +489,24 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
       const [offset, _] = env.classes.get(className).get(target.field);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...value, `(i32.store)`];
     case "bracket-lookup":
-      switch (target.obj.a.tag) {
+      switch (target.obj.a[0].tag) {
         case "dict":
           return codeGenExpr(target.obj, env).concat(codeGenDictKeyVal(target.key, value, 10, env));
         case "list":
         default:
-          throw new Error("Bracket-assign for types other than dict not implemented");
+          throw new BaseException.InternalException(
+            "Bracket-assign for types other than dict not implemented"
+          );
       }
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
       const err: never = <never>target;
-      throw new Error(`Unknown target ${JSON.stringify(err)} (compiler)`);
+      throw new BaseException.InternalException(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
 
-function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
+function codeGenInit(init: VarInit<[Type, Location]>, env: GlobalEnv): Array<string> {
   const value = codeGenLiteral(init.value);
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`];
@@ -541,7 +575,7 @@ function initRef(refs: Set<string>): Array<string> {
   return inits;
 }
 
-function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string> {
+function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): Array<string> {
   const definedVars: Set<string> = new Set();
   definedVars.add("$last");
   definedVars.add("$addr");
@@ -593,7 +627,7 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   ];
 }
 
-function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
+function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
@@ -626,7 +660,7 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   ];
 }
 
-function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
+function codeGenClass(cls: Class<[Type, Location]>, env: GlobalEnv): Array<string> {
   const methods = [...cls.methods];
   methods.forEach((method) => (method.name = `${cls.name}$${method.name}`));
   const result = methods.map((method) => codeGenFunDef(method, env));
@@ -750,12 +784,10 @@ function codeGenListCopy(concat: number): Array<string> {
   ]);
 }
 
-function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
+function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
     case "builtin1":
-      const argTyp = expr.a;
-      console.log(argTyp);
-      console.log(expr.name);
+      const argTyp = expr.a[0];
       const argStmts = codeGenExpr(expr.arg, env);
       var callName = expr.name;
       if (expr.name === "print" && argTyp === NUM) {
@@ -791,7 +823,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
     case "binop":
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
-      if (typeof expr.left.a !== "undefined" && expr.left.a.tag === "list") {
+      if (typeof expr.left.a !== "undefined" && expr.left.a[0].tag === "list") {
         return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(2)];
       } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
@@ -848,7 +880,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           }) (i32.load (i32.load (local.get $${funName}))))`
         );
       } else {
-        throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);
+        throw new BaseException.InternalException(
+          `Compile Error. Invalid name of tag ${nameExpr.tag}`
+        );
       }
       return callExpr;
     case "construct":
@@ -884,10 +918,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return stmts;
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
+      var objTyp = expr.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new Error(
+        throw new BaseException.InternalException(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
@@ -899,10 +933,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
+      var objTyp = expr.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new Error(
+        throw new BaseException.InternalException(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
@@ -968,7 +1002,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       ]);
 
     case "bracket-lookup":
-      switch (expr.obj.a.tag) {
+      switch (expr.obj.a[0].tag) {
         case "dict":
           return codeGenDictBracketLookup(expr.obj, expr.key, 10, env);
         case "string":
@@ -1047,7 +1081,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
             ]
           );
         default:
-          throw new Error("Code gen for bracket-lookup for types other than dict not implemented");
+          throw new BaseException.InternalException(
+            "Code gen for bracket-lookup for types other than dict not implemented"
+          );
       }
     default:
       unhandledTag(expr);
@@ -1113,8 +1149,8 @@ function allocateStringMemory(string_val: string): Array<string> {
 }
 
 function codeGenDictBracketLookup(
-  obj: Expr<Type>,
-  key: Expr<Type>,
+  obj: Expr<[Type, Location]>,
+  key: Expr<[Type, Location]>,
   hashtableSize: number,
   env: GlobalEnv
 ): Array<string> {
@@ -1130,7 +1166,7 @@ function codeGenDictBracketLookup(
 
 //Assumes that base address of dict is pushed onto the stack already
 function codeGenDictKeyVal(
-  key: Expr<Type>,
+  key: Expr<[Type, Location]>,
   val: string[],
   hashtableSize: number,
   env: GlobalEnv
