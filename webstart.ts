@@ -88,10 +88,12 @@ function webStart() {
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
       var text = "";
-      if (result.loc != undefined)
+      if (result.loc != undefined){
         text = `line ${result.loc.line}: ${source
           .split(/\r?\n/)
           [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
+        highlightLine(result.loc.line - 1, result.message);
+      }
       elt.innerText = text.concat("\n").concat(String(result));
     }
 
@@ -251,11 +253,11 @@ function webStart() {
   });
 }
 // Simple helper to highlight line given line number
-function highlightLine(actualLineNumber: number): void {
+function highlightLine(actualLineNumber: number, msg: string): void {
   var ele = document.querySelector(".CodeMirror") as any;
   var editor = ele.CodeMirror;
   //Set line CSS class to the line number & affecting the background of the line with the css class of line-error
-  editor.setGutterMarker(actualLineNumber, "error", makeMarker("test error message"));
+  editor.setGutterMarker(actualLineNumber, "error", makeMarker(msg));
   editor.addLineClass(actualLineNumber, "background", "line-error");
 }
 function makeMarker(msg: any): any {
