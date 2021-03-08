@@ -15,7 +15,7 @@ import {
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { MemoryManager, TAG_BIGINT, TAG_CLASS, TAG_DICT, TAG_STRING } from "./alloc";
+import { MemoryManager, TAG_BIGINT, TAG_CLASS, TAG_DICT, TAG_LIST, TAG_STRING } from "./alloc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -706,7 +706,16 @@ function codeGenListCopy(concat: number): Array<string> {
   var listType = 10; //temporary list type number
   var header = [4, 8]; //size, bound relative position
   stmts.push(...[`(local.set $$list_cmp)`]); //store first address to local var
-  stmts.push(...[`(i32.load (i32.const 0))`, `(local.set $$list_base)`]); //store the starting address for the new list
+  stmts.push(...[
+    `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
+    `(local.get $$list_cmp)`,       // load capacty
+    `(i32.add (i32.const 8))`,
+    `(i32.load)`,
+    `(i32.mul (i32.const 4))`,      // new_cap = cap * 4 + 12
+    `(i32.add (i32.const 12))`,
+    `(call $gcalloc)`,
+    `(local.set $$list_base)`,
+  ]);
   if (concat != 1)
     stmts.push(...[`(local.get $$list_base)`, "(i32.const " + listType + ")", "(i32.store)"]); //create a new list with type
 
@@ -802,15 +811,6 @@ function codeGenListCopy(concat: number): Array<string> {
 
   return stmts.concat([
     `(local.get $$list_base)`, // Get address for the object (this is the return value)
-    "(i32.const 0)", // Address for our upcoming store instruction
-    `(local.get $$list_base)`, // Load the dynamic heap head offset
-    `(local.get $$list_cmp)`,
-    `(i32.add (i32.const 8))`,
-    `(i32.load)`,
-    `(i32.mul (i32.const 4))`,
-    `(i32.add (i32.const 12))`,
-    `(i32.add)`,
-    "(i32.store)", // Save the new heap offset
   ]);
 }
 
