@@ -1495,7 +1495,8 @@ function codeGenBigInt(num: bigint): Array<string> {
   // NOTE(alex:mm): $$allocPointer is clobbered when codegen'ing inner exprs
   var alloc = [
     `(i32.const ${TAG_BIGINT})`,
-    `(i32.add (i32.const ${(2 + size) * WORD_SIZE}))`, // size in bytes
+    `(i32.const ${(2 + size) * WORD_SIZE})`, // size in bytes
+    `(call $gcalloc)`,
     `(local.tee $$allocPointer)`,
     `(i32.add (i32.const ${0 * WORD_SIZE}))`, // add space for sign field
     `(i32.const ${sign})`,
