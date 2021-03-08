@@ -348,7 +348,26 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         };
         var Code_idstep = codeGenStmt(niass, env);
 
-        console.log()
+        console.log("for-body",[
+          `
+          (i32.const ${envLookup(env, "rg")})
+          ${iter.join("\n")}
+          (i32.store)
+          ${Code_iass.join("\n")}
+          (block
+            (loop
+
+              (br_if 1 (${Code_cond.join("\n")}))
+
+              ${Code_ass.join("\n")}
+              ${bodyStmts.join("\n")}
+              ${Code_step.join("\n")}
+              ${Code_idstep.join("\n")}
+
+              (br 0)
+          ))`,
+            `(${Code_cond.join("\n")})(call $print_num)`,
+        ])
 
         // iterable should be a Range object
         return [
@@ -369,9 +388,12 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
               (br 0)
           ))`,
+            `(${Code_cond.join("\n")})(call $print_bool)`,
         ];
       }
-
+      console.log([
+        `(${Code_cond.join("\n")})(call $print_bool)`,
+      ])
       // iterable should be a Range object
       return [
         `
@@ -388,6 +410,9 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
             (br 0)
         ))`,
+        ` ${Code_cond.join("\n")}(call $print_bool)`,
+        ` ${Code_ass.join("\n")}(call $print_num)`,
+        ` ${Code_step.join("\n")}(call $print_num)(local.set $$last)`,
       ];
     case "pass":
       return [];
@@ -838,15 +863,18 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
             valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
             valStmts.push(`(i32.const 1)`);
             valStmts.push(`(call $${expr.name})`);
+            console.log("1var",valStmts)
             return valStmts;
           case 2:
             var valStmts = [`(i32.const 0)`];
             valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
             valStmts.push(`(call $${expr.name})`);
+            console.log("2var",valStmts)
             return valStmts;
           case 3:
             var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
             valStmts.push(`(call $${expr.name})`);
+            console.log("3var",valStmts)
             return valStmts;
           default:
             throw new Error("Unsupported range() call!")
