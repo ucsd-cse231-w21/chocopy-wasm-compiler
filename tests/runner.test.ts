@@ -3,7 +3,7 @@ import { assert, asserts, assertPrint } from "./utils.test";
 
 // We write end-to-end tests here to make sure the compiler works as expected.
 // You should write enough end-to-end tests until you are confident the compiler
-// runs as expected. 
+// runs as expected.
 describe('run', () => {
 
   // runWasm('i64 return value', '(module (func (export "exported_func") (result i64) (i64.const 234)))', BigInt(234));
@@ -21,6 +21,16 @@ describe('run', () => {
   assert('mul', "2 * 3 * 4", PyInt(2 * 3 * 4));
 
   assert('mul-then-plus', "2 + 3 * 4", PyInt(2 + 3 * 4));
+
+  assert('bignum-abs', "abs(0 - 4294967295)", PyBigInt(4294967295n));
+
+  assert('bignum-min', 'min(4294967295, 4294967296)', PyBigInt(4294967295n));
+
+  assert('bignum-max', 'max(4294967295, 4294967296)', PyBigInt(4294967296n));
+
+  assert('bignum-pow', 'pow(4294967295, 2)', PyBigInt(18446744065119617025n));
+
+  assert('bignum-pow-negative', 'pow(4294967295, -2)', PyInt(0));
 
   assert('abs', "abs(0 - 5)", PyInt(Math.abs(0 - 5)));
 
@@ -56,7 +66,7 @@ x : int = 1
 def f(y : int) -> int:
   x : int = 2
   return x
-  
+
 f(0)`, PyInt(2));
 
   assert("true", "True", PyBool(true));
@@ -202,7 +212,7 @@ f(2)`, PyInt(2));
   assertPrint("print-assert", `
   print(1)
   print(True)`, ["1", "True"]);
-  
+
   assertPrint("class-with-fields", `
   class C(object):
     x : int = 1
@@ -235,12 +245,12 @@ f(2)`, PyInt(2));
     class C(object):
       x : int = 1
       y : int = 2
-  
+
       def new(self : C, x : int, y : int) -> C:
         self.x = x
         self.y = y
         return self
-    
+
     c : C = None
     c = C().new(3, 4)
     c.x`, PyInt(3));
@@ -258,7 +268,7 @@ f(2)`, PyInt(2));
   assert("return-none", `
   class C(object):
     x : int = 123
-    
+
   c : C = None
   c`, PyNone());
 
