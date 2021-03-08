@@ -65,14 +65,15 @@ describe("FOR LOOP TEST", () => {
     "continue at 5",
     `
     i:int = 0
+    x:int = 0
     for i in range(6):
         if i == 5:
             continue
-            i = 1
+            i = 5
         else:
             pass
-    i
+    x
     `,
-    PyInt(5)
+    PyInt(0)
   );
 });
