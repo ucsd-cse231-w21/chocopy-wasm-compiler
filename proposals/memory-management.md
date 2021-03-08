@@ -19,7 +19,7 @@ class Foo(object):
   b: int = 0
 
 x: Foo = None
-X = Foo()
+x = Foo()
 x.a = 1337
 
 x = Foo()
@@ -209,10 +209,14 @@ New files:
     * `forceCollect()`: manually invoke the GC (stop-the-world)
     * `getTag(ptr)`: get heap object tag
     * `getSize(ptr)`: get heap object size (excluding header info)
-    * `addRoot(value)`: attempt to add a 32-bit pointer to the root set
-      * Uses tagging to determine whether a pointer or a primitive value
-    * `removeRoot(value)`: remove a pointer from the root set
-      * Uses tagging to determine whether a pointer or a value
+    * `addGlobal(globalAddr)`: add the global variable to the global root set
+    * `captureTemps()`: captures all allocations into a new temp set on the top of the temp stack
+    * `releaseTemps()`: pops the temp set frame off the temp stack
+    * `addTemp(value)`: attempt to add a 32-bit pointer to the temp set
+    * `pushFrame()`: push a new local set frame onto the local stack
+    * `addLocal(value)`: attempt to add a 32-bit pointer to the local set
+    * `removeLocal(value)`: remove a pointer from the local set
+    * `releaseTemps(value)`: pops the local set frame off the local stack
     * `staticAlloc(size: BigInt32)`: allocates static memory (not expected to ever be freed for the duration of the program) and returns a pointer to the start of the object
 * `heap.ts`: defines all allocator implementations/interfaces
   * `Allocator`: common interface for heap allocators

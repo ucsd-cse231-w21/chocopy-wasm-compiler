@@ -7,6 +7,7 @@ import { fail } from "assert";
 
 // Clear the output before every test
 beforeEach(function () {
+  importObject.memoryManager = undefined;
   importObject.output = "";
 });
 
