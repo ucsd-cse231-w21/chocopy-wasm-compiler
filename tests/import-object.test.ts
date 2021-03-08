@@ -1,10 +1,17 @@
 import { Type } from "../ast";
 import { NUM, STRING, BOOL, NONE, unhandledTag } from "../utils";
+import { nTagBits } from "../compiler";
 
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
     case "number":
-      return (arg as number).toString();
+      var num: number = arg as number;
+      if (num & 1) {
+        // literals are tagged with 1 in the LSB
+        return (num >> nTagBits).toString();
+      } else {
+        return num.toString(); // bigint case, num is an address
+      }
     case "string":
       if (arg == -1) throw new Error("String index out of bounds");
       if (arg == -2) throw new Error("Slice step cannot be zero");
@@ -21,13 +28,11 @@ function stringify(typ: Type, arg: any): string {
       }
       return full_string;
     case "bool":
-      return (arg as boolean) ? "True" : "False";
+      return (arg as number) >> nTagBits == 1 ? "True" : "False";
     case "none":
       return "None";
     case "class":
       return typ.name;
-    default:
-      unhandledTag(typ);
   }
 }
 
@@ -53,7 +58,9 @@ export const importObject = {
     print_str: (arg: number) => print(STRING, arg),
     print_bool: (arg: number) => print(BOOL, arg),
     print_none: (arg: number) => print(NONE, arg),
-    abs: Math.abs,
+    abs: function (n: number) {
+      return (Math.abs(n >> 1) << 1) + 1;
+    },
     min: Math.min,
     max: Math.max,
     pow: Math.pow,

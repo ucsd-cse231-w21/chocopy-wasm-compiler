@@ -15,6 +15,14 @@ before(function () {
   console.log = function () {};
 });
 
+export function skipassert(name: string, source: string, expected: Value) {
+  it.skip(name, async () => {
+    const repl = new BasicREPL(importObject);
+    const result = await repl.run(source);
+    expect(result).to.deep.eq(expected);
+  });
+}
+
 export function assert(name: string, source: string, expected: Value) {
   it(name, async () => {
     const repl = new BasicREPL(importObject);
