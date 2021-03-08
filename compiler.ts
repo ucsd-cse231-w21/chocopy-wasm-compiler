@@ -590,6 +590,7 @@ function initRef(refs: Set<string>): Array<string> {
 }
 
 function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string> {
+  let currentLocalIndex = 0;
   const definedVars: Set<string> = new Set();
   definedVars.add("$last");
   definedVars.add("$addr");
@@ -608,8 +609,10 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   def.inits.forEach((v) => extraRefs.add(`${v.name}`));
   def.parameters.forEach((p) => extraRefs.add(`${p.name}`));
 
-  definedVars.forEach(env.locals.add, env.locals);
-  def.parameters.forEach((p) => env.locals.add(p.name));
+  definedVars.forEach(v => {
+    env.locals.set(v, currentLocalIndex);
+    currentLocalIndex += 1;
+  });
 
   const localDefs = makeLocals(definedVars).join("\n");
   const inits = def.inits
