@@ -816,6 +816,27 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           return unreachable(expr);
       }
     case "call":
+      if (expr.name === "range") {
+        switch (expr.arguments.length) {
+          case 1:
+            var valStmts = [`(i32.const 0)`];
+            valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts.push(`(i32.const 1)`);
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          case 2:
+            var valStmts = [`(i32.const 0)`];
+            valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          case 3:
+            var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          default:
+            throw new Error("Unsupported range() call!")
+        }
+      }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;

@@ -98,7 +98,13 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
             left: args[0],
             right: args[1],
           };
-        } else {
+        } else if (callName === "range") {
+          expr = {
+            tag: "call",
+            name: callName,
+            arguments: args,
+          };
+        }else {
           expr = {
             tag: "call_expr",
             name: { tag: "id", name: callName },

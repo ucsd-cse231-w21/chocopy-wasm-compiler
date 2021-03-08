@@ -95,12 +95,12 @@ export async function run(
     cur : int = 0
     stop : int = 0
     step : int = 1
-  def range(s : int)->Range:
-    self:range = None
-    self = range()
-    self.cur = 0
-    self.stop = s
-    self.step = 1
+  def range(start : int, end : int, sp : int)->Range:
+    self:Range = None
+    self = Range()
+    self.cur = start
+    self.stop = end
+    self.step = sp
     return self
 */
   const wasmSource = `(module
@@ -114,7 +114,7 @@ export async function run(
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
-    (func $range (param $s i32) (result i32)
+    (func $range (param $start i32) (param $end i32) (param $sp i32) (result i32)
       (local $self i32)
       (local $$last i32)
       (i32.const 0)
@@ -142,15 +142,15 @@ export async function run(
       (local.set $self)
       (local.get $self)
       (i32.add (i32.const 0))
-      (i32.const 0)
+      (local.get $start)
       (i32.store)
       (local.get $self)
       (i32.add (i32.const 4))
-      (local.get $s)
+      (local.get $end)
       (i32.store)
       (local.get $self)
       (i32.add (i32.const 8))
-      (i32.const 1)
+      (local.get $sp)
       (i32.store)
       (local.get $self)
       return (i32.const 0)
