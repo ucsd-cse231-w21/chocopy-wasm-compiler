@@ -4,6 +4,7 @@ export { HeapTag, TAG_CLASS, TAG_LIST, TAG_STRING, TAG_DICT, TAG_BIGINT } from "
 
 // Untagged pointer (32-bits)
 export type Pointer = bigint;
+export type StackIndex = bigint;
 
 export function toHeapTag(tag: bigint): GC.HeapTag {
   if (
@@ -41,11 +42,12 @@ export function importMemoryManager(importObject: any, mm: MemoryManager) {
     mm.pushFrame();
   };
 
-  importObject.imports.addLocal = function (value: number) {
-    mm.addLocal(BigInt(value));
+  importObject.imports.addLocal = function (index: number, value: number) {
+    mm.addLocal(BigInt(index), BigInt(value));
   };
-  importObject.imports.removeLocal = function (value: number) {
-    mm.removeLocal(BigInt(value));
+
+  importObject.imports.removeLocal = function (index: number) {
+    mm.removeLocal(BigInt(index));
   };
   importObject.imports.releaseLocals = function () {
     mm.releaseLocals();
@@ -128,13 +130,13 @@ export class MemoryManager {
   //
   // Add a potential pointer to the local variable root set
   // If value is not a pointer, it will not be added
-  addLocal(value: bigint) {
-    this.gc.roots.addLocal(value);
+  addLocal(index: bigint, value: bigint) {
+    this.gc.roots.addLocal(index, value);
   }
 
   // Remove a potential pointer to the local variable root set
-  removeLocal(value: bigint) {
-    this.gc.roots.removeLocal(value);
+  removeLocal(index: bigint) {
+    this.gc.roots.removeLocal(index);
   }
 
   // Pops the current stack frame
