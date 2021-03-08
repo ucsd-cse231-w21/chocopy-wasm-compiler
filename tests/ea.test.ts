@@ -24,12 +24,12 @@ describe("ea(tAst) function", () => {
 
     expect(fAst).to.deep.equal({
       a: [
-        { tag: "number"},
+        { tag: "number" },
         {
           col: 0,
           length: 104,
           line: 1,
-        }
+        },
       ],
       funs: [],
       inits: [],
@@ -42,7 +42,7 @@ describe("ea(tAst) function", () => {
               col: 5,
               length: 4,
               line: 6,
-            }
+            },
           ],
           tag: "expr",
           expr: {
@@ -51,8 +51,8 @@ describe("ea(tAst) function", () => {
               {
                 col: 5,
                 length: 4,
-                line: 6
-              }
+                line: 6,
+              },
             ],
             tag: "call_expr",
             name: {
@@ -66,21 +66,18 @@ describe("ea(tAst) function", () => {
                 {
                   col: 5,
                   length: 4,
-                  line: 6
-                }
+                  line: 6,
+                },
               ],
               tag: "id",
               name: "f",
             },
             arguments: [
-              { a: [
-                  { tag: "number" },
-                  { col: 7,
-                    length: 1,
-                    line: 6
-                  }
-                ],
-                tag: "literal", value: { tag: "num", value: BigInt(5) } },
+              {
+                a: [{ tag: "number" }, { col: 7, length: 1, line: 6 }],
+                tag: "literal",
+                value: { tag: "num", value: BigInt(5) },
+              },
             ],
           },
         },
@@ -92,8 +89,8 @@ describe("ea(tAst) function", () => {
             {
               col: 5,
               length: 86,
-              line: 2
-            }
+              line: 2,
+            },
           ],
           name: "f",
           parameters: [{ name: "x", type: { tag: "number" } }],
@@ -104,13 +101,7 @@ describe("ea(tAst) function", () => {
           isGlobal: true,
           body: [
             {
-              a: [
-                { tag: "number" },
-                { col: 14,
-                  length: 5,
-                  line: 5
-                }
-              ],
+              a: [{ tag: "number" }, { col: 14, length: 5, line: 5 }],
               tag: "return",
               value: {
                 a: [
@@ -118,8 +109,8 @@ describe("ea(tAst) function", () => {
                   {
                     col: 14,
                     length: 5,
-                    line: 5
-                  }
+                    line: 5,
+                  },
                 ],
                 tag: "call_expr",
                 name: {
@@ -128,18 +119,22 @@ describe("ea(tAst) function", () => {
                     {
                       col: 14,
                       length: 5,
-                      line: 5
-                    }
+                      line: 5,
+                    },
                   ],
                   tag: "lookup",
-                  obj: { a: [
-                          { tag: "class", name: "$ref" },
-                          {
-                            col: 14,
-                            length: 5,
-                            line: 5,
-                          }
-                        ], tag: "id", name: "f_$inc_$ref" },
+                  obj: {
+                    a: [
+                      { tag: "class", name: "$ref" },
+                      {
+                        col: 14,
+                        length: 5,
+                        line: 5,
+                      },
+                    ],
+                    tag: "id",
+                    name: "f_$inc_$ref",
+                  },
                   field: "$deref",
                 },
                 arguments: [],
@@ -154,7 +149,7 @@ describe("ea(tAst) function", () => {
               col: 7,
               length: 39,
               line: 3,
-            }
+            },
           ],
           name: "f_$inc",
           parameters: [],
@@ -170,8 +165,8 @@ describe("ea(tAst) function", () => {
                 {
                   col: 16,
                   length: 5,
-                  line: 4
-                }
+                  line: 4,
+                },
               ],
               tag: "return",
               value: {
@@ -180,8 +175,8 @@ describe("ea(tAst) function", () => {
                   {
                     col: 16,
                     length: 5,
-                    line: 4
-                  }
+                    line: 4,
+                  },
                 ],
                 tag: "binop",
                 op: BinOp.Plus,
@@ -192,13 +187,17 @@ describe("ea(tAst) function", () => {
                       col: 16,
                       length: 1,
                       line: 4,
-                    }
+                    },
                   ],
                   tag: "lookup",
-                  obj: { a: [
-                          { tag: "class", name: "$ref" },
-                          { line: 4, col: 16, length: 1 },
-                        ], tag: "id", name: "x_$ref" },
+                  obj: {
+                    a: [
+                      { tag: "class", name: "$ref" },
+                      { line: 4, col: 16, length: 1 },
+                    ],
+                    tag: "id",
+                    name: "x_$ref",
+                  },
                   field: "$deref",
                 },
                 right: {
@@ -208,7 +207,7 @@ describe("ea(tAst) function", () => {
                       col: 20,
                       length: 1,
                       line: 4,
-                    }
+                    },
                   ],
                   tag: "literal",
                   value: { tag: "num", value: BigInt(1) },
@@ -244,7 +243,7 @@ describe("ea(tAst) function", () => {
           col: 0,
           length: 203,
           line: 1,
-        }
+        },
       ],
       funs: [],
       inits: [],
@@ -257,7 +256,7 @@ describe("ea(tAst) function", () => {
               col: 5,
               length: 4,
               line: 10,
-            }
+            },
           ],
           tag: "expr",
           expr: {
@@ -267,7 +266,7 @@ describe("ea(tAst) function", () => {
                 col: 5,
                 length: 4,
                 line: 10,
-              }
+              },
             ],
             tag: "call_expr",
             name: {
@@ -282,21 +281,24 @@ describe("ea(tAst) function", () => {
                   col: 5,
                   length: 4,
                   line: 10,
-                }
+                },
               ],
               tag: "id",
               name: "f",
             },
             arguments: [
-              { a: [
+              {
+                a: [
                   { tag: "number" },
                   {
                     col: 7,
                     length: 1,
                     line: 10,
-                  }
+                  },
                 ],
-                tag: "literal", value: { tag: "num", value: BigInt(6) } },
+                tag: "literal",
+                value: { tag: "num", value: BigInt(6) },
+              },
             ],
           },
         },
@@ -309,7 +311,7 @@ describe("ea(tAst) function", () => {
               col: 5,
               length: 185,
               line: 2,
-            }
+            },
           ],
           name: "f",
           parameters: [{ name: "x", type: { tag: "number" } }],
@@ -326,7 +328,7 @@ describe("ea(tAst) function", () => {
                   col: 14,
                   length: 12,
                   line: 9,
-                }
+                },
               ],
               tag: "return",
               value: {
@@ -336,7 +338,7 @@ describe("ea(tAst) function", () => {
                     col: 14,
                     length: 12,
                     line: 9,
-                  }
+                  },
                 ],
                 tag: "binop",
                 op: BinOp.Plus,
@@ -347,7 +349,7 @@ describe("ea(tAst) function", () => {
                       col: 14,
                       length: 5,
                       line: 9,
-                    }
+                    },
                   ],
                   tag: "call_expr",
                   name: {
@@ -362,7 +364,7 @@ describe("ea(tAst) function", () => {
                         col: 14,
                         length: 5,
                         line: 9,
-                      }
+                      },
                     ],
                     tag: "lookup",
                     obj: {
@@ -372,9 +374,11 @@ describe("ea(tAst) function", () => {
                           col: 14,
                           length: 5,
                           line: 9,
-                        }
+                        },
                       ],
-                      tag: "id", name: "f_$g_$ref" },
+                      tag: "id",
+                      name: "f_$g_$ref",
+                    },
                     field: "$deref",
                   },
                   arguments: [
@@ -385,7 +389,7 @@ describe("ea(tAst) function", () => {
                           col: 16,
                           length: 2,
                           line: 9,
-                        }
+                        },
                       ],
                       tag: "literal",
                       value: { tag: "num", value: BigInt(10) },
@@ -399,7 +403,7 @@ describe("ea(tAst) function", () => {
                       col: 22,
                       length: 4,
                       line: 9,
-                    }
+                    },
                   ],
                   tag: "call_expr",
                   name: {
@@ -414,7 +418,7 @@ describe("ea(tAst) function", () => {
                         col: 22,
                         length: 4,
                         line: 9,
-                      }
+                      },
                     ],
                     tag: "lookup",
                     obj: {
@@ -424,9 +428,11 @@ describe("ea(tAst) function", () => {
                           col: 22,
                           length: 4,
                           line: 9,
-                        }
+                        },
                       ],
-                      tag: "id", name: "f_$g_$ref" },
+                      tag: "id",
+                      name: "f_$g_$ref",
+                    },
                     field: "$deref",
                   },
                   arguments: [
@@ -437,7 +443,7 @@ describe("ea(tAst) function", () => {
                           col: 24,
                           length: 1,
                           line: 9,
-                        }
+                        },
                       ],
                       tag: "literal",
                       value: { tag: "num", value: BigInt(7) },
@@ -455,7 +461,7 @@ describe("ea(tAst) function", () => {
               col: 7,
               length: 47,
               line: 3,
-            }
+            },
           ],
           name: "f_$g",
           parameters: [{ name: "y", type: { tag: "number" } }],
@@ -472,7 +478,7 @@ describe("ea(tAst) function", () => {
                   col: 16,
                   length: 8,
                   line: 4,
-                }
+                },
               ],
               tag: "return",
               value: {
@@ -482,7 +488,7 @@ describe("ea(tAst) function", () => {
                     col: 16,
                     length: 8,
                     line: 4,
-                  }
+                  },
                 ],
                 tag: "binop",
                 op: BinOp.Plus,
@@ -493,7 +499,7 @@ describe("ea(tAst) function", () => {
                       col: 16,
                       length: 1,
                       line: 4,
-                    }
+                    },
                   ],
                   tag: "lookup",
                   obj: {
@@ -503,9 +509,11 @@ describe("ea(tAst) function", () => {
                         col: 16,
                         length: 1,
                         line: 4,
-                      }
+                      },
                     ],
-                    tag: "id", name: "x_$ref" },
+                    tag: "id",
+                    name: "x_$ref",
+                  },
                   field: "$deref",
                 },
                 right: {
@@ -515,7 +523,7 @@ describe("ea(tAst) function", () => {
                       col: 20,
                       length: 4,
                       line: 4,
-                    }
+                    },
                   ],
                   tag: "call_expr",
                   name: {
@@ -530,7 +538,7 @@ describe("ea(tAst) function", () => {
                         col: 20,
                         length: 4,
                         line: 4,
-                      }
+                      },
                     ],
                     tag: "lookup",
                     obj: {
@@ -540,9 +548,11 @@ describe("ea(tAst) function", () => {
                           col: 20,
                           length: 4,
                           line: 4,
-                        }
+                        },
                       ],
-                      tag: "id", name: "f_$h_$ref" },
+                      tag: "id",
+                      name: "f_$h_$ref",
+                    },
                     field: "$deref",
                   },
                   arguments: [
@@ -553,7 +563,7 @@ describe("ea(tAst) function", () => {
                           col: 22,
                           length: 1,
                           line: 4,
-                        }
+                        },
                       ],
                       tag: "lookup",
                       obj: {
@@ -563,9 +573,11 @@ describe("ea(tAst) function", () => {
                             col: 22,
                             length: 1,
                             line: 4,
-                          }
+                          },
                         ],
-                        tag: "id", name: "y_$ref" },
+                        tag: "id",
+                        name: "y_$ref",
+                      },
                       field: "$deref",
                     },
                   ],
@@ -581,7 +593,7 @@ describe("ea(tAst) function", () => {
               col: 7,
               length: 77,
               line: 5,
-            }
+            },
           ],
           name: "f_$h",
           parameters: [{ name: "z", type: { tag: "number" } }],
@@ -598,7 +610,7 @@ describe("ea(tAst) function", () => {
                   col: 9,
                   length: 5,
                   line: 7,
-                }
+                },
               ],
               tag: "assignment",
               value: {
@@ -608,7 +620,7 @@ describe("ea(tAst) function", () => {
                     col: 13,
                     length: 1,
                     line: 7,
-                  }
+                  },
                 ],
                 tag: "lookup",
                 obj: {
@@ -618,9 +630,11 @@ describe("ea(tAst) function", () => {
                       col: 13,
                       length: 1,
                       line: 7,
-                    }
+                    },
                   ],
-                  tag: "id", name: "z_$ref" },
+                  tag: "id",
+                  name: "z_$ref",
+                },
                 field: "$deref",
               },
               destruct: {
@@ -628,9 +642,9 @@ describe("ea(tAst) function", () => {
                   { tag: "number" },
                   {
                     col: 9,
-                      length: 1,
-                      line: 7,
-                  }
+                    length: 1,
+                    line: 7,
+                  },
                 ],
                 isDestructured: false,
                 targets: [
@@ -644,7 +658,7 @@ describe("ea(tAst) function", () => {
                           col: 9,
                           length: 1,
                           line: 7,
-                        }
+                        },
                       ],
                       tag: "lookup",
                       obj: {
@@ -654,9 +668,11 @@ describe("ea(tAst) function", () => {
                             col: 9,
                             length: 1,
                             line: 7,
-                          }
-                      ],
-                      tag: "id", name: "x_$ref" },
+                          },
+                        ],
+                        tag: "id",
+                        name: "x_$ref",
+                      },
                       field: "$deref",
                     },
                   },
@@ -670,7 +686,7 @@ describe("ea(tAst) function", () => {
                   col: 16,
                   length: 5,
                   line: 8,
-                }
+                },
               ],
               tag: "return",
               value: {
@@ -680,7 +696,7 @@ describe("ea(tAst) function", () => {
                     col: 16,
                     length: 5,
                     line: 8,
-                  }
+                  },
                 ],
                 tag: "binop",
                 op: BinOp.Plus,
@@ -691,17 +707,21 @@ describe("ea(tAst) function", () => {
                       col: 16,
                       length: 1,
                       line: 8,
-                    }
+                    },
                   ],
                   tag: "lookup",
-                  obj: { a: [
-                          { tag: "class", name: "$ref" },
-                          {
-                            col: 16,
-                            length: 1,
-                            line: 8,
-                          }
-                        ], tag: "id", name: "x_$ref" },
+                  obj: {
+                    a: [
+                      { tag: "class", name: "$ref" },
+                      {
+                        col: 16,
+                        length: 1,
+                        line: 8,
+                      },
+                    ],
+                    tag: "id",
+                    name: "x_$ref",
+                  },
                   field: "$deref",
                 },
                 right: {
@@ -711,7 +731,7 @@ describe("ea(tAst) function", () => {
                       col: 20,
                       length: 1,
                       line: 8,
-                    }
+                    },
                   ],
                   tag: "literal",
                   value: { tag: "num", value: BigInt(1) },

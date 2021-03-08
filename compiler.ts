@@ -94,8 +94,6 @@ export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): Glo
   };
 }
 
-
-
 // function envLookup(env: GlobalEnv, name: string): number {
 //   if (!env.globals.has(name)) {
 //     console.log("Could not find " + name + " in ", env);
