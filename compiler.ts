@@ -121,7 +121,7 @@ export function makeLocals(locals: Set<string>): Array<string> {
 
 //Any built-in WASM functions go here
 export function libraryFuns(): string {
-  return dictUtilFuns().join("\n");
+  return dictUtilFuns().join("\n") + stringUtilFuns().join("\n");
 }
 
 export function makeId<A>(a: A, x: string): Destructure<A> {
@@ -814,7 +814,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       } else if (expr.name === "print" && argTyp === NONE) {
         return argStmts.concat([`(call $print_none)`]);
       } else if (expr.name === "len") {
-        return [`${argStmts.join("\n")}(i32.load)(i32.add(i32.const 1))`];
+        return [`${argStmts.join("\n")}(i32.load)(i32.add(i32.const 1))`, ...encodeLiteral];
       }
       return argStmts.concat([`(call $${callName})`]);
     case "builtin2":
@@ -842,6 +842,19 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       const rhsStmts = codeGenExpr(expr.right, env);
       if (typeof expr.left.a !== "undefined" && expr.left.a[0].tag === "list") {
         return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(2)];
+      } else if (expr.op == BinOp.Plus && expr.left.a[0].tag === "string") {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          `(call $str$concat)`,
+        ];
+      } else if (expr.op == BinOp.Mul && expr.left.a[0].tag === "string") {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          ...decodeLiteral,
+          `(call $str$multiply)`,
+        ];
       } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
       } else {
@@ -1122,6 +1135,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               `${nameStmts.join("\n")}`, //Load the string object to be indexed
               `(local.set $$string_address)`,
               `${strideStmts.join("\n")}`, //Load the stride value for slicing
+              ...decodeLiteral,
               `(local.set $$slice_stride)`,
               `(i32.eq(local.get $$slice_stride)(i32.const 0))`,
               `(if (then (i32.const -2)(call $print_str)(drop)))`, //Check if stride value is 0
@@ -1141,6 +1155,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             sliceStmts.push(
               ...[
                 `${startStmts.join("\n")}`, //Load the start index for slicing
+                ...decodeLiteral,
                 `(local.set $$slice_start)`,
                 `(local.get $$slice_start)`,
                 `(i32.const 0)(i32.lt_s)`, //check for negative start index
@@ -1163,6 +1178,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             sliceStmts.push(
               ...[
                 `${endStmts.join("\n")}`, //Load the end index for slicing
+                ...decodeLiteral,
                 `(local.set $$slice_end)`,
                 `(local.get $$slice_end)`,
                 `(i32.const 0)(i32.lt_s)`, //check for negative end index
@@ -1283,7 +1299,7 @@ function allocateStringMemory(string_val: string): Array<string> {
   stmts.push(
     ...[
       `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
-      `(i32.const ${string_val.length - 1})`, // Store ASCII value for 0 (end of string)
+      `(i32.const ${string_val.length - 1})`, // Store the length of the string
       "(i32.store)", // Store the ASCII value 0 in the new address
     ]
   );
@@ -1341,6 +1357,94 @@ function codeGenDictKeyVal(
   return dictKeyValStmts;
 }
 
+function stringUtilFuns(): Array<string> {
+  let strFunStmts: Array<string> = [];
+  strFunStmts.push(
+    ...[
+      `(func $str$concat (param $left_addr i32) (param $right_addr i32) (result i32)`,
+      `(local $counter i32) (local $lhs_len i32) (local $rhs_len i32) (local $updated_addr i32)`,
+      `(i32.add (i32.load (local.get $left_addr)) (i32.const 1) )`,
+      `(local.set $lhs_len)`,
+      `(i32.add (i32.load (local.get $right_addr)) (i32.const 1) )`,
+      `(local.set $rhs_len)`,
+      `(i32.const 1)(local.set $counter)`,
+
+      `(i32.load (i32.const 0))`,//load heap head offset
+      `(i32.add (local.get $lhs_len) (local.get $rhs_len) )`,//add length of two strings to be concatenated
+      `(i32.sub (i32.const 1))`,
+      `(i32.store)`,
+
+      `(block (loop (br_if 1 (i32.le_s (local.get $counter) (local.get $lhs_len) )(i32.eqz) )`,
+      `(i32.add (i32.load(i32.const 0)) (i32.mul (local.get $counter) (i32.const 4) ) )`,
+      `(i32.load (i32.add (local.get $left_addr) (i32.mul (local.get $counter) (i32.const 4) ) ))`,//ascii val of left_i
+      `(i32.store)`,
+      `(i32.add (local.get $counter) (i32.const 1))(local.set $counter)`,
+      `(br 0)`,
+      `))`,//end block and loop
+
+      `(i32.sub(local.get $counter)(i32.const 1))(local.set $counter)`,
+      `(i32.add (i32.load(i32.const 0)) (i32.mul (local.get $counter) (i32.const 4) ) )`,
+      `(local.set $updated_addr)`,
+      `(i32.const 1)(local.set $counter)`,
+
+      `(block (loop (br_if 1 (i32.le_s (local.get $counter) (local.get $rhs_len) ) (i32.eqz))`,
+      `(i32.add (local.get $updated_addr) (i32.mul (local.get $counter) (i32.const 4) ) )`,
+      `(i32.load (i32.add (local.get $right_addr) (i32.mul (local.get $counter) (i32.const 4) ) ))`,//ascii val of left_i
+      `(i32.store)`,
+      `(i32.add (local.get $counter) (i32.const 1))(local.set $counter)`,
+      `(br 0)`,
+      `))`,//end block and loop
+
+      `(i32.load (i32.const 0))`,//return value
+      `(i32.const 0)`,
+      `(i32.add (local.get $updated_addr) (i32.mul (local.get $counter) (i32.const 4) ) )`,
+      `(i32.store)`,
+      `)`,//close func
+    ]
+  );
+  strFunStmts.push(
+    ...[
+      `(func $str$multiply (param $left_addr i32) (param $multiplier i32) (result i32)`,
+      `(local $i i32) (local $j i32) (local $lhs_len i32) (local $updated_addr i32)`,
+      `(i32.add (i32.load (local.get $left_addr)) (i32.const 1) )`,
+      `(local.set $lhs_len)`,
+
+      `(i32.load (i32.const 0))`,//load heap head offset
+      `(i32.mul (local.get $lhs_len) (local.get $multiplier) )`,//add length of two strings to be concatenated
+      `(i32.sub (i32.const 1))`,
+      `(i32.store)`,
+
+      `(i32.const 0)(local.set $i)`,
+      `(i32.load (i32.const 0))`,//heap head offset + 4
+      `(local.set $updated_addr)`,
+
+      `(block (loop (br_if 1 (i32.lt_s (local.get $i) (local.get $multiplier) )(i32.eqz) )`,
+      `(i32.const 0)(local.set $j)`,
+      `(block (loop (br_if 1 (i32.lt_s (local.get $j) (local.get $lhs_len) )(i32.eqz) )`,
+
+      `(i32.add (local.get $updated_addr) (i32.const 4))`,//address for storing the new string
+      `(local.set $updated_addr)`,
+
+      `(local.get $updated_addr)`,
+      `(i32.load (i32.add (local.get $left_addr) (i32.mul (i32.add (local.get $j) (i32.const 1)) (i32.const 4))))`,//ascii val of left_i
+      `(i32.store)`,
+      `(i32.add (local.get $j) (i32.const 1))(local.set $j)`,
+      `(br 0)`,
+      `))`,//end block and loop
+      `(i32.add (local.get $i) (i32.const 1))(local.set $i)`,
+      `(br 0)`,
+      `))`,//end block and loop
+
+      `(i32.load (i32.const 0))`,//return value
+      `(i32.const 0)`,
+      `(local.get $updated_addr)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.store)`,
+      `)`,//close func
+    ]
+  );
+  return strFunStmts;
+}
 function dictUtilFuns(): Array<string> {
   let dictFunStmts: Array<string> = [];
   dictFunStmts.push(

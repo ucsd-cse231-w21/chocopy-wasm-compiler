@@ -5,6 +5,7 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "string":
       if (result == -1) throw new Error("String index out of bounds");
+      if (result == -2) throw new Error("Slice step cannot be zero");
       const view = new Int32Array(mem);
       let string_length = view[result / 4] + 1;
       let data = result + 4;
@@ -16,9 +17,19 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
         full_string += char;
         i += 1;
       }
+      //new
+      var i=0;
+      while(i<30){
+        console.log("View "+i+" Value "+view[i]);
+        i+=1;
+      }
+      //old
+      console.log("Full string "+full_string.length);
       return PyString(full_string, result);
     case "number":
+      // console.log("Actual length "+result);
       if (result & 1) {
+        // console.log("Printed length "+BigInt(result >> nTagBits));
         return PyInt(result >> nTagBits);
       } else {
         var idx: number = Number(result) / 4;

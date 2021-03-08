@@ -684,13 +684,6 @@ describe("defaults", () => {
   assert("empty-string-length", `len("")`, PyInt(0));
 
   assertPrint(
-    "print-string-slicing-basic-one",
-    `
-  print("Design"[2:3])`,
-    ["s"]
-  );
-
-  assertPrint(
     "print-string-index-nested-index",
     `
   a:str="ABC"
@@ -701,6 +694,13 @@ describe("defaults", () => {
 
   print(a[f(b[2])])`,
     ["B"]
+  );
+
+  assertPrint(
+    "print-string-slicing-basic-one",
+    `
+  print("Design"[2:3])`,
+    ["s"]
   );
 
   assertPrint(
@@ -743,6 +743,13 @@ describe("defaults", () => {
     `
   print("Design"[:])`,
     ["Design"]
+  );
+
+  assert(
+    "print-string-slicing-full-without-start-or-end-length",
+    `
+  print(len("Design"[:]))`,
+    PyInt(6)
   );
 
   assertPrint(
@@ -850,5 +857,21 @@ describe("defaults", () => {
   a=a[4:2:1]
   len(a)`,
     PyInt(0)
+  );
+
+  assertPrint(
+    "print-string-concat",
+    `
+  print("Design"+"ABC")`,
+    ["DesignABC"]
+  );
+
+  assertPrint(
+    "print-string-concat-variable",
+    `
+  a:str="Compiler"
+  b:str=" Design"
+  print(a+b)`,
+    ["Compiler Design"]
   );
 });

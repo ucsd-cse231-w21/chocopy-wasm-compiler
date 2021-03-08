@@ -272,21 +272,19 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
       c.nextSibling(); // Focus on . or [
       var symbol = s.substring(c.from, c.to);
       if (symbol == "[") {
-        //var start_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(0) } };
-        //var end_index: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(-1) } };
         // var stride_value: Expr<null> = { tag: "literal", value: { tag: "num", value: BigInt(1) } };
-        // var start_index: Expr<null> = null;
-        // var end_index: Expr<null> = null;
-        var start_index: Expr<Location> = {
-          a: location,
-          tag: "literal",
-          value: { tag: "num", value: BigInt(0) },
-        };
-        var end_index: Expr<Location> = {
-          a: location,
-          tag: "literal",
-          value: { tag: "num", value: BigInt(-1) },
-        };
+        var start_index: Expr<Location> = null;
+        var end_index: Expr<Location> = null;
+        // var start_index: Expr<Location> = {
+        //   a: location,
+        //   tag: "literal",
+        //   value: { tag: "num", value: BigInt(0) },
+        // };
+        // var end_index: Expr<Location> = {
+        //   a: location,
+        //   tag: "literal",
+        //   value: { tag: "num", value: BigInt(-1) },
+        // };
         var stride_value: Expr<Location> = {
           a: location,
           tag: "literal",
