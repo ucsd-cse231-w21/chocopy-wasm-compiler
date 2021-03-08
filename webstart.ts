@@ -242,7 +242,7 @@ function webStart() {
       });
     });
 
-    var themeDropDown = document.getElementById("theme-dropdown") as HTMLSelectElement;
+    var themeDropDown = document.getElementById("themes") as HTMLSelectElement;
     themeDropDown.addEventListener("change", (event) => {
       var ele = document.querySelector(".CodeMirror") as any;
       var editor = ele.CodeMirror;
