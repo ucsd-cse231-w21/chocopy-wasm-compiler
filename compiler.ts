@@ -392,7 +392,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         (i32.const ${envLookup(env, "rg")})
         ${iter.join("\n")}
         (i32.store)
-        
+
         (block
           (loop
             ${Code_step.join("\n")}
