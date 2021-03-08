@@ -1,7 +1,17 @@
 import { table } from "console";
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, UNSAT, FAILEDINFER, CLASS, STRING, LIST } from "./utils";
-import { equalType } from "./type-check";
+import {
+  augmentTEnv,
+  equalType,
+  defaultTypeEnv,
+  emptyGlobalTypeEnv,
+  emptyLocalTypeEnv,
+  isNoneOrClass,
+  isSubtype,
+  GlobalTypeEnv,
+  LocalTypeEnv
+} from "./type-check";
 import { emptyEnv } from "./compiler";
 import * as BaseException from "./error";
 
@@ -11,19 +21,6 @@ import * as BaseException from "./error";
   Then the type-checker will be used to *verify* that the typed-AST is actually consistent. 
   Going to leave room for constraint generation/solving to happen in here.
 */
-
-// I feel like we should define type environments in this file perhaps?
-export type GlobalTypeEnv = {
-  globals: Map<string, Type>;
-  functions: Map<string, [Array<Type>, Type]>;
-  classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>;
-};
-
-export type LocalTypeEnv = {
-  vars: Map<string, Type>;
-  expectedRet: Type;
-  topLevel: boolean;
-};
 
 // Note: Probably don't need this?
 // Represents a type constraint: type(lhs) == type(rhs)
@@ -48,12 +45,12 @@ export function inferTypeLit(lit: Literal): Type {
 }
 
 // Helper to check if a type is a list
-export function isList(typ: Type) {
+export function isList(typ: Type): boolean {
   return typ.tag === "list";
 }
 
 // Function to get the "join Type" C of two types A and B. C = Join(A, B)
-export function joinType(leftType: Type, rightType: Type) {
+export function joinType(leftType: Type, rightType: Type): Type {
   // basic implementation for now
   if (leftType === rightType) {
     return leftType;
@@ -73,6 +70,7 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
       typeTag = inferTypeLit(expr.value);
       return typeTag;
 
+    // prepopulate the globEnv with builtin functions
     case "builtin1": // TODO
     case "builtin2": // TODO
       throw new Error("Inference for built-ins not supported yet");
@@ -177,7 +175,12 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
           }
 
         case BinOp.Is:
-          throw new Error("Type Inference is not yet supported for 'is'");
+          if (isNoneOrClass(leftType) && isNoneOrClass(rightType)) {
+            return BOOL;
+          } else {
+            // TODO: is this true for int is int or bool is bool?
+            return UNSAT;
+          }
       }
       break;
 
@@ -186,6 +189,108 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
   }
 }
 
-export function inferTypeProgram(program: Program<null>): Program<Type> {
-  throw new Error("Inference not implemented for full programs yet");
+// must update the *Env maps when the function is called
+export function buildTypedExpr(
+  expr: Expr<any>,
+  globEnv: GlobalTypeEnv,
+  locEnv: LocalTypeEnv): Expr<Type> {
+  throw new Error("Type completion is not implemented for expressions");
+}
+
+// For now this doesn't work with globals--all variables must be defined in the
+// current scope
+export function buildTypedStmt(
+  stmt: Stmt<any>,
+  globEnv: GlobalTypeEnv,
+  locEnv: LocalTypeEnv,
+  topLevel: boolean
+): Stmt<Type> {
+  switch (stmt.tag) {
+    // FIXME: finish this. Tricky
+    // case "assignment":
+    //   const value = buildTypedExpr(stmt.value, globEnv, locEnv);
+    //   return { ...stmt, value };
+    case "assign": {
+      const value = buildTypedExpr(stmt.value, globEnv, locEnv);
+      let a = value.a;
+      if (locEnv.vars.has(stmt.name)) {
+        let type_ = locEnv.vars.get(stmt.name);
+        // FIXME: make isSubtype work with LocalTypeEnv since this is a local
+        // variable we are talking about
+        if (!isSubtype(globEnv, a, type_)) {
+          a = UNSAT;
+        }
+      } else {
+        locEnv.vars.set(stmt.name, a);
+      }
+      return { ...stmt, a, value };
+    }
+    // TODO: For now we only infer the type of the return value by the RHS.
+    // We might need to restructure part of the code to get it to infer the type
+    // of the returned value from the call site
+    case "return": {
+      const value = buildTypedExpr(stmt.value, globEnv, locEnv);
+      let a = value.a;
+      return { ...stmt, a, value };
+    }
+    case "expr": {
+      const expr = buildTypedExpr(stmt.expr, globEnv, locEnv);
+      const a = expr.a;
+      return { tag: "expr", a, expr };
+    }
+    // TODO: the tricky part. will do later
+    // case "if": {
+    // }
+    // case "while": {
+    // }
+    // FIXME: how about the case where multiple classes have fields that share
+      // the same name with different types?
+    case "field-assign": {
+      const value = buildTypedExpr(stmt.value, globEnv, locEnv);
+      const obj = buildTypedExpr(stmt.obj, globEnv, locEnv);
+      let a: Type;
+      if (obj.a === UNSAT
+          || value.a === UNSAT
+          || obj.a.tag != "class"
+          || !globEnv.classes.has(obj.a.name)  // if class map contains the class
+          || !globEnv.classes.get(obj.a.name)[0].has(stmt.field) // if the class contains the field
+          || !isSubtype(globEnv, globEnv.classes.get(obj.a.name)[0].get(stmt.field), value.a)) {
+          a = UNSAT;
+      } else {
+        a = globEnv.classes.get(obj.a.name)[0].get(stmt.field);
+      }
+      // TODO: not entirely sure if this is the way to determine a
+      return { ...stmt, a, obj, value };
+    }
+    case "for": {
+      let index;
+      if (stmt.index !== undefined) {
+        index = buildTypedExpr(stmt.index, globEnv, locEnv);
+      }
+      const iterable = buildTypedExpr(stmt.iterable, globEnv, locEnv);
+      const body = stmt.body.map(s => buildTypedStmt(s, globEnv, locEnv, topLevel));
+      // TODO: not entirely sure about the value of a
+      const a = iterable.a;
+      return { ...stmt, a, iterable, body, index };
+    }
+    // FIXME: what the hell of bracket-assign?
+    // case "bracket-assign" {
+    // }
+    case "pass":
+    case "continue":
+    case "break":
+      return stmt
+    default:
+      throw new Error(`Type completion is not implemented for: ${stmt}`);
+  }
+}
+
+export function buildTypedAST(program: Program<null>): Program<Type> {
+  // gather any type information that the user provided
+  const globEnv = augmentTEnv(defaultTypeEnv, program);
+  const locEnv = emptyLocalTypeEnv();
+  // we now infer types of the program statement by statement
+  const stmts = program.stmts.map(s => buildTypedStmt(s, globEnv, locEnv, true));
+
+  throw new Error("Type completion is not implemented for full programs yet");
 }

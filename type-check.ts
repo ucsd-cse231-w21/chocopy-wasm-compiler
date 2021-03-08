@@ -27,7 +27,7 @@ export type LocalTypeEnv = {
   topLevel: boolean;
 };
 
-const defaultGlobalFunctions = new Map();
+export const defaultGlobalFunctions = new Map();
 defaultGlobalFunctions.set("abs", [[NUM], NUM]);
 defaultGlobalFunctions.set("max", [[NUM, NUM], NUM]);
 defaultGlobalFunctions.set("min", [[NUM, NUM], NUM]);
