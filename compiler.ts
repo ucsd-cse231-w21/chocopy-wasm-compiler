@@ -15,7 +15,7 @@ import {
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { MemoryManager, TAG_CLASS, TAG_DICT, TAG_STRING } from "./alloc";
+import { MemoryManager, TAG_BIGINT, TAG_CLASS, TAG_DICT, TAG_STRING } from "./alloc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -1490,20 +1490,22 @@ function codeGenBigInt(num: bigint): Array<string> {
     size += 1;
   } while (num > 0n);
   // size MUST be > 0
+  // NOTE(alex:mm): $$allocPointer is clobbered when codegen'ing inner exprs
   var alloc = [
-    // eventually we will be able to call something like alloc(size+2)
-    "(i32.load (i32.const 0))", // Load dynamic heap head offset
+    `(i32.const ${TAG_BIGINT})`,
+    `(i32.add (i32.const ${(2 + size) * WORD_SIZE}))`, // size in bytes
+    `(local.tee $$allocPointer)`,
     `(i32.add (i32.const ${0 * WORD_SIZE}))`, // add space for sign field
     `(i32.const ${sign})`,
     "(i32.store)", // store sign val
-    "(i32.load (i32.const 0))", // Load dynamic heap head offset
+    `(local.get $$allocPointer)`,
     `(i32.add (i32.const ${1 * WORD_SIZE}))`, // move offset another 4 for size
     `(i32.const ${size})`, // size is only 32 bits :(
     "(i32.store)", // store size
   ];
   words.forEach((w, i) => {
     alloc = alloc.concat([
-      "(i32.load (i32.const 0))", // Load dynamic heap head offset
+      `(local.get $$allocPointer)`,
       `(i32.add (i32.const ${(2 + i) * WORD_SIZE}))`, // advance pointer
       `(i32.const ${w})`,
       ...encodeLiteral,
@@ -1511,12 +1513,7 @@ function codeGenBigInt(num: bigint): Array<string> {
     ]);
   });
   alloc = alloc.concat([
-    "(i32.const 0)", // where will we store the updated heap offset
-    "(i32.load (i32.const 0))", // Load dynamic heap head offset
-    `(i32.add (i32.const ${(2 + size) * WORD_SIZE}))`, // this is how much space we need
-    "(i32.store)", // store new offset
-    "(i32.load (i32.const 0))", // reload offset
-    `(i32.sub (i32.const ${(2 + size) * WORD_SIZE}))`, // this is the addr for the number
+    `(local.get $$allocPointer)`,     // address for the number
   ]);
   console.log(words, size, sign);
   return alloc;
