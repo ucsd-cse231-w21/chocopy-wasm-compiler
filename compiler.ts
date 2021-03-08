@@ -474,9 +474,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           return unreachable(expr);
       }
     case "call":
-      if(expr.name === "dict"){   //dict constructor call
-        return codeGenExpr(expr.arguments[0], env);     //call code gen for the dict argument 
-      }                                         
+      if (expr.name === "dict") {
+        //dict constructor call
+        return codeGenExpr(expr.arguments[0], env); //call code gen for the dict argument
+      }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
@@ -514,6 +515,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
+      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       if (objTyp.tag !== "class" && objTyp.tag !== "dict") {
         // I don't think this error can happen
         throw new Error(
@@ -522,11 +524,25 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
       if (objTyp.tag === "class") {
         var className = objTyp.name;
+        return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
       } else {
         var className = "dict";
+        if (expr.method === "get") {
+          let defaultarg = "";
+          if (expr.arguments.length == 1) {
+            defaultarg = `(i32.const -999)`;
+          }
+          return [
+            ...objStmts,
+            ...argsStmts,
+            defaultarg,
+            `(call $${className}$${expr.method})`,
+            `(i32.load)`,
+          ];
+        }
+        return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
       }
-      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
+
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
@@ -775,6 +791,75 @@ function codeGenDictKeyVal(
 
 function dictUtilFuns(): Array<string> {
   let dictFunStmts: Array<string> = [];
+
+  //This function returns a memory address for the value of a key.
+  //If key is not found, throw a key not found error
+  dictFunStmts.push(
+    ...[
+      "(func $dict$get (param $baseAddr i32) (param $key i32) (param $defaultValue i32) (result i32)",
+      "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
+      "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(local $returnVal i32)",
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      "(i32.const 0)",
+      "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
+      "(local.get $baseAddr)",
+      "(local.get $key)",
+      "(i32.const 10)", //hard-coding hash table size
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
+      "(i32.load)",
+      "(local.set $nodePtr)",
+      "(local.get $nodePtr)",
+      "(i32.const 0)", //None
+      "(i32.eq)",
+      "(if",
+      "(then", // if the literal in bucketAddress is None
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      ")", //close then
+      "(else",
+      "(block",
+      "(loop", // While loop till we find a node whose next is None
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(local.get $key)",
+      "(i32.eq)", // if tag is same as the provided one
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.const 4)",
+      "(i32.add)", // Value
+      "(local.set $returnVal)",
+      "(i32.const 1)",
+      "(local.set $tagHitFlag)", // Set tagHitFlag to True
+      ")", // closing then
+      ")", // closing if
+      "(local.get $nodePtr)",
+      "(i32.const 8)",
+      "(i32.add)", // Next pointer
+      "(i32.load)",
+      "(local.set $nodePtr)",
+      "(br_if 0", // Opening br_if
+      "(local.get $nodePtr)",
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      "(local.get $tagHitFlag)",
+      "(i32.eqz)",
+      "(i32.and)",
+      ")", // Closing br_if
+      "(br 1)",
+      ")", // Closing loop
+      ")", // Closing Block
+      ")", //close else
+      ")", // close if
+      "(local.get $returnVal)",
+      "(return))",
+      "",
+    ]
+  );
   //This function clears dictionary.
   dictFunStmts.push(
     ...[

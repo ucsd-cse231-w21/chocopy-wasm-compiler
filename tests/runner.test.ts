@@ -401,6 +401,15 @@ while False:
   );
 
   assert(
+    "dict-get-method",
+    `d:[int, int] = None
+          d = {1:2}
+          d.get(1)
+          `,
+    PyInt(2)
+  );
+
+  assert(
     "dict-bracket-lookup",
     `d:[int, int] = None
      x:int = 0
