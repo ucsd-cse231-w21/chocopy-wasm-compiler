@@ -33,7 +33,7 @@ export class TypeCheckError extends Error {
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
   functions: Map<string, [Array<Parameter>, Type]>;
-  classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>;
+  classes: Map<string, [Map<string, Type>, Map<string, [Array<Parameter>, Type]>]>;
 };
 
 export type LocalTypeEnv = {
@@ -106,8 +106,9 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
     const fields = new Map();
     const methods = new Map();
     cls.fields.forEach((field) => fields.set(field.name, field.type));
-    cls.methods.forEach((method) =>
-      methods.set(method.name, [method.parameters.map((p) => p.type), method.ret])
+    cls.methods.forEach(
+      (method) => methods.set(method.name, [method.parameters, method.ret])
+      //methods.set(method.name, [method.parameters.map((p) => p.type), method.ret])
     );
     newClasses.set(cls.name, [fields, methods]);
   });
@@ -514,13 +515,34 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         if (env.classes.has(tObj.a.name)) {
           const [_, methods] = env.classes.get(tObj.a.name);
           if (methods.has(expr.method)) {
-            const [methodArgs, methodRet] = methods.get(expr.method);
+            const [methodParams, methodRet] = methods.get(expr.method);
+            const methodArgs = methodParams.map((p) => p.type);
             const realArgs = [tObj].concat(tArgs);
+
             if (
               methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))
             ) {
               return { ...expr, a: methodRet, obj: tObj, arguments: tArgs };
+            } else if (
+              realArgs.length < methodArgs.length &&
+              realArgs.every((arg, i) => isAssignable(env, methodArgs[i], arg.a))
+            ) {
+              var augMethodArgs = tArgs;
+              var methodArgNums = realArgs.length;
+              while (methodArgNums < methodArgs.length) {
+                if (methodParams[methodArgNums].value === undefined) {
+                  throw new Error("Missing argument from class method call");
+                } else {
+                  // add default values into arguments as an Expr
+                  augMethodArgs = augMethodArgs.concat({
+                    tag: "literal",
+                    value: methodParams[methodArgNums].value,
+                  });
+                }
+                methodArgNums = methodArgNums + 1;
+              }
+              return { ...expr, a: methodRet, obj: tObj, arguments: augMethodArgs };
             } else {
               throw new TypeCheckError(
                 `Method call type mismatch: ${expr.method} --- callArgs: ${JSON.stringify(
