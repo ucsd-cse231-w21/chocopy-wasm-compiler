@@ -475,8 +475,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
     case "call":
       if(expr.name === "dict"){   //dict constructor call
-        return codeGenExpr(expr.arguments[0], env);     //call code gen for the dict argument 
-      }                                         
+        return codeGenExpr(expr.arguments[0], env);     //call code gen for the dict argument
+      }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
@@ -889,6 +889,8 @@ function dictUtilFuns(): Array<string> {
       "(i32.add)",
       "(i32.load)",
       "(i32.store)", // Updating the address of next in previous node to the next of the current node.
+      ")", // closing then
+      ")", // closing if
       "(local.get $currPtr)",
       "(i32.const 8)",
       "(i32.add)",
@@ -898,8 +900,6 @@ function dictUtilFuns(): Array<string> {
       "(i32.add)",
       "(i32.load)",
       "(local.set $currPtr)", // Updating the currPtr
-      ")", // closing then
-      ")", // closing if
       "(br_if 0", // Opening br_if
       "(local.get $currPtr)",
       "(i32.const 0)", //None
