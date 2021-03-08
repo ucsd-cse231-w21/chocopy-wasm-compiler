@@ -36,6 +36,16 @@ describe("FOR LOOP TEST", () => {
     `
   );
 
+  assertTCFail(
+    "continue outside loop",
+    `
+    i:int = 0
+    continue
+    for i in range(5):
+        print(i)
+    `
+  );
+
   assert(
     "break at 5",
     `
@@ -44,6 +54,21 @@ describe("FOR LOOP TEST", () => {
         print(i)
         if i == 5:
             break
+        else:
+            pass
+    i
+    `,
+    PyInt(5)
+  );
+
+  assert(
+    "continue at 5",
+    `
+    i:int = 0
+    for i in range(6):
+        if i == 5:
+            continue
+            i = 1
         else:
             pass
     i
