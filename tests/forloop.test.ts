@@ -1,7 +1,7 @@
 import { PyInt, PyBool, PyNone, PyObj, LIST } from "../utils";
 import { assert, asserts, assertPrint, assertTC, assertTCFail } from "./utils.test";
 
-describe("LIST TEST", () => {
+describe("FOR LOOP TEST", () => {
   //Programs described in the writeup, with additional changes
   //as necessary to actually test functionality
   assert(
