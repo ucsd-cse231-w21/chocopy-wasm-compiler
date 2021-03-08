@@ -874,4 +874,13 @@ describe("defaults", () => {
   print(a+b)`,
     ["Compiler Design"]
   );
+
+  assertPrint(
+    "print-string-concat-multiply-variable",
+    `
+  a:str="AB"
+  b:str="CD"
+  print((a+b)*2)`,
+    ["ABCDABCD"]
+  );
 });
