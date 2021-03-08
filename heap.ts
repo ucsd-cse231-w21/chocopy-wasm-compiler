@@ -1,163 +1,183 @@
-import { ModulePresenter } from "./types";
+import { ClassPresenter, ModulePresenter } from "./types";
 import { Value, Type } from "./ast";
-import { type } from "cypress/types/jquery";
+import {BuiltVariable} from "./builtins/builtins";
+import { add } from "cypress/types/lodash";
 
-export type ProgramStore = {
-  typeStore : TypeStore,
-  memStore: MemoryStore,
+export type RuntimeModule = {
+  presenter: ModulePresenter,
+  builtInVariable: Array<BuiltVariable>,
+  classes: Map<number, ClassPresenter>
 }
 
-export type TypeStore = {
-  
+export interface MemoryAllocator {
+
+  allocate(typeCode: number) : number;
+
+  staticStrAllocate(str: string) : number;
+
+  intAllocate(int: number) : number;
+
+  boolAllocate(b: boolean) : number;
+
+  getInt(intAddress: number) : number;
+
+  getBool(boolAdress: number) : number;
+
+  attrLookup(objAddress: number, attrIndex: number) : number;
+
+  attrMutate(objAddress: number, attrIndex: number, newVal: number) : void;
+
+  globalRetr(moduleCode: number, varIndex: number) : number;
+
+  globalMutate(moduleCode: number, varIndex: number, newValue: number) : void;
 }
 
-export type MemoryStore = {
-  curFileVarIndex: number,
+export class MainAllocator implements MemoryAllocator{
 
-  fileVariables: Array<{varName: string, declrType: Type, val: Value}>
-  fileVarIndex: Map<string, number>
+  private globalVars: Array<number>; //by module. module 0 is the main module
 
-  /*
-   Maps function signatures (as string) to their assembly labels
-   */
-  fileFunctionLabels: Map<string, string>,
+  private heap: Array<{type: number, attrs: Array<number>}>;
+  private heapIndex: number;
 
-  /*
-   Maps typecodes to their class names
-   */
-  fileTypes: Map<number, string>,
+  private modules: Map<number, RuntimeModule>;
 
-  /**
-   * Maps class names to their typecodes
-   */
-  typeCodes: Map<string, number>,
+  constructor(allModules: Map<number, RuntimeModule>){
+    this.modules = allModules;
+    this.globalVars = new Array();
+    this.heap = new Array(2); //we start with an array of size 2. Index 0 is None
+    this.heapIndex = 1;
+  }
 
-  heap: Array<Instance>,
-  heapIndex: number
-}
+  allocate(typeCode: number) : number{
+    //assumed current module
+    const currClass = this.modules.get(0).classes.get(typeCode);
+    const address = this.heapIndex;
 
-/*
- Represents a runtime instance of a class
- */
-export type Instance = {
-  typeName: string,
-  attributes: Array<Value>
-}
-
-function instanciate(typecode: number, store: ProgramStore) : number {
-  const heapAddress = store.memStore.heapIndex;
-
-  const className = store.memStore.fileTypes.get(typecode);
-  const classDef = store.typeStore.classes.get(className);
-
-  console.log("-----------> instantiating!!! "+className);
-
-  const attrs : Array<Value> = new Array(classDef.classVars.size);
-  for(let {index, varDec} of Array.from(classDef.classVars.values())){
-    if(varDec.value.tag === "value"){
-      switch(varDec.value.value.tag){
-        case "None" : {attrs[index] = {tag: "none"}; break;}
-        case "Boolean" : {attrs[index] = {tag: "bool", value: varDec.value.value.value}; break;}
-        case "Number" : {attrs[index] = {tag: "num", value: Number(varDec.value.value.value)}; break;}
+    const attrs = new Array<number>();
+    for(let [name, info] of currClass.instanceVars.entries()){
+      switch(info.initValue.tag){
+        case "num": {
+          attrs.push(this.intAllocate(Number(info.initValue.value)));
+          break;
+        }
+        case "bool": {
+          attrs.push(this.boolAllocate(info.initValue.value));
+          break;
+        }
+        case "string": {
+          attrs.push(this.staticStrAllocate(info.initValue.value));
+          break;
+        }
+        default: {
+          attrs.push(0);  //this is None
+          break;
+        }
       }
     }
+
+    const instance = {type: typeCode, attrs: attrs};
+    this.heap.push(instance);
+    this.heapIndex++;
+    return address;
   }
 
-  store.memStore.heap.push({typeName: className, attributes: attrs});
+  staticStrAllocate(str: string) : number {
+    const address = this.heapIndex;
+    const charArray = new Array<number>(str.length + 1);
 
-  store.memStore.heapIndex++;
-  return heapAddress;
-}
+    //first attr on string is the length
+    charArray.push(str.length);
+    for(let i = 0; i < charArray.length; i++){
+      charArray[i] = str.codePointAt(i);
+    }
 
-function objRetr(address: number, attrIndex: number, store: ProgramStore) : number{  
-  if(address === 0){
-    throw new Error("Heap object at index "+address+" is None!");
+    const strInstance = {
+      type: 2,
+      attrs: charArray
+    }
+
+    this.heap.push(strInstance);
+    this.heapIndex++;
+    return address;
   }
 
-  const heapObject = store.memStore.heap[address];
-  const attrValue = heapObject.attributes[attrIndex];
-  switch(attrValue.tag){
-    case "bool": {return attrValue.value ? 1 : 0}
-    case "none": {return 0}
-    case "num": {return attrValue.value}
-    case "object": {return attrValue.address}
-  }
-}
+  intAllocate(int: number) : number{
+    const address = this.heapIndex;
+    const intValue = {
+      type: 0,
+      attrs: [int]
+    };
 
-function objMut(address: number, attrIndex: number, newValue: number, store: ProgramStore) {
-  const attrValue = store.memStore.heap[address];
-
-  //console.log("------ATTRIBUTE MUTATION!!! "+attrValue.typeName);
-  if(attrValue.typeName === "none"){
-    throw new Error("Heap object at index "+address+" is None!");
+    this.heap.push(intValue);
+    this.heapIndex++;
+    return address;
   }
 
-  if(attrValue.attributes[attrIndex].tag === "num"){
-    attrValue.attributes[attrIndex] = {tag: "num", value: newValue};
+  boolAllocate(b: boolean) : number {
+    const address = this.heapIndex;
+    const boolValue = {
+      type: 1,
+      attrs: [b ? 1 : 0]
+    };
+
+    this.heap.push(boolValue);
+    this.heapIndex++;
+    return address;
   }
-  else if(attrValue.attributes[attrIndex].tag === "bool"){
-    attrValue.attributes[attrIndex] = {tag: "bool", value: newValue === 0? false : true};
+
+  getInt(intAddress: number) : number {
+    if(intAddress === 0){
+      throw new Error("None dereference");
+    }
+    const intObject = this.heap[intAddress];
+    return intObject.attrs[0];
   }
-  else{
-    if(newValue === 0){
-      attrValue.attributes[attrIndex] = {tag: "none"};
+
+  getBool(boolAdress: number) : number {
+    if(boolAdress === 0){
+      throw new Error("None dereference");
+    }
+    const boolObject = this.heap[boolAdress];
+    return boolObject.attrs[0];
+  }
+
+  attrLookup(objAddress: number, attrIndex: number) : number{
+    if(objAddress === 0){
+      throw new Error("Runtime error! None object target of attribute lookup");
+    }
+
+    const obj = this.heap[objAddress];
+    return obj.attrs[attrIndex];
+  }
+
+  attrMutate(objAddress: number, attrIndex: number, newVal: number) : void {
+    if(objAddress === 0){
+      throw new Error("Runtime error! None object target of attribute mutation");
+    }
+
+    const obj = this.heap[objAddress];
+    obj.attrs[attrIndex] = newVal;
+  }
+
+  globalRetr(moduleCode: number, varIndex: number) : number{
+    if(moduleCode === 0){
+      const globalVar = this.globalVars[varIndex];
+      return globalVar;
+    }
+    const targetModule = this.modules.get(moduleCode);
+    const gVar = targetModule.builtInVariable[varIndex];
+    return gVar.get();
+  }
+
+  globalMutate(moduleCode: number, varIndex: number, newValue: number) : void{
+    if(moduleCode === 0){
+      this.globalVars[varIndex] = newValue;
     }
     else{
-      const heapObject = store.memStore.heap[newValue];
-      attrValue.attributes[attrIndex] = {tag: "object", name: heapObject.typeName, address: newValue};
+      const targetModule = this.modules.get(moduleCode);
+      const gVar = targetModule.builtInVariable[varIndex];
+      gVar.set(newValue);
     }
   }
-}
 
-function globalStore(varIndex: number, newValue: number, store: ProgramStore) {
-  const varInfo = store.memStore.fileVariables[varIndex];
-
-  //console.log("------GLOBAL VAR MUTATION!!! "+varIndex+" | "+varInfo.varName);
-
-  /*
-  if(varInfo === undefined){
-    throw new Error(`unknown global STORE? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
-       ${curSource.join("\n")}
-        INSTRS: 
-        ${curInstr.join("\n")}`);
-  }
-  */
-
-  if(varInfo.declrType.tag === "number"){
-    store.memStore.fileVariables[varIndex].val =  {tag: "num", value: BigInt(newValue)};
-  }
-  else if(varInfo.declrType.tag === "bool"){
-    store.memStore.fileVariables[varIndex].val = {tag: "bool", value: newValue === 0? false : true};
-  }
-  else{
-    if(newValue === 0){
-      console.log("------- gvar is nulled!");
-      store.memStore.fileVariables[varIndex].val = {tag: "none"};
-    }
-    else{
-      const heapObject = store.memStore.heap[newValue];
-      console.log("------- still gvar mut "+(heapObject === undefined)+" | "+newValue)
-      store.memStore.fileVariables[varIndex].val = {tag: "object", name: heapObject.typeName, address: newValue};
-    }
-  }
-}
-
-function globalRetr(varIndex: number, store: ProgramStore) : number {
-  const varInfo = store.memStore.fileVariables[varIndex];
-
-  /*
-  if(varInfo === undefined){
-    throw new Error(`unknown global? caller: ${varIndex} | ${store.memStore.fileVariables.length} | ${store.memStore.curFileVarIndex} PROGS: 
-       ${curSource.join("\n")}
-        INSTRS: 
-        ${curInstr.join("\n")}`);
-  }
-  */
-
-  switch(varInfo.val.tag){
-    case "bool": {return varInfo.val.value ? 1 : 0}
-    case "none": {return 0}
-    case "num": {return Number(varInfo.val.value)}
-    case "object": {return varInfo.val.address}
-  }
 }

@@ -1,7 +1,7 @@
 import { type } from "cypress/types/jquery";
 import { Func } from "mocha";
 import { Module } from "webpack";
-import { Class, FunDef, VarInit , Stmt, Type, typeToString, Literal} from "./ast";
+import { Class, FunDef, VarInit , Stmt, Type, typeToString, Literal, Value} from "./ast";
 
 /**
  * Represents a program that has been typechecked
@@ -48,7 +48,7 @@ export type ModulePresenter = {
 
 export type ClassPresenter = {
     name: string,
-    instanceVars: Map<string, Type>,
+    instanceVars: Map<string, {type: Type, initValue?: Literal}>,
     instanceMethods: Map<string, FuncIdentity>
 }
 

@@ -117,6 +117,7 @@ export type Closure<A> = {
 
 export type CallSite = {
   iden: FuncIdentity,
+  module: string, //if module if undefined, assume it's the source module
   isConstructor: boolean
 }
 

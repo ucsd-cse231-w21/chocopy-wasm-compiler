@@ -3,12 +3,14 @@ import { tc } from "./type-check";
 import { Value, Type, typeToString } from "./ast";
 import { parse } from "./parser";
 import { builtinModules } from "module";
-import { attachPresenter, BuiltInModule, gatherPresenters, otherModule } from "./builtins/builtins";
+import { attachPresenter, BuiltInModule, gatherPresenters, OtherModule } from "./builtins/builtins";
 import { type } from "cypress/types/jquery";
 import { ModulePresenter, OrganizedModule } from "./types";
 import { last, thru } from "cypress/types/lodash";
 import { NONE } from "./utils";
 import fs from 'fs';
+import { MainAllocator } from "./heap";
+import { LabeledModule } from "./compiler";
 
 
 interface REPL {
@@ -24,7 +26,9 @@ export type Config = {
 export class BasicREPL {
   
   private config: Config;
+
   private curModule: OrganizedModule;
+  private curModuleLabeled: LabeledModule;
 
   constructor(config: Config) {
     this.config = config;
@@ -59,7 +63,7 @@ export class BasicREPL {
 
 async function main(){
   const builtins = new Map<string, BuiltInModule>();
-
+  const otherModule: OtherModule = new OtherModule(new MainAllocator(undefined));
   attachPresenter(otherModule);
 
   builtins.set(otherModule.name, otherModule);

@@ -1,8 +1,12 @@
 import { Type, typeToString, Value } from "../ast";
+import { MemoryAllocator } from "../heap";
 import { ClassPresenter, FuncIdentity, ModulePresenter } from "../types";
 import { NONE } from "../utils";
-
-export const otherModule : BuiltInModule = new class implements BuiltInModule {
+/**
+ * Represents a built-in ChocoPy module
+ * whose internal code is actually written in Type/Javascript
+ */
+export abstract class BuiltInModule {
     readonly name: string;
     readonly classes : Map<string, BuiltInClass>;
     readonly variables: Map<string, BuiltVariable>;
@@ -13,47 +17,11 @@ export const otherModule : BuiltInModule = new class implements BuiltInModule {
      */
     presenter: ModulePresenter;
 
-    constructor(){
-        this.name = "otherModule";
-        this.classes = new Map();
-        this.variables = new Map();
-        this.functions = new Map([
-            ["someFunc()", {isConstructor: false, 
-                            identity: {signature: {name: "someFunc", parameters: []}, 
-                                       returnType: NONE},
-                            func: this.someFunc}],
-            ["otherFunc()", {isConstructor: false, 
-                            identity: {signature: {name: "otherFunc", parameters: []}, 
-                                       returnType: NONE},
-                            func: this.otherFunc}],               
-        ]);
+    readonly allocator: MemoryAllocator;
+
+    constructor(allocator: MemoryAllocator){
+        this.allocator = allocator;
     }
-
-    someFunc() : Value{
-        console.log("in some func!");
-        return {tag: "none"}
-    }
-
-    otherFunc() : Value{
-        console.log("in other func!");
-        return {tag: "none"}
-    }
-}
-
-/**
- * Represents a built-in ChocoPy module
- * whose internal code is actually written in Type/Javascript
- */
-export interface BuiltInModule {
-    readonly name: string,
-    readonly classes : Map<string, BuiltInClass>,
-    readonly variables: Map<string, BuiltVariable>,
-    readonly functions: Map<string, BuiltInFunction>,
-
-    /**
-     * Can be used to attach a ModulePresenter for subsequent typechecks
-     */
-    presenter: ModulePresenter
 };
 
 export interface BuiltInClass {
@@ -70,30 +38,24 @@ export interface BuiltInClass {
 export type BuiltInFunction = {
     isConstructor: boolean,
     identity: FuncIdentity,
-    func: () => Value,  //so far, we'll only support no-arg functions
+    func: () => number,  //so far, we'll only support no-arg functions
 };
 
 export class BuiltVariable {
-    private var : Value;
+    private var : number;
     private type : Type;
     private name : string;
 
-    constructor(name: string, type : Type, initValue? : Value){
-        if(initValue === undefined){
-            this.var = {tag: "none"};
-        }
-        else{
-            this.var = initValue;
-        }
+    constructor(name: string, type : Type){
         this.name = name;
         this.type = type;
     }
 
-    set(newVal: Value) : void {
+    set(newVal: number) : void {
         this.var = newVal;
     }
 
-    get() : Value {
+    get() : number {
         return this.var;
     }
 
@@ -114,7 +76,7 @@ export function attachClassPresenter(c: BuiltInClass){
     }
 
     for(let [name, info] of c.variables.entries()){
-        presenter.instanceVars.set(name, info.getType());
+        presenter.instanceVars.set(name, {type: info.getType()});
     }
 
     for(let [sig, info] of c.methods.entries()){
@@ -155,3 +117,44 @@ export function gatherPresenters(modules: Map<string, BuiltInModule>) {
     }
     return ret;
 }
+
+//-----------ACTUAL MODULES--------------
+export class OtherModule extends BuiltInModule {
+    readonly name: string;
+    readonly classes : Map<string, BuiltInClass>;
+    readonly variables: Map<string, BuiltVariable>;
+    readonly functions: Map<string, BuiltInFunction>;
+
+    /**
+     * Can be used to attach a ModulePresenter for subsequent typechecks
+     */
+    presenter: ModulePresenter;
+
+
+    constructor(allocator: MemoryAllocator){
+        super(allocator);
+        this.name = "otherModule";
+        this.classes = new Map();
+        this.variables = new Map();
+        this.functions = new Map([
+            ["someFunc()", {isConstructor: false, 
+                            identity: {signature: {name: "someFunc", parameters: []}, 
+                                       returnType: NONE},
+                            func: this.someFunc}],
+            ["otherFunc()", {isConstructor: false, 
+                            identity: {signature: {name: "otherFunc", parameters: []}, 
+                                       returnType: NONE},
+                            func: this.otherFunc}],               
+        ]);
+    }
+
+    someFunc() : number{
+        console.log("in some func!");
+        return 0;
+    }
+
+    otherFunc() : number{
+        console.log("in other func!");
+        return 0;
+    }
+};
