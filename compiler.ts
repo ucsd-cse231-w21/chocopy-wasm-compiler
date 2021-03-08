@@ -1103,7 +1103,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           );
       }
     case "slicing":
-      switch (expr.name.a.tag) {
+      switch (expr.name.a[0].tag) {
         case "string":
           // name, start, end, stride
           var nameStmts = codeGenExpr(expr.name, env);
