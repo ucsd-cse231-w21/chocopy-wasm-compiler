@@ -5,6 +5,7 @@ import {
   HEADER_SIZE_BYTES,
   MarkableAllocator,
 } from "./gc";
+import { NONE } from "./utils";
 
 export interface Allocator {
   alloc: (size: bigint) => Block;
@@ -152,49 +153,10 @@ class LinkedList {
       temp.prev = node;  
       
       curr.data.size = curr.data.size - node.data.size; 
-      node.data.addr = curr.data.addr + curr.data.size; //[CHECK] - Does size have to be divided by 8n?
+      node.data.addr = curr.data.addr + curr.data.size;
       curr.data.size = curr.data.size - node.data.size;
 
     return node;
-  }
-
-  public dealloc(ptr: Pointer) {
-    let curr = this.head;
-    while(curr.next!=null) {
-      if(curr.data.addr==ptr) {
-        curr.data.isFree = true;
-        break;
-      }
-      curr = curr.next;
-    }
-  }
-
-  public coalesce() {
-    let curr = this.head;
-
-    while(curr.next!=null) {
-      if(curr.data.isFree && curr.next.data.isFree) {
-        curr.data.size = curr.data.size + curr.next.data.size;
-
-        //curr --> curr.next --> curr.next.next
-        curr.next = curr.next.next;
-        curr.next.next.prev = curr;
-      }
-      else{
-        curr = curr.next;
-      }
-    }
-  }
-
-  public search(comparator: (data: flmd) => boolean): Node | null {
-    const checkNext = (node: Node): Node | null => {
-      if (comparator(node.data)) {
-        return node;
-      }
-      return node.next ? checkNext(node.next) : null;
-    };
-
-    return this.head ? checkNext(this.head) : null;
   }
 
   public traverse(): flmd[] {
@@ -246,16 +208,17 @@ export class FreeListAllocator implements MarkableAllocator {
     this.regEnd = end;
 
     this.linkedList = new LinkedList();
-    this.linkedList.insertInBegin({ addr: start + (end-start), size: 0n, isFree: true}); //[CHECK] - Size of region - Is it (end-start) or ((end-start)/8n)?
+    this.linkedList.insertInBegin({ addr: end, size: 0n, isFree: true});
     this.linkedList.insertInBegin({ addr: start, size: (end-start), isFree: true });
   }
 
   alloc(s: bigint): Block {
 
     let curr = this.linkedList.getHead();
-    
+
     while(curr.next!=null) {
       if(curr.data.isFree==true && s<curr.data.size) {
+        s = s + (s%2n); // Aligning on an even boundary
         const dataN = {addr:0x0n, size:s, isFree:false}; // Address 0x0n - As a placeholder before updation
         const dataR =  this.linkedList.getData(this.linkedList.insert(dataN, curr));
         return {
@@ -266,12 +229,19 @@ export class FreeListAllocator implements MarkableAllocator {
       else {
         curr = curr.next;
       }
-    }    
+    }   
+    return NULL_BLOCK;
   }
 
   free2(ptr: Pointer) {
-    this.linkedList.dealloc(ptr);
-    this.linkedList.coalesce();
+    let curr = this.linkedList.getHead();
+    while(curr.next!=null) {
+      if(curr.data.addr==ptr) {
+        curr.data.isFree = true;
+        break;
+      }
+      curr = curr.next;
+    }
   }
   
   owns(ptr: Pointer): boolean {
@@ -310,9 +280,29 @@ export class FreeListAllocator implements MarkableAllocator {
         let header = new Header(this.memory, curr.data.addr);
         if(!header.isMarked()) {
           this.free2(curr.data.addr);
+
+          //curr.prev --> curr --> curr.next
+          //Coalesce
+          if(curr.prev?.data.isFree) {
+            curr.prev.data.size = curr.prev.data.size + curr.data.size;
+            curr.prev.next = curr.next;
+            curr.next.prev = curr.prev;
+            curr = curr.prev;
+          }
+      
+          if(curr.next.data.isFree) {
+            curr.data.size = curr.next.data.size + curr.data.size;
+            curr.next = curr.next.next;
+            curr.next.prev = curr;
+          }
+        }
+        else {
+          header.unmark();
         }
       }
-      curr = curr.next;
+      else {
+        curr = curr.next;
+      }
     }
   }
 }
