@@ -36,8 +36,9 @@ export const emptyEnv: GlobalEnv = {
   funs: new Map(),
 };
 
-const RELEASE_TEMPS = true;
-const HOLD_TEMPS = false;
+const FENCE_TEMPS = 2;
+const RELEASE_TEMPS = 1;
+const HOLD_TEMPS = 0;
 
 export const nTagBits = 1;
 const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
@@ -253,7 +254,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     //     (i32.const 0)
     //     (return))`];
     case "return":
-      var valStmts = codeGenTempGuard(codeGenExpr(stmt.value, env), RELEASE_TEMPS);
+      var valStmts = codeGenTempGuard(codeGenExpr(stmt.value, env), FENCE_TEMPS);
 
       // returnTemp places the return expr value into the caller's temp set
       // NOTE(alex:mm): We need to put temporaries and escaping pointers into
@@ -279,10 +280,10 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       ];
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
-      return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]), RELEASE_TEMPS);
+      return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]), FENCE_TEMPS);
     case "if":
       // TODO(alex:mm): Are these temporary guards correct/minimal?
-      var condExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env).concat(decodeLiteral), RELEASE_TEMPS);
+      var condExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env).concat(decodeLiteral), FENCE_TEMPS);
       var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [
@@ -291,7 +292,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         )}))`,
       ];
     case "while":
-      var wcondExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env).concat(decodeLiteral), RELEASE_TEMPS);
+      var wcondExpr = codeGenTempGuard(codeGenExpr(stmt.cond, env).concat(decodeLiteral), FENCE_TEMPS);
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       return [
         `(block (loop (br_if 1 ${wcondExpr.join("\n")}\n(i32.eqz)) ${bodyStmts.join(
@@ -474,10 +475,10 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
           `(call $addLocal)`
         ];
 
-        return codeGenTempGuard(result, RELEASE_TEMPS);
+        return codeGenTempGuard(result, FENCE_TEMPS);
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, target.name)}) ;; ${target.name}`];
-        return codeGenTempGuard([...locationToStore, ...value, "(i32.store)"], RELEASE_TEMPS);
+        return codeGenTempGuard([...locationToStore, ...value, "(i32.store)"], FENCE_TEMPS);
       }
     case "lookup": // Field lookup
       const objStmts = codeGenExpr(target.obj, env);
@@ -496,7 +497,7 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
         ...value,
         `(i32.store)`,
       ];
-      return codeGenTempGuard(result, RELEASE_TEMPS);
+      return codeGenTempGuard(result, FENCE_TEMPS);
     case "bracket-lookup":
       switch (target.obj.a.tag) {
         case "dict":
@@ -1578,10 +1579,16 @@ function codeGenBinOp(op: BinOp): string {
 //   freed
 // Necessary because cannot scan the WASM stack for pointers so the MemoryManager
 //   must maintain its own list of reachable objects
-function codeGenTempGuard(c: Array<string>, release: boolean): Array<string> {
-  if (release) {
-    return ["(call $captureTemps)"].concat(c).concat(["(call $releaseTemps)"]);
+function codeGenTempGuard(c: Array<string>, kind: number): Array<string> {
+  switch (kind) {
+    case FENCE_TEMPS:
+      return ["(call $captureTemps)"].concat(c).concat(["(call $releaseTemps)"]);
+
+    case HOLD_TEMPS:
+      return ["(call $captureTemps)"].concat(c);
+
+    case RELEASE_TEMPS:
+      return c.concat(["(call $releaseTemps)"]);
   }
 
-  return ["(call $captureTemps)"].concat(c);
 }
