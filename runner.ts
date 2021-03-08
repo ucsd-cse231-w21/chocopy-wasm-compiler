@@ -125,7 +125,7 @@ export async function run(
     (func $captureTemps (import "imports" "captureTemps"))
     (func $releaseTemps (import "imports" "releaseTemps"))
     (func $pushFrame (import "imports" "pushFrame"))
-    (func $addLocal (import "imports" "addLocal") (param i32))
+    (func $addLocal (import "imports" "addLocal") (param i32) (param i32))
     (func $removeLocal (import "imports" "removeLocal") (param i32))
     (func $releaseLocals (import "imports" "releaseLocals"))
     (func $forceCollect (import "imports" "forceCollect"))

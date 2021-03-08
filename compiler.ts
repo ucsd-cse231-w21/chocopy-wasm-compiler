@@ -23,7 +23,7 @@ import { MemoryManager, TAG_CLASS } from "./alloc";
 export type GlobalEnv = {
   globals: Map<string, number>;
   classes: Map<string, Map<string, [number, Literal]>>;
-  locals: Set<string>;
+  locals: Map<string, number>;      // Map from local/param to stack slot index
   offset: number;
   funs: Map<string, [number, Array<string>]>; // <function name, [tbl idx, Array of nonlocals]>
 };
@@ -31,7 +31,7 @@ export type GlobalEnv = {
 export const emptyEnv: GlobalEnv = {
   globals: new Map(),
   classes: new Map(),
-  locals: new Set(),
+  locals: new Map(),
   offset: 0,
   funs: new Map(),
 };
@@ -147,6 +147,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): 
   console.log("program", ast);
   const withDefines = augmentEnv(env, ast, mm);
 
+  let stackIndexOffset = 0;   // NOTE(alex:mm): assumes start function has no params
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
   definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
@@ -160,7 +161,10 @@ export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): 
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
   definedVars.add("$string_address"); //needed for string indexing
-  definedVars.forEach(env.locals.add, env.locals);
+  definedVars.forEach(v => {
+    env.locals.set(v, stackIndexOffset);
+    stackIndexOffset += 1;
+  });
   const localDefines = makeLocals(definedVars);
   const funs: Array<string> = [];
   ast.funs.forEach((f) => {
@@ -468,9 +472,11 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
     case "id": // Variables
       if (env.locals.has(target.name)) {
 
-        const result = [`(local.get $${target.name})`, `(call $removeLocal)`,
+        const localIndex = env.locals.get(target.name);
+        const result = [
           ...value,
           `(local.set $${target.name})`,
+          `(i32.const ${localIndex.toString()})`,
           `(local.get $${target.name})`,
           `(call $addLocal)`
         ];
@@ -645,9 +651,20 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
   definedVars.add("$string_address"); //needed for string indexing
+
+  // NOTE(alex:mm): parameters indices go first
+  let currLocalIndex = 0;
+  var params = def.parameters.map((p) => {
+    env.locals.set(p.name, currLocalIndex);
+    currLocalIndex += 1;
+    return `(param $${p.name} i32)`;
+  }).join(" ");
+
   // def.parameters.forEach(p => definedVars.delete(p.name));
-  definedVars.forEach(env.locals.add, env.locals);
-  def.parameters.forEach((p) => env.locals.add(p.name));
+  definedVars.forEach(v => {
+    env.locals.set(v, currLocalIndex);
+    currLocalIndex += 1;
+  });
 
   const localDefines = makeLocals(definedVars);
   const locals = localDefines.join("\n");
@@ -655,7 +672,6 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
     .map((init) => codeGenInit(init, env))
     .flat()
     .join("\n");
-  var params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
   var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
   var stmtsBody = stmts.join("\n");
   env.locals.clear();
