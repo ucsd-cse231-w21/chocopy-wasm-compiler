@@ -273,11 +273,12 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       const valueCode = codeGenExpr(stmt.value, env);
       const getValue = "(local.get $$destruct)";
 
-      return [
+      // TODO(alex): make more granular?
+      return codeGenTempGuard([
         ...valueCode,
         "local.set $$destruct",
         ...codeGenDestructure(stmt.destruct, getValue, env),
-      ];
+      ], FENCE_TEMPS);
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
       return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]), FENCE_TEMPS);
@@ -462,6 +463,7 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
 }
 
 function codeGenAssignable(target: Assignable<Type>, value: string[], env: GlobalEnv): string[] {
+  // NOTE(alex:mm): temp guards are generated at the statement level
   switch (target.tag) {
     case "id": // Variables
       if (env.locals.has(target.name)) {
@@ -475,10 +477,10 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
           `(call $addLocal)`
         ];
 
-        return codeGenTempGuard(result, FENCE_TEMPS);
+        return result;
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, target.name)}) ;; ${target.name}`];
-        return codeGenTempGuard([...locationToStore, ...value, "(i32.store)"], FENCE_TEMPS);
+        return [...locationToStore, ...value, "(i32.store)"];
       }
     case "lookup": // Field lookup
       const objStmts = codeGenExpr(target.obj, env);
@@ -497,7 +499,7 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
         ...value,
         `(i32.store)`,
       ];
-      return codeGenTempGuard(result, FENCE_TEMPS);
+      return result;
     case "bracket-lookup":
       switch (target.obj.a.tag) {
         case "dict":
