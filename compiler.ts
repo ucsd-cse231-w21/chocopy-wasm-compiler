@@ -15,7 +15,7 @@ import {
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { MemoryManager, TAG_CLASS } from "./alloc";
+import { MemoryManager, TAG_CLASS, TAG_DICT } from "./alloc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -1127,12 +1127,22 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
 }
 
 function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number): Array<string> {
+  // NOTE(alex:mm): $$allocPointer is clobbered by inner exprs
+  // Dump it to the stack before you codegen for inner exprs
   let dictAllocStmts: Array<string> = [];
+  dictAllocStmts = dictAllocStmts.concat([
+    `(i32.const ${Number(TAG_DICT)})   ;; heap-tag: dictionary`,
+    `(i32.const ${hashtableSize * 4})   ;; size in bytes`,
+    `(call $gcalloc)`,
+    `(local.set $$allocPointer)`,
+    `(local.get $$allocPointer)`,   // return to parent expr
+  ]);
+
   //Ideally this loop should be replaced by call to allocator API to allocate hashtablesize entries on heap.
   for (let i = 0; i < hashtableSize; i++) {
     dictAllocStmts.push(
       ...[
-        `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+        `(local.get $$allocPointer)`,
         `(i32.add (i32.const ${i * 4}))`, // Calc hash table entry offset from heap offset
         ...codeGenLiteral({ tag: "none" }), // CodeGen for "none" literal
         "(i32.store)", // Initialize to none
@@ -1141,15 +1151,11 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number
   }
   //Push the base address of dict on the stack to be consumed by each of the key:val pair initialization
   for (let i = 0; i < entries; i++) {
-    dictAllocStmts = dictAllocStmts.concat(["(i32.load (i32.const 0))"]);
+    dictAllocStmts = dictAllocStmts.concat(["(local.get $$allocPointer)"]);
   }
-  return dictAllocStmts.concat([
-    "(i32.load (i32.const 0))", // Get address for the dict (this is the return value)
-    "(i32.const 0)", // Address for our upcoming store instruction
-    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-    `(i32.add (i32.const ${hashtableSize * 4}))`, // Increment heap offset according to hashtable size
-    "(i32.store)", // Save the new heap offset
-  ]);
+
+  // entries + 1 dict pointers should be on the stack
+  return dictAllocStmts;
 }
 
 function allocateStringMemory(string_val: string): Array<string> {
