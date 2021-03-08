@@ -392,6 +392,19 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     case "break":
       // break to depth
       return [`(br_if ${stmt.depth} (i32.const 1))`];
+    case "field-assign":
+      var objStmts = codeGenExpr(stmt.obj, env);
+      var objTyp = stmt.obj.a;
+      if (objTyp.tag !== "class") {
+        // I don't think this error can happen
+        throw new Error(
+          "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
+        );
+      }
+      var className = objTyp.name;
+      var [offset, _] = env.classes.get(className).get(stmt.field);
+      var valStmts = codeGenExpr(stmt.value, env);
+      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
     default:
       unhandledTag(stmt);
   }
