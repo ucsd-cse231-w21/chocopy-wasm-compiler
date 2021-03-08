@@ -253,27 +253,20 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     //     (i32.const 0)
     //     (return))`];
     case "return":
-      var valStmts = codeGenExpr(stmt.value, env);
+      var valStmts = codeGenTempGuard(codeGenExpr(stmt.value, env), RELEASE_TEMPS);
 
-      valStmts.push("(call $releaseLocals)");
-
-      // $addTemp tries to root the input value and returns it
-      //   to the top of the stack
-      valStmts.push("(call $addTemp)");
-      valStmts.push("return");
-
-      // TODO(alex:mm): this scheme breaks with block expressions (and is
-      //   probably just wrong too)
-      //   Instead, need to place in the calling expression's temporary set
-      //   or the calling function's local set
+      // returnTemp places the return expr value into the caller's temp set
       // NOTE(alex:mm): We need to put temporaries and escaping pointers into
       //   the calling statement's temp frame, not a new one.
       //
       // By placing them into the calling statement's temp frame, escaping pointers
       //   have an opportunity to be rooted without fear of the GC cleaning it up
-      //
       // TODO(alex:mm): instead of relying on escape analysis, we'll just try to
       //   add the returned value to the parent temp frame
+      valStmts.push("(call $returnTemp)");
+      valStmts.push("(call $releaseLocals)");
+      valStmts.push("return");
+
       return valStmts;
     case "assignment":
       const valueCode = codeGenExpr(stmt.value, env);
@@ -648,6 +641,10 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
+  // Used to cache the result of `gcalloc` and dump
+  //   it to the stack for initialization
+  // NOTE(alex:mm): need to `local.get` object pointer BEFORE generating code
+  //   for inner expressions
   definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
@@ -881,7 +878,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
     case "call":
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+      valStmts.push(`(call $pushCaller)`);
       valStmts.push(`(call $${expr.name})`);
+      valStmts.push(`(call $popCaller)`);
       return valStmts;
     case "call_expr":
       const callExpr: Array<string> = [];
@@ -921,11 +920,22 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
         `(call $gcalloc)`,
         `(local.set $$allocPointer)`,
+        `(local.get $$allocPointer)`,   // return to parent expr
+        `(local.get $$allocPointer)`,   // use in __init__
       ];
-      env.classes.get(expr.name).forEach(([offset, initVal], field) =>
+      // NOTE(alex): hack to get nested allocations to work
+      // Let F by the number of fields in the class
+      // Dump the pointer F + 2 times on the stack
+      //   * +1 in order to call the __init__ method
+      //   * +1 in order to return the leave the pointer at the top of the stack
+      const classLayout = env.classes.get(expr.name);
+      classLayout.forEach(() => {
+        stmts.push(`(local.get $$allocPointer)`);
+      });
+      classLayout.forEach(([offset, initVal], field) =>
         stmts.push(
           ...[
-            `(local.get $$allocPointer)`,
+            // Pointer should be on the top of the stack already
             `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
             ...codeGenLiteral(initVal), // Initialize field
             "(i32.store)", // Put the default field value on the heap
@@ -933,10 +943,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         )
       );
       return stmts.concat([
-        `(local.get $$allocPointer)`,
+        // Pointer to deref should be on the top of the stack already
         `(call $${expr.name}$__init__)`, // call __init__
-        `(drop)`,
-        `(local.get $$allocPointer)`,
+        `(drop)`,   // Drop None from __init__
+        // Pointer to return should be on the top of the stack already
       ]);
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
@@ -952,7 +962,13 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         .map((arg) => codeGenExpr(arg, env))
         .flat()
         .concat();
-      return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
+      return [
+        ...objStmts,
+        ...argsStmts,
+        `(call $pushCaller)`,
+        `(call $${className}$${expr.method})`,
+        `(call $popCaller)`,
+      ];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;

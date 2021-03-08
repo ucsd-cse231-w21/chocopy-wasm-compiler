@@ -27,6 +27,16 @@ export function importMemoryManager(importObject: any, mm: MemoryManager) {
     return Number(mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size)));
   };
 
+  importObject.imports.pushCaller = function() {
+    mm.pushCaller();
+  };
+  importObject.imports.popCaller = function() {
+    mm.popCaller();
+  };
+  importObject.imports.returnTemp = function (value: number): number {
+    mm.returnTemp(BigInt(value));
+    return value;
+  };
   importObject.imports.addTemp = function (value: number): number {
     mm.addTemp(BigInt(value));
     return value;
@@ -82,6 +92,22 @@ export class MemoryManager {
 
   forceCollect() {
     this.gc.collect();
+  }
+
+  // Pushes the index of the temporary set of the function caller
+  // Necessary to know in which temp root set to place the function result
+  pushCaller() {
+    this.gc.roots.pushCaller();
+  }
+
+  // Pops the index of the temporary set of the function caller
+  popCaller() {
+    this.gc.roots.popCaller();
+  }
+
+  // Places the value into the function caller's temp root set
+  returnTemp(value: bigint) {
+    this.gc.roots.returnTemp(value);
   }
 
   // Add a potential pointer to the set of temporary roots
