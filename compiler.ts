@@ -414,7 +414,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       return [`(br ${stmt.depth})`]
     case "field-assign":
       var objStmts = codeGenExpr(stmt.obj, env);
-      var objTyp = stmt.obj.a;
+      var objTyp = stmt.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
         throw new Error(
