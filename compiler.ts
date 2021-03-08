@@ -130,27 +130,20 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     //     (i32.const 0)
     //     (return))`];
     case "return":
-      var valStmts = codeGenExpr(stmt.value, env);
+      var valStmts = codeGenTempGuard(codeGenExpr(stmt.value, env), RELEASE_TEMPS);
 
-      valStmts.push("(call $releaseLocals)");
-
-      // $addTemp tries to root the input value and returns it
-      //   to the top of the stack
-      valStmts.push("(call $addTemp)");
-      valStmts.push("return");
-
-      // TODO(alex:mm): this scheme breaks with block expressions (and is
-      //   probably just wrong too)
-      //   Instead, need to place in the calling expression's temporary set
-      //   or the calling function's local set
+      // returnTemp places the return expr value into the caller's temp set
       // NOTE(alex:mm): We need to put temporaries and escaping pointers into
       //   the calling statement's temp frame, not a new one.
       //
       // By placing them into the calling statement's temp frame, escaping pointers
       //   have an opportunity to be rooted without fear of the GC cleaning it up
-      //
       // TODO(alex:mm): instead of relying on escape analysis, we'll just try to
       //   add the returned value to the parent temp frame
+      valStmts.push("(call $returnTemp)");
+      valStmts.push("(call $releaseLocals)");
+      valStmts.push("return");
+
       return valStmts;
     case "assignment":
       throw new Error("Destructured assignment not implemented");
