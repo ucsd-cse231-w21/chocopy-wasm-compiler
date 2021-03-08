@@ -1,6 +1,6 @@
-import { Type } from "../ast";
-import { stringify } from "../utils";
-import { Value } from "../ast";
+import { Type, Value } from "../ast";
+import { NUM, STRING, BOOL, NONE, unhandledTag, stringify } from "../utils";
+import { nTagBits } from "../compiler";
 
 function print(val: Value) {
   importObject.output += stringify(val);
@@ -19,7 +19,9 @@ export const importObject = {
     //  We can then examine output to see what would have been printed in the
     //  console.
     print: print,
-    abs: Math.abs,
+    abs: function (n: number) {
+      return (Math.abs(n >> 1) << 1) + 1;
+    },
     min: Math.min,
     max: Math.max,
     pow: Math.pow,
