@@ -331,7 +331,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
     case "call":
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+      valStmts.push(`(call $pushCaller)`);
       valStmts.push(`(call $${expr.name})`);
+      valStmts.push(`(call $popCaller)`);
       return valStmts;
     case "construct":
       var stmts: Array<string> = [
@@ -367,7 +369,13 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
       var className = objTyp.name;
       var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
+      return [
+        ...objStmts,
+        ...argsStmts,
+        `(call $pushCaller)`,
+        `(call $${className}$${expr.method})`,
+        `(call $popCaller)`,
+      ];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
