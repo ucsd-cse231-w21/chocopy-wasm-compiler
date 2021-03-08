@@ -5,6 +5,7 @@ import { Value, Type } from "./ast";
 import { parse } from "./parser";
 import { bignumfunctions } from "./bignumfunctions";
 import { NUM, BOOL, NONE, PyValue, PyBigInt, encodeValue } from "./utils";
+import { ArithmeticError, ZeroDivisionError } from "./error";
 
 interface REPL {
   run(source: string): Promise<any>;
@@ -58,7 +59,7 @@ export class BasicREPL {
       var mem = new Uint32Array(this.importObject.js.memory.buffer);
       var val = PyValue(NUM, arg, mem);
       if (val.tag !== "num") {
-        throw new Error("Abs operation failed at runtime");
+        throw new ArithmeticError("Abs operation failed at runtime");
       }
       return encodeValue(PyBigInt(val.value < 0 ? -val.value : val.value), mem);
     };
@@ -74,7 +75,7 @@ export class BasicREPL {
           return encodeValue(PyBigInt(baseVal.value ** expVal.value), mem);
         }
       }
-      throw new Error("binary operation failed at runtime");
+      throw new ArithmeticError("binary operation failed at runtime");
     };
     this.importObject.imports.max = (x: number, y: number) => {
       var mem = new Uint32Array(this.importObject.js.memory.buffer);
@@ -84,7 +85,7 @@ export class BasicREPL {
         var res = xval.value > yval.value ? xval.value : yval.value;
         return encodeValue(PyBigInt(res), mem);
       }
-      throw new Error("binary operation failed at runtime");
+      throw new ArithmeticError("binary operation failed at runtime");
     };
     this.importObject.imports.min = (x: number, y: number) => {
       var mem = new Uint32Array(this.importObject.js.memory.buffer);
@@ -94,7 +95,7 @@ export class BasicREPL {
         var res = xval.value < yval.value ? xval.value : yval.value;
         return encodeValue(PyBigInt(res), mem);
       }
-      throw new Error("binary operation failed at runtime");
+      throw new ArithmeticError("binary operation failed at runtime");
     };
     this.importObject.imports.__big_num_add = (x: number, y: number) =>
       this.binOpInterface(x, y, (x: bigint, y: bigint) => {
@@ -110,6 +111,9 @@ export class BasicREPL {
       });
     this.importObject.imports.__big_num_div = (x: number, y: number) =>
       this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+        if (y === 0n) {
+          throw new ZeroDivisionError();
+        }
         return x / y;
       });
     this.importObject.imports.__big_num_mod = (x: number, y: number) =>
@@ -151,7 +155,7 @@ export class BasicREPL {
     if (xval.tag == "num" && yval.tag == "num") {
       return encodeValue(PyBigInt(f(xval.value, yval.value)), mem);
     }
-    throw new Error("binary operation failed at runtime");
+    throw new ArithmeticError("binary operation failed at runtime");
   }
   async run(source: string): Promise<Value> {
     const config: Config = {
