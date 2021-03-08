@@ -201,10 +201,10 @@ function webStart() {
 
   window.addEventListener("load", (event) => {
     const themeList = themeList_export;
-    const dropdown = document.createElement("select");
-    dropdown.setAttribute("class", "theme-dropdown");
-    dropdown.setAttribute("id", "theme-dropdown");
-
+    //const dropdown = document.createElement("select");
+    //dropdown.setAttribute("class", "theme-dropdown");
+    //dropdown.setAttribute("id", "theme-dropdown");
+    const dropdown = document.getElementById("themes");
     for (const theme of themeList) {
       var option = document.createElement("option");
       option.value = theme;
@@ -212,7 +212,7 @@ function webStart() {
       dropdown.appendChild(option);
     }
 
-    document.getElementById("editor").appendChild(dropdown);
+    //document.getElementById("editor").appendChild(dropdown);
     const textarea = document.getElementById("user-code") as HTMLTextAreaElement;
     const editor = CodeMirror.fromTextArea(textarea, {
       mode: "python",
