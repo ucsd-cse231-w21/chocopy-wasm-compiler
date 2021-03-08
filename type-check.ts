@@ -454,13 +454,17 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
         iterable: fIter,
         body: fBody,
       };
-    case "continue":
-      return { a: NONE, tag: "continue", depth: locals.loop_depth };
     case "break":
       if (locals.loop_depth < 1) {
         throw new TypeCheckError("Break outside a loop.");
       }
       return { a: NONE, tag: "break", depth: locals.loop_depth };
+    case "continue":
+      if (locals.loop_depth < 1) {
+        throw new TypeCheckError("Continue outside a loop.");
+      }
+      const depth = locals.loop_depth - 1;
+      return { a: NONE, tag: "continue", depth: depth };
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
@@ -812,7 +816,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             if (methods.has(expr.method)) {
               realArgs = [tObj].concat(tArgs);
             }
-            console.log(methodArgs);
             if (
               methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))
