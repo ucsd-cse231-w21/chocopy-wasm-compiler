@@ -193,22 +193,37 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
 
   if (destruct.isDestructured) {
     const objTyp = destruct.valueType;
-    if (objTyp.tag === "class") {
-      const className = objTyp.name;
-      const classFields = env.classes.get(className).values();
-      // Collect every assignStmt
+    switch (objTyp.tag) {
+      case "class": {
+        const className = objTyp.name;
+        const classFields = env.classes.get(className).values();
+        // Collect every assignStmt
 
-      assignStmts = destruct.targets.flatMap(({ target }) => {
-        const [offset, _] = classFields.next().value;
-        // The WASM code value that we extracted from the object at this current offset
-        const addressOffset = offset * 4;
-        const fieldValue = [`(i32.add ${value} (i32.const ${addressOffset}))`, `(i32.load)`];
+        assignStmts = destruct.targets.flatMap(({target}) => {
+          const [offset, _] = classFields.next().value;
+          // The WASM code value that we extracted from the object at this current offset
+          const addressOffset = offset * 4;
+          const fieldValue = [`(i32.add ${value} (i32.const ${addressOffset}))`, `(i32.load)`];
 
-        return codeGenAssignable(target, fieldValue, env);
-      });
-    } else {
-      // Currently assumes that the valueType of our destructure is an object
-      throw new Error("Destructuring not supported yet for types other than 'class'");
+          return codeGenAssignable(target, fieldValue, env);
+        });
+        break;
+      }
+      case "tuple": {
+        let offset = 0;
+        for (let target of destruct.targets) {
+          if (target.starred) {
+            throw new Error("Do not currently support starred assignment targets");
+          } else if (!target.ignore) {
+            let fieldValue = [value, `(i32.load offset=${offset})`];
+            assignStmts.push(...codeGenAssignable(target.target, fieldValue, env));
+            offset += 4;
+          }
+        }
+        break;
+      }
+      default:
+        throw new Error(`Destructuring not supported yet for type ${objTyp.tag}`);
     }
   } else {
     const target = destruct.targets[0];
@@ -593,6 +608,19 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
             `(i32.load) ;; load list element`,
           ]
         );
+      } else if (expr.obj.a.tag == "tuple") {
+        return [
+          // Get tuple address
+          ...codeGenExpr(expr.obj, env),
+          // Get word offset from tuple address
+          ...codeGenExpr(expr.key, env),
+          // Get byte offset
+          "(i32.mul (i32.const 4))",
+          // Calculate target address
+          "(i32.add)",
+          // Load target value
+          "(i32.load)"
+        ]
       }
       break;
 
@@ -643,7 +671,27 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         `(i32.add (i32.const ${(listBound + 3) * 4}))`,
         "(i32.store)",
       ]);
-
+    case "tuple-expr": {
+      // Much of this logic is copied from object construction. Is there a way to easily reuse that logic?
+      let stmts = [
+        "(i32.const 0)", // Address for our upcoming store instruction
+        "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+        "(local.set $$string_class)",
+        "(local.get $$string_class)",
+        `(i32.add (i32.const ${expr.contents.length * 4}))`, // Move heap head beyond the k words we just created for
+        // tuple items
+        "(i32.store)", // Save the new heap offset
+      ];
+      expr.contents.forEach((content, offset) => {
+        stmts.push(
+          "(local.get $$string_class)",
+          ...codeGenExpr(content, env),
+          `(i32.store offset=${offset * 4})`
+        );
+      });
+      stmts.push("(local.get $$string_class)");
+      return stmts;
+    }
     default:
       unhandledTag(expr);
   }

@@ -66,3 +66,6 @@ export function LIST(type: Type): Type {
 export function CLASS(name: string): Type {
   return { tag: "class", name };
 }
+export function TUPLE(...types: Array<Type>): Type {
+  return { tag: "tuple", contentTypes: types }
+}

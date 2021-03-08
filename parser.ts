@@ -17,7 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
+import {NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST, TUPLE} from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -304,7 +304,20 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         tag: "list-expr",
         contents: listExpr,
       };
-
+    case "TupleExpression":
+      let tupleExpr: Array<Expr<null>> = []
+      c.firstChild(); // Open parenthesis "("
+      c.nextSibling();
+      while (c.name !== ")") {
+        tupleExpr.push(traverseExpr(c, s));
+        c.nextSibling(); // comma ","
+        c.nextSibling(); // next expression or closing parenthesis ")"
+      }
+      c.parent();
+      return {
+        tag: "tuple-expr",
+        contents: tupleExpr
+      }
     default:
       throw new Error(
         "Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)
@@ -575,6 +588,27 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
 export function traverseType(c: TreeCursor, s: string): Type {
   let name = s.substring(c.from, c.to);
   if (c.node.type.name === "ArrayExpression") return traverseBracketType(c, s);
+  if (c.name === "ParenthesizedExpression") {
+    if (name === "()")
+      return TUPLE();
+    c.firstChild(); // Open parenthesis
+    c.nextSibling(); // Inner type
+    let type = TUPLE(traverseType(c, s));
+    c.parent();
+    return type;
+  } else if (c.name === "TupleExpression") {
+    let contentTypes: Array<Type> = []
+    c.firstChild(); // Open parenthesis
+    c.nextSibling(); // First argument
+    // @ts-ignore TypeScript doesn't realize c.name can change.
+    while (c.name !== ")") {
+      contentTypes.push(traverseType(c, s));
+      c.nextSibling(); // "," or ")"
+      c.nextSibling(); // Next type or ")"
+    }
+    c.parent();
+    return TUPLE(...contentTypes);
+  }
   switch (name) {
     case "int":
       return NUM;

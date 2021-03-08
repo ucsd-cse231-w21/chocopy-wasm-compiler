@@ -88,10 +88,19 @@ export function isNoneOrClass(t: Type) {
 }
 
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list"));
+  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list" || t2.tag === "tuple"));
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
+  if (t1.tag === "tuple" && t2.tag === "tuple") {
+    if (t1.contentTypes.length !== t2.contentTypes.length)
+      return false;
+    for (let i = 0; i < t1.contentTypes.length; i++) {
+      if (!isAssignable(env, t1.contentTypes[i], t2.contentTypes[i]))
+        return false;
+    }
+    return true;
+  }
   return isSubtype(env, t1, t2);
 }
 
@@ -150,7 +159,7 @@ export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
   if (isAssignable(env, valTyp, init.type)) {
     return { ...init, a: NONE };
   } else {
-    throw new TypeCheckError("Expected type `" + init.type + "`; got type `" + valTyp + "`");
+    throw new TypeCheckError("Expected type `" + init.type.tag + "`; got type `" + valTyp.tag + "`");
   }
 }
 
@@ -252,7 +261,7 @@ function tcDestructure(
     const tTarget = tcAssignable(env, locals, target);
     const targetType = tTarget.a;
     if (!isAssignable(env, valueType, targetType))
-      throw new TypeCheckError(`Non-assignable types: Cannot assign ${valueType} to ${targetType}`);
+      throw new TypeCheckError(`Non-assignable types: Cannot assign ${valueType.tag} to ${targetType.tag}`);
     return {
       starred,
       ignore,
@@ -270,55 +279,97 @@ function tcDestructure(
   }
 
   let types: Type[] = [];
-  if (value.tag === "class") {
-    // This is a temporary hack to get destructuring working (reuse for tuples later?)
-    let cls = env.classes.get(value.name);
-    if (cls === undefined)
-      throw new Error(
-        `Class ${value.name} not found in global environment. This is probably a parsing bug.`
-      );
-    let attrs = cls[0];
-    attrs.forEach((val) => types.push(val));
-    let starOffset = 0;
-    let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
-      if (i >= types.length)
+  switch (value.tag) {
+    case "class": {
+      // This is a temporary hack to get destructuring working (reuse for tuples later?)
+      let cls = env.classes.get(value.name);
+      if (cls === undefined)
         throw new Error(
-          `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+          `Class ${value.name} not found in global environment. This is probably a parsing bug.`
         );
-      let valueType;
-      if (target.starred) {
-        starOffset = types.length - targets.length; // How many values will be assigned to the starred target
-        // TODO: Update this code to account for the spread operator
-        throw new TypeCheckError("Starred values not supported");
-      } else {
-        valueType = types[i + starOffset];
-      }
-      return tcTarget(target, valueType);
-    });
+      let attrs = cls[0];
+      attrs.forEach((val) => types.push(val));
+      let starOffset = 0;
+      let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
+        if (i >= types.length)
+          throw new Error(
+            `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+          );
+        let valueType;
+        if (target.starred) {
+          starOffset = types.length - targets.length; // How many values will be assigned to the starred target
+          // TODO: Update this code to account for the spread operator
+          throw new TypeCheckError("Starred values not supported");
+        } else {
+          valueType = types[i + starOffset];
+        }
+        return tcTarget(target, valueType);
+      });
 
-    if (types.length > destruct.targets.length + starOffset)
-      throw new Error(
-        `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      if (types.length > destruct.targets.length + starOffset)
+        throw new Error(
+          `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+        );
+
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: value,
+      };
+    }
+    case "list": {
+      // Since we can't know the exact length of the list, we'll have to check that the list length matches the number
+      // of assign targets at runtime.
+      let tTargets: AssignTarget<Type>[] = destruct.targets.map((target) =>
+        tcTarget(target, target.starred ? value : value.content_type)
       );
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: value,
+      };
+    }
+    case "tuple": {
+      let types = value.contentTypes
+      let starOffset = 0;
+      let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
+        if (i >= types.length)
+          throw new Error(
+            `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+          );
+        if (target.starred) {
+          let tTarget = tcAssignable(env, locals, target.target);
+          if (tTarget.a.tag !== "list")
+            throw new TypeCheckError(`Starred assignment target must have type list, found type ${tTarget.a.tag}`);
+          starOffset = types.length - targets.length; // How many values to offset index to account for starred target
+          for (let j = i; j <= i + starOffset; j++)
+            if (!isAssignable(env, types[j], tTarget.a))
+              throw new TypeCheckError(`Cannot assign type ${types[j].tag} to list ` +
+                `of type ${tTarget.a.content_type.tag}`);
+          return {
+            target: tTarget,
+            starred: target.starred,
+            ignore: target.ignore,
+          }
+        }
+        let valueType = types[i + starOffset];
+        return tcTarget(target, valueType);
+      });
 
-    return {
-      isDestructured: destruct.isDestructured,
-      targets: tTargets,
-      valueType: value,
-    };
-  } else if (value.tag == "list") {
-    // Since we can't know the exact length of the list, we'll have to check that the list length matches the number
-    // of assign targets at runtime.
-    let tTargets: AssignTarget<Type>[] = destruct.targets.map((target) =>
-      tcTarget(target, target.starred ? value : value.content_type)
-    );
-    return {
-      isDestructured: destruct.isDestructured,
-      targets: tTargets,
-      valueType: value,
-    };
-  } else {
-    throw new TypeCheckError(`Type ${value.tag} cannot be destructured`);
+      if (types.length > destruct.targets.length + starOffset)
+        throw new Error(
+          `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+        );
+
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: value,
+      };
+    }
+    default: {
+      throw new TypeCheckError(`Type ${value.tag} cannot be destructured`);
+    }
   }
 }
 
@@ -329,9 +380,9 @@ function tcAssignable(
 ): Assignable<Type> {
   const expr = tcExpr(env, locals, target);
   if (!isTagged(expr, ASSIGNABLE_TAGS)) {
-    throw new TypeCheckError(`Cannot assing to target type ${expr.tag}`);
-  } else if (expr.a.tag === "string" && expr.tag === "bracket-lookup") {
-    throw new TypeCheckError("String does not support item assignment");
+    throw new TypeCheckError(`Cannot assign to target type ${expr.tag}`);
+  } else if ((expr.a.tag === "string" || expr.a.tag === "tuple") && expr.tag === "bracket-lookup") {
+    throw new TypeCheckError(`${expr.a.tag} does not support item assignment`);
   }
   return expr;
 }
@@ -569,6 +620,14 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           throw new TypeCheckError("List lookup supports only integer indices");
         }
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.content_type };
+      } else if (obj_t.a.tag === "tuple") {
+        if (key_t.tag !== "literal" || key_t.value.tag !== "num") {
+          throw new TypeCheckError("Tuple lookup only supports integer literals for indices");
+        } else if (key_t.value.value >= 2n ** 32n) {
+          throw new TypeCheckError("Invalid tuple index, only a maximum of 2^32 - 1 is allowed");
+        }
+        let i = Number(key_t.value.value)
+        return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.contentTypes[i]}
       } else {
         throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
       }
@@ -586,6 +645,11 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       )
         throw new TypeCheckError("Slice indices must be integers or None");
       return { tag: "slicing", name, start, end, stride, a: name.a };
+    case "tuple-expr": {
+      let contents = expr.contents.map(expr => tcExpr(env, locals, expr));
+      let contentTypes = contents.map(expr => expr.a);
+      return { tag: "tuple-expr", contents, a: { tag: "tuple", contentTypes } };
+    }
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
