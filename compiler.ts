@@ -236,7 +236,11 @@ function codeGenDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
-  definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
+  // Used to cache the result of `gcalloc` and dump
+  //   it to the stack for initialization
+  // NOTE(alex:mm): need to `local.get` object pointer BEFORE generating code
+  //   for inner expressions
+  definedVars.add("$allocPointer");
 
   // NOTE(alex:mm): parameters indices go first
   let currLocalIndex = 0;
@@ -334,11 +338,22 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
         `(call $gcalloc)`,
         `(local.set $$allocPointer)`,
+        `(local.get $$allocPointer)`,   // return to parent expr
+        `(local.get $$allocPointer)`,   // use in __init__
       ];
-      env.classes.get(expr.name).forEach(([offset, initVal], field) =>
+      // NOTE(alex): hack to get nested allocations to work
+      // Let F by the number of fields in the class
+      // Dump the pointer F + 2 times on the stack
+      //   * +1 in order to call the __init__ method
+      //   * +1 in order to return the leave the pointer at the top of the stack
+      const classLayout = env.classes.get(expr.name);
+      classLayout.forEach(() => {
+        stmts.push(`(local.get $$allocPointer)`);
+      });
+      classLayout.forEach(([offset, initVal], field) =>
         stmts.push(
           ...[
-            `(local.get $$allocPointer)`,
+            // Pointer should be on the top of the stack already
             `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
             ...codeGenLiteral(initVal, env), // Initialize field
             "(i32.store)", // Put the default field value on the heap
@@ -346,10 +361,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         )
       );
       return stmts.concat([
-        `(local.get $$allocPointer)`,
+        // Pointer to deref should be on the top of the stack already
         `(call $${expr.name}$__init__)`, // call __init__
-        `(drop)`,
-        `(local.get $$allocPointer)`,
+        `(drop)`,   // Drop None from __init__
+        // Pointer to return should be on the top of the stack already
       ]);
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
