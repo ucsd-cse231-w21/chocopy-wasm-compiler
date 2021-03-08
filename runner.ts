@@ -80,6 +80,7 @@ export async function run(
   console.log("before updating: ", offsetBefore);
   view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
   console.log("after updating: ", view[0]);
+  console.log("mem view:", view);
 
   const funs = compiled.newEnv.funs;
   let sorted_funs = new Array<string>(funs.size);
@@ -88,9 +89,9 @@ export async function run(
   });
 
   let funRef = `
-  (table ${funs.size} funcref)
-  (elem (i32.const 0) ${sorted_funs.join(" ")})
-  `;
+(table ${funs.size} funcref)
+(elem (i32.const 0) ${sorted_funs.join(" ")})
+`;
 
   /*
   class Range(object):
