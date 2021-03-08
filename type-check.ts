@@ -196,6 +196,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
       };
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
+      console.log(tExpr);
       return { a: tExpr.a, tag: stmt.tag, expr: tExpr };
     case "if":
       var tCond = tcExpr(env, locals, stmt.cond);
@@ -511,11 +512,57 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           throw new TypeCheckError("method call on an unknown class");
         }
       } else if (tObj.a.tag === "dict") {
-        // Add typechecking here for dict method call
-        return;
+        console.log("TC: dict method call");
+        switch (expr.method) {
+          case "pop":
+            let dictKeyTypePop = tObj.a.key;
+            let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
+            if (!isAssignable(env, dictKeyTypePop, tKeyPop.a)) {
+              throw new TypeCheckError(
+                "Expected key type `" +
+                  dictKeyTypePop.tag +
+                  "`; got key lookup type `" +
+                  tKeyPop.a.tag +
+                  "`"
+              );
+            }
+            return { ...expr, a: tObj.a.value, obj: tObj, arguments: [tKeyPop] };
+          case "get":
+            console.log("TC: get function in dict");
+            let dictKeyTypeGet = tObj.a.key;
+            let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
+            if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a)) {
+              throw new TypeCheckError(
+                "Expected key type `" +
+                  dictKeyTypeGet.tag +
+                  "`; got key lookup type `" +
+                  tKeyGet.a.tag +
+                  "`"
+              );
+            }
+            return { ...expr, a: tObj.a.value, obj: tObj, arguments: [tKeyGet] };
+          case "update":
+            console.log("TC: To-Do update function in dict");
+            break;
+          case "clear":
+            // throw error if there are any arguments in clear()
+            let numArgs = expr.arguments.length;
+            if (numArgs != 0) {
+              throw new TypeCheckError(`'dict' clear() takes no arguments (${numArgs} given)`);
+            }
+            return {
+              ...expr,
+              a: { tag: "none" },
+              obj: tObj,
+              arguments: [{ tag: "literal", value: { tag: "none" } }],
+            };
+          default:
+            throw new TypeCheckError(`'dict' object has no attribute '${expr.method}'`);
+        }
       } else {
         throw new TypeCheckError("method calls require an object");
       }
+      break;
     case "dict":
       let entries = expr.entries;
       let dictType: Type;
