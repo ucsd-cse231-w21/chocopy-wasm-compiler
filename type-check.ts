@@ -773,7 +773,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
     case "call":
       if(expr.name == 'range'){
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-        return{ a: NUM, tag: expr.tag ,name: expr.name, arguments: tArgs};
+        return{ a: {tag:'class', name: 'Range'}, tag: expr.tag ,name: expr.name, arguments: tArgs};
       }
       throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
     case "lookup":
