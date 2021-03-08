@@ -92,7 +92,6 @@ function webStart() {
         text = `line ${result.loc.line}: ${source
           .split(/\r?\n/)
           [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
-          console.log("inside renderError", result)
         highlightLine(result.loc.line - 1, result.message);
       }
       elt.innerText = text.concat("\n").concat(String(result));
