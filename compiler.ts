@@ -585,6 +585,7 @@ function initRef(refs: Set<string>): Array<string> {
 function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string> {
   let currentLocalIndex = 0;
   const definedVars: Set<string> = new Set();
+  definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.add("$last");
   definedVars.add("$addr");
   definedVars.add("$destruct");
