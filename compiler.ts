@@ -348,6 +348,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         };
         var Code_idstep = codeGenStmt(niass, env);
 
+        console.log()
+
         // iterable should be a Range object
         return [
           `
@@ -358,7 +360,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
           (block
             (loop
 
-              (br_if 1 ${Code_cond.join("\n")})
+              (br_if 1 (${Code_cond.join("\n")}))
 
               ${Code_ass.join("\n")}
               ${bodyStmts.join("\n")}
