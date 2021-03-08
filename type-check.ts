@@ -526,6 +526,12 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         console.log("TC: dict method call");
         switch (expr.method) {
           case "pop":
+            let numArgsPop = expr.arguments.length;
+            if (numArgsPop > 2) {
+              throw new TypeCheckError(
+                `'dict' get expected at most 2 arguments, got ${numArgsPop}`
+              );
+            }
             let dictKeyTypePop = tObj.a.key;
             let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
             if (!isAssignable(env, dictKeyTypePop, tKeyPop.a)) {
@@ -540,6 +546,11 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             return { ...expr, a: tObj.a.value, obj: tObj, arguments: [tKeyPop] };
           case "get":
             console.log("TC: get function in dict");
+            let numArgsGet = expr.arguments.length;
+            if (numArgsGet > 2) {
+              throw new TypeCheckError(`
+              'dict' get expected at most 2 arguments, got ${numArgsGet}`);
+            }
             let dictKeyTypeGet = tObj.a.key;
             let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
             if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a)) {
@@ -557,9 +568,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             break;
           case "clear":
             // throw error if there are any arguments in clear()
-            let numArgs = expr.arguments.length;
-            if (numArgs != 0) {
-              throw new TypeCheckError(`'dict' clear() takes no arguments (${numArgs} given)`);
+            let numArgsClear = expr.arguments.length;
+            if (numArgsClear != 0) {
+              throw new TypeCheckError(`'dict' clear() takes no arguments (${numArgsClear} given)`);
             }
             return {
               ...expr,
