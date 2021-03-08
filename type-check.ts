@@ -474,13 +474,13 @@ export function tcStmt(
       if (locals.loop_depth < 1) {
         throw new BaseException.SyntaxError(stmt.a, "Break outside a loop.");
       }
-      return { a: NONE, tag: "break", depth: locals.loop_depth };
+      return { a: [NONE, stmt.a], tag: "break", depth: locals.loop_depth };
     case "continue":
       if (locals.loop_depth < 1) {
-        throw new TypeCheckError("Continue outside a loop.");
+        throw new BaseException.CompileError(stmt.a, "Continue outside a loop.");
       }
       const depth = locals.loop_depth - 1;
-      return { a: NONE, tag: "continue", depth: depth };
+      return { a: [NONE, stmt.a], tag: "continue", depth: depth };
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
