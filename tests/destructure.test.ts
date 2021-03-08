@@ -158,6 +158,11 @@ describe("traverseDestructure()", () => {
   it("parses non-destructred assignment", () => {
     const assign = parse("y = z").stmts[0];
     expect(assign).to.eql({
+      a: {
+        col: 0,
+        length: 5,
+        line: 1,
+      },
       destruct: {
         isDestructured: false,
         targets: [
@@ -165,14 +170,29 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: false,
             target: {
+              a: {
+                col: 0,
+                length: 1,
+                line: 1,
+              },
               name: "y",
               tag: "id",
             },
           },
         ],
+        valueType: {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
       },
       tag: "assignment",
       value: {
+        a: {
+          col: 4,
+          length: 1,
+          line: 1,
+        },
         name: "z",
         tag: "id",
       },
@@ -182,6 +202,11 @@ describe("traverseDestructure()", () => {
   it("*y, = z is valid (starred in destructure)", () => {
     const assign = parse("*y, = z").stmts[0];
     expect(assign).to.eql({
+      a: {
+        col: 0,
+        length: 7,
+        line: 1,
+      },
       destruct: {
         isDestructured: true,
         targets: [
@@ -189,14 +214,29 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: true,
             target: {
+              a: {
+                col: 1,
+                length: 1,
+                line: 1,
+              },
               name: "y",
               tag: "id",
             },
           },
         ],
+        valueType: {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
       },
       tag: "assignment",
       value: {
+        a: {
+          col: 6,
+          length: 1,
+          line: 1,
+        },
         name: "z",
         tag: "id",
       },
@@ -206,6 +246,11 @@ describe("traverseDestructure()", () => {
   it("allows fields in assignment", () => {
     const assign = parse("c.x, y = z").stmts[0];
     expect(assign).to.eql({
+      a: {
+        col: 0,
+        length: 10,
+        line: 1,
+      },
       destruct: {
         isDestructured: true,
         targets: [
@@ -213,9 +258,19 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: false,
             target: {
+              a: {
+                col: 0,
+                length: 3,
+                line: 1,
+              },
               tag: "lookup",
               field: "x",
               obj: {
+                a: {
+                  col: 0,
+                  length: 1,
+                  line: 1,
+                },
                 name: "c",
                 tag: "id",
               },
@@ -225,23 +280,43 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: false,
             target: {
+              a: {
+                col: 5,
+                length: 1,
+                line: 1,
+              },
               name: "y",
               tag: "id",
             },
           },
         ],
+        valueType: {
+          col: 0,
+          length: 3,
+          line: 1,
+        },
       },
       tag: "assignment",
       value: {
+        a: {
+          col: 9,
+          length: 1,
+          line: 1,
+        },
         name: "z",
         tag: "id",
       },
     });
   });
 
-  it("allows fields in assignment", () => {
+  it("allows fields in assignment2", () => {
     const assign = parse("d[2], y = z").stmts[0];
     expect(assign).to.eql({
+      a: {
+        col: 0,
+        length: 11,
+        line: 1,
+      },
       destruct: {
         isDestructured: true,
         targets: [
@@ -249,20 +324,62 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: false,
             target: {
+              a: {
+                col: 0,
+                length: 4,
+                line: 1,
+              },
               tag: "bracket-lookup",
-              obj: { tag: "id", name: "d" },
-              key: { tag: "literal", value: { tag: "num", value: 2n } },
+              obj: {
+                a: {
+                  col: 0,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "id",
+                name: "d",
+              },
+              key: {
+                a: {
+                  col: 2,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "num", value: 2n },
+              },
             },
           },
           {
             ignore: false,
             starred: false,
-            target: { name: "y", tag: "id" },
+            target: {
+              a: {
+                col: 6,
+                length: 1,
+                line: 1,
+              },
+              name: "y",
+              tag: "id",
+            },
           },
         ],
+        valueType: {
+          col: 0,
+          length: 4,
+          line: 1,
+        },
       },
       tag: "assignment",
-      value: { name: "z", tag: "id" },
+      value: {
+        a: {
+          col: 10,
+          length: 1,
+          line: 1,
+        },
+        name: "z",
+        tag: "id",
+      },
     });
   });
 });

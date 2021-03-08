@@ -12,9 +12,10 @@
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
+    "plugin:cypress/recommended",
+    //Prettier should be last to be loaded per @R167
     "plugin:prettier/recommended",
-    "prettier",
-    "plugin:cypress/recommended"
+    "prettier"
   ],
   "rules": {
     // TODO: Change no-var and prefer-const to warnings in the future
