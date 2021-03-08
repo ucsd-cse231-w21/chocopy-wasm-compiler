@@ -370,21 +370,21 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
         ];
       }
       // iterable should be a Range object
+      // test
+      // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
+      // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
+      // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
+      // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
       return [
         `
         (i32.const ${envLookup(env, "rg")})
         ${iter.join("\n")}
         (i32.store)
-
-        ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
-        ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
-        ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
-        ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
-
+        
         (block
           (loop
-            (br_if 1 ${Code_cond.join("\n")})
-
+            (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
+            
             ${Code_ass.join("\n")}
             ${bodyStmts.join("\n")}
             ${Code_step.join("\n")}
