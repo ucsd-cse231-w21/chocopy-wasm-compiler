@@ -347,28 +347,6 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
           value: nid,
         };
         var Code_idstep = codeGenStmt(niass, env);
-
-        console.log("for-body",[
-          `
-          (i32.const ${envLookup(env, "rg")})
-          ${iter.join("\n")}
-          (i32.store)
-          ${Code_iass.join("\n")}
-          (block
-            (loop
-
-              (br_if 1 (${Code_cond.join("\n")}))
-
-              ${Code_ass.join("\n")}
-              ${bodyStmts.join("\n")}
-              ${Code_step.join("\n")}
-              ${Code_idstep.join("\n")}
-
-              (br 0)
-          ))`,
-            `(${Code_cond.join("\n")})(call $print_num)`,
-        ])
-
         // iterable should be a Range object
         return [
           `
@@ -391,15 +369,18 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
             `(${Code_cond.join("\n")})(call $print_bool)`,
         ];
       }
-      console.log([
-        `(${Code_cond.join("\n")})(call $print_bool)`,
-      ])
       // iterable should be a Range object
       return [
         `
         (i32.const ${envLookup(env, "rg")})
         ${iter.join("\n")}
         (i32.store)
+
+        ${Code_cond.join("\n")}(call $print_bool)
+        ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
+        ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
+        ${Code_step.join("\n")}(call $print_num)(local.set $$last)
+
         (block
           (loop
             (br_if 1 ${Code_cond.join("\n")})
@@ -410,9 +391,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
             (br 0)
         ))`,
-        ` ${Code_cond.join("\n")}(call $print_bool)`,
-        ` ${Code_ass.join("\n")}(call $print_num)`,
-        ` ${Code_step.join("\n")}(call $print_num)(local.set $$last)`,
+        ,
       ];
     case "pass":
       return [];
