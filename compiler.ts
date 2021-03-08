@@ -627,11 +627,13 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   return [
     `(func $${def.name} (param ${funPtr} i32) ${params} (result i32)
     ${localDefs}
+    (call $pushFrame)
     ${inits}
     ${refs}
     ${nonlocals}
     ${nested}
     ${stmts}
+    (call $releaseLocals)
     (i32.const 0)
     (return)
     )`,
