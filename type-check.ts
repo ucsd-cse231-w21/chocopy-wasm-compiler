@@ -517,8 +517,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           case "pop":
             let numArgsPop = expr.arguments.length;
             if (numArgsPop > 2) {
-              throw new TypeCheckError(`
-              'dict' get expected at most 2 arguments, got ${numArgsPop}`);
+              throw new TypeCheckError(
+                `'dict' get expected at most 2 arguments, got ${numArgsPop}`
+              );
             }
             let dictKeyTypePop = tObj.a.key;
             let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
