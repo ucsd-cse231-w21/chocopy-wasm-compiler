@@ -15,7 +15,7 @@ import { replace } from "cypress/types/lodash";
 
 var mem_js: { memory: any };
 
-function stringify(result: Value, repl : any = undefined): string {
+function stringify(result: Value): string {
   switch (result.tag) {
     case "num":
       return result.value.toString();
@@ -125,7 +125,7 @@ function webStart() {
     };
 
     mem_js = importObject.js;
-    (window as any)["importObject"] = importObject;
+
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -141,11 +141,7 @@ function webStart() {
       prettyPrintObject(result, repl, document.getElementById("output"));
       
       var acc = document.getElementsByClassName("accordion");
-      var i = 0;    
-      for (i; i < acc.length; i++) {
-        
-      }
-      i = 0;    
+      var i = 0;       
       for (i; i < acc.length; i++) {
         if(acc[i].getAttribute("listener") !== "true"){
           acc[i].setAttribute("listener", "true")
