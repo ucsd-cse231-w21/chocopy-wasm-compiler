@@ -1,6 +1,7 @@
 import * as H from "./heap";
 import { Block, NULL_BLOCK } from "./heap";
 import { extractPointer, isPointer, Pointer, StackIndex } from "./alloc";
+import { throws } from "assert";
 
 export type HeapTag =
   | typeof TAG_CLASS
@@ -380,11 +381,36 @@ export class MnS<A extends MarkableAllocator> {
         }
 
         case TAG_LIST: {
-          throw new Error("TODO: trace list");
+          // Layout: [32-bit TAG_LIST, 32-bit <length>, 32-bit <capacity>, data...]
+
+          // Extract value at childPtr + 4. Assumed to be a primitive value
+          const listLength = this.getField(childPtr + 4n);
+          
+          // Sanity check, just-in-case
+          // NOTE(sagar): probably not necessary
+          if(isPointer(listLength)) {
+            throw new Error("Pointer value stored in the place of list length");
+          }
+
+          const startPtr = childPtr + 12n;
+          for(let dataPtr = startPtr; dataPtr !== startPtr + listLength * 4n; dataPtr = dataPtr + 4n) {
+            const elementValue = this.getField(dataPtr);
+
+            if(isPointer(elementValue)) {
+              const fieldPointerValue = extractPointer(elementValue);
+              if(!this.isMarked(fieldPointerValue)) {
+                this.setMarked(fieldPointerValue);
+                worklist.push(fieldPointerValue);
+              }
+            }
+          }
+
+          break;
         }
 
         case TAG_STRING: {
-          throw new Error("TODO: trace string");
+          // Just mark the pointer?
+          this.setMarked(childPtr);
         }
 
         case TAG_DICT: {
