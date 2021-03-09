@@ -484,7 +484,7 @@ export function tcStmt(
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
-      console.log("field a" + tObj.a)
+      console.log("field a" + tObj.a);
       if (tObj.a[0].tag !== "class")
         throw new BaseException.CompileError(stmt.a, "field assignments require an object");
       if (!env.classes.has(tObj.a[0].name))
@@ -847,19 +847,19 @@ export function tcExpr(
         throw new BaseException.NameError(expr.a, expr.name.tag);
       }
     case "call":
-      if(expr.name == "range") {
+      if (expr.name == "range") {
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
         return {
           a: [
             {
-              tag:"class",
-              name: "Range"
+              tag: "class",
+              name: "Range",
             },
-            expr.a
+            expr.a,
           ],
           tag: expr.tag,
           name: expr.name,
-          arguments: tArgs
+          arguments: tArgs,
         };
       }
       throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
