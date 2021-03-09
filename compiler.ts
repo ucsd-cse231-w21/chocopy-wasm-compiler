@@ -1195,26 +1195,26 @@ function listBuiltInFuns(): Array<string> {
       "(func $$list$append (param $$list_cmp i32) (param $$val i32) (result i32)",
       `(local $$list_base i32)`,
       `(local $$list_index i32)`,
-      `(if `,                   // check if list need to expand
+      `(if `,                     // check if list bounds need to expand
       `(i32.eq`,
-      `(local.get $$list_cmp)`, // get address of current list
+      `(local.get $$list_cmp)`,   // get address of current list
       `(i32.add (i32.const 8))`,
-      `(i32.load)`,             //load the bound of the list
-      `(local.get $$list_cmp)`, // get address of current list
+      `(i32.load)`,               // load the bound of the list
+      `(local.get $$list_cmp)`,   // get address of current list
       `(i32.add (i32.const 4))`,
-      `(i32.load)`,             //load the size of the list
+      `(i32.load)`,               // load the size of the list
       `)`,
       `(then`,
-      `(local.get $$list_cmp)`,
+      `(local.get $$list_cmp)`,   // generate code for append element
       ...codeGenListCopy(3),
       `(local.set $$list_cmp)`,
-      `)`,                      // end then
-      `)`,                      // end if
+      `)`,                        // end then
+      `)`,                        // end if
       `(local.get $$list_cmp)`, 
       `(i32.add (i32.const 4))`,
-      `(i32.load)`,              //load index to store
+      `(i32.load)`,               //load index to store
       `(i32.mul (i32.const 4))`,
-      `(i32.add (i32.const 12))`,// add base position
+      `(i32.add (i32.const 12))`, // add base position
       `(i32.add (local.get $$list_cmp))`,
       `(local.get $$val)`,
       `(i32.store)`,
@@ -1235,28 +1235,28 @@ function listBuiltInFuns(): Array<string> {
   listFunStmts.push(
     ...[
       "(func $$list$index (param $$list_cmp i32) (param $$val i32) (result i32)",
-      `(local $$list_index i32)`,
-      `(local $$list_size i32)`,
-      `(i32.const 0)`,
+      `(local $$list_index i32)`,  // to iterate through list
+      `(local $$list_size i32)`,   // size of list
+      `(i32.const 0)`,             // list_index = 0
       `(local.set $$list_index)`,
-      `(local.get $$list_cmp)`,
+      `(local.get $$list_cmp)`,    // load list_size from list metadata
       `(i32.add (i32.const 4))`,
       `(i32.load)`,
       `(local.set $$list_size)`,
-      `(local.get $$list_cmp)`,
+      `(local.get $$list_cmp)`,    // beginning of list
       `(i32.add (i32.const 12))`,
       `(local.set $$list_cmp)`,
       `(block`,
-      `(loop`,                      //while loop for searching the value
-      `(br_if 1`,                  //condition start
+      `(loop`,                     // while loop for searching the value
+      `(br_if 1`,                  // condition start
       `(local.get $$list_size)`,
       `(local.get $$list_index)`,
       `(i32.eq)`,
-      `)`,                        //condition end
-      //loop body start
+      `)`,                         // condition end
+      // loop body start
       
 
-      `(if `,                   // check if element of index match to the value
+      `(if `,                      // check if element of index match to the value
       `(i32.eq`,
       `(local.get $$list_cmp)`,  
       `(local.get $$list_index)`,
@@ -1266,12 +1266,12 @@ function listBuiltInFuns(): Array<string> {
       `(local.get $$val)`,
       `)`,
 
-      `(then`,                  // return index
+      `(then`,                     // return index
       `(local.get $$list_index)`,
       ...encodeLiteral,
       `(return)`,
-      `)`,                      // end then
-      `)`,                      // end if
+      `)`,                         // end then
+      `)`,                         // end if
       `(local.get $$list_index)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
@@ -1279,42 +1279,42 @@ function listBuiltInFuns(): Array<string> {
       `(br 0)`,
       `)`,
       `)`,
-      `(i32.const -1)`,         // find nothing
+      `(i32.const -1)`,            // find nothing
+      ...encodeLiteral,
       "(return))",
       "",
     ]
   );
 
-  //TODO
-  //count function
+  //count function, similar to index
   listFunStmts.push(
     ...[
       "(func $$list$count (param $$list_cmp i32) (param $$val i32) (result i32)",
-      `(local $$list_counter i32)`,
-      `(local $$list_index i32)`,
-      `(local $$list_size i32)`,
-      `(i32.const 0)`,
+      `(local $$list_counter i32)`,   // counter of how many times we see list_cmp
+      `(local $$list_index i32)`,     // to iterate through list
+      `(local $$list_size i32)`,      // size of list
+      `(i32.const 0)`,                // list_counter = 0
       `(local.set $$list_counter)`,
-      `(i32.const 0)`,
+      `(i32.const 0)`,                // list_index = 0
       `(local.set $$list_index)`,
-      `(local.get $$list_cmp)`,
+      `(local.get $$list_cmp)`,       // load list_size from list metadata
       `(i32.add (i32.const 4))`,
       `(i32.load)`,
       `(local.set $$list_size)`,
-      `(local.get $$list_cmp)`,
+      `(local.get $$list_cmp)`,       // beginning of list
       `(i32.add (i32.const 12))`,
       `(local.set $$list_cmp)`,
       `(block`,
-      `(loop`,                      //while loop for searching the value
-      `(br_if 1`,                  //condition start
+      `(loop`,                        // while loop for searching the value
+      `(br_if 1`,                     // condition start
       `(local.get $$list_size)`,
       `(local.get $$list_index)`,
       `(i32.eq)`,
-      `)`,                        //condition end
-      //loop body start
+      `)`,                            // condition end
+      // loop body start
       
 
-      `(if `,                   // check if element of index match to the value
+      `(if `,                         // check if element of index match to the value
       `(i32.eq`,
       `(local.get $$list_cmp)`,  
       `(local.get $$list_index)`,
@@ -1324,12 +1324,12 @@ function listBuiltInFuns(): Array<string> {
       `(local.get $$val)`,
       `)`,
 
-      `(then`,                  // add to count variable
+      `(then`,                        // add to count variable
       `(local.get $$list_counter)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_counter)`,
-      `)`,                      // end then
-      `)`,                      // end if
+      `)`,                            // end then
+      `)`,                            // end if
       `(local.get $$list_index)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
@@ -1337,9 +1337,19 @@ function listBuiltInFuns(): Array<string> {
       `(br 0)`,
       `)`,
       `)`,
-      `(local.get $$list_counter)`,         // return count
+      `(local.get $$list_counter)`,   // return count
       ...encodeLiteral,
       "(return))",
+      "",
+    ]
+  );
+  
+  //clear function
+  //simply sets size to 0
+  listFunStmts.push(
+    ...[
+      "(func $$list$clear (param $$list_cmp i32) (result i32)",
+      "(return))"
       "",
     ]
   );
