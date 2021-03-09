@@ -153,7 +153,6 @@ export function makeId<A>(a: A, x: string): Destructure<A> {
   };
 }
 
-
 export function makeLookup<A>(a: A, obj: Expr<A>, field: string): Destructure<A> {
   return {
     isDestructured: false,
@@ -173,7 +172,11 @@ export function makeLookup<A>(a: A, obj: Expr<A>, field: string): Destructure<A>
   };
 }
 
-export function compile(ast: Program<[Type, Location]>, env: GlobalEnv, mm: MemoryManager): CompileResult {
+export function compile(
+  ast: Program<[Type, Location]>,
+  env: GlobalEnv,
+  mm: MemoryManager
+): CompileResult {
   const withDefines = augmentEnv(env, ast, mm);
 
   let stackIndexOffset = 0; // NOTE(alex:mm): assumes start function has no params
