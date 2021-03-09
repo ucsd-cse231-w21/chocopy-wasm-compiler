@@ -95,6 +95,20 @@ x`,
     PyInt(9)
   );
 
+  assert(
+    "destruct-with-dict",
+    `
+class Tuple(object):
+  one: int = 9
+  two: bool = False
+d:[int, int] = None
+y: bool = True
+d = {1:2}
+d[1], y = Tuple()
+d[1]`,
+    PyInt(9)
+  );
+
   asserts("march-4-test-case-1", [
     [
       `
@@ -144,6 +158,11 @@ describe("traverseDestructure()", () => {
   it("parses non-destructred assignment", () => {
     const assign = parse("y = z").stmts[0];
     expect(assign).to.eql({
+      a: {
+        col: 0,
+        length: 5,
+        line: 1,
+      },
       destruct: {
         isDestructured: false,
         targets: [
@@ -151,14 +170,29 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: false,
             target: {
+              a: {
+                col: 0,
+                length: 1,
+                line: 1,
+              },
               name: "y",
               tag: "id",
             },
           },
         ],
+        valueType: {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
       },
       tag: "assignment",
       value: {
+        a: {
+          col: 4,
+          length: 1,
+          line: 1,
+        },
         name: "z",
         tag: "id",
       },
@@ -168,6 +202,11 @@ describe("traverseDestructure()", () => {
   it("*y, = z is valid (starred in destructure)", () => {
     const assign = parse("*y, = z").stmts[0];
     expect(assign).to.eql({
+      a: {
+        col: 0,
+        length: 7,
+        line: 1,
+      },
       destruct: {
         isDestructured: true,
         targets: [
@@ -175,14 +214,29 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: true,
             target: {
+              a: {
+                col: 1,
+                length: 1,
+                line: 1,
+              },
               name: "y",
               tag: "id",
             },
           },
         ],
+        valueType: {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
       },
       tag: "assignment",
       value: {
+        a: {
+          col: 6,
+          length: 1,
+          line: 1,
+        },
         name: "z",
         tag: "id",
       },
@@ -192,6 +246,11 @@ describe("traverseDestructure()", () => {
   it("allows fields in assignment", () => {
     const assign = parse("c.x, y = z").stmts[0];
     expect(assign).to.eql({
+      a: {
+        col: 0,
+        length: 10,
+        line: 1,
+      },
       destruct: {
         isDestructured: true,
         targets: [
@@ -199,9 +258,19 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: false,
             target: {
+              a: {
+                col: 0,
+                length: 3,
+                line: 1,
+              },
               tag: "lookup",
               field: "x",
               obj: {
+                a: {
+                  col: 0,
+                  length: 1,
+                  line: 1,
+                },
                 name: "c",
                 tag: "id",
               },
@@ -211,14 +280,103 @@ describe("traverseDestructure()", () => {
             ignore: false,
             starred: false,
             target: {
+              a: {
+                col: 5,
+                length: 1,
+                line: 1,
+              },
               name: "y",
               tag: "id",
             },
           },
         ],
+        valueType: {
+          col: 0,
+          length: 3,
+          line: 1,
+        },
       },
       tag: "assignment",
       value: {
+        a: {
+          col: 9,
+          length: 1,
+          line: 1,
+        },
+        name: "z",
+        tag: "id",
+      },
+    });
+  });
+
+  it("allows fields in assignment2", () => {
+    const assign = parse("d[2], y = z").stmts[0];
+    expect(assign).to.eql({
+      a: {
+        col: 0,
+        length: 11,
+        line: 1,
+      },
+      destruct: {
+        isDestructured: true,
+        targets: [
+          {
+            ignore: false,
+            starred: false,
+            target: {
+              a: {
+                col: 0,
+                length: 4,
+                line: 1,
+              },
+              tag: "bracket-lookup",
+              obj: {
+                a: {
+                  col: 0,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "id",
+                name: "d",
+              },
+              key: {
+                a: {
+                  col: 2,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "num", value: 2n },
+              },
+            },
+          },
+          {
+            ignore: false,
+            starred: false,
+            target: {
+              a: {
+                col: 6,
+                length: 1,
+                line: 1,
+              },
+              name: "y",
+              tag: "id",
+            },
+          },
+        ],
+        valueType: {
+          col: 0,
+          length: 4,
+          line: 1,
+        },
+      },
+      tag: "assignment",
+      value: {
+        a: {
+          col: 10,
+          length: 1,
+          line: 1,
+        },
         name: "z",
         tag: "id",
       },

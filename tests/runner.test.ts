@@ -1,5 +1,5 @@
-import { PyInt, PyBool, PyNone, PyObj } from "../utils";
-import { assert, asserts, assertPrint, assertFail } from "./utils.test";
+import { PyInt, PyBigInt, PyBool, PyNone, PyObj } from "../utils";
+import { skipassert, assert, asserts, assertPrint, assertFail } from "./utils.test";
 
 // We write end-to-end tests here to make sure the compiler works as expected.
 // You should write enough end-to-end tests until you are confident the compiler
@@ -7,15 +7,17 @@ import { assert, asserts, assertPrint, assertFail } from "./utils.test";
 describe("run", () => {
   // runWasm('i64 return value', '(module (func (export "exported_func") (result i64) (i64.const 234)))', BigInt(234));
 
+  assert("big num", "-1000000000000", PyBigInt(-1000000000000n));
+
   assert("add", "2 + 3", PyInt(2 + 3));
 
   assert("add3", "2 + 3 + 4", PyInt(2 + 3 + 4));
 
-  assert("add-overflow", "4294967295 + 1", PyInt(0));
+  skipassert("add-overflow", "4294967295 + 1", PyBigInt(4294967296n));
 
   assert("sub", "1 - 2", PyInt(1 - 2));
 
-  assert("sub-underflow", "0 - 4294967295 - 1", PyInt(0));
+  skipassert("sub-underflow", "0 - 4294967295 - 1", PyBigInt(-4294967296n));
 
   assert("mul", "2 * 3 * 4", PyInt(2 * 3 * 4));
 
@@ -262,6 +264,22 @@ f(2)`,
   );
 
   assert(
+    "big num print (positive)",
+    `
+    print(4294967296)
+  `,
+    PyBigInt(4294967296n)
+  );
+
+  assert(
+    "big num print (negative)",
+    `
+    print(-1000000000000)
+  `,
+    PyBigInt(-1000000000000n)
+  );
+
+  assert(
     "while true",
     `
   x : int = 3
@@ -362,6 +380,49 @@ while False:
 
   assert("test", `def f() -> int: return 1`, PyNone());
 
+  assert(
+    "empty-dict-init",
+    `d:[int, int] = None
+          d = {}`,
+    PyNone()
+  );
+
+  assert(
+    "key-val-pair-dict-init",
+    `d:[int, int] = None
+          d = {1:2}
+          `,
+    PyNone()
+  );
+
+  assert(
+    "dict-bracket-assign",
+    `d:[int, int] = None
+          d = {1:2}
+          d[2] = 3`,
+    PyNone()
+  );
+
+  assert(
+    "dict-bracket-lookup",
+    `d:[int, int] = None
+     x:int = 0
+     d = {1:2}
+     x = d[1]
+     x`,
+    PyInt(2)
+  );
+
+  assert(
+    "dict-bracket-lookup-along-collision-chain",
+    `d:[int, int] = None
+     x:int = 0
+     d = {1:2, 11:22, 21:44, (30+1):56, 4:55}
+     x = d[31]
+     x`,
+    PyInt(56)
+  );
+
   asserts("multi-repl", [
     [`def f() -> int: return 1`, PyNone()],
     [`f()`, PyInt(1)],
@@ -399,7 +460,7 @@ describe("defaults", () => {
     `
   def foo(x : int = 3) -> int:
     return x
-  
+
   foo()`,
     PyInt(3)
   );
@@ -409,7 +470,7 @@ describe("defaults", () => {
     `
   def foo(x : int = 3) -> int:
     return x
-  
+
   foo(5)`,
     PyInt(5)
   );
@@ -419,7 +480,7 @@ describe("defaults", () => {
     `
   def foo(x : int = 3, y : int = 4) -> int:
     return x + y
-  
+
   foo(5)`,
     PyInt(9)
   );
@@ -429,7 +490,7 @@ describe("defaults", () => {
     `
   def add_default_10(x : int, y : int = 10) -> int:
 	  return x + y
-	
+
   print(add_default_10(20))
   print(add_default_10(20, 5))`,
     ["30", "25"]
@@ -451,7 +512,7 @@ describe("defaults", () => {
     `
   def foo(x : int, y : int = 4) -> int:
     return x + y
-  
+
   foo()`
   );
 
@@ -560,6 +621,14 @@ describe("defaults", () => {
   );
 
   assertPrint(
+    "string-variables-printing",
+    `
+  x : str = "Compiler"
+  print(x)`,
+    ["Compiler"]
+  );
+
+  assertPrint(
     "print-string-index",
     `
   print("Design"[2])`,
@@ -567,22 +636,69 @@ describe("defaults", () => {
   );
 
   assertPrint(
+    "print-negative-string-index",
+    `
+  print("Design"[-2])`,
+    ["g"]
+  );
+
+  assertPrint(
+    "print-string-variable-negative-index",
+    `
+  a:str="ABCDE"
+  print(a[-3])`,
+    ["C"]
+  );
+
+  assertPrint(
+    "function-with-strings",
+    `
+  def func():
+    print("Compiler")
+  func()`,
+    ["Compiler"]
+  );
+
+  assertPrint(
+    "function-with-string-variable",
+    `
+  def func()->str:
+    a:str="Compiler"
+    return a
+
+  print(func())`,
+    ["Compiler"]
+  );
+
+  assertPrint(
+    "function-with-string-return-and-string-param",
+    `
+  def func(a:str)->str:
+    print(a)
+    return a[2]
+
+  print(func("Compiler"))
+    `,
+    ["Compiler", "m"]
+  );
+
+  assertPrint(
     "class-with-string-fields",
     `
   class C(object):
-    x : str = "Sandhya"
-    y : str = "Jayaraman"
+    x : str = "Compiler"
+    y : str = "Design"
 
   c1 : C = None
   c1 = C()
   print(c1.x)
-  c1.x = "Joe"
+  c1.x = "ABC"
   print(c1.x)`,
-    ["Sandhya", "Joe"]
+    ["Compiler", "ABC"]
   );
 
   assertPrint(
-    "class-with-string-fields-inside-functions",
+    "class-with-string-fields-inside-methods",
     `
   class C(object):
     x : str = "ZZZ"
@@ -610,5 +726,20 @@ describe("defaults", () => {
   c1 = C()
   print(c1.func())`,
     ["R"]
+  );
+
+  assertPrint(
+    "negative-string-index-inside-class",
+    `
+  class C(object):
+    x : str = "PQR"
+
+    def func(self:C)->str:
+      return self.x[-2]
+
+  c1 : C = None
+  c1 = C()
+  print(c1.func())`,
+    ["Q"]
   );
 });
