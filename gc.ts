@@ -409,17 +409,15 @@ export class MnS<A extends MarkableAllocator> {
           break;
         }
 
-        case TAG_STRING: {
+        case TAG_STRING:
+        case TAG_BIGINT: {
           // Just mark the pointer?
           this.setMarked(childPtr);
         }
+        break;
 
         case TAG_DICT: {
           throw new Error("TODO: trace dict");
-        }
-
-        case TAG_BIGINT: {
-          throw new Error("TODO: trace bigint");
         }
 
         // NOTE(alex:mm): Used to represent a boxed value
