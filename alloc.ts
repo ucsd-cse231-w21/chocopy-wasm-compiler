@@ -1,6 +1,15 @@
 import * as H from "./heap";
 import * as GC from "./gc";
-export { HeapTag, TAG_CLASS, TAG_LIST, TAG_STRING, TAG_DICT, TAG_BIGINT, TAG_REF } from "./gc";
+export {
+  HeapTag,
+  TAG_CLASS,
+  TAG_LIST,
+  TAG_STRING,
+  TAG_DICT,
+  TAG_DICT_ENTRY,
+  TAG_BIGINT,
+  TAG_REF,
+} from "./gc";
 
 // Untagged pointer (32-bits)
 export type Pointer = bigint;
@@ -12,6 +21,7 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
     tag === GC.TAG_LIST ||
     tag === GC.TAG_STRING ||
     tag === GC.TAG_DICT ||
+    tag === GC.TAG_DICT_ENTRY ||
     tag === GC.TAG_BIGINT ||
     tag === GC.TAG_REF
   ) {

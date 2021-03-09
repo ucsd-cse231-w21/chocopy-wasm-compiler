@@ -470,16 +470,21 @@ export function tcStmt(
         iterable: fIter,
         body: fBody,
       };
-    case "continue":
-      return { a: [NONE, stmt.a], tag: "continue", depth: locals.loop_depth };
     case "break":
       if (locals.loop_depth < 1) {
         throw new BaseException.SyntaxError(stmt.a, "Break outside a loop.");
       }
       return { a: [NONE, stmt.a], tag: "break", depth: locals.loop_depth };
+    case "continue":
+      if (locals.loop_depth < 1) {
+        throw new BaseException.SyntaxError(stmt.a, "Continue outside a loop.");
+      }
+      const depth = locals.loop_depth - 1;
+      return { a: [NONE, stmt.a], tag: "continue", depth: depth };
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
+      console.log("field a" + tObj.a);
       if (tObj.a[0].tag !== "class")
         throw new BaseException.CompileError(stmt.a, "field assignments require an object");
       if (!env.classes.has(tObj.a[0].name))
@@ -842,6 +847,21 @@ export function tcExpr(
         throw new BaseException.NameError(expr.a, expr.name.tag);
       }
     case "call":
+      if (expr.name == "range") {
+        const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
+        return {
+          a: [
+            {
+              tag: "class",
+              name: "Range",
+            },
+            expr.a,
+          ],
+          tag: expr.tag,
+          name: expr.name,
+          arguments: tArgs,
+        };
+      }
       throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
@@ -879,7 +899,6 @@ export function tcExpr(
             if (methods.has(expr.method)) {
               realArgs = [tObj].concat(tArgs);
             }
-
             if (
               methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))

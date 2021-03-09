@@ -21,6 +21,7 @@ import {
   TAG_BIGINT,
   TAG_CLASS,
   TAG_DICT,
+  TAG_DICT_ENTRY,
   TAG_LIST,
   TAG_REF,
   TAG_STRING,
@@ -149,6 +150,25 @@ export function makeId<A>(a: A, x: string): Destructure<A> {
         ignore: false,
       },
     ],
+  };
+}
+
+export function makeLookup<A>(a: A, obj: Expr<A>, field: string): Destructure<A> {
+  return {
+    isDestructured: false,
+    targets: [
+      {
+        ignore: false,
+        starred: false,
+        target: {
+          a: a,
+          tag: "lookup",
+          field: field,
+          obj: obj,
+        },
+      },
+    ],
+    valueType: a,
   };
 }
 
@@ -330,7 +350,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         obj: rgExpr,
         field: "step",
       };
-      var Code_step = codeGenExpr(Expr_step, env);
+      var Code_step_expr = codeGenExpr(Expr_step, env);
 
       // name = cur
       var ass: Stmt<[Type, Location]> = {
@@ -350,10 +370,9 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         right: Expr_step,
       };
       var step: Stmt<[Type, Location]> = {
-        a: [NONE, stmt.a[1]],
-        tag: "field-assign",
-        obj: rgExpr,
-        field: "cur",
+        a: rgExpr.a,
+        tag: "assignment",
+        destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
         value: ncur,
       };
       var Code_step = codeGenStmt(step, env);
@@ -392,7 +411,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           value: nid,
         };
         var Code_idstep = codeGenStmt(niass, env);
-
         // iterable should be a Range object
         return [
           `
@@ -402,32 +420,35 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           ${Code_iass.join("\n")}
           (block
             (loop
-
-              (br_if 1 ${Code_cond.join("\n")})
+              ${Code_step.join("\n")}
+              ${Code_idstep.join("\n")}
+              (br_if 1 (${Code_cond.join("\n")} ${decodeLiteral.join("\n")}))
 
               ${Code_ass.join("\n")}
               ${bodyStmts.join("\n")}
-              ${Code_step.join("\n")}
-              ${Code_idstep.join("\n")}
-
               (br 0)
           ))`,
         ];
       }
-
       // iterable should be a Range object
+      // test
+      // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
+      // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
+      // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
+      // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
       return [
         `
         (i32.const ${envLookup(env, "rg")})
         ${iter.join("\n")}
         (i32.store)
+
         (block
           (loop
-            (br_if 1 ${Code_cond.join("\n")})
+            ${Code_step.join("\n")}
+            (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
 
             ${Code_ass.join("\n")}
             ${bodyStmts.join("\n")}
-            ${Code_step.join("\n")}
 
             (br 0)
         ))`,
@@ -436,7 +457,10 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       return [];
     case "break":
       // break to depth
-      return [`(br_if ${stmt.depth} (i32.const 1))`];
+      return [`(br ${stmt.depth})`];
+    case "continue":
+      console.log(stmt);
+      return [`(br ${stmt.depth})`];
     default:
       unhandledTag(stmt);
   }
@@ -938,6 +962,27 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           return unreachable(expr);
       }
     case "call":
+      if (expr.name === "range") {
+        switch (expr.arguments.length) {
+          case 1:
+            var valStmts = [`(i32.const 1)`];
+            valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts.push(`(i32.const 3)`);
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          case 2:
+            var valStmts = [`(i32.const 1)`];
+            valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          case 3:
+            var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          default:
+            throw new Error("Unsupported range() call!");
+        }
+      }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $$pushCaller)`);
       valStmts.push(`(call $${expr.name})`);
@@ -1169,22 +1214,17 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
               `(i32.load)`, //Load the ASCII value of the string index
               `(local.set $$string_val)`, //store value in temp variable
-              `(i32.load (i32.const 0))`, //load value at 0
+              `(i32.const ${TAG_STRING})`,
+              `(i32.const 8)`,
+              `(call $$gcalloc)`,
+              `(local.tee $$allocPointer)`,
               `(i32.const 0)`, //Length of string is 1
               `(i32.store)`, //Store length of string in the first position
-              `(i32.load (i32.const 0))`, //Load latest free memory
+              `(local.get $$allocPointer)`,
               `(i32.add (i32.const 4))`, //Add 4 since we have stored string length at beginning
               `(local.get $$string_val)`, //load value in temp variable
               "(i32.store)", //Store the ASCII value in the new address
-            ]
-          );
-          brStmts.push(
-            ...[
-              "(i32.load (i32.const 0))", // Get address for the indexed character of the string
-              "(i32.const 0)", // Address for our upcoming store instruction
-              "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-              `(i32.add (i32.const 8))`, // Move heap head beyond the string length
-              "(i32.store)", // Save the new heap offset
+              `(local.get $$allocPointer)`,
             ]
           );
           return brStmts;
@@ -1335,20 +1375,25 @@ function dictUtilFuns(): Array<string> {
   let dictFunStmts: Array<string> = [];
   dictFunStmts.push(
     ...[
-      "(func $ha$htable$CreateEntry (param $key i32) (param $val i32)",
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(func $ha$htable$CreateEntry (param $key i32) (param $val i32) (result i32)",
+      "(local $$allocPointer i32)",
+      `(i32.const ${TAG_DICT_ENTRY})    ;; heap-tag: opaque`,
+      "(i32.const 96)   ;; size in bytes",
+      "(call $$gcalloc)",
+      "(local.tee $$allocPointer)",
       "(local.get $key)",
       "(i32.store)", // Dumping tag
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $$allocPointer)",
       "(i32.const 4)",
       "(i32.add)", // Moving to the next block
       "(local.get $val)",
       "(i32.store)", // Dumping value
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $$allocPointer)",
       "(i32.const 8)",
       "(i32.add)", // Moving to the next block
       "(i32.const 0)", //None
       "(i32.store)", // Dumping None in the next
+      "(local.get $$allocPointer)",
       "(return))",
       "",
     ]
@@ -1435,6 +1480,7 @@ function dictUtilFuns(): Array<string> {
       "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
       "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
       "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(local $$allocPointer i32)",
       "(i32.const 0)",
       "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
       "(local.get $baseAddr)",
@@ -1451,19 +1497,15 @@ function dictUtilFuns(): Array<string> {
       "(local.get $key)",
       "(local.get $val)",
       "(call $ha$htable$CreateEntry)", //create node
+      "(local.set $$allocPointer)",
       "(local.get $baseAddr)", // Recomputing the bucketAddress to update it.
       "(local.get $key)",
       "(local.get $hashtablesize)",
       "(i32.rem_s)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Recomputed bucketAddress
-      "(i32.load (i32.const 0))",
+      "(local.get $$allocPointer)",
       "(i32.store)", //Updated the bucketAddress pointing towards first element.
-      "(i32.const 0)",
-      "(i32.load (i32.const 0))",
-      "(i32.const 12)",
-      "(i32.add)",
-      "(i32.store)", // Updating the empty space address in first block
       ")", // Closing then
       "(else", // Opening else
       "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
@@ -1552,14 +1594,10 @@ function dictUtilFuns(): Array<string> {
       "(local.get $key)",
       "(local.get $val)",
       "(call $ha$htable$CreateEntry)", //create node
+      "(local.set $$allocPointer)",
       "(local.get $nodePtr)", // Get the address of "next" block in node, whose next is None.
-      "(i32.load (i32.const 0))",
+      "(local.get $$allocPointer)",
       "(i32.store)", // Updated the next pointing towards first element of new node.
-      "(i32.const 0)",
-      "(i32.load (i32.const 0))",
-      "(i32.const 12)",
-      "(i32.add)",
-      "(i32.store)", // Updating the empty space address in first block
       ")", // Closing then inside else
       ")", // Closing if inside else
       ")", // Closing else

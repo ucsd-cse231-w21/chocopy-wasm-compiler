@@ -9,8 +9,6 @@ function print(val: Value) {
 }
 
 const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
-const view = new Int32Array(memory.buffer);
-view[0] = 4;
 var memory_js = { memory: memory };
 
 export const importObject = {
