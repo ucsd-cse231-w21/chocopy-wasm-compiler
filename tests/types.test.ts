@@ -171,4 +171,20 @@ describe("type inference", () => {
     NUM
   );
 
+  assertTC(
+    "infer the type of a method call in an assignment",
+    `
+    class A(object):
+      x: int = 10
+      
+      def aMethod(self: A) -> int: 
+        return self.x 
+
+    a = A()
+    y = a.aMethod()
+    y
+    `,
+    NUM
+  );
+
 });
