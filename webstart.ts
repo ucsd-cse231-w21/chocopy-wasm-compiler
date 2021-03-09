@@ -41,7 +41,7 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
     const addr = document.createElement("p");
     addr.innerHTML = "<b>address: </b>" + result.address;
   
-    exp.textContent = result.name + " object";
+    exp.innerHTML = "<i class='arrow right' id='arrow'></i> " + result.name + " object";
     div.appendChild(addr);
   
     const view = new Int32Array(repl.importObject.js.memory.buffer);
@@ -49,12 +49,9 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
     const cls = repl.currentEnv.classes.get(result.name);
     const typedCls = repl.currentTypeEnv.classes.get(result.name)[0];
 
-    console.log(view, cls, typedCls);
     cls.forEach((value, key) =>{
       var offset = value[0];
       var type = typedCls.get(key)
-      console.log("test", key, value, typedCls.get(key), type, view[result.address + offset]);
-      console.log(PyValue(type, view[result.address/4 + offset],view))
 
       const ele = document.createElement("pre");
       const val = PyValue(type, view[result.address/4 + offset],view) as any; 
@@ -149,10 +146,13 @@ function webStart() {
         acc[i].addEventListener("click", function() {
           this.classList.toggle("active");
           var panel = this.nextElementSibling;
+          var arrow = this.firstChild;
           if (panel.style.display === "block") {
             panel.style.display = "none";
+            arrow.style.transform = "rotate(-45deg)"
           } else {
             panel.style.display = "block";
+            arrow.style.transform = "rotate(45deg)"
           }
         });
       }

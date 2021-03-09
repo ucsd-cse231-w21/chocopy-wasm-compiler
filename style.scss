@@ -84,21 +84,31 @@
   scrollbar-color: rebeccapurple green;
   scrollbar-width: thin;
 
+    .arrow {
+      border: solid black;
+      border-width: 0 3px 3px 0;
+      display: inline-block;
+      padding: 3px;
+      transform: rotate(-45deg);
+    }
     .accordion {
-      // background-color: #eee;
-      // color: #444;
+      background-color:white;
+      color:darkcyan;
       cursor: pointer;
-      padding: 12px;
+      padding: 10px;
       width: 100%;
       border: none;
       text-align: left;
       outline: none;
-      font-size: 15px;
+      // font-size: 15px;
       transition: 0.4s;
+      display: inline;
+      font-family: monospace;
     }
 
     .active, .accordion:hover {
       background-color: #ccc; 
+      color:rebeccapurple;
     }
 
     .panel {
@@ -109,7 +119,7 @@
       font-family: monospace;
       
       .tag{
-        color:purple;
+        color:rebeccapurple;
       }
       .val{
         display: inline;
@@ -136,14 +146,6 @@
   line-break: anywhere;
 }
 
-
-
-
-
-
-
-
-
 .clear {
   float: left;
   display: block;
@@ -161,4 +163,3 @@
     width: 100%;
   }
 }
- 
