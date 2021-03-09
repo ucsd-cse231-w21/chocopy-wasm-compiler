@@ -236,6 +236,11 @@ function webStart() {
     }
   })
   window.addEventListener("load", (event) => {
+    var interactions = document.getElementById("interactions");
+    if (window.innerHeight>900){
+      interactions.style.height = "800px";
+    }
+
     const themeList = themeList_export;
     //const dropdown = document.createElement("select");
     //dropdown.setAttribute("class", "theme-dropdown");
@@ -285,6 +290,9 @@ function webStart() {
       var editor = ele.CodeMirror;
       editor.setOption("theme", themeDropDown.value);
     });
+
+
+
   });
 }
 // Simple helper to highlight line given line number
