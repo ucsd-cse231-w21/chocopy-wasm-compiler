@@ -1269,13 +1269,12 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
 }
 
 function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number): Array<string> {
-  const ENTRY_SIZE_BYTES = 96;
   // NOTE(alex:mm): $$allocPointer is clobbered by inner exprs
   // Dump it to the stack before you codegen for inner exprs
   let dictAllocStmts: Array<string> = [];
   dictAllocStmts = dictAllocStmts.concat([
     `(i32.const ${Number(TAG_DICT)})   ;; heap-tag: dictionary`,
-    `(i32.const ${hashtableSize * ENTRY_SIZE_BYTES})   ;; size in bytes`,
+    `(i32.const ${hashtableSize * 4})   ;; size in bytes`,
     `(call $$gcalloc)`,
     `(local.set $$allocPointer)`,
     `(local.get $$allocPointer)`, // return to parent expr
