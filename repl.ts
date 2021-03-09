@@ -95,11 +95,11 @@ export class BasicREPL {
         if (y === 0n) {
           throw new ZeroDivisionError();
         }
-        return x / y;
+        return (x - ((x % y) + y) % y ) / y;
       });
     this.importObject.imports.__big_num_mod = (x: number, y: number) =>
       this.binOpInterface(x, y, (x: bigint, y: bigint) => {
-        return x % y;
+        return ((x % y) + y) % y;
       });
     this.importObject.imports.__big_num_eq = (x: number, y: number) =>
       this.binOpInterface(x, y, (x: bigint, y: bigint) => {
