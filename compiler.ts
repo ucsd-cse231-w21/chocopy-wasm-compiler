@@ -15,7 +15,7 @@ import {
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { MemoryManager, TAG_BIGINT, TAG_CLASS, TAG_DICT, TAG_LIST, TAG_STRING } from "./alloc";
+import { MemoryManager, TAG_BIGINT, TAG_CLASS, TAG_DICT, TAG_LIST, TAG_REF, TAG_STRING } from "./alloc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -520,8 +520,7 @@ function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
 function myMemAlloc(name: string, sizeInValueCount: number): Array<string> {
   const allocs: Array<string> = [];
   const sizeInBytes = sizeInValueCount * 4;
-  // TODO(alex:mm): Is this the right tag?
-  allocs.push(`(i32.const ${Number(TAG_CLASS)}) ;; heap-tag: class (closures)`);
+  allocs.push(`(i32.const ${Number(TAG_REF)}) ;; heap-tag: ref`);
   allocs.push(`(i32.const ${sizeInBytes})`);
   allocs.push(`(call $$gcalloc)`);
   allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
@@ -711,8 +710,8 @@ function codeGenListCopy(concat: number): Array<string> {
   if(concat == 3){
     tempstmts = tempstmts.concat("(i32.mul (i32.const 2))")
   }
-  
-  
+
+
   stmts.push(...[
     `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
     `(local.get $$list_cmp)`,       // load capacty
@@ -810,7 +809,7 @@ function codeGenListCopy(concat: number): Array<string> {
       ]
     );
 
-  
+
     //while loop structure
     stmts.push(
       ...[
@@ -824,7 +823,7 @@ function codeGenListCopy(concat: number): Array<string> {
       ]
     );
   })
- 
+
 
   return stmts.concat([
     `(local.get $$list_base)`, // Get address for the object (this is the return value)
