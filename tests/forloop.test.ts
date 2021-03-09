@@ -26,6 +26,31 @@ describe("FOR LOOP TEST", () => {
     PyInt(9)
   );
 
+  assert(
+    "for range(1, 10, 1)",
+    `
+    i:int = 0
+    x:int = 0
+    for i in range(1, 10, 1):
+      x = x + 1
+    x
+    `,
+    PyInt(9)
+  );
+
+
+  assert(
+    "for range(1, 10, 2)",
+    `
+    i:int = 0
+    x:int = 0
+    for i in range(1, 10, 2):
+      x = x + 1
+    x
+    `,
+    PyInt(5)
+  );
+
   assertTCFail(
     "break outside loop",
     `
