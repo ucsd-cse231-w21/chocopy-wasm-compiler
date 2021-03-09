@@ -758,7 +758,7 @@ function codeGenListCopy(concat: number): Array<string> {
     `(local.get $$list_base)`, // Get address for the object (this is the return value)
     "(i32.const 0)", // Address for our upcoming store instruction
     `(local.get $$list_base)`, // Load the dynamic heap head offset
-    `(local.get $$list_cmp)`,
+    `(local.get $$list_base)`,
     `(i32.add (i32.const 8))`,
     `(i32.load)`,
     `(i32.mul (i32.const 4))`,
@@ -963,8 +963,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var stmts: Array<string> = [];
       var listType = 10;
       var listSize = expr.contents.length;
-      // var listBound = (expr.contents.length + 10) * 2;
-      var listBound = expr.contents.length;
+      var listBound = (expr.contents.length + 10) * 2;
+      // var listBound = expr.contents.length;
       let listHeader = [listType, listSize, listBound];
       var listindex = 0;
       expr.contents
