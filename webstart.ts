@@ -39,7 +39,7 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
     const div = document.createElement("div");
     div.setAttribute("class","panel");
     const addr = document.createElement("p");
-    addr.innerHTML = "<b>address: </b>" + result.address;
+    addr.innerHTML = "<b class='tag'>address: </b><p class='val'>" + result.address + "</p>";
   
     exp.innerHTML = "<i class='arrow right' id='arrow'></i> " + result.name + " object";
     div.appendChild(addr);
@@ -143,18 +143,25 @@ function webStart() {
       var acc = document.getElementsByClassName("accordion");
       var i = 0;    
       for (i; i < acc.length; i++) {
-        acc[i].addEventListener("click", function() {
-          this.classList.toggle("active");
-          var panel = this.nextElementSibling;
-          var arrow = this.firstChild;
-          if (panel.style.display === "block") {
-            panel.style.display = "none";
-            arrow.style.transform = "rotate(-45deg)"
-          } else {
-            panel.style.display = "block";
-            arrow.style.transform = "rotate(45deg)"
-          }
-        });
+        
+      }
+      i = 0;    
+      for (i; i < acc.length; i++) {
+        if(acc[i].getAttribute("listener") !== "true"){
+          acc[i].setAttribute("listener", "true")
+          acc[i].addEventListener("click", function() {
+            this.classList.toggle("active");
+            var panel = this.nextElementSibling;
+            var arrow = this.firstChild;
+            if (panel.style.display === "block") {
+              panel.style.display = "none";
+              arrow.style.transform = "rotate(-45deg)"
+            } else {
+              panel.style.display = "block";
+              arrow.style.transform = "rotate(45deg)"
+            }
+          });        
+        }
       }
     }
 
