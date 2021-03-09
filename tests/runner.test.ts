@@ -138,7 +138,7 @@ f(2)`, PyInt(2));
   y : int = 2
   y = y + x
   y`, PyInt(3));
-
+  
   assert("init before def", `
   x : int = 2
   def f() -> int:
@@ -277,6 +277,25 @@ f(2)`, PyInt(2));
     c = C().new(3, 4)
     c.x`, PyInt(3));
 
+  assert("big-num-as-object-field", `
+    class Test(object):
+      y:bool = True
+      x:int = 4294967296
+      
+    t:Test = None
+    t = Test()
+    t.x`, PyBigInt(4294967296n));
+  
+  assert("class-object-field-resizable", `
+    class Test(object):
+      y:bool = True
+      x:int = 4294967296
+      
+    t:Test = None
+    t = Test()
+    t.x = t.x + 9223372036854775808
+    t.x`, PyBigInt(9223372041149743104n));
+  
   assert("test", `def f() -> int: return 1`, PyNone());
 
   asserts("multi-repl", [
