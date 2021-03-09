@@ -1210,22 +1210,17 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
               `(i32.load)`, //Load the ASCII value of the string index
               `(local.set $$string_val)`, //store value in temp variable
-              `(i32.load (i32.const 0))`, //load value at 0
+              `(i32.const ${TAG_STRING})`,
+              `(i32.const 8)`,
+              `(call $$gcalloc)`,
+              `(local.tee $$allocPointer)`,
               `(i32.const 0)`, //Length of string is 1
               `(i32.store)`, //Store length of string in the first position
-              `(i32.load (i32.const 0))`, //Load latest free memory
+              `(local.get $$allocPointer)`,
               `(i32.add (i32.const 4))`, //Add 4 since we have stored string length at beginning
               `(local.get $$string_val)`, //load value in temp variable
               "(i32.store)", //Store the ASCII value in the new address
-            ]
-          );
-          brStmts.push(
-            ...[
-              "(i32.load (i32.const 0))", // Get address for the indexed character of the string
-              "(i32.const 0)", // Address for our upcoming store instruction
-              "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-              `(i32.add (i32.const 8))`, // Move heap head beyond the string length
-              "(i32.store)", // Save the new heap offset
+              `(local.get $$allocPointer)`,
             ]
           );
           return brStmts;
