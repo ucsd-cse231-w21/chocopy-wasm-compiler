@@ -847,6 +847,51 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           ...decodeLiteral,
           `(call $str$multiply)`,
         ];
+      } else if (expr.op == BinOp.Eq && expr.left.a[0].tag === "string") {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          `(call $str$equals)`,
+          ...encodeLiteral,
+        ];
+      } else if (expr.op == BinOp.Neq && expr.left.a[0].tag === "string") {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          `(call $str$equals)`,
+          `(i32.eqz)`,
+          ...encodeLiteral,
+        ];
+      } else if (expr.op == BinOp.Gt && expr.left.a[0].tag === "string") {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          `(call $str$greater)`,
+          ...encodeLiteral,
+        ];
+      } else if (expr.op == BinOp.Gte && expr.left.a[0].tag === "string") {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          `(call $str$greaterEq)`,
+          ...encodeLiteral,
+        ];
+      } else if (expr.op == BinOp.Lt && expr.left.a[0].tag === "string") {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          `(call $str$greaterEq)`,
+          `(i32.eqz)`,
+          ...encodeLiteral,
+        ];
+      } else if (expr.op == BinOp.Lte && expr.left.a[0].tag === "string") {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          `(call $str$greater)`,
+          `(i32.eqz)`,
+          ...encodeLiteral,
+        ];
       } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
       } else {
@@ -1059,45 +1104,13 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         case "string":
           var brObjStmts = codeGenExpr(expr.obj, env);
           var brKeyStmts = codeGenExpr(expr.key, env);
-          var brStmts = [];
-          brStmts.push(
-            ...[
-              `${brKeyStmts.join("\n")}`, //Gets the index
-              ...decodeLiteral,
-              `(local.set $$string_index)`,
-              `${brObjStmts.join("\n")}`, //Load the string object to be indexed
-              `(local.set $$string_address)`,
-              `(local.get $$string_index)`,
-              `(i32.const 0)(i32.lt_s)`, //check for negative index
-              `(if (then (local.get $$string_address)(i32.load)(i32.add (i32.const 1))(local.get $$string_index)(i32.add)(local.set $$string_index)))`, //if -ve, we do length + index
-              `(local.get $$string_index)(local.get $$string_address)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
-              `(local.get $$string_index)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
-              `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
-              `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
-              `(local.get $$string_address)`,
-              `(i32.add (i32.mul (i32.const 4)(local.get $$string_index)))`, //Add the index * 4 value to the address
-              `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
-              `(i32.load)`, //Load the ASCII value of the string index
-              `(local.set $$string_val)`, //store value in temp variable
-              `(i32.load (i32.const 0))`, //load value at 0
-              `(i32.const 0)`, //Length of string is 1
-              `(i32.store)`, //Store length of string in the first position
-              `(i32.load (i32.const 0))`, //Load latest free memory
-              `(i32.add (i32.const 4))`, //Add 4 since we have stored string length at beginning
-              `(local.get $$string_val)`, //load value in temp variable
-              "(i32.store)", //Store the ASCII value in the new address
-            ]
-          );
-          brStmts.push(
-            ...[
-              "(i32.load (i32.const 0))", // Get address for the indexed character of the string
-              "(i32.const 0)", // Address for our upcoming store instruction
-              "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-              `(i32.add (i32.const 8))`, // Move heap head beyond the string length
-              "(i32.store)", // Save the new heap offset
-            ]
-          );
-          return brStmts;
+
+          return [
+            ...brObjStmts,
+            ...brKeyStmts,
+            ...decodeLiteral,
+            `(call $str$index)`,
+          ];
         case "list":
           var objStmts = codeGenExpr(expr.obj, env);
           //This should eval to a number
@@ -1237,15 +1250,10 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           );
           sliceStmts.push(
             ...[
-              `(i32.rem_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(call $abs)(local.get $$slice_stride)(call $abs))`,
-              `(i32.div_s(i32.sub(local.get $$slice_end)(local.get $$slice_start))(call $abs)(local.get $$slice_stride)(call $abs))`,//find length = end - start
-              `(i32.add)`,
+              `(i32.const 0)`,
               `(local.set $$length)`,//set length local
               `(i32.load (i32.const 0))`, //load value at 0 to get heap head offset
               `(local.set $$string_index)`,
-              `(local.get $$string_index)`,
-              `(local.get $$length)(i32.sub(i32.const 1))`, //Length of new sliced string - 1
-              `(i32.store)`, //Store length of sliced string in the first position
               `(i32.add(local.get $$string_index)(i32.const 4))(local.set $$string_index)`,
               `(block (loop (br_if 1`,
               `(local.get $$slice_stride)`,
@@ -1254,6 +1262,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               `(i32.gt_s(local.get $$slice_start)(local.get $$slice_end))`,//get the string length
               `))`,//close if
               `(i32.eqz))`,//while loop start
+              `(i32.add (local.get $$length) (i32.const 1)) (local.set $$length)`,//new
               `(local.get $$string_address)`,
               `(i32.add (i32.mul (i32.const 4)(local.get $$slice_start)))`, //Add the index * 4 value to the address
               `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
@@ -1265,6 +1274,10 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               `(i32.add(local.get $$string_index)(i32.const 4))(local.set $$string_index)`,
               `(local.get $$slice_start)(i32.add(local.get $$slice_stride))(local.set $$slice_start)`,
               `(br 0) ))`,// while loop end
+              `(i32.sub (local.get $$length) (i32.const 1)) (local.set $$length)`,//new
+              `(i32.load (i32.const 0))`,
+              `(local.get $$length)`,
+              '(i32.store)'
             ]
           );
           sliceStmts.push(
@@ -1462,6 +1475,128 @@ function stringUtilFuns(): Array<string> {
       `(i32.add (i32.const 4))`,
       `(i32.store)`,
       `)`,//close func
+    ]
+  );
+  strFunStmts.push(
+    ...[
+      `(func $str$index (param $$str_addr i32) (param $$str_ind i32) (result i32)`,
+      `(local $$string_val i32)`,
+      `(local.get $$str_ind)`,
+      `(i32.const 0)(i32.lt_s)`, //check for negative index
+      `(if (then (local.get $$str_addr)(i32.load)(i32.add (i32.const 1))(local.get $$str_ind)(i32.add)(local.set $$str_ind)))`, //if -ve, we do length + index
+      `(local.get $$str_ind)(local.get $$str_addr)(i32.load)(i32.gt_s)`, //Check for +ve index out of bounds
+      `(local.get $$str_ind)(i32.const 0)(i32.lt_s)`, //Check for -ve index out of bounds
+      `(i32.or)`, // Check if string index is within bounds, i.e, b/w 0 and string_length
+      `(if (then (i32.const -1)(call $print_str)(drop)))`, //Check if string index is out of bounds
+      `(local.get $$str_addr)`,
+      `(i32.add (i32.mul (i32.const 4)(local.get $$str_ind)))`, //Add the index * 4 value to the address
+      `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
+      `(i32.load)`, //Load the ASCII value of the string index
+      `(local.set $$string_val)`, //store value in temp variable
+      `(i32.load (i32.const 0))`, //load value at 0
+      `(i32.const 0)`, //Length of string is 1
+      `(i32.store)`, //Store length of string in the first position
+      `(i32.load (i32.const 0))`, //Load latest free memory
+      `(i32.add (i32.const 4))`, //Add 4 since we have stored string length at beginning
+      `(local.get $$string_val)`, //load value in temp variable
+      "(i32.store)", //Store the ASCII value in the new address
+
+      "(i32.load (i32.const 0))", // Get address for the indexed character of the string
+      "(i32.const 0)", // Address for our upcoming store instruction
+      "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+      `(i32.add (i32.const 8))`, // Move heap head beyond the string length
+      "(i32.store)", // Save the new heap offset
+      ")",//end func
+    ]
+  );
+  strFunStmts.push(
+    ...[
+      `(func $str$equals (param $left_addr i32) (param $right_addr i32) (result i32)`,
+      `(local $counter i32) (local $lhs_len i32) (local $rhs_len i32)`,
+
+      `(i32.add (i32.load (local.get $left_addr)) (i32.const 1) )`,
+      `(local.set $lhs_len)`,
+      `(i32.add (i32.load (local.get $right_addr)) (i32.const 1) )`,
+      `(local.set $rhs_len)`,
+
+      `(i32.ne (local.get $lhs_len) (local.get $rhs_len))`,
+      `(if (then (i32.const 0) (return) ))`,//return 0 if the two lengths are not equal
+
+      `(i32.const 1)(local.set $counter)`,
+      `(block (loop (br_if 1 (i32.le_s (local.get $counter) (local.get $lhs_len) )(i32.eqz) )`,
+      `(i32.load (i32.add (local.get $left_addr) (i32.mul (local.get $counter) (i32.const 4))))`,
+      `(i32.load (i32.add (local.get $right_addr) (i32.mul (local.get $counter) (i32.const 4))))`,
+      `(i32.ne)`,//check if left and right string ascii values are not equal
+      `(if (then (i32.const 0) (return)))`,
+      `(i32.add (local.get $counter) (i32.const 1))(local.set $counter)`,
+      `(br 0)`,
+      `))`,//end block and loop
+      `(i32.const 1)`,
+      `)`,
+    ]
+  );
+  strFunStmts.push(
+    ...[
+      `(func $str$greater (param $left_addr i32) (param $right_addr i32) (result i32)`,
+      `(local $counter i32) (local $lhs_len i32) (local $rhs_len i32) (local $length i32) (local $str1 i32) (local $str2 i32)`,
+
+      `(i32.add (i32.load (local.get $left_addr)) (i32.const 1) )`,
+      `(local.set $lhs_len)`,
+      `(i32.add (i32.load (local.get $right_addr)) (i32.const 1) )`,
+      `(local.set $rhs_len)`,
+
+      `(i32.gt_s (local.get $lhs_len) (local.get $rhs_len))`,
+      `(if (then (local.get $rhs_len) (local.set $length)) (else (local.get $lhs_len) (local.set $length)))`,//return 0 if the two lengths are not equal
+
+      `(i32.const 1)(local.set $counter)`,
+      `(block (loop (br_if 1 (i32.le_s (local.get $counter) (local.get $length) )(i32.eqz) )`,
+      `(i32.load (i32.add (local.get $left_addr) (i32.mul (local.get $counter) (i32.const 4))))(local.set $str1)`,
+      `(i32.load (i32.add (local.get $right_addr) (i32.mul (local.get $counter) (i32.const 4))))(local.set $str2)`,
+      `(local.get $str1)(local.get $str2)`,
+      `(i32.gt_s)`,//check if left ascii is greater than right string ascii value
+      `(if (then (i32.const 1) (return)))`,
+      `(local.get $str1)(local.get $str2)`,
+      `(i32.lt_s)`,//check if left ascii is less than right string ascii value
+      `(if (then (i32.const 0) (return)))`,
+      `(i32.add (local.get $counter) (i32.const 1))(local.set $counter)`,
+      `(br 0)`,
+      `))`,//end block and loop
+      `(i32.gt_s (local.get $lhs_len) (local.get $rhs_len))`,
+      `(if (then (i32.const 1) (return)) )`,
+      `(i32.const 0)`,
+      `)`,
+    ]
+  );
+  strFunStmts.push(
+    ...[
+      `(func $str$greaterEq (param $left_addr i32) (param $right_addr i32) (result i32)`,
+      `(local $counter i32) (local $lhs_len i32) (local $rhs_len i32) (local $length i32) (local $str1 i32) (local $str2 i32)`,
+
+      `(i32.add (i32.load (local.get $left_addr)) (i32.const 1) )`,
+      `(local.set $lhs_len)`,
+      `(i32.add (i32.load (local.get $right_addr)) (i32.const 1) )`,
+      `(local.set $rhs_len)`,
+
+      `(i32.gt_s (local.get $lhs_len) (local.get $rhs_len))`,
+      `(if (then (local.get $rhs_len) (local.set $length)) (else (local.get $lhs_len) (local.set $length)))`,//return 0 if the two lengths are not equal
+
+      `(i32.const 1)(local.set $counter)`,
+      `(block (loop (br_if 1 (i32.le_s (local.get $counter) (local.get $length) )(i32.eqz) )`,
+      `(i32.load (i32.add (local.get $left_addr) (i32.mul (local.get $counter) (i32.const 4))))(local.set $str1)`,
+      `(i32.load (i32.add (local.get $right_addr) (i32.mul (local.get $counter) (i32.const 4))))(local.set $str2)`,
+      `(local.get $str1)(local.get $str2)`,
+      `(i32.gt_s)`,//check if left ascii is greater than right string ascii value
+      `(if (then (i32.const 1) (return)))`,
+      `(local.get $str1)(local.get $str2)`,
+      `(i32.lt_s)`,//check if left ascii is less than right string ascii value
+      `(if (then (i32.const 0) (return)))`,
+      `(i32.add (local.get $counter) (i32.const 1))(local.set $counter)`,
+      `(br 0)`,
+      `))`,//end block and loop
+      `(i32.ge_s (local.get $lhs_len) (local.get $rhs_len))`,
+      `(if (then (i32.const 1) (return)) )`,
+      `(i32.const 0)`,
+      `)`,
     ]
   );
   return strFunStmts;

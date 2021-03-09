@@ -670,6 +670,8 @@ export function tcExpr(
         case BinOp.Gt:
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
             return { ...tBin, a: [BOOL, expr.a] };
+          } else if (equalType(tLeft.a[0], STRING) && equalType(tRight.a[0], STRING)) {
+            return { ...tBin, a: [BOOL, expr.a] };
           } else {
             throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
               tLeft.a[0],
