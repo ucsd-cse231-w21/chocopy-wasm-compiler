@@ -55,48 +55,30 @@ export class BasicREPL {
       this.importObject.imports.print(PyValue(NONE, arg, null));
       return arg;
     };
-    this.importObject.imports.abs = (arg: number) => {
-      var mem = new Uint32Array(this.importObject.js.memory.buffer);
-      var val = PyValue(NUM, arg, mem);
-      if (val.tag !== "num") {
-        throw new InternalException("Abs operation failed at runtime");
-      }
-      return encodeValue(PyBigInt(val.value < 0 ? -val.value : val.value), mem);
-    };
-    this.importObject.imports.pow = (base: number, exp: number) => {
-      var mem = new Uint32Array(this.importObject.js.memory.buffer);
-      var baseVal = PyValue(NUM, base, mem);
-      var expVal = PyValue(NUM, exp, mem);
-      if (baseVal.tag == "num" && expVal.tag == "num") {
+    this.importObject.imports.abs = (arg: number) =>
+      this.uniOpInterface(arg, (val: bigint) => {
+        return val < 0 ? -val : val;
+      });
+    this.importObject.imports.pow = (base: number, exp: number) =>
+      this.binOpInterface(base, exp, (baseVal: bigint, expVal: bigint) => {
         // Javascript does not allow a negative BigInt exponent.
-        if (expVal.value < 1) {
-          return encodeValue(PyBigInt(0n), mem);
+        if (expVal < 1) {
+          return 0n;
         } else {
-          return encodeValue(PyBigInt(baseVal.value ** expVal.value), mem);
+          return (baseVal ** expVal);
         }
-      }
+      });
+    this.importObject.imports.max = (x: number, y: number) =>
+      this.binOpInterface(x, y, (xval: bigint, yval: bigint) => {
+        var res = xval > yval ? xval : yval;
+        return res;
+      });
+    this.importObject.imports.min = (x: number, y: number) =>
+      this.binOpInterface(x, y, (xval: bigint, yval: bigint) => {
+        var res = xval < yval ? xval : yval;
+        return res;
+      });
       throw new InternalException("binary operation failed at runtime");
-    };
-    this.importObject.imports.max = (x: number, y: number) => {
-      var mem = new Uint32Array(this.importObject.js.memory.buffer);
-      var xval = PyValue(NUM, x, mem);
-      var yval = PyValue(NUM, y, mem);
-      if (xval.tag == "num" && yval.tag == "num") {
-        var res = xval.value > yval.value ? xval.value : yval.value;
-        return encodeValue(PyBigInt(res), mem);
-      }
-      throw new InternalException("binary operation failed at runtime");
-    };
-    this.importObject.imports.min = (x: number, y: number) => {
-      var mem = new Uint32Array(this.importObject.js.memory.buffer);
-      var xval = PyValue(NUM, x, mem);
-      var yval = PyValue(NUM, y, mem);
-      if (xval.tag == "num" && yval.tag == "num") {
-        var res = xval.value < yval.value ? xval.value : yval.value;
-        return encodeValue(PyBigInt(res), mem);
-      }
-      throw new InternalException("binary operation failed at runtime");
-    };
     this.importObject.imports.__big_num_add = (x: number, y: number) =>
       this.binOpInterface(x, y, (x: bigint, y: bigint) => {
         return x + y;
@@ -154,6 +136,14 @@ export class BasicREPL {
     var yval = PyValue(NUM, y, mem);
     if (xval.tag == "num" && yval.tag == "num") {
       return encodeValue(PyBigInt(f(xval.value, yval.value)), mem);
+    }
+    throw new InternalException("binary operation failed at runtime");
+  }
+  uniOpInterface(x: number, f: Function): number {
+    var mem = new Uint32Array(this.importObject.js.memory.buffer);
+    var xval = PyValue(NUM, x, mem);
+    if (xval.tag == "num") {
+      return encodeValue(PyBigInt(f(xval.value)), mem);
     }
     throw new InternalException("binary operation failed at runtime");
   }
