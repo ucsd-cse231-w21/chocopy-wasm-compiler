@@ -9,7 +9,7 @@ import { wasm } from "webpack";
 import * as compiler from "./compiler";
 import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
-import { Value } from "./ast";
+import { Value, Type, Location } from "./ast";
 import { PyValue, NONE } from "./utils";
 import { ea } from "./ea";
 
@@ -51,7 +51,10 @@ export async function run(
   config: Config
 ): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
+  console.log(parsed);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
+  console.log(tprogram);
+  const progTyp = tprogram.a[0];
   // TODO: Insert transofrmation here: tprogram = transform(...)
   const progTyp = tprogram.a;
   var returnType = "";
@@ -79,6 +82,7 @@ export async function run(
   console.log("before updating: ", offsetBefore);
   view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
   console.log("after updating: ", view[0]);
+  console.log("mem view:", view);
 
   const funs = compiled.newEnv.funs;
   let sorted_funs = new Array<string>(funs.size);
@@ -87,35 +91,35 @@ export async function run(
   });
 
   let funRef = `
-  (table ${funs.size} funcref)
-  (elem (i32.const 0) ${sorted_funs.join(" ")})
-  `;
+(table ${funs.size} funcref)
+(elem (i32.const 0) ${sorted_funs.join(" ")})
+`;
 
   /*
   class Range(object):
     cur : int = 0
     stop : int = 0
     step : int = 1
-  def range(s : int)->Range:
-    self:range = None
-    self = range()
-    self.cur = 0
-    self.stop = s
-    self.step = 1
+  def range(start : int, end : int, sp : int)->Range:
+    self:Range = None
+    self = Range()
+    self.cur = start
+    self.stop = end
+    self.step = sp
     return self
 */
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
-    (func $print (import "imports" "print") (param i32) (result i32))
-    (func $print_num (import "imports" "print_num") (param i32) (result i32))
-    (func $print_str (import "imports" "print_str") (param i32) (result i32))
-    (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
-    (func $print_none (import "imports" "print_none") (param i32) (result i32))
+    (func $print (import "imports" "__internal_print") (param i32) (result i32))
+    (func $print_str (import "imports" "__internal_print_str") (param i32) (result i32))
+    (func $print_num (import "imports" "__internal_print_num") (param i32) (result i32))
+    (func $print_bool (import "imports" "__internal_print_bool") (param i32) (result i32))
+    (func $print_none (import "imports" "__internal_print_none") (param i32) (result i32))
     (func $abs (import "imports" "abs") (param i32) (result i32))
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
-    (func $range (param $s i32) (result i32)
+    (func $range (param $start i32) (param $end i32) (param $sp i32) (result i32)
       (local $self i32)
       (local $$last i32)
       (i32.const 0)
@@ -143,15 +147,15 @@ export async function run(
       (local.set $self)
       (local.get $self)
       (i32.add (i32.const 0))
-      (i32.const 0)
+      (local.get $start)
       (i32.store)
       (local.get $self)
       (i32.add (i32.const 4))
-      (local.get $s)
+      (local.get $end)
       (i32.store)
       (local.get $self)
       (i32.add (i32.const 8))
-      (i32.const 1)
+      (local.get $sp)
       (i32.store)
       (local.get $self)
       return (i32.const 0)

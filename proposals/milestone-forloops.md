@@ -173,8 +173,8 @@ print(r.curr)
 
 program 9:
 ```python
-i:int = 0
 def f():
+  i:int = 0
   for i in range(5):
     if i == 3:
       return i

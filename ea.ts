@@ -10,7 +10,9 @@ import {
   Expr,
   Destructure,
   AssignTarget,
+  Location,
 } from "./ast";
+import * as BaseException from "./error";
 
 /** The seperater used to flatten nested functions */
 export const EA_NAMING_SEP = "_$";
@@ -48,7 +50,7 @@ const globalLocalEnv: (fun_names: string[]) => LocalEnv = (fun_names: string[]) 
  * @param tAst Typed ast
  * @returns Flattened ast with no nest functions
  */
-export function ea(tAst: Program<Type>): Program<Type> {
+export function ea(tAst: Program<[Type, Location]>): Program<[Type, Location]> {
   return {
     a: tAst.a,
     funs: [],
@@ -62,7 +64,7 @@ export function ea(tAst: Program<Type>): Program<Type> {
 }
 
 // TODO (closure group): ea for classes are not fully tested
-export function eaClass(cl: Class<Type>): Class<Type> {
+export function eaClass(cl: Class<[Type, Location]>): Class<[Type, Location]> {
   return {
     a: cl.a,
     name: cl.name,
@@ -83,10 +85,10 @@ export function eaClass(cl: Class<Type>): Class<Type> {
  * inner functions.
  */
 export function eaFunDef(
-  f: FunDef<Type>,
+  f: FunDef<[Type, Location]>,
   parentEnv: LocalEnv,
   isGlobal: boolean
-): ClosureDef<Type>[] {
+): ClosureDef<[Type, Location]>[] {
   // create local variable environment
   const localEnv: LocalEnv = {
     name: f.name,
@@ -100,7 +102,7 @@ export function eaFunDef(
   f.funs.forEach((nf) => localEnv.funIds.push(nf.name));
 
   // recursively apply to inner functions
-  const innerClosures: ClosureDef<Type>[] = [];
+  const innerClosures: ClosureDef<[Type, Location]>[] = [];
   const nonlocalSet = new Set<string>();
   const absFunIds = localEnv.funIds.map((n) => localEnv.prefix + n);
   f.funs.forEach((f) => {
@@ -115,7 +117,7 @@ export function eaFunDef(
 
   const processedBody = f.body.map((s) => eaStmt(s, localEnv, nonlocalSet));
 
-  const currClosure: ClosureDef<Type> = {
+  const currClosure: ClosureDef<[Type, Location]> = {
     a: f.a,
     name: lookupId(f.name, localEnv).name,
     parameters: f.parameters,
@@ -142,10 +144,14 @@ export function eaFunDef(
  * function. Add used name/identifier to this set.
  * @returns Converted statement
  */
-function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
+function eaStmt(
+  stmt: Stmt<[Type, Location]>,
+  e: LocalEnv,
+  nSet: Set<string>
+): Stmt<[Type, Location]> {
   switch (stmt.tag) {
     case "assignment":
-      const targets: AssignTarget<Type>[] = stmt.destruct.targets.map((at) => {
+      const targets: AssignTarget<[Type, Location]>[] = stmt.destruct.targets.map((at) => {
         if (at.ignore) return at; // do nothing for the ignore case
         switch (at.target.tag) {
           case "id":
@@ -157,17 +163,20 @@ function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
               target: {
                 a: at.target.a,
                 tag: "lookup",
-                obj: { a: TRef, tag: "id", name: at.target.name + EA_REF_SUFFIX },
+                obj: { a: [TRef, at.target.a[1]], tag: "id", name: at.target.name + EA_REF_SUFFIX },
                 field: EA_DEREF_FIELD,
               },
             };
           case "lookup":
-            return { ...at, obj: eaExpr(at.target.obj, e, nSet) };
+            return { ...at, target: { ...at.target, obj: eaExpr(at.target.obj, e, nSet) } };
+          case "bracket-lookup": {
+            throw new Error('Not implemented yet: "bracket-lookup" case');
+          }
         }
       });
 
       const aVlaue = eaExpr(stmt.value, e, nSet);
-      const aDestruct: Destructure<Type> = {
+      const aDestruct: Destructure<[Type, Location]> = {
         ...stmt.destruct,
         targets: targets,
       };
@@ -223,7 +232,11 @@ function eaStmt(stmt: Stmt<Type>, e: LocalEnv, nSet: Set<string>): Stmt<Type> {
  * function. Add used name/identifier to this set.
  * @returns Converted expression
  */
-function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
+function eaExpr(
+  expr: Expr<[Type, Location]>,
+  e: LocalEnv,
+  nSet: Set<string>
+): Expr<[Type, Location]> {
   switch (expr.tag) {
     case "literal":
       return expr;
@@ -250,7 +263,7 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
         return {
           a: expr.a,
           tag: "lookup",
-          obj: { a: TRef, tag: "id", name: idid.name + EA_REF_SUFFIX },
+          obj: { a: [TRef, expr.a[1]], tag: "id", name: idid.name + EA_REF_SUFFIX },
           field: EA_DEREF_FIELD,
         };
       } else {
@@ -271,13 +284,13 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
       return expr;
 
     case "lambda":
-      throw new Error(`ea not yet implemented!: ${expr.tag}`);
+      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
     case "comprehension":
-      throw new Error(`ea not yet implemented!: ${expr.tag}`);
+      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
     case "block":
-      throw new Error(`ea not yet implemented!: ${expr.tag}`);
+      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
     case "call_expr":
       return {
@@ -287,13 +300,13 @@ function eaExpr(expr: Expr<Type>, e: LocalEnv, nSet: Set<string>): Expr<Type> {
       };
 
     case "list-expr":
-      throw new Error(`ea not yet implemented!: ${expr.tag}`);
+      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
     case "slicing":
-      throw new Error(`ea not yet implemented!: ${expr.tag}`);
+      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
     case "dict":
-      throw new Error(`ea not yet implemented!: ${expr.tag}`);
+      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
     case "bracket-lookup":
       return {
