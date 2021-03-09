@@ -11,7 +11,7 @@ import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
 import { Value, Type, Location } from "./ast";
 import { PyValue, NONE } from "./utils";
-import { importMemoryManager, MemoryManager } from "./alloc";
+import { importMemoryManager, MemoryManager, TAG_CLASS } from "./alloc";
 import { ea } from "./ea";
 
 export type Config = {
@@ -148,29 +148,25 @@ export async function run(
     (func $range (param $start i32) (param $end i32) (param $sp i32) (result i32)
       (local $self i32)
       (local $$last i32)
-      (i32.const 0)
+      (i32.const ${TAG_CLASS})
+      (i32.const 96)
+      (call $$gcalloc)
       (local.set $self)
-      (i32.load (i32.const 0))
-      (i32.add (i32.const 0))
+      (local.get $self)
       (i32.const 0)
       (i32.store)
-      (i32.load (i32.const 0))
+      (local.get $self)
       (i32.add (i32.const 4))
       (i32.const 0)
       (i32.store)
-      (i32.load (i32.const 0))
+      (local.get $self)
       (i32.add (i32.const 8))
       (i32.const 1)
       (i32.store)
-      (i32.load (i32.const 0))
-      (i32.load (i32.const 0))
-      (i32.const 0)
-      (i32.load (i32.const 0))
-      (i32.add (i32.const 12))
-      (i32.store)
+      (local.get $self)
       (call $Range$__init__)
       (drop)
-      (local.set $self)
+      (local.get $self)
       (local.get $self)
       (i32.add (i32.const 0))
       (local.get $start)
@@ -183,6 +179,7 @@ export async function run(
       (i32.add (i32.const 8))
       (local.get $sp)
       (i32.store)
+
       (local.get $self)
       return (i32.const 0)
     (return))
