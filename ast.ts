@@ -7,14 +7,22 @@ export type Type =
   | { tag: "none" }
   | { tag: "string" }
   | { tag: "class"; name: string }
-  | { tag: "callable"; args: Array<Type>; ret: Type }
-  | { tag: "list"; content_type: Type };
+  | { tag: "list"; content_type: Type }
+  | { tag: "dict"; key: Type; value: Type }
+  | CallableType;
+
+export type CallableType = {
+  tag: "callable";
+  args: Array<Parameter>;
+  ret: Type;
+  isVar?: boolean; // is a variable
+};
 
 export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support
   | { a?: A; tag: "nonlocal"; name: string };
 
-export type Parameter<A> = { name: string; type: Type; value?: Literal };
+export type Parameter = { name: string; type: Type; value?: Literal };
 
 export type Program<A> = {
   a?: A;
@@ -22,6 +30,7 @@ export type Program<A> = {
   inits: Array<VarInit<A>>;
   classes: Array<Class<A>>;
   stmts: Array<Stmt<A>>;
+  closures: Array<ClosureDef<A>>;
 };
 
 export type Class<A> = {
@@ -36,7 +45,7 @@ export type VarInit<A> = { a?: A; name: string; type: Type; value: Literal };
 export type FunDef<A> = {
   a?: A;
   name: string;
-  parameters: Array<Parameter<A>>;
+  parameters: Array<Parameter>;
   ret: Type;
   decls: Array<Scope<A>>;
   inits: Array<VarInit<A>>;
@@ -44,28 +53,44 @@ export type FunDef<A> = {
   body: Array<Stmt<A>>;
 };
 
-export type Closure<A> = {
+/** Compiled as a function in wasm */
+export type ClosureDef<A> = {
   a?: A;
   name: string;
-  fields: Array<VarInit<A>>;
-  apply: FunDef<A>;
+  parameters: Array<Parameter>; // excluding the nonlocal pointer
+  ret: Type;
+  nonlocals: Array<string>;
+  nested: Array<string>;
+  inits: Array<VarInit<A>>;
+  isGlobal: boolean;
+  body: Array<Stmt<A>>;
 };
 
 export type Stmt<A> =
-  | { a?: A; tag: "assignment"; target: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
-  | { a?: A; tag: "assign"; name: string; value: Expr<A> }
+  | { a?: A; tag: "assignment"; destruct: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
   | { a?: A; tag: "return"; value: Expr<A> }
   | { a?: A; tag: "expr"; expr: Expr<A> }
   | { a?: A; tag: "if"; cond: Expr<A>; thn: Array<Stmt<A>>; els: Array<Stmt<A>> }
   | { a?: A; tag: "while"; cond: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "pass" }
   | { a?: A; tag: "field-assign"; obj: Expr<A>; field: string; value: Expr<A> }
-  | { a?: A; tag: "continue" }
-  | { a?: A; tag: "break" }
-  | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> }
+  | { a?: A; tag: "continue"; depth?: number }
+  | { a?: A; tag: "break"; depth?: number } // depth is used for wasm 'br' instruction
+  | { a?: A; tag: "for"; name: string; index?: string; iterable: Expr<A>; body: Array<Stmt<A>> }
   | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
 
+/**
+ * Description of assign targets. isDestructured indicates if we are doing
+ * object destructuring and targets is an array of targets. One case where this
+ * distinction is important is with single element tuples:
+ *
+ * `(a,) = (1,)` vs. `a = (1,)`
+ *
+ * The first assigns `a = 1` while the second results in `a = (1,)`
+ */
 export interface Destructure<A> {
+  // Info about the value that is being destructured
+  valueType?: A;
   isDestructured: boolean;
   targets: AssignTarget<A>[];
 }
@@ -78,13 +103,14 @@ export interface AssignTarget<A> {
 
 // List of tags in Assignable. unfortunately, TS can't generate a JS array from a type,
 // so we instead must explicitly declare one.
-export const ASSIGNABLE_TAGS = ["id", "lookup"] as const;
+export const ASSIGNABLE_TAGS = ["id", "lookup", "bracket-lookup"] as const;
 /**
  * Subset of Expr types which are valid as assign targets
  */
 export type Assignable<A> =
   | { a?: A; tag: "id"; name: string }
-  | { a?: A; tag: "lookup"; obj: Expr<A>; field: string };
+  | { a?: A; tag: "lookup"; obj: Expr<A>; field: string }
+  | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
 
 export type Expr<A> =
   | { a?: A; tag: "literal"; value: Literal }
@@ -102,8 +128,9 @@ export type Expr<A> =
   | { a?: A; tag: "lambda"; args: Array<string>; ret: Expr<A> }
   | { a?: A; tag: "comprehension"; expr: Expr<A>; field: string; iter: Expr<A>; cond?: Expr<A> }
   | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
+  | { a?: A; tag: "call_expr"; name: Expr<A>; arguments: Array<Expr<A>> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
-  | { a?: A; tag: "string_slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
+  | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
   | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
 
@@ -138,6 +165,7 @@ export enum UniOp {
 
 export type Value =
   | Literal
+  | { tag: "string"; value: string; address: number }
   | { tag: "object"; name: string; address: number }
   | { tag: "callable"; name: string; address: number };
 

@@ -1,19 +1,21 @@
 import * as H from "./heap";
 import { Block, NULL_BLOCK } from "./heap";
-import { extractPointer, isPointer, Pointer } from "./alloc";
+import { extractPointer, isPointer, Pointer, StackIndex } from "./alloc";
 
 export type HeapTag =
   | typeof TAG_CLASS
   | typeof TAG_LIST
   | typeof TAG_STRING
   | typeof TAG_DICT
-  | typeof TAG_BIGINT;
+  | typeof TAG_BIGINT
+  | typeof TAG_REF;
 
 export const TAG_CLASS = 0x1n;
 export const TAG_LIST = 0x2n;
 export const TAG_STRING = 0x3n;
 export const TAG_DICT = 0x4n;
 export const TAG_BIGINT = 0x5n;
+export const TAG_REF = 0x6n;
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
@@ -151,11 +153,13 @@ export class RootSet {
   //   instead of relying on a copy of the value (ala local variable roots)
   globals: Set<Pointer>;
 
-  // VALUES of local variables that are pointers arranged in a "stack frame"
+  // Map of local variable stack location to the VALUES of local variables
+  // Organized in a shadow "stack frame"
   //
   // Necessary b/c we have no way to directly scan the WASM stack
   // NOTE(alex): Whenever a local is updated, this may also need to be updated
-  localsStack: Array<Set<Pointer>>;
+  // NOTE(alex): Need to use a Map instead of a Set due to updating aliasing locals
+  localsStack: Array<Map<StackIndex, Pointer>>;
 
   captureTempsFlag: boolean;
 
@@ -173,14 +177,38 @@ export class RootSet {
   //
   tempsStack: Array<Set<Pointer>>;
 
+  // Holds the temporary set of a function call expression
+  tempPlacementStack: Array<number>;
+
   constructor(memory: Uint8Array) {
     this.memory = memory;
 
     this.globals = new Set();
     this.localsStack = [];
     this.tempsStack = [];
+    this.tempPlacementStack = [];
 
     this.captureTempsFlag = false;
+  }
+
+  returnTemp(value: bigint) {
+    if (this.tempPlacementStack.length === 0) {
+      throw new Error("Unable to find a temp set to return a value to");
+    }
+
+    const index = this.tempPlacementStack[this.tempPlacementStack.length - 1];
+    if (index >= this.tempsStack.length) {
+      throw new Error(`Attempting to use temp frame ${index}. Stack length: ${this.tempsStack.length}`);
+    }
+    if (this.tempsStack[index] === undefined) {
+      let msg = "[";
+      this.tempsStack.forEach(v => {
+        msg = msg.concat(`${index},`);
+      });
+      msg = msg.concat("]");
+      throw new Error(`Bad temps stack: ${msg} (len=${this.tempsStack.length}, index=${index})`);
+    }
+    this.tempsStack[index].add(value);
   }
 
   addTemp(value: bigint) {
@@ -197,6 +225,20 @@ export class RootSet {
     this.tempsStack.push(new Set());
   }
 
+  pushCaller() {
+    const target = this.tempsStack.length - 1
+    if (target < 0) {
+      throw new Error(`Bad caller push: ${target}`);
+    }
+    this.tempPlacementStack.push(target);
+  }
+
+  popCaller() {
+    if (this.tempPlacementStack.pop() === undefined) {
+      throw new Error("Popping an empty temp placement stack");
+    }
+  }
+
   releaseTemps() {
     if (this.tempsStack.pop() === undefined) {
       throw new Error("Popping an empty temp root stack");
@@ -205,17 +247,17 @@ export class RootSet {
   }
 
   pushFrame() {
-    this.localsStack.push(new Set());
+    this.localsStack.push(new Map());
   }
 
-  addLocal(value: bigint) {
+  addLocal(index: bigint, value: bigint) {
     if (this.localsStack.length === 0) {
       throw new Error("No local stack frame to push to");
     }
     if (isPointer(value)) {
       const ptr = extractPointer(value);
       if (ptr != 0x0n) {
-        this.localsStack[this.localsStack.length - 1].add(ptr);
+        this.localsStack[this.localsStack.length - 1].set(index, ptr);
       }
     }
   }
@@ -251,7 +293,8 @@ export class RootSet {
 
     // Local set is already a set of pointers to heap values
     this.localsStack.forEach((frame) => {
-      frame.forEach((localPtrValue) => {
+      // second value is the local index
+      frame.forEach((localPtrValue, _) => {
         callback(localPtrValue);
       });
     });
@@ -344,6 +387,12 @@ export class MnS<A extends MarkableAllocator> {
 
         case TAG_BIGINT: {
           throw new Error("TODO: trace bigint");
+        }
+
+        // NOTE(alex:mm): Used to represent a boxed value
+        // No metadata
+        case TAG_REF: {
+          throw new Error("TODO: trace ref");
         }
       }
 

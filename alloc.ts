@@ -1,9 +1,10 @@
 import * as H from "./heap";
 import * as GC from "./gc";
-export { HeapTag, TAG_CLASS, TAG_LIST, TAG_STRING, TAG_DICT, TAG_BIGINT } from "./gc";
+export { HeapTag, TAG_CLASS, TAG_LIST, TAG_STRING, TAG_DICT, TAG_BIGINT, TAG_REF } from "./gc";
 
 // Untagged pointer (32-bits)
 export type Pointer = bigint;
+export type StackIndex = bigint;
 
 export function toHeapTag(tag: bigint): GC.HeapTag {
   if (
@@ -11,7 +12,8 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
     tag === GC.TAG_LIST ||
     tag === GC.TAG_STRING ||
     tag === GC.TAG_DICT ||
-    tag === GC.TAG_BIGINT
+    tag === GC.TAG_BIGINT ||
+    tag === GC.TAG_REF
   ) {
     return tag;
   }
@@ -26,6 +28,16 @@ export function importMemoryManager(importObject: any, mm: MemoryManager) {
     return Number(mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size)));
   };
 
+  importObject.imports.pushCaller = function() {
+    mm.pushCaller();
+  };
+  importObject.imports.popCaller = function() {
+    mm.popCaller();
+  };
+  importObject.imports.returnTemp = function (value: number): number {
+    mm.returnTemp(BigInt(value));
+    return value;
+  };
   importObject.imports.addTemp = function (value: number): number {
     mm.addTemp(BigInt(value));
     return value;
@@ -41,11 +53,12 @@ export function importMemoryManager(importObject: any, mm: MemoryManager) {
     mm.pushFrame();
   };
 
-  importObject.imports.addLocal = function (value: number) {
-    mm.addLocal(BigInt(value));
+  importObject.imports.addLocal = function (index: number, value: number) {
+    mm.addLocal(BigInt(index), BigInt(value));
   };
-  importObject.imports.removeLocal = function (value: number) {
-    mm.removeLocal(BigInt(value));
+
+  importObject.imports.removeLocal = function (index: number) {
+    mm.removeLocal(BigInt(index));
   };
   importObject.imports.releaseLocals = function () {
     mm.releaseLocals();
@@ -80,6 +93,22 @@ export class MemoryManager {
 
   forceCollect() {
     this.gc.collect();
+  }
+
+  // Pushes the index of the temporary set of the function caller
+  // Necessary to know in which temp root set to place the function result
+  pushCaller() {
+    this.gc.roots.pushCaller();
+  }
+
+  // Pops the index of the temporary set of the function caller
+  popCaller() {
+    this.gc.roots.popCaller();
+  }
+
+  // Places the value into the function caller's temp root set
+  returnTemp(value: bigint) {
+    this.gc.roots.returnTemp(value);
   }
 
   // Add a potential pointer to the set of temporary roots
@@ -128,13 +157,13 @@ export class MemoryManager {
   //
   // Add a potential pointer to the local variable root set
   // If value is not a pointer, it will not be added
-  addLocal(value: bigint) {
-    this.gc.roots.addLocal(value);
+  addLocal(index: bigint, value: bigint) {
+    this.gc.roots.addLocal(index, value);
   }
 
   // Remove a potential pointer to the local variable root set
-  removeLocal(value: bigint) {
-    this.gc.roots.removeLocal(value);
+  removeLocal(index: bigint) {
+    this.gc.roots.removeLocal(index);
   }
 
   // Pops the current stack frame
