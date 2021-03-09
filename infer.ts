@@ -133,11 +133,70 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
       return typeTag;
 
     // prepopulate the globEnv with builtin functions
-    case "builtin1": // TODO
-    case "builtin2": // TODO
-      throw new Error("Inference for built-ins not supported yet");
-    case "call": // TODO
-      throw new Error("Inference for calls not supported yet");
+    case "builtin1":
+      let argType = inferExprType(expr.arg, globEnv, locEnv);
+      if (argType === UNSAT) {
+        return UNSAT;
+      }
+      if (argType === FAILEDINFER) {
+        return FAILEDINFER;
+      }
+      switch (expr.name) {
+        case "print": 
+          return NONE;
+        case "abs":
+          return NUM;
+        default: 
+          throw new Error(`Inference not supported for unknown builtin '${expr.name}'`)
+      }
+
+    case "builtin2":
+      let lhs = inferExprType(expr.left, globEnv, locEnv);
+      let rhs = inferExprType(expr.right, globEnv, locEnv);
+      if (lhs === UNSAT || rhs === UNSAT) {
+        return UNSAT;
+      }
+      if (lhs === FAILEDINFER || rhs === FAILEDINFER) {
+        return FAILEDINFER;
+      }
+      switch (expr.name) {
+        case "min": case "max": case "pow":
+          return NUM;
+        default: 
+        throw new Error(`Inference not supported for unknown builtin '${expr.name}'`)
+      }
+
+    case "call":
+      if (globEnv.classes.has(expr.name)) {
+        return CLASS(expr.name);
+      } else if (globEnv.functions.has(expr.name)) {
+        let [_, retType] = globEnv.functions.get(expr.name);
+        return retType;
+      } else {
+        return FAILEDINFER;
+      }
+
+    case "method-call": 
+      let objType = inferExprType(expr.obj, globEnv, locEnv);
+      if (objType === UNSAT) {
+        return UNSAT;
+      }
+      if (objType === FAILEDINFER || objType.tag !== "class") {
+        return FAILEDINFER;
+      }      
+      // we have been able to infer the type of the class before the dot
+      if (!globEnv.classes.has(objType.name)) {
+        return FAILEDINFER;
+      }
+
+      const [_, methods] = globEnv.classes.get(objType.name);
+      if (!methods.has(expr.method)) {
+        return FAILEDINFER;
+      } else {
+        let [_, returnType] = methods.get(expr.method)
+        return returnType; 
+      }
+
     case "list-expr":
       throw new Error("Inference not implemented for lists yet");
 
@@ -158,7 +217,6 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
       if (exprType === FAILEDINFER) {
         return FAILEDINFER;
       }
-
       switch (expr.op) {
         case UniOp.Neg:
           if (exprType != NUM) {
