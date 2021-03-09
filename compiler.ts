@@ -626,7 +626,11 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
   // references that required memory allocation
   const extraRefs: Set<string> = new Set();
   def.inits.forEach((v) => extraRefs.add(`${v.name}`));
-  def.parameters.forEach((p) => extraRefs.add(`${p.name}`));
+  def.parameters.forEach((p) => {
+    extraRefs.add(`${p.name}`);
+    env.locals.set(p.name, currentLocalIndex);
+    currentLocalIndex += 1;
+  });
 
   definedVars.forEach((v) => {
     env.locals.set(v, currentLocalIndex);
