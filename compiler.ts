@@ -411,7 +411,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             (loop
               ${Code_step.join("\n")}
               ${Code_idstep.join("\n")}
-              (br_if 1 (${Code_cond.join("\n")} ${decodeLiteral.join("\n")}))
+              (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
 
               ${Code_ass.join("\n")}
               ${bodyStmts.join("\n")}
