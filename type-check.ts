@@ -2,7 +2,6 @@ import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Clas
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 import { callToSignature, ClassPresenter, fdefToIdentity, fdefToSigStr, FuncIdentity, idenToStr, literalToType, ModulePresenter, OrganizedClass, OrganizedFunc, OrganizedModule } from "./types";
-import { table } from "console";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -97,6 +96,7 @@ function isAssignable(destType: Type, sourceType: Type) : boolean {
              (sourceType.tag === "class" && sourceType.name === destType.name)
   }
   else{
+      console.log(`  in assignable ${destType === undefined} ${sourceType === undefined}`);
       return destType.tag === sourceType.tag;
   }
 }
@@ -110,6 +110,9 @@ function checkReturn(body: Array<Stmt<Type>>, expectedReturnType: Type) : boolea
       else if(lastStatemnt.tag === "if"){
           return checkReturn(lastStatemnt.thn, expectedReturnType) && 
                  checkReturn(lastStatemnt.els, expectedReturnType);
+      }
+      else if(lastStatemnt.tag === "while"){
+        return checkReturn(lastStatemnt.body, expectedReturnType);
       }
   }
   return false;
@@ -193,7 +196,8 @@ export function includeImports(env: GlobalTable,
 
         //add functions to env with the name mentioned 
         for(let [name, def] of target.functions.entries()){
-          if(compSet.has(name)){
+          console.log(`---- Including import from module ${target.name} ${name}`);
+          if(compSet.has(def.signature.name)){
             anyFound = true;
 
             env.funcs.set(idenToStr(def), {iden: def, module: imprt.target});
@@ -210,6 +214,7 @@ export function includeImports(env: GlobalTable,
         }
 
         //add module variables to env with the name mentioned 
+        //Should I remove this feature? This is bad coding practice. Best to not allow it.
         for(let [name, type] of target.moduleVars.entries()){
           if(compSet.has(name)){
             anyFound = true;
@@ -217,9 +222,10 @@ export function includeImports(env: GlobalTable,
             env.vars.set(name, {type: type, module: imprt.target});
           }
         }
+        
 
         if(!anyFound){
-          throw new TypeCheckError(`Cannot find any component named as ${new Array(compSet).join(",")} in the module ${target}`);
+          throw new TypeCheckError(`Cannot find any component named as ${Array.from(compSet).join(",")} in the module ${target.name}`);
         }
       }
       else{
@@ -321,6 +327,7 @@ function tcExpr(expr: Expr<null>,
     case "call":{
       const typedArgExprs : Array<Expr<Type>> = new Array();
 
+      console.log(` ====> tcing call ${expr.name} ${expr.arguments.length}`);
       for(let i = 0; i < expr.arguments.length; i++){
         const typedExpr = tcExpr(expr.arguments[i], vars, global, builtIns);
         typedArgExprs.push(typedExpr);
@@ -409,9 +416,12 @@ function tcExpr(expr: Expr<null>,
               contents: valueTypes};
     }
     case "method-call":{
+
+      console.log(` ====> meth call ${JSON.stringify(expr)}`);
+
       const target = tcExpr(expr.obj, vars, global, builtIns);
       const targetArgs = expr.arguments.map(x => tcExpr(x, vars, global, builtIns));
-      const argTypes = targetArgs.map(x => x.a);
+      const argTypes = [target.a].concat(targetArgs.map(x => x.a));
       const callSig = callToSignature(expr.method, argTypes);
       const targetType = target.a;
 
@@ -487,7 +497,7 @@ function tcStmt(stmt: Stmt<null>,
     case "assign": {
       const varType = lookup(stmt.name, vars);
       if(varType === undefined){
-        throw new Error(`Cannot fint ${stmt.name}`);
+        throw new Error(`Cannot find variable ${stmt.name} ${JSON.stringify(vars)}`);
       }
 
       const typedValue = tcExpr(stmt.value, vars, global, builtIns);
@@ -539,12 +549,15 @@ function tcStmt(stmt: Stmt<null>,
       return {a: {tag: "none"}, tag: "while", cond: condTyped, body: typedBody};
     }
     case "field-assign":{
-      const leftSideType = tcExpr({tag: "lookup", obj: stmt.obj, field: stmt.field}, vars, global, builtIns);
+      const leftSideType = tcExpr(stmt.obj, vars, global, builtIns);
+
+      const leftFieldType = tcExpr({tag: "lookup", obj: stmt.obj, field: stmt.field}, vars, global, builtIns);
       const valueType = tcExpr(stmt.value, vars, global, builtIns);
-      if(!isAssignable(leftSideType.a, valueType.a)){
+      if(!isAssignable(leftFieldType.a, valueType.a)){
         throw new TypeCheckError(`The type ${typeToString(valueType.a)} is not assignable to ${typeToString(leftSideType.a)}`);
       }
 
+      console.log(` ---------tcing field assign: ${typeToString(leftSideType.a)}`);
       return {a: valueType.a, 
               tag: "field-assign", 
               obj: leftSideType,  //DEV_NOTE: This may potentially cause errors. Be careful
@@ -600,6 +613,7 @@ function tcFuncDef(def: FunDef<null>,
                    builtIns: Map<string, ModulePresenter>) : OrganizedFunc{
   //function signature. Useful for errors
   const funcIdentity = fdefToIdentity(def);
+  console.log(`-------TCing Func def: ${idenToStr(funcIdentity)}`);
 
   //check if return type exists
   const retMissing = doesTypeExist(def.ret, global);
@@ -659,7 +673,8 @@ function tcFuncDef(def: FunDef<null>,
     newStmts.push(newStmt);
   }
 
-  if(!checkReturn(def.body, funcIdentity.returnType)){
+  console.log(`======> is func return type undef? ${funcIdentity.returnType === undefined}`);
+  if(!checkReturn(newStmts, funcIdentity.returnType)){
     if(funcIdentity.returnType.tag !== "none"){
       throw new TypeCheckError(`The function ${idenToStr(funcIdentity)} must have 
                                 a return type of ${typeToString(funcIdentity.returnType)}`);
@@ -712,13 +727,12 @@ export function tc(existingEnv: ModulePresenter,
   const tlStmts: Array<Stmt<Type>> = new Array();
 
   const modPresenter: ModulePresenter = {
+    name: undefined,
     moduleVars: new Map(),
     functions: new Map(),
     classes: new Map()
   };
 
-  Array.from(curGlobalTable.vars.entries()).forEach(x => 
-                                     modPresenter.moduleVars.set(x[0], x[1].type));
   Array.from(curGlobalTable.funcs.entries()).forEach(x => 
                                      modPresenter.functions.set(x[0], x[1].iden));
   Array.from(curGlobalTable.classes.entries()).forEach(x => 
@@ -745,6 +759,7 @@ export function tc(existingEnv: ModulePresenter,
                          name: v.name, 
                          type: v.type, 
                          value: v.value});
+    modPresenter.moduleVars.set(v.name, v.type);
   }
 
   //check functions

@@ -1,7 +1,7 @@
 import { ClassPresenter, ModulePresenter } from "./types";
 import { Value, Type } from "./ast";
-import {BuiltVariable} from "./builtins/builtins";
-import { add } from "cypress/types/lodash";
+import {BuiltInModule, BuiltVariable} from "./builtins/builtins";
+import { add, values } from "cypress/types/lodash";
 
 export type RuntimeModule = {
   presenter: ModulePresenter,
@@ -9,175 +9,144 @@ export type RuntimeModule = {
   classes: Map<number, ClassPresenter>
 }
 
-export interface MemoryAllocator {
+/*
+ Represents a runtime instance of a class
+ */
+export type Instance =
+ | {tag: "int", value: number}
+ | {tag: "bool", value: boolean}
+ | {tag: "string", value: string}
+ | {tag: "instance", moduleCode: number, typeCode: number, attrs: Array<number>}
 
-  allocate(typeCode: number) : number;
+export class MainAllocator{
 
-  staticStrAllocate(str: string) : number;
+  private globalVars: Array<Array<BuiltVariable>>; //by module. module 0 is the main module
 
-  intAllocate(int: number) : number;
-
-  boolAllocate(b: boolean) : number;
-
-  getInt(intAddress: number) : number;
-
-  getBool(boolAdress: number) : number;
-
-  attrLookup(objAddress: number, attrIndex: number) : number;
-
-  attrMutate(objAddress: number, attrIndex: number, newVal: number) : void;
-
-  globalRetr(moduleCode: number, varIndex: number) : number;
-
-  globalMutate(moduleCode: number, varIndex: number, newValue: number) : void;
-}
-
-export class MainAllocator implements MemoryAllocator{
-
-  private globalVars: Array<number>; //by module. module 0 is the main module
-
-  private heap: Array<{type: number, attrs: Array<number>}>;
+  private heap: Array<Instance>;
   private heapIndex: number;
 
   private modules: Map<number, RuntimeModule>;
 
-  constructor(allModules: Map<number, RuntimeModule>){
-    this.modules = allModules;
-    this.globalVars = new Array();
-    this.heap = new Array(2); //we start with an array of size 2. Index 0 is None
+  constructor(){}
+
+  init(modules: Map<number, RuntimeModule>){
+    this.modules = modules;
+
+    this.globalVars = new Array(modules.size).fill([]);
+
+    
+    this.heap = [undefined]; //we start with an array of size 2. Index 0 is None
     this.heapIndex = 1;
   }
 
-  allocate(typeCode: number) : number{
-    //assumed current module
-    const currClass = this.modules.get(0).classes.get(typeCode);
-    const address = this.heapIndex;
+  getInt(addr: number): number {
+    const intInstance = this.heap[addr];
+    if(intInstance.tag !== "int"){
+      throw new Error("Fatal error: Attempt to deref object at "+addr+" to int.");
+    }
+    return intInstance.value;
+  }
+
+  getBool(addr: number): number {
+    const intInstance = this.heap[addr];
+    if(intInstance.tag !== "bool"){
+      throw new Error("Fatal error: Attempt to deref object at "+addr+" to bool.");
+    }
+    return intInstance.value ? 1 : 0;
+  }
+
+  getStr(addr: number): string {
+    const intInstance = this.heap[addr];
+    if(intInstance.tag !== "string"){
+      throw new Error("Fatal error: Attempt to deref object at "+addr+" to string.");
+    }
+    return intInstance.value;
+  }
+
+  modVarMute(modCode: number, vIndex: number, newVal: number): void{
+    const module = this.globalVars[modCode];
+    module[vIndex].set(newVal);
+  }
+
+  modVarRetr(modCode: number, vIndex: number): number{
+    const module = this.globalVars[modCode];
+    return module[vIndex].get();
+  }
+
+  objMutate(addr: number, index: number, newVal: number) : void{
+    const instance = this.heap[addr];
+    if(instance.tag !== "instance"){
+      throw new Error("Fatal Error! Object at address "+addr+" has no attributes!");
+    }
+
+    instance.attrs[index] = newVal;
+  }
+
+  objRetr(addr: number, index: number): number{
+    const instance = this.heap[addr];
+    if(instance.tag !== "instance"){
+      throw new Error("Fatal Error! Object at address "+addr+" has no attributes!");
+    }
+
+    return instance.attrs[index];
+  }
+
+  allocObj(modCode: number, typeCode: number): number{
+    const module = this.modules.get(modCode);
+    const targetClass = module.classes.get(typeCode);
 
     const attrs = new Array<number>();
-    for(let [name, info] of currClass.instanceVars.entries()){
+    for(let [_, info] of targetClass.instanceVars.entries()){
       switch(info.initValue.tag){
-        case "num": {
-          attrs.push(this.intAllocate(Number(info.initValue.value)));
-          break;
-        }
         case "bool": {
-          attrs.push(this.boolAllocate(info.initValue.value));
+          const alloc = this.allocBool(info.initValue.value ? 1 : 0);
+          attrs.push(alloc);
           break;
         }
         case "string": {
-          attrs.push(this.staticStrAllocate(info.initValue.value));
+          const alloc = this.allocStr(info.initValue.value);
+          attrs.push(alloc);
           break;
         }
-        default: {
-          attrs.push(0);  //this is None
+        case "num": {
+          const alloc = this.allocInt(Number(info.initValue.value));
+          attrs.push(alloc);
+          break;
+        }
+        case "none": {
+          attrs.push(0);
           break;
         }
       }
     }
 
-    const instance = {type: typeCode, attrs: attrs};
-    this.heap.push(instance);
+    const addr = this.heapIndex;
+    this.heap.push({tag: "instance", moduleCode: modCode, typeCode: typeCode, attrs: attrs});
     this.heapIndex++;
-    return address;
+    return addr;
   }
 
-  staticStrAllocate(str: string) : number {
-    const address = this.heapIndex;
-    const charArray = new Array<number>(str.length + 1);
+  allocStr(str: string): number{
+    const addr = this.heapIndex;
 
-    //first attr on string is the length
-    charArray.push(str.length);
-    for(let i = 0; i < charArray.length; i++){
-      charArray[i] = str.codePointAt(i);
-    }
-
-    const strInstance = {
-      type: 2,
-      attrs: charArray
-    }
-
-    this.heap.push(strInstance);
+    this.heap.push({tag: "string", value: str});
     this.heapIndex++;
-    return address;
+    return addr;
   }
 
-  intAllocate(int: number) : number{
-    const address = this.heapIndex;
-    const intValue = {
-      type: 0,
-      attrs: [int]
-    };
+  allocBool(bool: number): number{
+    const addr = this.heapIndex;
 
-    this.heap.push(intValue);
+    this.heap.push({tag: "bool", value: bool === 0 ? false: true});
     this.heapIndex++;
-    return address;
+    return addr;
   }
 
-  boolAllocate(b: boolean) : number {
-    const address = this.heapIndex;
-    const boolValue = {
-      type: 1,
-      attrs: [b ? 1 : 0]
-    };
+  allocInt(int: number): number{
+    const addr = this.heapIndex;
 
-    this.heap.push(boolValue);
+    this.heap.push({tag: "int", value: int});
     this.heapIndex++;
-    return address;
+    return addr;
   }
-
-  getInt(intAddress: number) : number {
-    if(intAddress === 0){
-      throw new Error("None dereference");
-    }
-    const intObject = this.heap[intAddress];
-    return intObject.attrs[0];
-  }
-
-  getBool(boolAdress: number) : number {
-    if(boolAdress === 0){
-      throw new Error("None dereference");
-    }
-    const boolObject = this.heap[boolAdress];
-    return boolObject.attrs[0];
-  }
-
-  attrLookup(objAddress: number, attrIndex: number) : number{
-    if(objAddress === 0){
-      throw new Error("Runtime error! None object target of attribute lookup");
-    }
-
-    const obj = this.heap[objAddress];
-    return obj.attrs[attrIndex];
-  }
-
-  attrMutate(objAddress: number, attrIndex: number, newVal: number) : void {
-    if(objAddress === 0){
-      throw new Error("Runtime error! None object target of attribute mutation");
-    }
-
-    const obj = this.heap[objAddress];
-    obj.attrs[attrIndex] = newVal;
-  }
-
-  globalRetr(moduleCode: number, varIndex: number) : number{
-    if(moduleCode === 0){
-      const globalVar = this.globalVars[varIndex];
-      return globalVar;
-    }
-    const targetModule = this.modules.get(moduleCode);
-    const gVar = targetModule.builtInVariable[varIndex];
-    return gVar.get();
-  }
-
-  globalMutate(moduleCode: number, varIndex: number, newValue: number) : void{
-    if(moduleCode === 0){
-      this.globalVars[varIndex] = newValue;
-    }
-    else{
-      const targetModule = this.modules.get(moduleCode);
-      const gVar = targetModule.builtInVariable[varIndex];
-      gVar.set(newValue);
-    }
-  }
-
 }

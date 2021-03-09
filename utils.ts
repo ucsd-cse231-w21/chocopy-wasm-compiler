@@ -25,7 +25,7 @@ export function PyBool(b: boolean): Value {
 
 export function PyObj(name: string, address: number): Value {
   if (address === 0) return PyNone();
-  else return { tag: "object", name, address };
+  else return { tag: "object", address };
 }
 
 export function PyNone(): Value {

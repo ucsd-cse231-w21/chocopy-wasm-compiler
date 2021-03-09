@@ -41,6 +41,7 @@ export type FuncIdentity = {
 }
 
 export type ModulePresenter = {
+    name: string,
     moduleVars: Map<string, Type>,
     functions: Map<string, FuncIdentity>,
     classes: Map<string, ClassPresenter>

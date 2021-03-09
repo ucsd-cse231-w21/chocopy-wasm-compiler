@@ -1,20 +1,24 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, typeToString } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { idenToStr, ModulePresenter, OrganizedModule } from "./types";
+import { FuncIdentity, idenToStr, ModulePresenter, OrganizedModule } from "./types";
 import { BuiltInModule } from "./builtins/builtins";
 import { type } from "cypress/types/jquery";
 import { builtinModules } from "module";
-import { MemoryAllocator } from "./heap";
+import { MainAllocator } from "./heap";
 import { all } from "cypress/types/bluebird";
 
 export type LabeledModule = {
   moduleCode: number,
-  classes : Map<string, {typeCode: number, 
-                         varIndices: Map<string, {index: number, 
-                                                  initValue?: Literal}>}>,
-  funcs: Map<string, string>, //maps function signatures to function labels
+  classes : Map<string, LabeledClass>,
+  funcs: Map<string, {identity: FuncIdentity, label: string}>, //maps function signatures to function labels
   globalVars: Map<string, number> // maps global variables to their indices
+}
+
+export type LabeledClass = {
+  typeCode: number,
+  varIndices: Map<string, number>,
+  methods: Map<string, {identity: FuncIdentity, label: string}>
 }
 
 export type CompileResult = {
@@ -30,7 +34,7 @@ export type CallSite =
 
 export type IdenType = 
 {tag: "localvar"} |
-{tag: "globalvar", index: number} |
+{tag: "globalvar", moduleCode: number, index: number} |
 {tag: "module", code: number} 
 
 //-------------SYSTEM FUNCTION CALLS-------------
@@ -57,25 +61,11 @@ const OBJ_DEREF = "2objref";
 const OBJ_MUTATE = "3objmute";
 
 /**
- * Allocates a primitive (int or bool instance)
- * 1st arg: primitive type (1 for bool, 2 for int)
- * 2nd arg: value of primitive
- */
-const ALLOC_PRIM = "4prim"; //first argument (1 for bool, 2 for int), second argument is the value
-
-/**
- * Returns the numerical representation of a primitive.
- * 1st arg: primitive type (1 for bool, 2 for int)
- * 2nd arg: address of primitive
- */
-const GET_PRIM = "5gprim"; //first argument (1 for bool, 2 for int), second argument is the object address
-
-/**
  * Returns the value of a module's variable
  * 1st arg: module code
  * 2nd arg: variable index
  */
-const BUILT_REF = "6mod_ref";  //first argument - module code, second argument var index
+const MOD_REF = "4mod_ref";  //first argument - module code, second argument var index
 
 /**
  * Mutates the value of a module's variable
@@ -83,7 +73,7 @@ const BUILT_REF = "6mod_ref";  //first argument - module code, second argument v
  * 2nd arg: variable index
  * 3rd arg: value to change the variable to
  */
-const BUILT_STORE = "7mod_mutate";  //first argument - module code, second argument var index, third argument is new value
+const MOD_STORE = "5mod_mutate";  //first argument - module code, second argument var index, third argument is new value
 
 /**
  * Checks if two objects are equal.
@@ -94,7 +84,7 @@ const BUILT_STORE = "7mod_mutate";  //first argument - module code, second argum
  *       if the two objects are both booleans or integers, then
  *       they're matched by their integer/boolean values
  */
-const EQ_PRIM = "8qual"; //argument is the object address
+const EQ_PRIM = "6qual"; //argument is the object address
 
 /**
  * Checks if two objects are not equal.
@@ -105,7 +95,31 @@ const EQ_PRIM = "8qual"; //argument is the object address
  *       if the two objects are both booleans or integers, then
  *       they're matched by their integer/boolean values
  */
-const NEQ_PRIM = "9nqual"; //argument is the object address
+const NEQ_PRIM = "7nqual"; //argument is the object address
+
+/**
+ * Returns the integer that's wrapped by an integer object
+ * 1st arg: address of the integer object
+ */
+const GET_INT = "8int";
+
+/**
+ * Returns the boolean that's wrapped by a boolean object
+ * 1st arg: address of the boolean object
+ */
+const GET_BOOL = "9bool";
+
+/**
+ * Allcoates an integer object
+ * 1st arg: the interger to be allocated
+ */
+const ALLC_INT = "8aint";
+
+/**
+ * Allcoates a boolean object
+ * 1st arg: the boolean to be allocated
+ */
+const ALLC_BOOL = "9abool";
 
 //-------------SYSTEM FUNCTION CALLS END-------------
 
@@ -124,53 +138,93 @@ function lookup(name: string, maps: Array<Map<string, IdenType>>) : IdenType {
 
 
 function includeImports(imprts: Array<Stmt<Type>>, 
-                        builtins: Map<string, LabeledModule>) : Map<string, IdenType>{
+                        builtins: Map<string, LabeledModule>) : {vars: Map<string, IdenType>, instr: Array<string>}{
   const imprtMap = new Map<string, IdenType>();
+  const funcHeaders = new Array<string>();
+
   for(let imprt of imprts){
-    if(imprt.tag === "import" && !imprt.isFromStmt){
-      const moduleCode = builtins.get(imprt.target).moduleCode;
-      imprtMap.set(imprt.alias, {tag: "module", code: moduleCode});
+    console.log(` ***PRELUDING IMPORT ${JSON.stringify(imprt)}`);
+    if(imprt.tag === "import"){
+      const targetModule = builtins.get(imprt.target);
+      if(imprt.isFromStmt){
+        const compNames = new Set(imprt.compName);
+
+        //add function labels
+        for(let [_, info] of targetModule.funcs.entries()){
+          if(compNames.has(info.identity.signature.name)){
+            const params = "(param i32)".repeat(info.identity.signature.parameters.length);
+            const header = `(func $${info.label} (import "builtin" "${info.label}") ${params} (result i32))`;
+            funcHeaders.push(header);
+          }
+        }
+
+        //add class methods labels
+        for(let [name, info] of targetModule.classes.entries()){
+          if(compNames.has(name)){
+            for(let [_, fInfo] of info.methods.entries()){
+              const params = "(param i32)".repeat(fInfo.identity.signature.parameters.length);
+              const header = `(func $${fInfo.label} (import "builtin" "${fInfo.label}") ${params} (result i32))`;
+              funcHeaders.push(header);
+            }
+          }
+        }
+
+        for(let [name, index] of targetModule.globalVars.entries()){
+          if(compNames.has(name)){
+            imprtMap.set(name, {tag: "globalvar", moduleCode: targetModule.moduleCode, index: index});
+          }
+        }
+      }
+      else{
+        const moduleCode = builtins.get(imprt.target).moduleCode;
+        imprtMap.set(imprt.alias, {tag: "module", code: moduleCode});
+      }
     }
   }
-  return imprtMap;
+  return {vars: imprtMap, instr: funcHeaders};
 }
 
 export function compile(progam: OrganizedModule, 
                         labeledSource: LabeledModule, 
                         builtins: Map<string, LabeledModule>,
-                        allcator: MemoryAllocator) : Array<string> {
+                        allcator: MainAllocator) : Array<string> {
   const allInstrs = new Array<string>();
 
   //set the first global vars to be imports
   const globalVars = includeImports(progam.imports, builtins);
 
+  console.log(` ----------PRE COMPILE: ${globalVars.instr.join("\n")}`);
+  allInstrs.push(...globalVars.instr);
+
   allInstrs.push(`(func $exported_func (export "exported_func") (result i32)`);
+  allInstrs.push(`(local $${TEMP_VAR} i32)`); //used for statement values
+  allInstrs.push(`(local.set $${TEMP_VAR} (i32.const 0))`); //initialize it with 0
   //now, add on global variables
   for(let [vName, info] of progam.fileVars.entries()){
     const index = labeledSource.globalVars.get(vName);
 
-    globalVars.set(vName, {tag: "globalvar", index: index});
+    globalVars.vars.set(vName, {tag: "globalvar", moduleCode: 0, index: index});
 
     switch(info.value.tag){
       case "num": {
-        allInstrs.push(`(call $${BUILT_STORE} 
+        allInstrs.push(`(call $${MOD_STORE} 
                           (i32.const ${labeledSource.moduleCode}) 
                           (i32.const ${index}) 
-                          (call $${ALLOC_PRIM} (i32.const 2) ${info.value.value})
+                          (call $${ALLC_INT} ${info.value.value})
                         )`);
         break;
       }
       case "bool": {
-        allInstrs.push(`(call $${BUILT_STORE} 
+        allInstrs.push(`(call $${MOD_STORE} 
                           (i32.const ${labeledSource.moduleCode}) 
                           (i32.const ${index}) 
-                          (call $${ALLOC_PRIM} (i32.const 1) ${info.value.value})
+                          (call $${ALLC_BOOL} ${info.value.value ? 1 : 0})
                         )`);
         break;
       }
       case "string": {
-        const strAddress = allcator.staticStrAllocate(info.value.value);
-        allInstrs.push(`(call $${BUILT_STORE} 
+        const strAddress = allcator.allocStr(info.value.value);
+        allInstrs.push(`(call $${MOD_STORE} 
                           (i32.const ${labeledSource.moduleCode}) 
                           (i32.const ${index}) 
                           (i32.const ${strAddress})
@@ -178,7 +232,7 @@ export function compile(progam: OrganizedModule,
         break;
       }
       case "none": {
-        allInstrs.push(`(call $${BUILT_STORE} 
+        allInstrs.push(`(call $${MOD_STORE} 
                           (i32.const ${labeledSource.moduleCode}) 
                           (i32.const ${index}) 
                           (i32.const 0)
@@ -188,10 +242,18 @@ export function compile(progam: OrganizedModule,
     }
   }
 
+  if(progam.topLevelStmts.length >= 1){
+    const lastStmt = progam.topLevelStmts[progam.topLevelStmts.length - 1];
+    if(lastStmt.tag === "expr"){
+      progam.topLevelStmts[progam.topLevelStmts.length - 1] = {a: lastStmt.a, tag: "return", value: lastStmt.expr};
+    }
+  }
+
   //now compile top level stmts
   for(let tlStmt of progam.topLevelStmts){
-    allInstrs.push(codeGenStmt(tlStmt, [globalVars], labeledSource, builtins, allcator).join("\n"));
+    allInstrs.push(codeGenStmt(tlStmt, [globalVars.vars], labeledSource, builtins, allcator).join("\n"));
   }
+  allInstrs.push(`(local.get $${TEMP_VAR})`);
   allInstrs.push(`)`);
 
   return allInstrs;
@@ -202,7 +264,7 @@ function codeGenStmt(stmt: Stmt<Type>,
                      idens: Array<Map<string, IdenType>>, 
                      sourceModule: LabeledModule,
                      builtins: Map<string, LabeledModule>,
-                     allcator: MemoryAllocator): Array<string> {
+                     allcator: MainAllocator): Array<string> {
   switch (stmt.tag) {
     case "import": {
       //shouldn't be triggered as we put imports in a seperate list
@@ -222,7 +284,7 @@ function codeGenStmt(stmt: Stmt<Type>,
           return [`(local.set $${stmt.tag} ${valueInstr})`];
         }
         else if(result.tag === "globalvar"){
-          return [`(call $${BUILT_STORE} (i32.const 0) (i32.const ${result.index}) ${valueInstr})`];
+          return [`(call $${MOD_STORE} (i32.const 0) (i32.const ${result.index}) ${valueInstr})`];
         }
         else{
           //this shouldn't happen as type checking wouldn't allow it
@@ -248,26 +310,27 @@ function codeGenStmt(stmt: Stmt<Type>,
     }
     case "field-assign": {
       //check if target object is an imported module
-      if(stmt.a.tag === "class"){
+      console.log(`compiling...... ${JSON.stringify(stmt.obj)}`);
+      const objInstrs = codeGenExpr(stmt.obj, idens, sourceModule, builtins, allcator);
+      if(stmt.obj.a.tag === "class"){
         const valueInstrs = codeGenExpr(stmt.value, idens, sourceModule, builtins, allcator);
-        if(stmt.a.name.startsWith("module$")){
+        if(stmt.obj.a.name.startsWith("module$")){
           //module reference
-          const moduleName = stmt.a.name.split("$")[1];
+          const moduleName = stmt.obj.a.name.split("$")[1];
           const targetModule = builtins.get(moduleName);
           const varIndex = targetModule.globalVars.get(stmt.field);
 
-          return [`(call $${BUILT_STORE} (i32.const ${targetModule.moduleCode}) (i32.const ${varIndex}) ${valueInstrs} )`];
+          return [`(call $${MOD_STORE} ${objInstrs} ${valueInstrs} (i32.const ${varIndex}))`];
         }
         else{
-          const objInstrs = codeGenExpr(stmt.obj, idens, sourceModule, builtins, allcator);
-          const targetClass = sourceModule.classes.get(stmt.a.name);
+          const targetClass = sourceModule.classes.get(stmt.obj.a.name);
           const varIndex = targetClass.varIndices.get(stmt.field);
 
           return [`(call $${OBJ_MUTATE} ${objInstrs} (i32.const ${varIndex}) ${valueInstrs})`];
         }
       }
 
-      throw new Error(`Instances of ${typeToString(stmt.a)} have no attributes ${stmt.field}`);
+      throw new Error(`Instances of ${typeToString(stmt.obj.a)} have no attributes ${stmt.field}`);
     }
     case "while": {
       const condInstrs = codeGenExpr(stmt.cond, idens, sourceModule, builtins, allcator);
@@ -283,14 +346,14 @@ function codeGenExpr(expr: Expr<Type>,
                      idens: Array<Map<string, IdenType>>, 
                      sourceModule: LabeledModule,
                      builtins: Map<string, LabeledModule>,
-                     allcator: MemoryAllocator): string {
+                     allcator: MainAllocator): string {
   switch(expr.tag){
     case "id": {
       const idensResults = lookup(expr.name, idens);
       switch(idensResults.tag){
         case "localvar": return `(local.get $${expr.name})`;
-        case "globalvar": return `(call $${BUILT_REF} (i32.const 0) (i32.const ${idensResults.index}))`;
-        case "module" : return `(i32.const ${builtins.get(idensResults.originalName).moduleCode})`;
+        case "globalvar": return `(call $${MOD_REF} (i32.const ${idensResults.moduleCode}) (i32.const ${idensResults.index}))`;
+        case "module" : return `(i32.const ${idensResults.code})`;
       }
     }
     case "lookup":{
@@ -300,12 +363,12 @@ function codeGenExpr(expr: Expr<Type>,
           //this is a module
           const moduleName = expr.obj.a.name.split("$")[1];
           const varIndex = builtins.get(moduleName).globalVars.get(expr.field);
-          return `(call $${BUILT_REF} ${objInstrs} (i32.const ${varIndex}))`;
+          return `(call $${MOD_REF} ${objInstrs} (i32.const ${varIndex}))`;
         }
         else{
           const targetClass = sourceModule.classes.get(expr.obj.a.name);
           const varIndex = targetClass.varIndices.get(expr.field);
-          return `(call ${OBJ_DEREF} ${objInstrs} (i32.const ${varIndex.index}))`;
+          return `(call ${OBJ_DEREF} ${objInstrs} (i32.const ${varIndex}))`;
         }
       }
 
@@ -313,43 +376,38 @@ function codeGenExpr(expr: Expr<Type>,
     }
     case "literal": {
       switch(expr.value.tag){
-        case "num": return `(call ${ALLOC_PRIM} (i32.const 1) (i32.const ${expr.value.value}))`;
-        case "bool": return `(call ${ALLOC_PRIM} (i32.const 2) (i32.const ${expr.value.value ? 1 : 0}))`;
+        case "num": return `(call ${ALLC_INT} (i32.const ${expr.value.value}))`;
+        case "bool": return `(call ${ALLC_BOOL} (i32.const ${expr.value.value ? 1 : 0}))`;
         case "string": {
-          const strAddr = allcator.staticStrAllocate(expr.value.value)
+          const strAddr = allcator.allocStr(expr.value.value)
           return `(i32.const ${strAddr})`;
         };
         case "none": return `(i32.const 0)`;
       }
     }
-    case "binop": {
-      const leftObject = codeGenExpr(expr.left, idens, sourceModule, builtins, allcator);
-      const rightObject = codeGenExpr(expr.right, idens, sourceModule, builtins, allcator);
+    case "uniop":{
+      const targetInstr = codeGenExpr(expr.expr, idens, sourceModule, builtins, allcator);
 
       switch(expr.op){
-        case BinOp.Plus:  return `(i32.add (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.Minus: return `(i32.sub (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.Mul:   return `(i32.mul (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.IDiv:  return `(i32.div_s (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.Mod:   return `(i32.rem_s (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.Eq:    return `(call $${EQ_PRIM} ${leftObject} ${GET_PRIM} )`;
-        case BinOp.Neq:   return `(call $${NEQ_PRIM} ${leftObject} ${GET_PRIM} )`;
-        case BinOp.Lte:   return `(i32.le_s (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.Gte:   return `(i32.ge_s (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.Lt:    return `(i32.lt_s (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.Gt:    return `(i32.gt_s (call $${GET_PRIM} (i32.const 2) ${leftObject}) (call $${GET_PRIM} (i32.const 2) ${rightObject}))`;
-        case BinOp.Is:    return `(i32.eq ${leftObject} ${rightObject})`;
-        case BinOp.And:   return `(call ${ALLOC_PRIM} (i32.const 2) (i32.and (call $${GET_PRIM} (i32.const 1) ${leftObject}) (call $${GET_PRIM} (i32.const 1) ${rightObject})))`;
-        case BinOp.Or:    return `(call ${ALLOC_PRIM} (i32.const 2) (i32.or (call $${GET_PRIM} (i32.const 1) ${leftObject}) (call $${GET_PRIM} (i32.const 1) ${rightObject})))`;
+        case UniOp.Not: {
+          return `(call $${ALLC_BOOL} (select (i32.const 0) (i32.const 1) (call ${GET_BOOL} ${targetInstr}) ))`;
+        }
+        case UniOp.Neg:{
+          return `(call $${ALLC_INT} (i32.mul (i32.const -1) (call $${GET_INT} ${targetInstr}) ))`;
+        }
       }
+    }
+    case "binop": {
+      return codeGenBinOp(expr.left, expr.right, expr.op, idens, sourceModule, builtins, allcator);
     }
     case "list-expr" : {
       throw new Error("list compilation not supported yet!");
     }
     case "method-call": {
-      const targetLabel = sourceModule.funcs.get(idenToStr(expr.callSite.iden));      
+      const targetClass = sourceModule.classes.get(typeToString(expr.obj.a));
+      const targetLabel = targetClass.methods.get(idenToStr(expr.callSite.iden));      
       const argInstrs = expr.arguments.map(x => codeGenExpr(x, idens, sourceModule, builtins, allcator));
-      return `(call $${targetLabel} ${argInstrs.join(" ")})`;
+      return `(call $${targetLabel.label} ${argInstrs.join(" ")})`;
     }
     case "call": {
       if(sourceModule.classes.has(expr.name)){
@@ -358,11 +416,96 @@ function codeGenExpr(expr: Expr<Type>,
         return `(call ${INTANCTIATE} (i32.const ${typeInfo.typeCode}))`;
       }
 
-      const targetLabel = sourceModule.funcs.get(idenToStr(expr.callSite.iden));      
-      const argInstrs = expr.arguments.map(x => codeGenExpr(x, idens, sourceModule, builtins, allcator));
-      return `(call $${targetLabel} ${argInstrs.join(" ")})`;
+      if(expr.callSite.module === undefined){
+        //function is in the source module
+        const targetLabel = sourceModule.funcs.get(idenToStr(expr.callSite.iden));      
+        const argInstrs = expr.arguments.map(x => codeGenExpr(x, idens, sourceModule, builtins, allcator));
+        return `(call $${targetLabel.label} ${argInstrs.join(" ")})`;
+      }
+      else{
+        const targetModule = builtins.get(expr.callSite.module);
+        const targetLabel = targetModule.funcs.get(idenToStr(expr.callSite.iden));      
+        const argInstrs = expr.arguments.map(x => codeGenExpr(x, idens, sourceModule, builtins, allcator));
+        return `(call $${targetLabel.label} ${argInstrs.join(" ")})`;
+      }
     }
     default: throw new Error("unsuppored expr compilation "+expr.tag);
   }
 }
 
+function codeGenBinOp(left: Expr<Type>,
+                      right: Expr<Type>,
+                      op: BinOp, 
+                      idens: Array<Map<string, IdenType>>, 
+                      sourceModule: LabeledModule,
+                      builtins: Map<string, LabeledModule>,
+                      allcator: MainAllocator): string {
+  const leftObject = codeGenExpr(left, idens, sourceModule, builtins, allcator);
+  const rightObject = codeGenExpr(right, idens, sourceModule, builtins, allcator);
+
+  const boolResultOps = new Set([BinOp.Eq, BinOp.Neq, BinOp.Lte, BinOp.Lt, BinOp.Gte,  BinOp.Gt, BinOp.Is, BinOp.And, BinOp.Or]);
+  let instr = "";
+  switch(op){
+    case BinOp.Plus: { 
+      instr = `(i32.add (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`;
+      break;
+    }
+    case BinOp.Minus: { 
+      instr =  `(i32.sub (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`;
+      break;
+    }
+    case BinOp.Mul: {
+      instr =  `(i32.mul (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`;
+      break;
+    }
+    case BinOp.IDiv: { 
+      instr =  `(i32.div_s (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`;
+      break;
+    }
+    case BinOp.Mod: {  
+      instr =  `(i32.rem_s (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`; 
+      break;
+    }
+    case BinOp.Eq: {
+      instr =  `(call $${EQ_PRIM} ${leftObject} ${rightObject} )`;
+      break;
+    }
+    case BinOp.Neq: {
+      instr =  `(call $${NEQ_PRIM} ${leftObject} ${rightObject} )`;
+      break;
+    }
+    case BinOp.Lte: {
+      instr =  `(i32.le_s (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`;
+      break;
+    }
+    case BinOp.Gte: {
+      instr =  `(i32.ge_s (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`;
+      break;
+    }
+    case BinOp.Lt: {
+      instr =  `(i32.lt_s (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`;
+      break;
+    }
+    case BinOp.Gt: {
+      instr =  `(i32.gt_s (call $${GET_INT} ${leftObject}) (call $${GET_INT} ${rightObject}))`;
+      break;
+    }
+    case BinOp.Is: {
+      instr =  `(i32.eq ${leftObject} ${rightObject})`;
+      break;
+    }
+    case BinOp.And: {
+      instr =  `(i32.and (call $${GET_BOOL} ${leftObject}) (call $${GET_BOOL} ${rightObject}))`;
+      break;
+    }
+    case BinOp.Or: {
+      instr =  `(i32.or (call $${GET_BOOL} ${leftObject}) (call $${GET_BOOL} ${rightObject}))`;
+      break;
+    }
+  }
+
+  if(boolResultOps.has(op)){
+    return `(call ${ALLC_BOOL} ${instr})`;
+  }
+  return `(call ${ALLC_INT} ${instr})`;
+}

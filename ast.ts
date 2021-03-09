@@ -180,12 +180,6 @@ export type Expr<A> =
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> } //unsupported for builtins at the moment
   | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> }; //unsupported for builtins at the moment
 
-export type Literal =
-  | { tag: "num"; value: bigint }
-  | { tag: "bool"; value: boolean }
-  | { tag: "string"; value: string }
-  | { tag: "none" };
-
 // TODO: should we split up arithmetic ops from bool ops?
 export enum BinOp {
   Plus,
@@ -211,7 +205,13 @@ export enum UniOp {
 
 export type Value =
   | Literal
-  | { tag: "object"; name: string; address: number }
-  | { tag: "callable"; name: string; address: number };
+  | { tag: "object"; address: number };
+  //| { tag: "callable"; name: string; address: number };
+
+export type Literal =
+  | { tag: "num"; value: bigint }
+  | { tag: "bool"; value: boolean }
+  | { tag: "string"; value: string }
+  | { tag: "none" };
 
 export type Location = { line: number; col: number; length: number };

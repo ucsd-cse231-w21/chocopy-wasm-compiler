@@ -32,6 +32,13 @@ export function traverseLiteral(c: TreeCursor, s: string): Literal {
         tag: "bool",
         value: s.substring(c.from, c.to) === "True",
       };
+    case "String": {
+      const lit = s.substring(c.from + 1, c.to - 1)
+      return {
+        tag: "string",
+        value: lit
+      }
+    }
     case "None":
       return {
         tag: "none",
@@ -43,8 +50,9 @@ export function traverseLiteral(c: TreeCursor, s: string): Literal {
 
 export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
   switch (c.type.name) {
-    case "Number":
-    case "Boolean":
+    case "String": return {tag: "literal", value: traverseLiteral(c, s)};
+    case "Number": return {tag: "literal", value: traverseLiteral(c,s)};
+    case "Boolean": return {tag: "literal", value: traverseLiteral(c, s)};
     case "None":
       return {
         tag: "literal",
@@ -70,24 +78,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
           arguments: args,
         };
       } else if (callExpr.tag === "id") {
-        const callName = callExpr.name;
-        var expr: Expr<null>;
-        if (callName === "print" || callName === "abs") {
-          expr = {
-            tag: "builtin1",
-            name: callName,
-            arg: args[0],
-          };
-        } else if (callName === "max" || callName === "min" || callName === "pow") {
-          expr = {
-            tag: "builtin2",
-            name: callName,
-            left: args[0],
-            right: args[1],
-          };
-        } else {
-          expr = { tag: "call", name: callName, arguments: args };
-        }
+        expr = { tag: "call", name: callExpr.name, arguments: args };
         return expr;
       } else {
         throw new Error("Unknown target while parsing assignment");

@@ -38,5 +38,5 @@ async function runWat(source: string, importObject: any): Promise<any> {
 }
 
 export async function run(source: string, externalFuncs: any): Promise<number> {
-  return await runWat(source, externalFuncs);
+  return await runWat(`(module ${source})`, externalFuncs);
 }

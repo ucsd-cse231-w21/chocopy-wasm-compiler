@@ -1,5 +1,5 @@
 import { Type, typeToString, Value } from "../ast";
-import { MemoryAllocator } from "../heap";
+import { Instance, MainAllocator } from "../heap";
 import { ClassPresenter, FuncIdentity, ModulePresenter } from "../types";
 import { NONE } from "../utils";
 /**
@@ -17,9 +17,9 @@ export abstract class BuiltInModule {
      */
     presenter: ModulePresenter;
 
-    readonly allocator: MemoryAllocator;
+    readonly allocator: MainAllocator;
 
-    constructor(allocator: MemoryAllocator){
+    constructor(allocator: MainAllocator){
         this.allocator = allocator;
     }
 };
@@ -38,7 +38,7 @@ export interface BuiltInClass {
 export type BuiltInFunction = {
     isConstructor: boolean,
     identity: FuncIdentity,
-    func: () => number,  //so far, we'll only support no-arg functions
+    func: (...arg: Instance[]) => number,  
 };
 
 export class BuiltVariable {
@@ -89,6 +89,7 @@ export function attachClassPresenter(c: BuiltInClass){
 
 export function attachPresenter(b: BuiltInModule) {
     const presenter : ModulePresenter = {
+        name: b.name,
         moduleVars: new Map(),
         functions: new Map(),
         classes: new Map()
@@ -119,6 +120,34 @@ export function gatherPresenters(modules: Map<string, BuiltInModule>) {
 }
 
 //-----------ACTUAL MODULES--------------
+export class NativeTypes extends BuiltInModule{
+    readonly name: string;
+    readonly classes : Map<string, BuiltInClass>;
+    readonly variables: Map<string, BuiltVariable>;
+    readonly functions: Map<string, BuiltInFunction>;
+
+    presenter: ModulePresenter;
+
+    constructor(allocator: MainAllocator){
+        super(allocator);
+        this.name = "natives";
+        this.classes = new Map();
+        this.variables = new Map();
+        this.functions = new Map([
+            ["print()", {isConstructor: false, 
+                            identity: {signature: {name: "print", parameters: [{tag: "class", name: "object"}]}, 
+                                       returnType: NONE},
+                            func: this.print}]             
+        ]);
+    }
+
+    print(... args:  Instance[]) : number{
+        console.log("hello world! from builtin");
+        return 0;
+    }
+}
+
+
 export class OtherModule extends BuiltInModule {
     readonly name: string;
     readonly classes : Map<string, BuiltInClass>;
@@ -131,7 +160,7 @@ export class OtherModule extends BuiltInModule {
     presenter: ModulePresenter;
 
 
-    constructor(allocator: MemoryAllocator){
+    constructor(allocator: MainAllocator){
         super(allocator);
         this.name = "otherModule";
         this.classes = new Map();
