@@ -830,11 +830,7 @@ export function traverseTypeDef(c: TreeCursor, s: string): Type {
       c.parent();
       return typ
     default:
-      throw new BaseException.CompileError(
-        getSourcePos(c, s),
-        "Missed type annotation for parameter " + name,
-        "ParsingError"
-      );
+      throw new Error("Missed type annotation for " + c.type.name);
   }
 }
 
@@ -851,6 +847,7 @@ export function traverseDefaultValue(c: TreeCursor, s: string): Literal {
 }
 
 export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
+  var location: Location;
   c.firstChild(); // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
@@ -858,17 +855,35 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
   while (c.type.name !== ")") {
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
+<<<<<<< HEAD
     let typ = traverseTypeDef(c, s);
-
+=======
+    let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
+    if (nextTagName !== "TypeDef") {
+      throw new BaseException.CompileError(
+        location,
+        "Missed type annotation for parameter " + name,
+        "ParsingError"
+      );
+    }
+    c.firstChild(); // Enter TypeDef
+    c.nextSibling(); // Focuses on type itself
+    let typ = traverseType(c, s);
+    c.parent();
+>>>>>>> main
     c.nextSibling(); // Move on to comma or ")" or "="
     let val = traverseDefaultValue(c, s);
     if (val !== null) {
       traversedDefaultValue = true
       parameters.push({ name, type: typ, value: val });
     } else {
-      if (traversedDefaultValue === true) {
-        throw new BaseException.CompileError(getSourcePos(c, s), "Expected a default value for " + name);
+<<<<<<< HEAD
+      if (traversedDefaultValue === true) { throw new Error("Expected a default value for " + name); }
+=======
+      if (traversedDefaultParam === true) {
+        throw new BaseException.CompileError(location, "Expected a default value for " + name);
       }
+>>>>>>> main
       parameters.push({ name, type: typ });
     }
 
