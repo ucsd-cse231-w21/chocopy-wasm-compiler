@@ -173,7 +173,7 @@ export function makeLookup<A>(a: A, obj: Expr<A>, field: string): Destructure<A>
 }
 
 export function compile(ast: Program<[Type, Location]>, env: GlobalEnv, mm: MemoryManager): CompileResult {
-  const withDefines = augmentEnv(env, ast);
+  const withDefines = augmentEnv(env, ast, mm);
 
   let stackIndexOffset = 0; // NOTE(alex:mm): assumes start function has no params
   const definedVars: Set<string> = new Set(); //getLocals(ast);
