@@ -81,7 +81,7 @@ export function isSubtype(t1: Type, t2: Type, globEnv: GlobalTypeEnv): boolean {
     // Check that t1methods is a subset of t2methods. We do this by iterating
     // through all the methods of t1 and check that t2 contains every one of
     // them
-    for (const [method, [argTypes1, retType1]] of t2methods.entries()) {
+    for (const [method, [argTypes1, retType1]] of t1methods.entries()) {
       if (!t2methods.has(method)) {
         return false
       }
