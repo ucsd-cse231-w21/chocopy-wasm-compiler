@@ -12,6 +12,8 @@
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
+    "plugin:cypress/recommended",
+    //Prettier should be last to be loaded per @R167
     "plugin:prettier/recommended",
     "prettier"
   ],
