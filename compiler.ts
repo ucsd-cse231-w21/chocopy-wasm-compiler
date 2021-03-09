@@ -1328,32 +1328,57 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number
 
 function allocateStringMemory(string_val: string): Array<string> {
   const stmts = [];
-  var i = 1;
+  var i = 0;
+  const ascii_array = [];
+  while (i != string_val.length) {
+    var char_ascii = string_val.charCodeAt(i);
+    if(char_ascii === 92){
+      i+=1;
+      if(i == string_val.length){
+        throw new BaseException.InternalException(
+          `Bad escape in ${string_val}`
+        );
+      }
+      char_ascii = string_val.charCodeAt(i);
+      console.log("Character ascii "+char_ascii);
+      if(char_ascii==110){
+        char_ascii=10
+      }
+      else if(char_ascii==116){
+        char_ascii=9
+      }
+      else if((char_ascii!=92) && (char_ascii!=34)){
+        throw new BaseException.InternalException(
+          `Bad escape in ${string_val}`
+        );
+      }
+    }
+    ascii_array.push(char_ascii);
+    i+=1;
+  }
   //Storing the length of the string at the beginning
   stmts.push(
     ...[
       `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
-      `(i32.const ${string_val.length - 1})`, // Store the length of the string
+      `(i32.const ${ascii_array.length - 1})`, // Store the length of the string
       "(i32.store)", // Store the ASCII value 0 in the new address
     ]
   );
-  while (i != string_val.length + 1) {
-    const char_ascii = string_val.charCodeAt(i - 1);
+  ascii_array.forEach(function(char_ascii, i){
     stmts.push(
       ...[
         `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
-        `(i32.add (i32.const ${i * 4}))`, // Calc string index offset from heap offset
+        `(i32.add (i32.const ${(i+1) * 4}))`, // Calc string index offset from heap offset
         `(i32.const ${char_ascii})`, // Store the ASCII value of the string index
         "(i32.store)", // Store the ASCII value in the new address
       ]
     );
-    i += 1;
-  }
+  });
   return stmts.concat([
     "(i32.load (i32.const 0))", // Get address for the first character of the string
     "(i32.const 0)", // Address for our upcoming store instruction
     "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-    `(i32.add (i32.const ${(string_val.length + 1) * 4}))`, // Move heap head beyond the string length + 1(len at beginning)
+    `(i32.add (i32.const ${(ascii_array.length + 1) * 4}))`, // Move heap head beyond the string length + 1(len at beginning)
     "(i32.store)", // Save the new heap offset
   ]);
 }
