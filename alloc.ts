@@ -28,10 +28,10 @@ export function importMemoryManager(importObject: any, mm: MemoryManager) {
     return Number(mm.gcalloc(toHeapTag(BigInt(tag)), BigInt(size)));
   };
 
-  importObject.imports.pushCaller = function() {
+  importObject.imports.pushCaller = function () {
     mm.pushCaller();
   };
-  importObject.imports.popCaller = function() {
+  importObject.imports.popCaller = function () {
     mm.popCaller();
   };
   importObject.imports.returnTemp = function (value: number): number {

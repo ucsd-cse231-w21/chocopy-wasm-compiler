@@ -198,11 +198,13 @@ export class RootSet {
 
     const index = this.tempPlacementStack[this.tempPlacementStack.length - 1];
     if (index >= this.tempsStack.length) {
-      throw new Error(`Attempting to use temp frame ${index}. Stack length: ${this.tempsStack.length}`);
+      throw new Error(
+        `Attempting to use temp frame ${index}. Stack length: ${this.tempsStack.length}`
+      );
     }
     if (this.tempsStack[index] === undefined) {
       let msg = "[";
-      this.tempsStack.forEach(v => {
+      this.tempsStack.forEach((v) => {
         msg = msg.concat(`${index},`);
       });
       msg = msg.concat("]");
@@ -226,7 +228,7 @@ export class RootSet {
   }
 
   pushCaller() {
-    const target = this.tempsStack.length - 1
+    const target = this.tempsStack.length - 1;
     if (target < 0) {
       throw new Error(`Bad caller push: ${target}`);
     }
