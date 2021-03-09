@@ -78,7 +78,6 @@ export class BasicREPL {
         var res = xval < yval ? xval : yval;
         return res;
       });
-      throw new InternalException("binary operation failed at runtime");
     this.importObject.imports.__big_num_add = (x: number, y: number) =>
       this.binOpInterface(x, y, (x: bigint, y: bigint) => {
         return x + y;
