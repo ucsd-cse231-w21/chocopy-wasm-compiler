@@ -24,7 +24,6 @@ export type GlobalEnv = {
   globals: Map<string, number>;
   classes: Map<string, Map<string, [number, Literal]>>;
   locals: Map<string, number>;      // Map from local/param to stack slot index
-  offset: number;
   funs: Map<string, [number, Array<string>]>; // <function name, [tbl idx, Array of nonlocals]>
 };
 
@@ -32,7 +31,6 @@ export const emptyEnv: GlobalEnv = {
   globals: new Map(),
   classes: new Map(),
   locals: new Map(),
-  offset: 0,
   funs: new Map(),
 };
 
@@ -62,15 +60,14 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>, mm: MemoryManage
   RefMap.set("$deref", [0, { tag: "num", value: BigInt(0) }]);
   newClasses.set("$ref", RefMap);
 
-  let newOffset = env.offset;
-
   let idx = newFuns.size;
   prog.closures.forEach((clo) => {
     newFuns.set(clo.name, [idx, clo.nonlocals]);
     idx += 1;
     if (clo.isGlobal) {
-      newGlobals.set(clo.name, newOffset);
-      newOffset += 1;
+      const globalAddr = mm.staticAlloc(4n);
+      newGlobals.set(clo.name, Number(globalAddr));
+      mm.addGlobal(globalAddr);
     }
   });
 
@@ -83,8 +80,9 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>, mm: MemoryManage
     mm.addGlobal(globalAddr);
   });
   // for rg
-  newGlobals.set("rg", newOffset);
-  newOffset += 1;
+  const rgAddr = mm.staticAlloc(4n);
+  newGlobals.set("rg", Number(rgAddr));
+  mm.addGlobal(rgAddr);
 
   prog.classes.forEach((cls) => {
     const classFields = new Map();
@@ -95,7 +93,6 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>, mm: MemoryManage
     globals: newGlobals,
     classes: newClasses,
     locals: env.locals,
-    offset: newOffset,
     funs: newFuns,
   };
 }
@@ -189,10 +186,9 @@ export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): 
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
-  const memForward = myMemForward(withDefines.offset - env.offset);
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
   const commands = localDefines.concat(
-    initFuns.concat(inits.concat(memForward.concat(...commandGroups)))
+    initFuns.concat(inits.concat(...commandGroups))
   );
   withDefines.locals.clear();
   return {
@@ -214,15 +210,6 @@ function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
   });
   // global functions have no nonlocals, assert length == 0
   return inits;
-}
-
-function myMemForward(n: number): Array<string> {
-  const forward: Array<string> = [];
-  forward.push(`;; update the heap ptr`);
-  forward.push(`(i32.const 0)`);
-  forward.push(`(i32.add (i32.load (i32.const 0)) (i32.const ${n * 4}))`);
-  forward.push(`(i32.store)`);
-  return forward;
 }
 
 function envLookup(env: GlobalEnv, name: string): number {

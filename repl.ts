@@ -38,7 +38,6 @@ export class BasicREPL {
       globals: new Map(),
       classes: new Map(),
       locals: new Map(),
-      offset: 1,
       funs: new Map(),
     };
 
