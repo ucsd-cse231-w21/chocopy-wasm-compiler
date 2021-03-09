@@ -55,13 +55,13 @@ export class BumpAllocator implements MarkableAllocator {
       return NULL_BLOCK;
     }
 
-    const ptr = this.counter;
-    this.counter += size;
-
     // Ensure allocations are always aligned on an even boundary
     if (this.counter % 2n !== 0n) {
       this.counter += 1n;
     }
+
+    const ptr = this.counter;
+    this.counter += size;
 
     return {
       ptr: ptr,
