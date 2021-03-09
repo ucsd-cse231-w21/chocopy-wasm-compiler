@@ -11,10 +11,11 @@ import "codemirror/addon/hint/show-hint";
 import "codemirror/addon/lint/lint";
 import "./style.scss";
 import { toEditorSettings } from "typescript";
+import { replace } from "cypress/types/lodash";
 
 var mem_js: { memory: any };
 
-function stringify(result: Value): string {
+function stringify(result: Value, repl : any = undefined): string {
   switch (result.tag) {
     case "num":
       return result.value.toString();
@@ -28,6 +29,65 @@ function stringify(result: Value): string {
       return `<${result.name} object at ${result.address}`;
     default:
       throw new Error(`Could not render value: ${result}`);
+  }
+}
+
+function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
+  if(result.tag == "object"){
+    const exp  = document.createElement("button") as HTMLButtonElement;
+    exp.setAttribute("class","accordion");
+    const div = document.createElement("div");
+    div.setAttribute("class","panel");
+    const addr = document.createElement("p");
+    addr.innerHTML = "<b>address: </b>" + result.address;
+  
+    exp.textContent = result.name + " object";
+    div.appendChild(addr);
+  
+    const view = new Int32Array(repl.importObject.js.memory.buffer);
+  
+    const cls = repl.currentEnv.classes.get(result.name);
+    const typedCls = repl.currentTypeEnv.classes.get(result.name)[0];
+
+    console.log(view, cls, typedCls);
+    cls.forEach((value, key) =>{
+      var offset = value[0];
+      var type = typedCls.get(key)
+      console.log("test", key, value, typedCls.get(key), type, view[result.address + offset]);
+      console.log(PyValue(type, view[result.address/4 + offset],view))
+
+      const ele = document.createElement("pre");
+      const val = PyValue(type, view[result.address/4 + offset],view) as any; 
+      // PyValue implementation seems incomplete, casting to any for now
+
+      // pretty printing object fields
+      switch(type.tag){
+        case "class":
+          if(val.tag !== "none"){
+            ele.innerHTML = "<b class='tag'>" + key + ":</b>";
+            const new_div = document.createElement("div");
+            ele.appendChild(new_div)
+            prettyPrintObject({ 
+                                tag: "object", 
+                                name: type.name, 
+                                address: view[result.address/4 + offset] 
+                              }, 
+                              repl, 
+                              new_div) 
+          }
+          else{
+            ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
+          }
+          break;
+        default:
+          ele.innerHTML = "<b class='tag'>" + key + ": </b><p class='val'>" + val.value + "</p>";
+          break;
+      }
+      div.appendChild(ele);
+    });
+  
+    currentEle.appendChild(exp);
+    currentEle.appendChild(div);
   }
 }
 
@@ -68,7 +128,7 @@ function webStart() {
     };
 
     mem_js = importObject.js;
-
+    (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -81,6 +141,21 @@ function webStart() {
       elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
       elt.innerText = stringify(result);
+      prettyPrintObject(result, repl, document.getElementById("output"));
+      
+      var acc = document.getElementsByClassName("accordion");
+      var i = 0;    
+      for (i; i < acc.length; i++) {
+        acc[i].addEventListener("click", function() {
+          this.classList.toggle("active");
+          var panel = this.nextElementSibling;
+          if (panel.style.display === "block") {
+            panel.style.display = "none";
+          } else {
+            panel.style.display = "block";
+          }
+        });
+      }
     }
 
     function renderError(result: any, source: string): void {
@@ -203,9 +278,6 @@ function webStart() {
 
   window.addEventListener("load", (event) => {
     const themeList = themeList_export;
-    //const dropdown = document.createElement("select");
-    //dropdown.setAttribute("class", "theme-dropdown");
-    //dropdown.setAttribute("id", "theme-dropdown");
     const dropdown = document.getElementById("themes");
     for (const theme of themeList) {
       var option = document.createElement("option");
@@ -214,7 +286,6 @@ function webStart() {
       dropdown.appendChild(option);
     }
 
-    //document.getElementById("editor").appendChild(dropdown);
     const textarea = document.getElementById("user-code") as HTMLTextAreaElement;
     const editor = CodeMirror.fromTextArea(textarea, {
       mode: "python",
