@@ -140,7 +140,7 @@ const initCorrectProbs = [
 const initStmtProbs = [
   { key: "expr", prob: 0.7 },
   { key: "if", prob: 0.9 },
-  { key: "assign", prob: 1 },
+  { key: "assignment", prob: 1 },
   { key: "return", prob: 1 },
   { key: "while", prob: 1 },
   { key: "pass", prob: 1 },
@@ -574,13 +574,13 @@ function genStmt(level: number, env: Env): Program {
   const currIndent = indent.repeat(level);
   const whichStmt: string = selectRandomStmt();
   switch (whichStmt) {
-    case "assign":
+    case "assignment":
       var assignType: Type = selectRandomType(env, level);
       while (assignType.tag == "none") assignType = selectRandomType(env, level);
 
       var name = genId(assignType, env);
       var expr = genExpr(assignType, env, level);
-      return { program: [currIndent + name + " = " + expr], lastStmt: "assign" };
+      return { program: [currIndent + name + " = " + expr], lastStmt: "assignment" };
     // case "return":
     case "expr":
       const exprType: Type = selectRandomType(env, level);
