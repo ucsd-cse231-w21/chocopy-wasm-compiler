@@ -1345,11 +1345,80 @@ function listBuiltInFuns(): Array<string> {
   );
   
   //clear function
-  //simply sets size to 0
+  //simply sets internal metadata size to 0
   listFunStmts.push(
     ...[
-      "(func $$list$clear (param $$list_cmp i32) (result i32)",
-      "(return))"
+      "(func $$list$clear (param $$list_baseaddr i32) (result i32)",
+      `(local.get $$list_baseaddr)`,   // get address of list size
+      `(i32.add (i32.const 4))`,
+      `(i32.const 0)`,                 // store 0 into list size
+      `(i32.store)`,
+      `(local.get $$list_baseaddr)`,   // return address of the list
+      "(return))",
+      "",
+    ]
+  );
+  
+  //copy function
+  //creates new copy of that list and returns new copy's base addr
+  listFunStmts.push(
+    ...[
+      "(func $$list$copy (param $$list_baseaddr i32) (result i32)",
+      `(local $$list_index i32)`,       // iterate
+      `(local $$list_readaddr i32)`,    // addr to load old version's data from (iterates)
+      `(local $$list_writeaddr i32)`,   // addr to store old version's data into (iterates)
+      `(local $$list_newaddr i32)`,     // address to return
+      `(local $$list_copybound i32)`,   // how many things needed to be copied
+
+      `(i32.const 0)`,                  // list_index = 0
+      `(local.set $$list_index)`,
+      `(local.get $$list_baseaddr)`,    // list_readaddr = old base addr
+      `(local.set $$list_readaddr)`,
+      `(i32.load (i32.const 0))`,       // list_writeaddr = heap head
+      `(local.set $$list_writeaddr)`,
+      `(i32.load (i32.const 0))`,       // list_newaddr = heap head
+      `(local.set $$list_newaddr)`,
+      `(local.get $$list_baseaddr)`,    // load list_size from list metadata
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(i32.add (i32.const 3))`,        // #elements + 3 for type, size, bound
+      `(local.set $$list_copybound)`,
+
+      `(block`,
+      `(loop`,                        // while loop to iterate through metadata + elements
+      `(br_if 1`,                     // condition start
+      `(local.get $$list_copybound)`,
+      `(local.get $$list_index)`,
+      `(i32.eq)`,
+      `)`,                            // condition end
+      // loop body start
+      `(local.get $$list_writeaddr)`, // address to store to
+      `(local.get $$list_readaddr)`,  // load item
+      `(i32.load)`,
+      `(i32.store)`,                  // store loaded item
+
+      `(local.get $$list_readaddr)`,  // increment read address
+      `(i32.add (i32.const 4))`,
+      `(local.set $$list_readaddr)`,
+      `(local.get $$list_writeaddr)`, // increment write address
+      `(i32.add (i32.const 4))`,
+      `(local.set $$list_writeaddr)`,
+
+      `(local.get $$list_index)`,     // increment index
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_index)`,
+
+      `(br 0)`,
+      `)`,
+      `)`,
+
+      //update heap head
+      `(i32.const 0)`,
+      `(local.get $$list_writeaddr)`, // get final write addr
+      `(i32.store)`,
+
+      `(local.get $$list_newaddr)`,   // return old heap head
+      "(return))",
       "",
     ]
   );

@@ -5,6 +5,21 @@ describe("LIST TEST", () => {
   //Programs described in the writeup, with additional changes
   //as necessary to actually test functionality
   var source = `
+    x : [int] = None
+    y : [int] = None
+    x = [1,2,3]
+    y = x.copy()
+    print(y[0])
+    print(y[1])
+    print(y[2])
+    x.clear()
+    x.append(4)
+    x[0]
+  `;
+  assertPrint("Program 1: List Functions (prints)", source, ["1", "2", "3"]);
+  assert("Program 1: List Functions", source, PyInt(4));
+  
+  var source = `
     items : [int] = None
     items = [1, 2, 3, 4, 5, 6, 7, 8]
     print(items[0])
@@ -97,27 +112,52 @@ describe("LIST TEST", () => {
   `;
   assertPrint("List Access & Assign with Expr as Index (prints)", source, ["4"]);
   assert("List Access & Assign with Expr as Index", source, PyInt(60));
-    var source = `
+
+  var source = `
     items : [int] = None
     items = [1,2,3]
     items.append(1)
     items[3]
-    `
-    assert("List Append", source, PyInt(1));
+  `;
+  assert("List Append", source, PyInt(1));
 
-    var source = `
+  var source = `
     items : [int] = None
     items = [1,2,3]
     items.index(4)
-    `
-    assert("List index miss", source, PyInt(-1));
+  `;
+  assert("List index miss", source, PyInt(-1));
 
-    var source = `
+  var source = `
     items : [int] = None
     items = [1,2,3]
     items.index(3)
-    `
-    assert("List index found", source, PyInt(2));
+  `;
+  assert("List index found", source, PyInt(2));
 
+  var source = `
+    items : [int] = None
+    stuff : [int] = None
+    extra : [int] = None
+    items = [589, 21312222, 40538]
+    stuff = items.copy()
+    print(items[0])
+    print(stuff[0])
+    items[0] = 6666
+    print(items[0])
+    stuff[0]
+  `;
+  assertPrint("Test .copy() (prints)", source, ["589", "589", "6666"]);
+  assert("Test .copy()", source, PyInt(589));
 
+  var source = `
+    a : [int] = None
+    i : int = 0
+    a = [0, 0, 1, 2, 3, 3, 3, 3, 3, 4, 5, 5, 5, 7, 10]
+    while i <= 10:
+      print(a.count(i))
+      i = i + 1
+  `;
+  assertPrint("Test .count() (prints)", source, ["2", "1", "1", "5", "1", "3", "0", "1", "0", "0", "1"]);
+  assert("Test .count()", source, PyNone);
 });
