@@ -484,6 +484,7 @@ export function tcStmt(
     case "field-assign":
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
+      console.log('field a' + tObj.a)
       if (tObj.a[0].tag !== "class")
         throw new BaseException.CompileError(stmt.a, "field assignments require an object");
       if (!env.classes.has(tObj.a[0].name))
@@ -857,7 +858,7 @@ export function tcExpr(
         if (env.classes.has(tObj.a[0].name)) {
           const [fields, _] = env.classes.get(tObj.a[0].name);
           if (fields.has(expr.field)) {
-            return { ...expr, a: [, expr.a], obj: tObj };
+            return { ...expr, a: [fields.get(expr.field), expr.a], obj: tObj };
           } else {
             throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.field);
           }
