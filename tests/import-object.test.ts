@@ -14,14 +14,6 @@ export const importObject = {
     //  We can then examine output to see what would have been printed in the
     //  console.
     print: print,
-    //print: (arg: any) => print(NUM, arg),
-    //print_num: (arg: number) => print(NUM, arg),
-    //print_bool: (arg: number) => print(BOOL, arg),
-    //print_none: (arg: number) => print(NONE, arg),
-    abs: Math.abs,
-    min: Math.min,
-    max: Math.max,
-    pow: Math.pow,
   },
 
   output: "",

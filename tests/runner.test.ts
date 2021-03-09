@@ -44,6 +44,16 @@ describe('run', () => {
 
   assert('mul-then-plus', "2 + 3 * 4", PyInt(2 + 3 * 4));
 
+  assert('bignum-abs', "abs(0 - 4294967295)", PyBigInt(4294967295n));
+
+  assert('bignum-min', 'min(4294967295, 4294967296)', PyBigInt(4294967295n));
+
+  assert('bignum-max', 'max(4294967295, 4294967296)', PyBigInt(4294967296n));
+
+  assert('bignum-pow', 'pow(4294967295, 2)', PyBigInt(18446744065119617025n));
+
+  assert('bignum-pow-negative', 'pow(4294967295, -2)', PyInt(0));
+
   assert('abs', "abs(0 - 5)", PyInt(Math.abs(0 - 5)));
 
   assert('min', 'min(2, 3)', PyInt(Math.min(2, 3)));
