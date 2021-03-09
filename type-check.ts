@@ -940,54 +940,50 @@ export function tcExpr(
         throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
       }
     case "comprehension":
-      /*
-       * Since this is implemented before lists/iterators, we are making a mockup version.
-       * See milestone doc for details.
-       * The mockups will be replaced next week by the commented code.
-       */
-
       // iter
       const iter = tcExpr(env, locals, expr.iter);
-      if (iter.a.tag !== "class" || iter.a.name !== "Range") {
-        throw new TypeCheckError("Only mockup Range is supported for now");
+      let expectedFieldType: Type;
+
+      // TODO: add "iter" class type when that's available
+      if (iter.a.tag === "class" && iter.a.name === "Range") {
+        expectedFieldType = NUM;
+      } else if (iter.a.tag === "list") {
+        expectedFieldType = iter.a.content_type;
+      } else {
+        throw new TypeCheckError(`${iter.a.tag} object is not iterable`);
       }
 
-      // if (iter.a.tag !== 'list') { // TODO: add check for iterator type
-      //   throw new TypeCheckError(`${iter.a.tag} object is not iterable`);
-      // }
-
       // field
-      const newEnv = copyEnv(env);
+      /*
+       * Right now, users will have to define the field before using it in comprehensions.
+       * This will save us the trouble of defining temporary variables in the environment.
+       * However, this also means that the value will escape its scope.
+       */
       if (expr.field.tag === "id") {
-        newEnv.globals.set(expr.field.name, NUM);
-        // newEnv.globals.set(expr.field.name, iter.a.content_type);
-      } else {
-        //* Right now, we don't know if we (or the for loop team) will support this special case.
-        // Need to check if the field exists in the object, and whether it is a number.
-        if (tcExpr(env, locals, expr.field).a.tag !== "number") {
-          throw new TypeCheckError("only numbers are supported for now");
+        const fieldType: Type = tcExpr(env, locals, { tag: "id", name: expr.field.name }).a;
+        if (!equalType(fieldType, expectedFieldType)) {
+          throw new TypeCheckError(`Type mismatch for ${expr.field.name} in comprehension`);
         }
+      } else {
+        //* We don't know if we (or the for loop team) will support this special case.
+        throw new TypeCheckError("Unsupported comphrehension");
       }
 
       // expr
-      const newExpr = tcExpr(newEnv, locals, expr.expr);
-      if (newExpr.a.tag !== "number") {
-        throw new TypeCheckError("only numbers are supported for now");
-      }
-
-      //const typ: Type = {tag: "list", content_type: newExpr.a}
+      const newExpr = tcExpr(env, locals, expr.expr);
+      const comprehensionType: Type = { tag: "list", content_type: newExpr.a };
 
       // cond
       //*Notice that in regular Python, cond can be of any type. We make this restriction here to make life easier :)
       if (expr.cond) {
-        const cond = tcExpr(newEnv, locals, expr.cond);
+        const cond = tcExpr(env, locals, expr.cond);
 
         if (cond.a.tag !== "bool") {
           throw new TypeCheckError("condition must be boolean");
         }
 
         return transformComprehension({
-          a: { tag: "class", name: "Range" },
+          a: comprehensionType,
           tag: "comprehension",
           expr: newExpr,
           field: expr.field,
@@ -997,21 +993,12 @@ export function tcExpr(
       }
 
       return transformComprehension({
-        a: { tag: "class", name: "Range" },
+        a: comprehensionType,
         tag: "comprehension",
         expr: newExpr,
         field: expr.field,
         iter,
       });
-
-    // return {
-    //   a: { tag: "list", content_type: newExpr.a },
-    //   tag: "comprehension",
-    //   expr: newExpr,
-    //   field: expr.field,
-    //   iter,
-    //   cond,
-    // };
 
     case "list-expr":
       var commonType = null;
