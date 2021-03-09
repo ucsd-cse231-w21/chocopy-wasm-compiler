@@ -152,7 +152,9 @@ export function compile(ast: Program<Type>, env: GlobalEnv, mm: MemoryManager): 
   definedVars.add("$list_base");
   definedVars.add("$list_index");
   definedVars.add("$list_temp");
+  definedVars.add("$list_bound");
   definedVars.add("$list_cmp");
+  definedVars.add("$list_cmp2");
   definedVars.add("$addr"); // by closure group
   definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
@@ -690,32 +692,63 @@ function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
 
 // If concat is 0, then the function generate code for list.copy()
 // If concat is 2, then the function generate code for concat.
+// If concat is 3, then the function generate code for append.
 function codeGenListCopy(concat: number): Array<string> {
   var stmts: Array<string> = [];
   var loopstmts: Array<string> = [];
   var condstmts: Array<string> = [];
+  var tempstmts: Array<string> = [];
   var listType = 10; //temporary list type number
   var header = [4, 8]; //size, bound relative position
+  var cmp = ['']
   stmts.push(...[`(local.set $$list_cmp)`]); //store first address to local var
+  if(concat == 2)
+  {
+    stmts.push(...[`(local.set $$list_cmp2)`]);
+    tempstmts = [`(local.get $$list_cmp2)`,`(i32.add (i32.const 8))`,`(i32.load)`,`(i32.add)`]
+    cmp = ['','2']
+  }
+  if(concat == 3){
+    tempstmts = tempstmts.concat("(i32.mul (i32.const 2))")
+  }
+  
+  
   stmts.push(...[
     `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
     `(local.get $$list_cmp)`,       // load capacty
     `(i32.add (i32.const 8))`,
-    `(i32.load)`,
+    `(i32.load)`])
+  stmts.push(...tempstmts)
+  stmts.push(...[
     `(i32.mul (i32.const 4))`,      // new_cap = cap * 4 + 12
     `(i32.add (i32.const 12))`,
     `(call $gcalloc)`,
     `(local.set $$list_base)`,
   ]);
-  if (concat != 1)
-    stmts.push(...[`(local.get $$list_base)`, "(i32.const " + listType + ")", "(i32.store)"]); //create a new list with type
+
+  //add/modify header info of the list
+  header.forEach((addr) => {
+    var double_size = (addr == 8 && concat == 3) ? [`(i32.mul (i32.const 2))`]: []
+    var tempstmts = (concat == 2) ? [`(local.get $$list_cmp2)`,`(i32.add (i32.const ${addr}))`,`(i32.load)`,`(i32.add)`] : []
+    stmts.push(...[
+        `(local.get $$list_base)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(local.get $$list_cmp)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(i32.load)`,
+        ...tempstmts,
+        ...double_size,
+        `(i32.store)`
+      ])
+  });
+
+
+  stmts.push(...[`(local.get $$list_base)`, "(i32.const " + listType + ")", "(i32.store)"]); //create a new list with type
 
   //check if the current index has reached the size of the list
   condstmts.push(
     ...[
-      `(local.get $$list_cmp)`,
-      `(i32.add (i32.const 4))`,
-      `(i32.load)`,
+      `(local.get $$list_bound)`,
       `(local.get $$list_index)`,
       `(i32.eq)`,
     ]
@@ -726,8 +759,7 @@ function codeGenListCopy(concat: number): Array<string> {
     ...[
       `(local.get $$list_base)`,
       `(i32.add (i32.const 12))`,
-      `(local.get $$list_index)`,
-      concat == 1 ? `(i32.add (local.get $$list_temp))` : ``,
+      `(local.get $$list_temp)`,
       `(i32.mul (i32.const 4))`,
       `(i32.add)`,
       `(local.get $$list_cmp)`,
@@ -740,70 +772,65 @@ function codeGenListCopy(concat: number): Array<string> {
       `(local.get $$list_index)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
+      `(local.get $$list_temp)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_temp)`,
     ]
   );
 
-  if (concat == 1) {
+  cmp.forEach(s=>{
+    if (s === ``) {
+      stmts.push(
+        ...[
+          `(i32.const 0)`,
+          `(local.set $$list_bound)`,
+          `(i32.const 0)`,
+          `(local.set $$list_temp)`, //second index
+        ]
+      );
+    }
+    else{
+      stmts.push(
+        ...[
+          `(local.get $$list_cmp2)`,
+          `(local.set $$list_cmp)`
+        ]
+      );
+    }
+
     stmts.push(
       ...[
-        `(local.get $$list_base)`,
+        `(i32.const 0)`,
+        `(local.set $$list_index)`,
+        `(local.get $$list_cmp)`,
         `(i32.add (i32.const 4))`,
         `(i32.load)`,
-        `(local.set $$list_temp)`,
+        `(i32.add (local.get $$list_bound))`,
+        `(local.set $$list_bound)`,
       ]
     );
-  }
 
-  //while loop structure
-  stmts.push(
-    ...[
-      `(i32.const 0)`,
-      `(local.set $$list_index)`,
-      `(block`,
-      `(loop`,
-      `(br_if 1 ${condstmts.join("\n")})`,
-      `${loopstmts.join("\n")}`,
-      `(br 0)`,
-      `)`,
-      `)`,
-    ]
-  );
-
-  //add/modify header info of the list
-  header.forEach((addr) => {
-    var stmt = null;
-    if (concat == 1) {
-      stmt = [
-        `(local.get $$list_base)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(local.get $$list_base)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(i32.load)`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(i32.load)`,
-        `(i32.add)`,
-        `(i32.store)`,
-      ];
-    } else {
-      stmt = [
-        `(local.get $$list_base)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(i32.load)`,
-        `(i32.store)`,
-      ];
-    }
-    stmts.push(...stmt);
-  });
-
-  if (concat == 2) return stmts.concat(codeGenListCopy(1));
+  
+    //while loop structure
+    stmts.push(
+      ...[
+        `(block`,
+        `(loop`,
+        `(br_if 1 ${condstmts.join("\n")})`,
+        `${loopstmts.join("\n")}`,
+        `(br 0)`,
+        `)`,
+        `)`,
+      ]
+    );
+  })
+ 
 
   return stmts.concat([
     `(local.get $$list_base)`, // Get address for the object (this is the return value)
   ]);
 }
+
 
 function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
