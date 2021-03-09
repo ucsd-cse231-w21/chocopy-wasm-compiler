@@ -9,6 +9,7 @@ import "codemirror/addon/edit/closebrackets";
 import "codemirror/mode/python/python";
 import "codemirror/addon/hint/show-hint";
 import "codemirror/addon/lint/lint";
+import "codemirror/addon/scroll/simplescrollbars";
 import "./style.scss";
 import { toEditorSettings } from "typescript";
 
@@ -41,13 +42,14 @@ function print(typ: Type, arg: number, mem: any): any {
 }
 
 function webStart() {
+  var hiderepl = false;
   document.addEventListener("DOMContentLoaded", function () {
     var filecontent: string | ArrayBuffer;
     const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
     const view = new Int32Array(memory.buffer);
     view[0] = 4;
     var memory_js = { memory: memory };
-
+   
     var importObject = {
       imports: {
         print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
@@ -197,10 +199,42 @@ function webStart() {
       var blob = new Blob([code], { type: "text/plain;charset=utf-8" });
       FileSaver.saveAs(blob, title);
     });
-
+    document.getElementById("hiderepls").addEventListener("click", function (e) {
+      var button = document.getElementById("hiderepls");
+      var editor = document.getElementById("editor");
+      var interactions = document.getElementById("interactions");
+      if (button.innerText == "Hide REPLs"){
+        if (window.innerWidth>=840) editor.style.width = "96%";
+        interactions.style.display = "none";
+        button.innerText = "Display REPLs";
+        hiderepl = true;
+      }
+      else{
+        if (window.innerWidth>=840) editor.style.width = "46%";
+        interactions.style.display = "inline";
+        button.innerText = "Hide REPLs";
+        hiderepl = false;
+      }
+    });
     setupRepl();
   });
-
+  window.addEventListener("resize", (event) => {
+    var editor = document.getElementById("editor");
+    var interactions = document.getElementById("interactions");
+    if (window.innerWidth<840) {
+      editor.style.width = "96%";
+      interactions.style.width = "96%";
+    }
+    else{
+      if (hiderepl==false){
+        editor.style.width = "46%";
+      }
+      else{
+        editor.style.width = "96%";
+      }
+      interactions.style.width = "46%";
+    }
+  })
   window.addEventListener("load", (event) => {
     const themeList = themeList_export;
     //const dropdown = document.createElement("select");
@@ -230,6 +264,7 @@ function webStart() {
         alignWithWord: false,
         completeSingle: false,
       },
+      scrollbarStyle: "simple",
     });
 
     editor.on("change", (cm, change) => {
