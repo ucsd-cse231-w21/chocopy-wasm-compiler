@@ -52,6 +52,7 @@ export async function run(
 ): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
+  // TODO: Insert transofrmation here: tprogram = transform(...)
   const progTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";

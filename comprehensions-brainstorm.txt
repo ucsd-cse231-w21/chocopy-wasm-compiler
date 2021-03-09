@@ -1,0 +1,38 @@
+  // Parser
+  // Typecheck -> Typed Comprehension AST *Yue* (Ensures that user defined all vars)
+
+  // Transformation: Typed Program AST -> Typed Program AST (occurs as a separate step runner.ts's run(), right after type check call: tc(...))
+
+  // Traverse program AST while keeping track of current scope/context (where context is of type: Program or FuncDef)
+  // Whenever we encounter a comprehension, add a new vardef to top of the current scope (where the vars are defined) with a unique name for the list
+  // type of this vardef will be equal to: "[typeof(comprehension.expr)]"
+  // replace this comprehension in the ast with a typed block AST
+  // the block AST will be of the form:
+  // block.stmts =
+
+  // an Array<Stmt<Type>>
+  //    - Stmt1: termporary list variable = []
+  //    - Stmt2: For loop:
+  //        - for <name> in <iterable>:
+  //                if <cond?> applies (ie., it doesnt exist or it exists and is true):
+  //                    temporary list variable = temporary list variable + [(comprehension.expr)]
+  // block.expr = termporary list variable (id expr)
+
+  // In compiler:
+  // Add support for code generating block
+  // Compile all block.stmts
+  // Add block.expr
+
+  // lst : [int] = None
+  // lst = [i for i in...]
+  //
+  //
+  //
+  //
+  // (happens at codeGenComprehension, which gets as input a typedComprehension)
+
+  // i :
+  // [i.n for i in [A() for i in range(10)]]
+
+  // a:int = 0 // USER HAS TO DEFINE THIS
+  // lst = [a * 2 for a in range(5)]
