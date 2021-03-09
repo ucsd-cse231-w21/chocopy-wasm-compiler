@@ -1284,6 +1284,66 @@ function listBuiltInFuns(): Array<string> {
       "",
     ]
   );
+
+  //TODO
+  //count function
+  listFunStmts.push(
+    ...[
+      "(func $$list$count (param $$list_cmp i32) (param $$val i32) (result i32)",
+      `(local $$list_counter i32)`,
+      `(local $$list_index i32)`,
+      `(local $$list_size i32)`,
+      `(i32.const 0)`,
+      `(local.set $$list_counter)`,
+      `(i32.const 0)`,
+      `(local.set $$list_index)`,
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.set $$list_size)`,
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 12))`,
+      `(local.set $$list_cmp)`,
+      `(block`,
+      `(loop`,                      //while loop for searching the value
+      `(br_if 1`,                  //condition start
+      `(local.get $$list_size)`,
+      `(local.get $$list_index)`,
+      `(i32.eq)`,
+      `)`,                        //condition end
+      //loop body start
+      
+
+      `(if `,                   // check if element of index match to the value
+      `(i32.eq`,
+      `(local.get $$list_cmp)`,  
+      `(local.get $$list_index)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(i32.load)`,
+      `(local.get $$val)`,
+      `)`,
+
+      `(then`,                  // add to count variable
+      `(local.get $$list_counter)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_counter)`,
+      `)`,                      // end then
+      `)`,                      // end if
+      `(local.get $$list_index)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_index)`,
+
+      `(br 0)`,
+      `)`,
+      `)`,
+      `(local.get $$list_counter)`,         // return count
+      ...encodeLiteral,
+      "(return))",
+      "",
+    ]
+  );
+
   //          ["append",[[tObj.a.content_type], tObj.a]],
   //           ["clear", [[], tObj.a]],
   //           ["copy",  [[], tObj.a]],
