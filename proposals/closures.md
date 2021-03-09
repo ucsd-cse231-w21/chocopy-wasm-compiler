@@ -8,7 +8,7 @@ Project Proposals and Starting Points
 In this example, `inc` should be compiled as a wasm function with an internal name consisting of both the inner and outer function names (e.g. `$f_inc`). The result is expected to be 6
     ``` python
     def f(x: int) -> int:
-      def inc():
+      def inc() -> int:
         return x + 1
       return inc()
     f(5)
@@ -43,7 +43,7 @@ In this example, `x` is not nonlocally mutable and will be an unwrapped extra ar
 4. Trivial lambda expression  
 In this example, a generated name (e.g. `$f_lambda_n`, where n is unique) is used for a wasm the function. The variables `f1` and `f2` will store function reference values (table indices) of the generated anonymous function. Besides, the test needs to check the tc result, making sure that `a` is inferred as an int. The expected result is 30.
     ``` python
-    def f(x) -> int:
+    def f(x: int) -> int:
         f1: Callable[[int], int] = None
         f2: Callable[[int], int] = None
         f1 = lambda a : a + 10
@@ -55,11 +55,12 @@ In this example, a generated name (e.g. `$f_lambda_n`, where n is unique) is use
 5. A Trivial example of closure from lecture notes (function escapes when it is returned)  
 In this example, we’ll transform `g` into a class named as e.g. `$closure_f_g`, with a field for each nonlocal variable and an `apply` method. Function `f` would instantiate an object of that closure class and initialize its fields at appropriate time.
     ``` python
-    def f(x : int):
+    def f(x : int)->Callable[[int],int]:
       def g(y : int) -> int:
         return x + y
       return g
 
+    g_where_x_is_6: Callable[[int],int] = None
     g_where_x_is_6 = f(6)
     print(g_where_x_is_6(5))
     ```
@@ -70,16 +71,16 @@ This example is to make sure that python objects work well with closures. The re
     class A(object):
       x:int = 1
 
-    def f(a: A):
+    def f(a:A)->Callable[[int],int]:
       def g(y: int) -> int:
         a.x = a.x + y
         return a.x
       return g
 
     a:A = None
+    g: Callable[[int], int] = None
     a = A()
     a.x = 6
-    g: Callable[[int], int]
     g = f(a)
     a.x = 10
     g(2) + a.x
@@ -89,14 +90,14 @@ This example is to make sure that python objects work well with closures. The re
 This example program is modified from the example came up by a classmate in the Lecture of Feb 9, by adding a third function `curr` to inspect the current value of `x` avoiding the use of nonlocal keywords. The results of the last 4 expressions of the modified example should be 101, 100, 101, 101, which illustrate a situation where variables from outer scope without nonlocal (`x` in `curr`) also need to be wrapped.
     ``` python
     class Triplet(object):
-      fst:Callable[[int], int] = None
-      snd:Callable[[int], int] = None
-      thd:Callable[[int], None] = None
+      fst:Callable[[], int] = None
+      snd:Callable[[], int] = None
+      thd:Callable[[], int] = None
+
 
     def foo() -> Triplet:
       x: int = 0
       r: Triplet = None
-      r = Triplet()
       def inc() -> int:
         nonlocal x
         x = x + 1
@@ -107,6 +108,7 @@ This example program is modified from the example came up by a classmate in the 
         return x
       def curr() -> int:
         return x
+      r = Triplet()
       x = 100
 
       r.fst = inc
@@ -115,11 +117,6 @@ This example program is modified from the example came up by a classmate in the 
       
       return r
 
-    r = foo()
-    r.fst()
-    r.snd()
-    r.fst()
-    r.thd()
     ```
 
 8. An non-escaping function passed to another function as a callable argument  
