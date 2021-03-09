@@ -1372,7 +1372,7 @@ function dictUtilFuns(): Array<string> {
   let dictFunStmts: Array<string> = [];
   dictFunStmts.push(
     ...[
-      "(func $ha$htable$CreateEntry (param $key i32) (param $val i32)",
+      "(func $ha$htable$CreateEntry (param $key i32) (param $val i32) (result i32)",
       "(local $$allocPointer i32)",
       `(i32.const ${TAG_DICT_ENTRY})    ;; heap-tag: opaque`,
       "(i32.const 96)   ;; size in bytes",
@@ -1390,6 +1390,7 @@ function dictUtilFuns(): Array<string> {
       "(i32.add)", // Moving to the next block
       "(i32.const 0)", //None
       "(i32.store)", // Dumping None in the next
+      "(local.get $$allocPointer)",
       "(return))",
       "",
     ]
@@ -1476,6 +1477,7 @@ function dictUtilFuns(): Array<string> {
       "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
       "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
       "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(local $$allocPointer i32)",
       "(i32.const 0)",
       "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
       "(local.get $baseAddr)",
@@ -1492,19 +1494,15 @@ function dictUtilFuns(): Array<string> {
       "(local.get $key)",
       "(local.get $val)",
       "(call $ha$htable$CreateEntry)", //create node
+      "(local.set $$allocPointer)",
       "(local.get $baseAddr)", // Recomputing the bucketAddress to update it.
       "(local.get $key)",
       "(local.get $hashtablesize)",
       "(i32.rem_s)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Recomputed bucketAddress
-      "(i32.load (i32.const 0))",
+      "(local.get $$allocPointer)",
       "(i32.store)", //Updated the bucketAddress pointing towards first element.
-      "(i32.const 0)",
-      "(i32.load (i32.const 0))",
-      "(i32.const 12)",
-      "(i32.add)",
-      "(i32.store)", // Updating the empty space address in first block
       ")", // Closing then
       "(else", // Opening else
       "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
@@ -1593,14 +1591,10 @@ function dictUtilFuns(): Array<string> {
       "(local.get $key)",
       "(local.get $val)",
       "(call $ha$htable$CreateEntry)", //create node
+      "(local.set $$allocPointer)",
       "(local.get $nodePtr)", // Get the address of "next" block in node, whose next is None.
-      "(i32.load (i32.const 0))",
+      "(local.get $$allocPointer)",
       "(i32.store)", // Updated the next pointing towards first element of new node.
-      "(i32.const 0)",
-      "(i32.load (i32.const 0))",
-      "(i32.const 12)",
-      "(i32.add)",
-      "(i32.store)", // Updating the empty space address in first block
       ")", // Closing then inside else
       ")", // Closing if inside else
       ")", // Closing else
