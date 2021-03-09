@@ -338,7 +338,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         left: Expr_cur,
         right: Expr_step,
       };
-      console.log("rgexpr",rgExpr)
       var step: Stmt<[Type, Location]> = {
         a: rgExpr.a,
         tag: "assignment",
@@ -397,7 +396,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
               ${Code_ass.join("\n")}
               ${bodyStmts.join("\n")}
               (br 0)
-          ))`
+          ))`,
         ];
       }
       // iterable should be a Range object
@@ -421,7 +420,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             ${bodyStmts.join("\n")}
 
             (br 0)
-        ))`
+        ))`,
       ];
     case "pass":
       return [];
@@ -882,7 +881,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             valStmts.push(`(call $${expr.name})`);
             return valStmts;
           default:
-            throw new Error("Unsupported range() call!")
+            throw new Error("Unsupported range() call!");
         }
       }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();

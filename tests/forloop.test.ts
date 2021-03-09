@@ -38,7 +38,6 @@ describe("FOR LOOP TEST", () => {
     PyInt(9)
   );
 
-
   assert(
     "for range(1, 10, 2)",
     `
