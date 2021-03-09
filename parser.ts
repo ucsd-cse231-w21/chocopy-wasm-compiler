@@ -22,6 +22,8 @@ import {
 import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
 import * as BaseException from "./error";
 
+var forCount = 0;
+
 export function getSourcePos(c: TreeCursor, s: string): Location {
   const substring = s.substring(0, c.node.from);
   const line = substring.split("\n").length;
@@ -715,10 +717,11 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       }
       c.parent();
       c.parent();
+      forCount += 1;
       if (index != null) {
-        return { tag: "for", name: name, index: index, iterable: iter, body: body, a: location };
+        return { tag: "for", id: forCount, name: name, index: index, iterable: iter, body: body, a: location };
       }
-      return { tag: "for", name: name, iterable: iter, body: body, a: location };
+      return { tag: "for", id: forCount, name: name, iterable: iter, body: body, a: location };
     default:
       throw new BaseException.CompileError(
         location,

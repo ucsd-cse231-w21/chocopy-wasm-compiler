@@ -464,6 +464,7 @@ export function tcStmt(
       // return type checked stmt
       return {
         a: [NONE, stmt.a],
+        id: stmt.id,
         tag: "for",
         name: stmt.name,
         index: stmt.index,
