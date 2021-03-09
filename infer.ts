@@ -190,11 +190,95 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
 }
 
 // must update the *Env maps when the function is called
+// TODO: might need to reorder some of the entries.
 export function buildTypedExpr(
   expr: Expr<any>,
   globEnv: GlobalTypeEnv,
-  locEnv: LocalTypeEnv): Expr<Type> {
-  throw new Error("Type completion is not implemented for expressions");
+  locEnv: LocalTypeEnv,
+  topLevel: boolean
+): Expr<Type> {
+  const a = inferExprType(expr, globEnv, locEnv);
+  switch (expr.tag) {
+    case "literal":
+      return { ...expr, a: inferExprType(expr, globEnv, locEnv) };
+    case "binop": {
+      const left = buildTypedExpr(expr.left, globEnv, locEnv, topLevel);
+      const right = buildTypedExpr(expr.right, globEnv, locEnv, topLevel);
+      return { ...expr, a, left, right };
+    }
+    case "uniop": {
+      const expr_ = buildTypedExpr(expr.expr, globEnv, locEnv, topLevel);
+      return { ...expr, expr: expr_, a };
+    }
+    case "builtin1": {
+      const arg = buildTypedExpr(expr.arg, globEnv, locEnv, topLevel);
+      return { ...expr, arg , a };
+    }
+    case "builtin2": {
+      const left = buildTypedExpr(expr.left, globEnv, locEnv, topLevel);
+      const right = buildTypedExpr(expr.right, globEnv, locEnv, topLevel);
+      return { ...expr, left, right , a };
+    }
+    case "id":
+      return { ...expr, a };
+    case "lookup": {
+      const obj = buildTypedExpr(expr.obj, globEnv, locEnv, topLevel);
+      return { ...expr, a, obj };
+    }
+    case "method-call": {
+      let obj = buildTypedExpr(expr.obj, globEnv, locEnv, topLevel);
+      let arguments_ = expr.arguments.map(s => buildTypedExpr(s, globEnv, locEnv, topLevel));
+      return { ...expr, obj, arguments: arguments_, a };
+    }
+    case "construct":
+      return { ...expr, a };
+    case "lambda": {
+      const ret = buildTypedExpr(expr.ret, globEnv, locEnv, topLevel);
+      return { ...expr, a, ret };
+    }
+    case "comprehension": {
+      const expr_ = buildTypedExpr(expr.expr, globEnv, locEnv, topLevel);
+      const iter = buildTypedExpr(expr.iter, globEnv, locEnv, topLevel);
+      let cond;
+      if (expr.cond !== undefined) {
+        cond = buildTypedExpr(expr.cond, globEnv, locEnv, topLevel);
+      }
+      return { ...expr, a, expr: expr_, iter, cond }
+    }
+    case "block": {
+      const block = expr.block.map(s => buildTypedStmt(s, globEnv, locEnv, topLevel));
+      const expr_ = buildTypedExpr(expr.expr, globEnv, locEnv, topLevel);
+      return { ...expr, a, block, expr: expr_ };
+    }
+    case "list-expr": {
+      const contents = expr.contents.map(s => buildTypedExpr(s, globEnv, locEnv, topLevel));
+      return { ...expr, a, contents };
+    }
+    case "string_slicing": {
+      const name = buildTypedExpr(expr.name, globEnv, locEnv, topLevel);
+      const start = buildTypedExpr(expr.start, globEnv, locEnv, topLevel);
+      const end = buildTypedExpr(expr.end, globEnv, locEnv, topLevel);
+      const stride = buildTypedExpr(expr.stride, globEnv, locEnv, topLevel);
+      return { ...expr, a, name, start, end, stride };
+    }
+    case "dict": {
+      let entries = [];
+      for (const [key, val] of expr.entries) {
+        const key_ = buildTypedExpr(key, globEnv, locEnv, topLevel);
+        const val_ = buildTypedExpr(val, globEnv, locEnv, topLevel);
+        const entry: [Expr<Type>, Expr<Type>] = [key, val];
+        entries.push(entry);
+      }
+      return { ...expr, a, entries };
+    }
+    case "bracket-lookup": {
+      const obj = buildTypedExpr(expr.obj, globEnv, locEnv, topLevel);
+      const key = buildTypedExpr(expr.key, globEnv, locEnv, topLevel);
+      return { ...expr, a, obj, key };
+    }
+    default:
+      throw new Error(`Type completion not implemented for expressions with tag: '${expr.tag}'`);
+  }
 }
 
 // For now this doesn't work with globals--all variables must be defined in the
@@ -211,7 +295,7 @@ export function buildTypedStmt(
     //   const value = buildTypedExpr(stmt.value, globEnv, locEnv);
     //   return { ...stmt, value };
     case "assign": {
-      const value = buildTypedExpr(stmt.value, globEnv, locEnv);
+      const value = buildTypedExpr(stmt.value, globEnv, locEnv, topLevel);
       let a = value.a;
       if (locEnv.vars.has(stmt.name)) {
         let type_ = locEnv.vars.get(stmt.name);
@@ -229,12 +313,12 @@ export function buildTypedStmt(
     // We might need to restructure part of the code to get it to infer the type
     // of the returned value from the call site
     case "return": {
-      const value = buildTypedExpr(stmt.value, globEnv, locEnv);
+      const value = buildTypedExpr(stmt.value, globEnv, locEnv, topLevel);
       let a = value.a;
       return { ...stmt, a, value };
     }
     case "expr": {
-      const expr = buildTypedExpr(stmt.expr, globEnv, locEnv);
+      const expr = buildTypedExpr(stmt.expr, globEnv, locEnv, topLevel);
       const a = expr.a;
       return { tag: "expr", a, expr };
     }
@@ -246,8 +330,8 @@ export function buildTypedStmt(
     // FIXME: how about the case where multiple classes have fields that share
       // the same name with different types?
     case "field-assign": {
-      const value = buildTypedExpr(stmt.value, globEnv, locEnv);
-      const obj = buildTypedExpr(stmt.obj, globEnv, locEnv);
+      const value = buildTypedExpr(stmt.value, globEnv, locEnv, topLevel);
+      const obj = buildTypedExpr(stmt.obj, globEnv, locEnv, topLevel);
       let a: Type;
       if (obj.a === UNSAT
           || value.a === UNSAT
@@ -265,9 +349,9 @@ export function buildTypedStmt(
     case "for": {
       let index;
       if (stmt.index !== undefined) {
-        index = buildTypedExpr(stmt.index, globEnv, locEnv);
+        index = buildTypedExpr(stmt.index, globEnv, locEnv, topLevel);
       }
-      const iterable = buildTypedExpr(stmt.iterable, globEnv, locEnv);
+      const iterable = buildTypedExpr(stmt.iterable, globEnv, locEnv, topLevel);
       const body = stmt.body.map(s => buildTypedStmt(s, globEnv, locEnv, topLevel));
       // TODO: not entirely sure about the value of a
       const a = iterable.a;
@@ -281,7 +365,7 @@ export function buildTypedStmt(
     case "break":
       return stmt
     default:
-      throw new Error(`Type completion is not implemented for: ${stmt}`);
+      throw new Error(`Type completion is not implemented for the following statement: ${stmt}`);
   }
 }
 
