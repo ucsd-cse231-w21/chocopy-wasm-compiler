@@ -812,23 +812,12 @@ export function tcExpr(
           argTypes.length > expr.arguments.length &&
           tArgs.every((tArg, i) => tArg.a[0] === argTypes[i])
         ) {
-          // check if arguments less than number of parameters
-          // first populate all the arguments first.
-          // Then, populate the rest of the values with defaults from params
-          var augArgs = tArgs;
-          var argNums = tArgs.length;
-          while (argNums < argTypes.length) {
-            if (params[argNums].value === undefined) {
-              throw new BaseException.CompileError(expr.a, "Missing argument from call");
-            } else {
-              // add default values into arguments as an Expr
-              augArgs = augArgs.concat([
-                tcExpr(env, locals, { a: undefined, tag: "literal", value: params[argNums].value }),
-              ]);
-            }
-            argNums = argNums + 1;
-          }
-          return { ...expr, a: [retType, expr.a], name: innercall, arguments: augArgs };
+          return {
+            ...expr,
+            a: [retType, expr.a],
+            name: innercall,
+            arguments: populateDefaultParams(tArgs, tArgs, params),
+          };
         } else {
           throw new BaseException.TypeMismatchError(
             expr.a,
@@ -876,7 +865,6 @@ export function tcExpr(
             if (temp.tag === "callable") {
               [methodParams, methodRet] = [temp.args, temp.ret];
               methodArgs = methodParams.map((p) => p.type);
-              //[methodArgs, methodRet] = [temp.args.map((p) => p.type), temp.ret];
             }
 
             var realArgs: Expr<[Type, Location]>[] = tArgs;
@@ -889,25 +877,18 @@ export function tcExpr(
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
             ) {
               return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs };
-            } else if (
+            }
+            // handle default values
+            else if (
               realArgs.length < methodArgs.length &&
               realArgs.every((arg, i) => isAssignable(env, methodArgs[i], arg.a[0]))
             ) {
-              var augMethodArgs = tArgs;
-              var methodArgNums = realArgs.length;
-              while (methodArgNums < methodArgs.length) {
-                if (methodParams[methodArgNums].value === undefined) {
-                  throw new Error("Missing argument from class method call");
-                } else {
-                  // add default values into arguments as an Expr
-                  augMethodArgs = augMethodArgs.concat({
-                    tag: "literal",
-                    value: methodParams[methodArgNums].value,
-                  });
-                }
-                methodArgNums = methodArgNums + 1;
-              }
-              return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: augMethodArgs };
+              return {
+                ...expr,
+                a: [methodRet, expr.a],
+                obj: tObj,
+                arguments: populateDefaultParams(tArgs, realArgs, methodParams),
+              };
             } else if (methodArgs.length != realArgs.length) {
               throw new BaseException.TypeError(
                 expr.a,
@@ -1050,4 +1031,26 @@ export function toObject(types: Type[]): string {
       return s.tag === "class" ? s.name : s.tag;
     })
     .join(",")}]`;
+}
+
+export function populateDefaultParams(
+  tArgs: Expr<[Type, Location]>[],
+  actualArgs: Expr<[Type, Location]>[],
+  params: Parameter[]
+) {
+  var augArgs = tArgs;
+  var argNums = actualArgs.length;
+  while (argNums < params.length) {
+    if (params[argNums].value === undefined) {
+      throw new Error("Missing argument from call");
+    } else {
+      // add default values into arguments as an Expr
+      augArgs = augArgs.concat({
+        tag: "literal",
+        value: params[argNums].value,
+      });
+    }
+    argNums = argNums + 1;
+  }
+  return augArgs;
 }
