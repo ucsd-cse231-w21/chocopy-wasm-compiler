@@ -827,41 +827,57 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
   return { tag: "callable", args: params, ret };
 }
 
-export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
-  var location: Location;
-  c.firstChild(); // Focuses on open paren
-  const parameters = [];
-  c.nextSibling(); // Focuses on a VariableName
-  let traversedDefaultParam = false; // When a default param is encountered once, all following params must also be default params
-  while (c.type.name !== ")") {
-    let name = s.substring(c.from, c.to);
-    c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
-    let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
-    if (nextTagName !== "TypeDef") {
+export function traverseTypeDef(c: TreeCursor, s: string): Type {
+  switch (c.type.name) {
+    case "TypeDef":
+      c.firstChild(); // Enter TypeDef
+      c.nextSibling(); // Focuses on type itself
+      let typ = traverseType(c, s);
+      c.parent();
+      return typ
+    default:
       throw new BaseException.CompileError(
-        location,
+        getSourcePos(c, s),
         "Missed type annotation for parameter " + name,
         "ParsingError"
       );
-    }
-    c.firstChild(); // Enter TypeDef
-    c.nextSibling(); // Focuses on type itself
-    let typ = traverseType(c, s);
-    c.parent();
+  }
+}
+
+export function traverseDefaultValue(c: TreeCursor, s: string): Literal {
+  switch(c.type.name) {
+    case "AssignOp":
+        c.nextSibling(); // Move on to default value
+        let val = traverseLiteral(c, s);
+        c.nextSibling(); // Move on to comma
+        return val;
+    default:
+        return null;
+  }
+}
+
+export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
+  c.firstChild(); // Focuses on open paren
+  const parameters = [];
+  c.nextSibling(); // Focuses on a VariableName
+  let traversedDefaultValue = false; // When a default param is encountered once, all following params must also be default params
+  while (c.type.name !== ")") {
+    let name = s.substring(c.from, c.to);
+    c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
+    let typ = traverseTypeDef(c, s);
+
     c.nextSibling(); // Move on to comma or ")" or "="
-    nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now (what would be the proper way to avoid this?)
-    if (nextTagName === "AssignOp") {
-      traversedDefaultParam = true;
-      c.nextSibling(); // Move on to default value
-      let val = traverseLiteral(c, s);
+    let val = traverseDefaultValue(c, s);
+    if (val !== null) {
+      traversedDefaultValue = true
       parameters.push({ name, type: typ, value: val });
-      c.nextSibling(); // Move on to comma
     } else {
-      if (traversedDefaultParam === true) {
-        throw new BaseException.CompileError(location, "Expected a default value for " + name);
+      if (traversedDefaultValue === true) {
+        throw new BaseException.CompileError(getSourcePos(c, s), "Expected a default value for " + name);
       }
       parameters.push({ name, type: typ });
     }
+
     c.nextSibling(); // Focuses on a VariableName
   }
   c.parent(); // Pop to ParamList
