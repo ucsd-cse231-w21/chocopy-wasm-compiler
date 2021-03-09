@@ -38,7 +38,7 @@ export interface BuiltInClass {
 export type BuiltInFunction = {
     isConstructor: boolean,
     identity: FuncIdentity,
-    func: (...arg: Instance[]) => number,  
+    func: (...arg: number[]) => number,  
 };
 
 export class BuiltVariable {
@@ -141,8 +141,8 @@ export class NativeTypes extends BuiltInModule{
         ]);
     }
 
-    print(... args:  Instance[]) : number{
-        console.log("hello world! from builtin");
+    print(... args:  number[]) : number{
+        console.log("hello world! from builtin "+this.allocator.getStr(args[0]));
         return 0;
     }
 }

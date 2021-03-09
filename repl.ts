@@ -171,7 +171,7 @@ async function main(){
 
   const testFuncs = {
     builtin: {
-      natives_print: natives.print
+      natives_print: (...args: number[]) => natives.print(...args)
     },
     system: {
 
