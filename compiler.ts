@@ -515,11 +515,12 @@ function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
 
 // NOTE(alex:mm): Assuming this is only called for closure allocation
 //   which uses a class-based layout
-function myMemAlloc(name: string, size: number): Array<string> {
+function myMemAlloc(name: string, sizeInValueCount: number): Array<string> {
   const allocs: Array<string> = [];
+  const sizeInBytes = sizeInValueCount * 4;
   // TODO(alex:mm): Is this the right tag?
   allocs.push(`(i32.const ${Number(TAG_CLASS)}) ;; heap-tag: class (closures)`);
-  allocs.push(`(i32.const ${size})`);
+  allocs.push(`(i32.const ${sizeInBytes})`);
   allocs.push(`(call $gcalloc)`);
   allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
   return allocs;
