@@ -18,7 +18,7 @@ describe("LIST TEST", () => {
   `;
   assertPrint("Program 1: List Functions (prints)", source, ["1", "2", "3"]);
   assert("Program 1: List Functions", source, PyInt(4));
-  
+
   var source = `
     items : [int] = None
     items = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -70,7 +70,7 @@ describe("LIST TEST", () => {
         x : [A] = None
         x1 : A = None
         x2 : A = None
-        x3 : A = None  
+        x3 : A = None
         x = [A(),A(),A()]
         print(x[0].n)
         print(x[1].n)
@@ -119,8 +119,6 @@ describe("LIST TEST", () => {
   `;
   assert("List Append", source, PyInt(1));
 
-
-
   var source = `
     items : [int] = None
     items = [1,2,3]
@@ -158,7 +156,19 @@ describe("LIST TEST", () => {
       print(a.count(i))
       i = i + 1
   `;
-  assertPrint("Test .count() (prints)", source, ["2", "1", "1", "5", "1", "3", "0", "1", "0", "0", "1"]);
+  assertPrint("Test .count() (prints)", source, [
+    "2",
+    "1",
+    "1",
+    "5",
+    "1",
+    "3",
+    "0",
+    "1",
+    "0",
+    "0",
+    "1",
+  ]);
   assert("Test .count()", source, PyNone());
 
   var source = `

@@ -11,6 +11,7 @@ import {
   VarInit,
   Class,
   Destructure,
+  Location,
   Assignable,
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
@@ -48,7 +49,7 @@ export const encodeLiteral: Array<string> = [
 
 export const decodeLiteral: Array<string> = [`(i32.const ${nTagBits})`, "(i32.shr_s)"];
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
+export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
   const newFuns = new Map(env.funs);
@@ -83,6 +84,7 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
     newClasses.set(cls.name, classFields);
   });
+
   return {
     globals: newGlobals,
     classes: newClasses,
@@ -92,23 +94,30 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
   };
 }
 
+// function envLookup(env: GlobalEnv, name: string): number {
+//   if (!env.globals.has(name)) {
+//     console.log("Could not find " + name + " in ", env);
+//     throw new Error("Could not find name " + name);
+//   }
+//   return env.globals.get(name) * 4; // 4-byte values
+// }
+
 type CompileResult = {
   functions: string;
   mainSource: string;
   newEnv: GlobalEnv;
 };
 
-// export function getLocals(ast : Array<Stmt>) : Set<string> {
-//   const definedVars : Set<string> = new Set();
-//   ast.forEach(s => {
-//     switch(s.tag) {
-//       case "define":
-//         definedVars.add(s.name);
-//         break;
-//     }
-//   });
-//   return definedVars;
-// }
+function myMemAlloc(name: string, size: number): Array<string> {
+  const allocs: Array<string> = [];
+  allocs.push(`(local.set ${name} (i32.load (i32.const 0))) ;; allocate memory for ${name}`);
+  allocs.push(
+    `(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${
+      size * 4
+    }))) ;; update the heap ptr`
+  );
+  return allocs;
+}
 
 export function makeLocals(locals: Set<string>): Array<string> {
   const localDefines: Array<string> = [];
@@ -138,17 +147,35 @@ export function makeId<A>(a: A, x: string): Destructure<A> {
   };
 }
 
-export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
-  console.log("program", ast);
+export function makeLookup<A>(a: A, obj: Expr<A>, field: string): Destructure<A> {
+  return {
+    isDestructured: false,
+    targets: [
+      {
+        ignore: false,
+        starred: false,
+        target: {
+          a: a,
+          tag: "lookup",
+          field: field,
+          obj: obj,
+        },
+      },
+    ],
+    valueType: a,
+  };
+}
+
+export function compile(ast: Program<[Type, Location]>, env: GlobalEnv): CompileResult {
   const withDefines = augmentEnv(env, ast);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$addr"); // address of the allocated memory
   definedVars.add("$list_base");
   definedVars.add("$list_index");
   definedVars.add("$list_temp");
   definedVars.add("$list_cmp");
-  definedVars.add("$addr"); // by closure group
   definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
@@ -156,16 +183,16 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   definedVars.add("$string_address"); //needed for string indexing
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
+
   const funs: Array<string> = [];
   ast.funs.forEach((f) => {
     funs.push(codeGenFunDef(f, withDefines).join("\n"));
   });
+
   ast.closures.forEach((clo) => {
     funs.push(codeGenClosureDef(clo, withDefines).join("\n"));
   });
 
-  // use the called functions to determine top level functions
-  // require support from AST
   const globalFuns: Array<string> = [];
   ast.closures.forEach((clo) => {
     if (clo.isGlobal) {
@@ -177,13 +204,14 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
   const classes: Array<string> = ast.classes.map((cls) => codeGenClass(cls, withDefines)).flat();
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
+
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
-  const memForward = myMemForward(withDefines.offset - env.offset);
+
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(
-    initFuns.concat(inits.concat(memForward.concat(...commandGroups)))
-  );
+  const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
+
   withDefines.locals.clear();
+
   return {
     functions: allFuns,
     mainSource: commands.join("\n"),
@@ -194,13 +222,15 @@ export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
 function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
   const inits: Array<string> = [];
   funs.forEach((fun) => {
-    let idx = env.funs.get(fun)[0];
-    let length = env.funs.get(fun)[1].length;
+    let fun_info = env.funs.get(fun);
+    let idx = fun_info[0];
+    let length = fun_info[1].length;
     let loc = envLookup(env, fun);
-    inits.push(myMemAlloc(`$$addr`, (length + 1) * 4).join("\n"));
-    inits.push(`(i32.store (local.get $$addr) (i32.const ${idx}))`);
-    inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function`);
+    inits.push(myMemAlloc(`$$addr`, length + 1).join("\n"));
+    inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
+    inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function reference`);
   });
+
   // global functions have no nonlocals, assert length == 0
   return inits;
 }
@@ -215,33 +245,18 @@ function myMemForward(n: number): Array<string> {
 }
 
 function envLookup(env: GlobalEnv, name: string): number {
+  //if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
   if (!env.globals.has(name)) {
     console.log("Could not find " + name + " in ", env);
-    throw new Error("Could not find name " + name);
+    throw new BaseException.InternalException(
+      "Report this as a bug to the compiler developer, this shouldn't happen "
+    );
   }
   return env.globals.get(name) * 4; // 4-byte values
 }
 
-function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
+function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string> {
   switch (stmt.tag) {
-    // case "fun":
-    //   const definedVars = getLocals(stmt.body);
-    //   definedVars.add("$last");
-    //   stmt.parameters.forEach(p => definedVars.delete(p.name));
-    //   definedVars.forEach(env.locals.add, env.locals);
-    //   stmt.parameters.forEach(p => env.locals.add(p.name));
-
-    //   const localDefines = makeLocals(definedVars);
-    //   const locals = localDefines.join("\n");
-    //   var params = stmt.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-    //   var stmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-    //   var stmtsBody = stmts.join("\n");
-    //   env.locals.clear();
-    //   return [`(func $${stmt.name} ${params} (result i32)
-    //     ${locals}
-    //     ${stmtsBody}
-    //     (i32.const 0)
-    //     (return))`];
     case "return":
       var valStmts = codeGenExpr(stmt.value, env);
       valStmts.push("return");
@@ -252,7 +267,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
       return [
         ...valueCode,
-        "local.set $$destruct",
+        "(local.set $$destruct)",
         ...codeGenDestructure(stmt.destruct, getValue, env),
       ];
     case "expr":
@@ -279,45 +294,63 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var iter = codeGenExpr(stmt.iterable, env);
 
-      var rgExpr: Expr<Type> = { a: CLASS("Range"), tag: "id", name: "rg" };
-      var Expr_cur: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "cur" };
+      var rgExpr: Expr<[Type, Location]> = {
+        a: [CLASS("Range"), stmt.a[1]],
+        tag: "id",
+        name: "rg",
+      };
+      var Expr_cur: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
+        tag: "lookup",
+        obj: rgExpr,
+        field: "cur",
+      };
       var Code_cur = codeGenExpr(Expr_cur, env);
 
-      var Expr_stop: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "stop" };
+      var Expr_stop: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
+        tag: "lookup",
+        obj: rgExpr,
+        field: "stop",
+      };
       var Code_stop = codeGenExpr(Expr_stop, env);
 
-      var Expr_step: Expr<Type> = { a: NUM, tag: "lookup", obj: rgExpr, field: "step" };
-      var Code_step = codeGenExpr(Expr_step, env);
+      var Expr_step: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
+        tag: "lookup",
+        obj: rgExpr,
+        field: "step",
+      };
+      var Code_step_expr = codeGenExpr(Expr_step, env);
 
       // name = cur
-      var ass: Stmt<Type> = {
-        a: NONE,
+      var ass: Stmt<[Type, Location]> = {
+        a: [NONE, stmt.a[1]],
         tag: "assignment",
-        destruct: makeId(NUM, stmt.name),
+        destruct: makeId([NUM, stmt.a[1]], stmt.name),
         value: Expr_cur,
       };
       var Code_ass = codeGenStmt(ass, env);
 
       // add step to cur
-      var ncur: Expr<Type> = {
-        a: NUM,
+      var ncur: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
         tag: "binop",
         op: BinOp.Plus,
         left: Expr_cur,
         right: Expr_step,
       };
-      var step: Stmt<Type> = {
-        a: NONE,
-        tag: "field-assign",
-        obj: rgExpr,
-        field: "cur",
+      var step: Stmt<[Type, Location]> = {
+        a: rgExpr.a,
+        tag: "assignment",
+        destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
         value: ncur,
       };
       var Code_step = codeGenStmt(step, env);
 
       // stop condition cur<step
-      var Expr_cond: Expr<Type> = {
-        a: BOOL,
+      var Expr_cond: Expr<[Type, Location]> = {
+        a: [BOOL, stmt.a[1]],
         tag: "binop",
         op: BinOp.Gte,
         left: Expr_cur,
@@ -327,29 +360,28 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
       // if have index
       if (stmt.index) {
-        var iass: Stmt<Type> = {
-          a: NONE,
+        var iass: Stmt<[Type, Location]> = {
+          a: [NONE, stmt.a[1]],
           tag: "assignment",
-          destruct: makeId(NUM, stmt.index),
-          value: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(0) } },
+          destruct: makeId([NUM, stmt.a[1]], stmt.index),
+          value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(0) } },
         };
         var Code_iass = codeGenStmt(iass, env);
 
-        var nid: Expr<Type> = {
-          a: NUM,
+        var nid: Expr<[Type, Location]> = {
+          a: [NUM, stmt.a[1]],
           tag: "binop",
           op: BinOp.Plus,
-          left: { a: NUM, tag: "id", name: stmt.index },
-          right: { a: NUM, tag: "literal", value: { tag: "num", value: BigInt(1) } },
+          left: { a: [NUM, stmt.a[1]], tag: "id", name: stmt.index },
+          right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
         };
-        var niass: Stmt<Type> = {
-          a: NONE,
+        var niass: Stmt<[Type, Location]> = {
+          a: [NONE, stmt.a[1]],
           tag: "assignment",
-          destruct: makeId(NUM, stmt.index),
+          destruct: makeId([NUM, stmt.a[1]], stmt.index),
           value: nid,
         };
         var Code_idstep = codeGenStmt(niass, env);
-
         // iterable should be a Range object
         return [
           `
@@ -359,32 +391,35 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
           ${Code_iass.join("\n")}
           (block
             (loop
-
-              (br_if 1 ${Code_cond.join("\n")})
+              ${Code_step.join("\n")}
+              ${Code_idstep.join("\n")}
+              (br_if 1 (${Code_cond.join("\n")} ${decodeLiteral.join("\n")}))
 
               ${Code_ass.join("\n")}
               ${bodyStmts.join("\n")}
-              ${Code_step.join("\n")}
-              ${Code_idstep.join("\n")}
-
               (br 0)
           ))`,
         ];
       }
-
       // iterable should be a Range object
+      // test
+      // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
+      // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
+      // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
+      // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
       return [
         `
         (i32.const ${envLookup(env, "rg")})
         ${iter.join("\n")}
         (i32.store)
+
         (block
           (loop
-            (br_if 1 ${Code_cond.join("\n")})
+            ${Code_step.join("\n")}
+            (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
 
             ${Code_ass.join("\n")}
             ${bodyStmts.join("\n")}
-            ${Code_step.join("\n")}
 
             (br 0)
         ))`,
@@ -393,7 +428,10 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       return [];
     case "break":
       // break to depth
-      return [`(br_if ${stmt.depth} (i32.const 1))`];
+      return [`(br ${stmt.depth})`];
+    case "continue":
+      console.log(stmt);
+      return [`(br ${stmt.depth})`];
     default:
       unhandledTag(stmt);
   }
@@ -405,11 +443,15 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
  * @param value WASM code literal value for fetching the referenced value. E.g. "(local.get $$myValue)"
  * @param env GlobalEnv
  */
-function codeGenDestructure(destruct: Destructure<Type>, value: string, env: GlobalEnv): string[] {
+function codeGenDestructure(
+  destruct: Destructure<[Type, Location]>,
+  value: string,
+  env: GlobalEnv
+): string[] {
   let assignStmts: string[] = [];
 
   if (destruct.isDestructured) {
-    const objTyp = destruct.valueType;
+    const objTyp = destruct.valueType[0];
     if (objTyp.tag === "class") {
       const className = objTyp.name;
       const classFields = env.classes.get(className).values();
@@ -425,7 +467,9 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
       });
     } else {
       // Currently assumes that the valueType of our destructure is an object
-      throw new Error("Destructuring not supported yet for types other than 'class'");
+      throw new BaseException.InternalException(
+        "Destructuring not supported yet for types other than 'class'"
+      );
     }
   } else {
     const target = destruct.targets[0];
@@ -437,7 +481,11 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
   return assignStmts;
 }
 
-function codeGenAssignable(target: Assignable<Type>, value: string[], env: GlobalEnv): string[] {
+function codeGenAssignable(
+  target: Assignable<[Type, Location]>,
+  value: string[],
+  env: GlobalEnv
+): string[] {
   switch (target.tag) {
     case "id": // Variables
       if (env.locals.has(target.name)) {
@@ -448,18 +496,22 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
       }
     case "lookup": // Field lookup
       const objStmts = codeGenExpr(target.obj, env);
-      const objTyp = target.obj.a;
+      const objTyp = target.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new Error(
+        throw new BaseException.InternalException(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
       const className = objTyp.name;
       const [offset, _] = env.classes.get(className).get(target.field);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...value, `(i32.store)`];
+      if (target.field == "$deref") {
+        return [...objStmts, ...value, `(i32.store)`];
+      } else {
+        return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...value, `(i32.store)`];
+      }
     case "bracket-lookup":
-      switch (target.obj.a.tag) {
+      switch (target.obj.a[0].tag) {
         case "dict":
           return codeGenExpr(target.obj, env).concat(codeGenDictKeyVal(target.key, value, 10, env));
         case "list":
@@ -473,46 +525,37 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
             ...listKeyStmts,
             ...decodeLiteral,
             `(i32.mul (i32.const 4)) `,
-            `(i32.add)`
-          ]
+            `(i32.add)`,
+          ];
           return [...listLocationToStore, ...value, "(i32.store)"];
         default:
-          throw new Error("Bracket-assign for types other than dict/list not implemented");
+          throw new BaseException.InternalException(
+            "Bracket-assign for types other than dict not implemented"
+          );
       }
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
       const err: never = <never>target;
-      throw new Error(`Unknown target ${JSON.stringify(err)} (compiler)`);
+      throw new BaseException.InternalException(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
 
-function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
+function codeGenInit(init: VarInit<[Type, Location]>, env: GlobalEnv): Array<string> {
   const value = codeGenLiteral(init.value);
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`];
   } else {
-    const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; ${init.name}`];
+    const locationToStore = [
+      `(i32.const ${envLookup(env, init.name)}) ;; global variable ${init.name}`,
+    ];
     return locationToStore.concat(value).concat([`(i32.store)`]);
   }
 }
 
-function myMemAlloc(name: string, size: number): Array<string> {
-  const allocs: Array<string> = [];
-  allocs.push(`(i32.load (i32.const 0))`);
-  allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
-  allocs.push(
-    `(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${
-      size * 4
-    }))) ;; update the heap ptr`
-  );
-  return allocs;
-}
-
 function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
-  // this is where the closure is constructed
+  // this is where the closures are constructed, except for global closures
   // the accesses of callable variables does not create a closure
-
   const inits: Array<string> = [];
 
   nested.forEach((fun) => {
@@ -524,6 +567,7 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
     inits.push(myMemAlloc(`$$addr`, nonlocals.length + 1).join("\n"));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
+      // the dependent variable 'v' exists in the parent scope
       inits.push(
         `(i32.store (i32.add (local.get $$addr) (i32.const ${(i + 1) * 4})) (local.get $${v}_$ref))`
       );
@@ -534,12 +578,13 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
   return inits;
 }
 
-const funPtr = "$funPtr"; // the first extra argument
+const fPTR = "$$fPTR"; // the first extra argument
 
 function initNonlocals(nonlocals: Array<string>): Array<string> {
+  // extract the references for nonlocals from the '$fPTR'
   const inits: Array<string> = [];
   nonlocals.forEach((v, i) => {
-    inits.push(`(i32.load (i32.add (local.get ${funPtr}) (i32.const ${(i + 1) * 4})))`);
+    inits.push(`(i32.load (i32.add (local.get ${fPTR}) (i32.const ${(i + 1) * 4})))`);
     inits.push(`(local.set $${v}_$ref)`);
   });
 
@@ -547,6 +592,7 @@ function initNonlocals(nonlocals: Array<string>): Array<string> {
 }
 
 function initRef(refs: Set<string>): Array<string> {
+  // for parameters and local variables, extra references are created and initialized
   const inits: Array<string> = [];
   refs.forEach((name) => {
     inits.push(myMemAlloc(`$${name}_$ref`, 1).join("\n"));
@@ -556,7 +602,7 @@ function initRef(refs: Set<string>): Array<string> {
   return inits;
 }
 
-function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string> {
+function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): Array<string> {
   const definedVars: Set<string> = new Set();
   definedVars.add("$last");
   definedVars.add("$addr");
@@ -566,11 +612,13 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   definedVars.add("$string_index"); //needed for string index check out of bounds
   definedVars.add("$string_address"); //needed for string indexing
   def.nonlocals.forEach((v) => definedVars.add(`${v}_$ref`)); // nonlocals are reference, ending with '_$ref'
-  def.nested.forEach((v) => definedVars.add(`${v}_$ref`)); // nested functions are references of function ptrs, ending with _$ref
+  def.nested.forEach((f) => definedVars.add(`${f}_$ref`)); // nested functions are references of function ptrs, ending with _$ref
+  // ToDo, optimize after EA
   def.inits.forEach((v) => definedVars.add(`${v.name}`));
   def.inits.forEach((v) => definedVars.add(`${v.name}_$ref`));
   def.parameters.forEach((p) => definedVars.add(`${p.name}_$ref`));
 
+  // references that required memory allocation
   const extraRefs: Set<string> = new Set();
   def.inits.forEach((v) => extraRefs.add(`${v.name}`));
   def.parameters.forEach((p) => extraRefs.add(`${p.name}`));
@@ -592,23 +640,24 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
     .map((stmt) => codeGenStmt(stmt, env))
     .flat()
     .join("\n");
+
   env.locals.clear();
 
   return [
-    `(func $${def.name} (param ${funPtr} i32) ${params} (result i32)
-    ${localDefs}
-    ${inits}
-    ${refs}
-    ${nonlocals}
-    ${nested}
-    ${stmts}
-    (i32.const 0)
-    (return)
-    )`,
+    `(func $${def.name} (param ${fPTR} i32) ${params} (result i32)
+${localDefs}
+${inits}
+${refs}
+${nonlocals}
+${nested}
+${stmts}
+(i32.const 0)
+(return)
+)`,
   ];
 }
 
-function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
+function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<string> {
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
@@ -641,7 +690,7 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   ];
 }
 
-function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
+function codeGenClass(cls: Class<[Type, Location]>, env: GlobalEnv): Array<string> {
   const methods = [...cls.methods];
   methods.forEach((method) => (method.name = `${cls.name}$${method.name}`));
   const result = methods.map((method) => codeGenFunDef(method, env));
@@ -738,7 +787,7 @@ function codeGenListCopy(concat: number): Array<string> {
         `(i32.store)`,
       ];
     } else {
-      var double_size = (addr == 8 && concat == 3) ? [`(i32.mul (i32.const 2))`]: []
+      var double_size = addr == 8 && concat == 3 ? [`(i32.mul (i32.const 2))`] : [];
       stmt = [
         `(local.get $$list_base)`,
         `(i32.add (i32.const ${addr}))`,
@@ -768,12 +817,10 @@ function codeGenListCopy(concat: number): Array<string> {
   ]);
 }
 
-function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
+function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
     case "builtin1":
-      const argTyp = expr.a;
-      console.log(argTyp);
-      console.log(expr.name);
+      const argTyp = expr.a[0];
       const argStmts = codeGenExpr(expr.arg, env);
       var callName = expr.name;
       if (expr.name === "print" && argTyp === NUM) {
@@ -802,14 +849,14 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return codeGenLiteral(expr.value);
     case "id":
       if (env.locals.has(expr.name)) {
-        return [`(local.get $${expr.name})`];
+        return [`(local.get $${expr.name}) ;; local ${expr.name}`];
       } else {
         return [`(i32.const ${envLookup(env, expr.name)})`, `(i32.load)`];
       }
     case "binop":
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
-      if (typeof expr.left.a !== "undefined" && expr.left.a.tag === "list") {
+      if (typeof expr.left.a !== "undefined" && expr.left.a[0].tag === "list") {
         return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(2)];
       } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
@@ -834,6 +881,27 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           return unreachable(expr);
       }
     case "call":
+      if (expr.name === "range") {
+        switch (expr.arguments.length) {
+          case 1:
+            var valStmts = [`(i32.const 1)`];
+            valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts.push(`(i32.const 3)`);
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          case 2:
+            var valStmts = [`(i32.const 1)`];
+            valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          case 3:
+            var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          default:
+            throw new Error("Unsupported range() call!");
+        }
+      }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
@@ -845,7 +913,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         // until now, all the function variables are wrapped in references
         // the 'id's serves for global functions
         funName = nameExpr.name;
-        callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $funPtr`);
+        callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $fPTR`);
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
@@ -856,7 +924,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         );
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
-        callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $funPtr`);
+        callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $fPTR`);
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
@@ -865,29 +933,43 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
             expr.arguments.length + 1
           }) (i32.load (i32.load (local.get $${funName}))))`
         );
+      } else if (nameExpr.tag == "call_expr") {
+        callExpr.push(codeGenExpr(nameExpr, env).join("\n"));
+        callExpr.push(`(local.set $$addr)`);
+        callExpr.push(`(local.get $$addr) ;; function ptr for the extra argument`);
+        expr.arguments.forEach((arg) => {
+          callExpr.push(codeGenExpr(arg, env).join("\n"));
+        });
+        callExpr.push(
+          `(call_indirect (type $callType${
+            expr.arguments.length + 1
+          }) (i32.load (local.get $$addr)))`
+        );
       } else {
-        throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);
+        throw new BaseException.InternalException(
+          `Compile Error. Invalid name of tag ${nameExpr.tag}`
+        );
       }
       return callExpr;
     case "construct":
       var stmts: Array<string> = [];
       stmts.push(
         ...[
-          "(i32.const 0)", // Address for our upcoming store instruction
+          "(i32.const 0) ;; to store the updated heap ptr", // Address for our upcoming store instruction
           "(i32.load (i32.const 0))", // Load the dynamic heap head offset
           "(local.set $$string_class)",
           "(i32.load (i32.const 0))",
           `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the k words we just created for fields
-          "(i32.store)", // Save the new heap offset
+          "(i32.store) ;; to store the updated heap ptr", // Save the new heap offset
         ]
       );
       env.classes.get(expr.name).forEach(([offset, initVal], field) =>
         stmts.push(
           ...[
-            `(local.get $$string_class)`,
-            `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
+            `(local.get $$string_class) ;; object address for ${expr.name}`,
+            `(i32.add (i32.const ${offset * 4})) ;; offset for ${field}`, // Calc field offset from heap offset
             ...codeGenLiteral(initVal), // Initialize field
-            "(i32.store)", // Put the default field value on the heap
+            `(i32.store) ;; store for ${field}`, // Put the default field value on the heap
           ]
         )
       );
@@ -896,59 +978,95 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           "(local.get $$string_class)",
           `(call $${expr.name}$__init__)`, // call __init__
           "(drop)",
-          "(local.get $$string_class)",
+          "(local.get $$string_class) ;; return the address of the constructed object",
         ]
       );
       return stmts;
     case "method-call":
-      var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
-      var extStmts : Array<string> = []
-      var className = ""
-      switch(objTyp.tag) {
-        case "class":
-          className = objTyp.name;
-          break
+      var objTyp = expr.obj.a[0];
+
+      //handle list built in
+      switch (objTyp.tag) {
         case "list":
+          var objStmts = codeGenExpr(expr.obj, env);
           className = "$list";
-          var objExpr = expr.obj
-          if(expr.method === "append")
-          {
-            switch(objExpr.tag){
+          var extStmts: Array<string> = [];
+          var objExpr = expr.obj;
+          if (expr.method === "append") {
+            switch (objExpr.tag) {
               case "id":
                 if (env.locals.has(objExpr.name)) {
-                  extStmts = [`local.tee $$list_temp`, `(local.set $${objExpr.name})`,`local.get $$list_temp`];
+                  extStmts = [
+                    `local.tee $$list_temp`,
+                    `(local.set $${objExpr.name})`,
+                    `local.get $$list_temp`,
+                  ];
                 } else {
-                  const locationToStore = [`(i32.const ${envLookup(env, objExpr.name)}) ;; ${objExpr.name}`];
-                  extStmts = [`local.set $$list_temp`,...locationToStore, `local.get $$list_temp`, "(i32.store)",`local.get $$list_temp`];
+                  const locationToStore = [
+                    `(i32.const ${envLookup(env, objExpr.name)}) ;; ${objExpr.name}`,
+                  ];
+                  extStmts = [
+                    `local.set $$list_temp`,
+                    ...locationToStore,
+                    `local.get $$list_temp`,
+                    "(i32.store)",
+                    `local.get $$list_temp`,
+                  ];
                 }
-                break
+                break;
             }
           }
-          break
-        default:
+          var argsStmts = expr.arguments
+            .map((arg) => codeGenExpr(arg, env))
+            .flat()
+            .concat();
+
+          return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`, ...extStmts];
+      }
+
+      let clsName = (expr.obj.a[0] as any).name;
+      if (env.classes.get(clsName).has(expr.method)) {
+        let callExpr: Array<string> = [];
+        let argsExprs = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+        callExpr.push(codeGenExpr(expr.obj, env).join("\n"));
+        callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
+        callExpr.push(`(i32.load) ;; load the function pointer for the extra argument`);
+        callExpr.push(argsExprs.join("\n"));
+        callExpr.push(codeGenExpr(expr.obj, env).join("\n"));
+        callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
+        callExpr.push(`(i32.load) ;; load the function pointer`);
+        callExpr.push(`(i32.load) ;; load the function index`);
+        callExpr.push(`(call_indirect (type $callType${expr.arguments.length + 1}))`);
+        return callExpr;
+      } else {
+        var objStmts = codeGenExpr(expr.obj, env);
+        var objTyp = expr.obj.a[0];
+        if (objTyp.tag !== "class") {
           // I don't think this error can happen
-          throw new Error(
+          throw new BaseException.InternalException(
             "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
           );
+        }
+        var className = objTyp.name;
+        var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+        return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
       }
-      var argsStmts = expr.arguments
-        .map((arg) => codeGenExpr(arg, env))
-        .flat()
-        .concat();
-      return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`,...extStmts];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
-      var objTyp = expr.obj.a;
+      var objTyp = expr.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
-        throw new Error(
+        throw new BaseException.InternalException(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
+      if (expr.field == "$deref") {
+        return [...objStmts, `(i32.load) ;; dereference`];
+      } else {
+        return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
+      }
     case "dict":
       let dictStmts: Array<string> = [];
       //Allocate memory on the heap for hashtable. Currently size is 10
@@ -1009,7 +1127,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       ]);
 
     case "bracket-lookup":
-      switch (expr.obj.a.tag) {
+      switch (expr.obj.a[0].tag) {
         case "dict":
           return codeGenDictBracketLookup(expr.obj, expr.key, 10, env);
         case "string":
@@ -1088,7 +1206,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
             ]
           );
         default:
-          throw new Error("Code gen for bracket-lookup for types other than dict not implemented");
+          throw new BaseException.InternalException(
+            "Code gen for bracket-lookup for types other than dict not implemented"
+          );
       }
     default:
       unhandledTag(expr);
@@ -1154,8 +1274,8 @@ function allocateStringMemory(string_val: string): Array<string> {
 }
 
 function codeGenDictBracketLookup(
-  obj: Expr<Type>,
-  key: Expr<Type>,
+  obj: Expr<[Type, Location]>,
+  key: Expr<[Type, Location]>,
   hashtableSize: number,
   env: GlobalEnv
 ): Array<string> {
@@ -1171,7 +1291,7 @@ function codeGenDictBracketLookup(
 
 //Assumes that base address of dict is pushed onto the stack already
 function codeGenDictKeyVal(
-  key: Expr<Type>,
+  key: Expr<[Type, Location]>,
   val: string[],
   hashtableSize: number,
   env: GlobalEnv
@@ -1188,31 +1308,31 @@ function codeGenDictKeyVal(
 
 function listBuiltInFuns(): Array<string> {
   let listFunStmts: Array<string> = [];
-  
+
   //append function
   listFunStmts.push(
     ...[
       "(func $$list$append (param $$list_cmp i32) (param $$val i32) (result i32)",
       `(local $$list_base i32)`,
       `(local $$list_index i32)`,
-      `(if `,                     // check if list bounds need to expand
+      `(if `, // check if list bounds need to expand
       `(i32.eq`,
-      `(local.get $$list_cmp)`,   // get address of current list
+      `(local.get $$list_cmp)`, // get address of current list
       `(i32.add (i32.const 8))`,
-      `(i32.load)`,               // load the bound of the list
-      `(local.get $$list_cmp)`,   // get address of current list
+      `(i32.load)`, // load the bound of the list
+      `(local.get $$list_cmp)`, // get address of current list
       `(i32.add (i32.const 4))`,
-      `(i32.load)`,               // load the size of the list
+      `(i32.load)`, // load the size of the list
       `)`,
       `(then`,
-      `(local.get $$list_cmp)`,   // generate code for append element
+      `(local.get $$list_cmp)`, // generate code for append element
       ...codeGenListCopy(3),
       `(local.set $$list_cmp)`,
-      `)`,                        // end then
-      `)`,                        // end if
-      `(local.get $$list_cmp)`, 
+      `)`, // end then
+      `)`, // end if
+      `(local.get $$list_cmp)`,
       `(i32.add (i32.const 4))`,
-      `(i32.load)`,               //load index to store
+      `(i32.load)`, //load index to store
       `(i32.mul (i32.const 4))`,
       `(i32.add (i32.const 12))`, // add base position
       `(i32.add (local.get $$list_cmp))`,
@@ -1235,30 +1355,29 @@ function listBuiltInFuns(): Array<string> {
   listFunStmts.push(
     ...[
       "(func $$list$index (param $$list_cmp i32) (param $$val i32) (result i32)",
-      `(local $$list_index i32)`,  // to iterate through list
-      `(local $$list_size i32)`,   // size of list
-      `(i32.const 0)`,             // list_index = 0
+      `(local $$list_index i32)`, // to iterate through list
+      `(local $$list_size i32)`, // size of list
+      `(i32.const 0)`, // list_index = 0
       `(local.set $$list_index)`,
-      `(local.get $$list_cmp)`,    // load list_size from list metadata
+      `(local.get $$list_cmp)`, // load list_size from list metadata
       `(i32.add (i32.const 4))`,
       `(i32.load)`,
       `(local.set $$list_size)`,
-      `(local.get $$list_cmp)`,    // beginning of list
+      `(local.get $$list_cmp)`, // beginning of list
       `(i32.add (i32.const 12))`,
       `(local.set $$list_cmp)`,
       `(block`,
-      `(loop`,                     // while loop for searching the value
-      `(br_if 1`,                  // condition start
+      `(loop`, // while loop for searching the value
+      `(br_if 1`, // condition start
       `(local.get $$list_size)`,
       `(local.get $$list_index)`,
       `(i32.eq)`,
-      `)`,                         // condition end
+      `)`, // condition end
       // loop body start
-      
 
-      `(if `,                      // check if element of index match to the value
+      `(if `, // check if element of index match to the value
       `(i32.eq`,
-      `(local.get $$list_cmp)`,  
+      `(local.get $$list_cmp)`,
       `(local.get $$list_index)`,
       `(i32.mul (i32.const 4))`,
       `(i32.add)`,
@@ -1266,12 +1385,12 @@ function listBuiltInFuns(): Array<string> {
       `(local.get $$val)`,
       `)`,
 
-      `(then`,                     // return index
+      `(then`, // return index
       `(local.get $$list_index)`,
       ...encodeLiteral,
       `(return)`,
-      `)`,                         // end then
-      `)`,                         // end if
+      `)`, // end then
+      `)`, // end if
       `(local.get $$list_index)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
@@ -1279,7 +1398,7 @@ function listBuiltInFuns(): Array<string> {
       `(br 0)`,
       `)`,
       `)`,
-      `(i32.const -1)`,            // find nothing
+      `(i32.const -1)`, // find nothing
       ...encodeLiteral,
       "(return))",
       "",
@@ -1290,33 +1409,32 @@ function listBuiltInFuns(): Array<string> {
   listFunStmts.push(
     ...[
       "(func $$list$count (param $$list_cmp i32) (param $$val i32) (result i32)",
-      `(local $$list_counter i32)`,   // counter of how many times we see list_cmp
-      `(local $$list_index i32)`,     // to iterate through list
-      `(local $$list_size i32)`,      // size of list
-      `(i32.const 0)`,                // list_counter = 0
+      `(local $$list_counter i32)`, // counter of how many times we see list_cmp
+      `(local $$list_index i32)`, // to iterate through list
+      `(local $$list_size i32)`, // size of list
+      `(i32.const 0)`, // list_counter = 0
       `(local.set $$list_counter)`,
-      `(i32.const 0)`,                // list_index = 0
+      `(i32.const 0)`, // list_index = 0
       `(local.set $$list_index)`,
-      `(local.get $$list_cmp)`,       // load list_size from list metadata
+      `(local.get $$list_cmp)`, // load list_size from list metadata
       `(i32.add (i32.const 4))`,
       `(i32.load)`,
       `(local.set $$list_size)`,
-      `(local.get $$list_cmp)`,       // beginning of list
+      `(local.get $$list_cmp)`, // beginning of list
       `(i32.add (i32.const 12))`,
       `(local.set $$list_cmp)`,
       `(block`,
-      `(loop`,                        // while loop for searching the value
-      `(br_if 1`,                     // condition start
+      `(loop`, // while loop for searching the value
+      `(br_if 1`, // condition start
       `(local.get $$list_size)`,
       `(local.get $$list_index)`,
       `(i32.eq)`,
-      `)`,                            // condition end
+      `)`, // condition end
       // loop body start
-      
 
-      `(if `,                         // check if element of index match to the value
+      `(if `, // check if element of index match to the value
       `(i32.eq`,
-      `(local.get $$list_cmp)`,  
+      `(local.get $$list_cmp)`,
       `(local.get $$list_index)`,
       `(i32.mul (i32.const 4))`,
       `(i32.add)`,
@@ -1324,12 +1442,12 @@ function listBuiltInFuns(): Array<string> {
       `(local.get $$val)`,
       `)`,
 
-      `(then`,                        // add to count variable
+      `(then`, // add to count variable
       `(local.get $$list_counter)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_counter)`,
-      `)`,                            // end then
-      `)`,                            // end if
+      `)`, // end then
+      `)`, // end if
       `(local.get $$list_index)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
@@ -1337,74 +1455,74 @@ function listBuiltInFuns(): Array<string> {
       `(br 0)`,
       `)`,
       `)`,
-      `(local.get $$list_counter)`,   // return count
+      `(local.get $$list_counter)`, // return count
       ...encodeLiteral,
       "(return))",
       "",
     ]
   );
-  
+
   //clear function
   //simply sets internal metadata size to 0
   listFunStmts.push(
     ...[
       "(func $$list$clear (param $$list_baseaddr i32) (result i32)",
-      `(local.get $$list_baseaddr)`,   // get address of list size
+      `(local.get $$list_baseaddr)`, // get address of list size
       `(i32.add (i32.const 4))`,
-      `(i32.const 0)`,                 // store 0 into list size
+      `(i32.const 0)`, // store 0 into list size
       `(i32.store)`,
-      `(local.get $$list_baseaddr)`,   // return address of the list
+      `(local.get $$list_baseaddr)`, // return address of the list
       "(return))",
       "",
     ]
   );
-  
+
   //copy function
   //creates new copy of that list and returns new copy's base addr
   listFunStmts.push(
     ...[
       "(func $$list$copy (param $$list_baseaddr i32) (result i32)",
-      `(local $$list_index i32)`,       // iterate
-      `(local $$list_readaddr i32)`,    // addr to load old version's data from (iterates)
-      `(local $$list_writeaddr i32)`,   // addr to store old version's data into (iterates)
-      `(local $$list_newaddr i32)`,     // address to return
-      `(local $$list_copybound i32)`,   // how many things needed to be copied
+      `(local $$list_index i32)`, // iterate
+      `(local $$list_readaddr i32)`, // addr to load old version's data from (iterates)
+      `(local $$list_writeaddr i32)`, // addr to store old version's data into (iterates)
+      `(local $$list_newaddr i32)`, // address to return
+      `(local $$list_copybound i32)`, // how many things needed to be copied
 
-      `(i32.const 0)`,                  // list_index = 0
+      `(i32.const 0)`, // list_index = 0
       `(local.set $$list_index)`,
-      `(local.get $$list_baseaddr)`,    // list_readaddr = old base addr
+      `(local.get $$list_baseaddr)`, // list_readaddr = old base addr
       `(local.set $$list_readaddr)`,
-      `(i32.load (i32.const 0))`,       // list_writeaddr = heap head
+      `(i32.load (i32.const 0))`, // list_writeaddr = heap head
       `(local.set $$list_writeaddr)`,
-      `(i32.load (i32.const 0))`,       // list_newaddr = heap head
+      `(i32.load (i32.const 0))`, // list_newaddr = heap head
       `(local.set $$list_newaddr)`,
-      `(local.get $$list_baseaddr)`,    // load list_size from list metadata
+      `(local.get $$list_baseaddr)`, // load list_size from list metadata
       `(i32.add (i32.const 4))`,
       `(i32.load)`,
-      `(i32.add (i32.const 3))`,        // #elements + 3 for type, size, bound
+      `(i32.add (i32.const 3))`, // #elements + 3 for type, size, bound
       `(local.set $$list_copybound)`,
 
       `(block`,
-      `(loop`,                        // while loop to iterate through metadata + elements
-      `(br_if 1`,                     // condition start
+      `(loop`, // while loop to iterate through metadata + elements
+      `(br_if 1`, // condition start
       `(local.get $$list_copybound)`,
       `(local.get $$list_index)`,
       `(i32.eq)`,
-      `)`,                            // condition end
+      `)`, // condition end
       // loop body start
       `(local.get $$list_writeaddr)`, // address to store to
-      `(local.get $$list_readaddr)`,  // load item
+      `(local.get $$list_readaddr)`, // load item
       `(i32.load)`,
-      `(i32.store)`,                  // store loaded item
+      `(i32.store)`, // store loaded item
 
-      `(local.get $$list_readaddr)`,  // increment read address
+      `(local.get $$list_readaddr)`, // increment read address
       `(i32.add (i32.const 4))`,
       `(local.set $$list_readaddr)`,
       `(local.get $$list_writeaddr)`, // increment write address
       `(i32.add (i32.const 4))`,
       `(local.set $$list_writeaddr)`,
 
-      `(local.get $$list_index)`,     // increment index
+      `(local.get $$list_index)`, // increment index
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
 
@@ -1417,7 +1535,7 @@ function listBuiltInFuns(): Array<string> {
       `(local.get $$list_writeaddr)`, // get final write addr
       `(i32.store)`,
 
-      `(local.get $$list_newaddr)`,   // return old heap head
+      `(local.get $$list_newaddr)`, // return old heap head
       "(return))",
       "",
     ]
