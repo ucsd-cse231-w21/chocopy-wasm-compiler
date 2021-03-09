@@ -31,10 +31,9 @@ describe("Heap", () => {
       it("Should return an invalid pointer if request exceeds available memory", () => {
         // 901 > 900, the total available  memory
         const ptr = bmb.gcalloc(TAG_CLASS, 901n);
-        expect(ptr).to.eq(0x0n);
+        // Number(0x0n) = 0
+        expect(Number(ptr)).to.eq(0);
       });
-
-
     });
   });
 })

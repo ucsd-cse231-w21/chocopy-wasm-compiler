@@ -156,7 +156,15 @@ export class BitMappedBlocks implements MarkableAllocator {
   // Returns -1 to indicate a failure
   getBlockIndex(size: bigint): bigint {
     // How many blocks are needed to satisfy the request
-    const blocksRequested = size / this.blockSize;
+    let blocksRequested = size / this.blockSize;
+
+    if(size % this.blockSize !== 0n) {
+      blocksRequested += 1n
+    }
+
+    if(blocksRequested > this.getNumFreeBlocks()) {
+      return -1n;
+    }
 
     // Linearly Traverse the infomap to find blocks
     // This can lead to fragmentation
