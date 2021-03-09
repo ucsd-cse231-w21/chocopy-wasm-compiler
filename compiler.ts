@@ -21,6 +21,7 @@ import {
   TAG_BIGINT,
   TAG_CLASS,
   TAG_DICT,
+  TAG_DICT_ENTRY,
   TAG_LIST,
   TAG_REF,
   TAG_STRING,
@@ -1372,15 +1373,19 @@ function dictUtilFuns(): Array<string> {
   dictFunStmts.push(
     ...[
       "(func $ha$htable$CreateEntry (param $key i32) (param $val i32)",
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local $$allocPointer i32)",
+      `(i32.const ${TAG_DICT_ENTRY})    ;; heap-tag: opaque`,
+      "(i32.const 96)   ;; size in bytes",
+      "(call $$gcalloc)",
+      "(local.tee $$allocPointer)",
       "(local.get $key)",
       "(i32.store)", // Dumping tag
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $$allocPointer)",
       "(i32.const 4)",
       "(i32.add)", // Moving to the next block
       "(local.get $val)",
       "(i32.store)", // Dumping value
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $$allocPointer)",
       "(i32.const 8)",
       "(i32.add)", // Moving to the next block
       "(i32.const 0)", //None

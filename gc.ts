@@ -8,7 +8,8 @@ export type HeapTag =
   | typeof TAG_STRING
   | typeof TAG_DICT
   | typeof TAG_BIGINT
-  | typeof TAG_REF;
+  | typeof TAG_REF
+  | typeof TAG_DICT_ENTRY;
 
 export const TAG_CLASS = 0x1n;
 export const TAG_LIST = 0x2n;
@@ -16,6 +17,7 @@ export const TAG_STRING = 0x3n;
 export const TAG_DICT = 0x4n;
 export const TAG_BIGINT = 0x5n;
 export const TAG_REF = 0x6n;
+export const TAG_DICT_ENTRY = 0x7n;
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
