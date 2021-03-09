@@ -145,6 +145,25 @@ export function makeId<A>(a: A, x: string): Destructure<A> {
   };
 }
 
+export function makeLookup<A>(a: A, obj: Expr<A>, field: string): Destructure<A> {
+  return {
+    isDestructured: false,
+    targets: [
+      {
+        ignore: false,
+        starred: false,
+        target: {
+          a: a,
+          tag: "lookup",
+          field: field,
+          obj: obj,
+        },
+      },
+    ],
+    valueType: a,
+  };
+}
+
 export function compile(ast: Program<[Type, Location]>, env: GlobalEnv): CompileResult {
   const withDefines = augmentEnv(env, ast);
 
@@ -300,7 +319,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         obj: rgExpr,
         field: "step",
       };
-      var Code_step = codeGenExpr(Expr_step, env);
+      var Code_step_expr = codeGenExpr(Expr_step, env);
 
       // name = cur
       var ass: Stmt<[Type, Location]> = {
@@ -320,10 +339,9 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         right: Expr_step,
       };
       var step: Stmt<[Type, Location]> = {
-        a: [NONE, stmt.a[1]],
-        tag: "field-assign",
-        obj: rgExpr,
-        field: "cur",
+        a: rgExpr.a,
+        tag: "assignment",
+        destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
         value: ncur,
       };
       var Code_step = codeGenStmt(step, env);
@@ -362,7 +380,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           value: nid,
         };
         var Code_idstep = codeGenStmt(niass, env);
-
         // iterable should be a Range object
         return [
           `
@@ -372,32 +389,35 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           ${Code_iass.join("\n")}
           (block
             (loop
-
-              (br_if 1 ${Code_cond.join("\n")})
+              ${Code_step.join("\n")}
+              ${Code_idstep.join("\n")}
+              (br_if 1 (${Code_cond.join("\n")} ${decodeLiteral.join("\n")}))
 
               ${Code_ass.join("\n")}
               ${bodyStmts.join("\n")}
-              ${Code_step.join("\n")}
-              ${Code_idstep.join("\n")}
-
               (br 0)
           ))`,
         ];
       }
-
       // iterable should be a Range object
+      // test
+      // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
+      // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
+      // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
+      // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
       return [
         `
         (i32.const ${envLookup(env, "rg")})
         ${iter.join("\n")}
         (i32.store)
+
         (block
           (loop
-            (br_if 1 ${Code_cond.join("\n")})
+            ${Code_step.join("\n")}
+            (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
 
             ${Code_ass.join("\n")}
             ${bodyStmts.join("\n")}
-            ${Code_step.join("\n")}
 
             (br 0)
         ))`,
@@ -406,7 +426,10 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       return [];
     case "break":
       // break to depth
-      return [`(br_if ${stmt.depth} (i32.const 1))`];
+      return [`(br ${stmt.depth})`];
+    case "continue":
+      console.log(stmt);
+      return [`(br ${stmt.depth})`];
     default:
       unhandledTag(stmt);
   }
@@ -840,6 +863,27 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           return unreachable(expr);
       }
     case "call":
+      if (expr.name === "range") {
+        switch (expr.arguments.length) {
+          case 1:
+            var valStmts = [`(i32.const 1)`];
+            valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts.push(`(i32.const 3)`);
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          case 2:
+            var valStmts = [`(i32.const 1)`];
+            valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          case 3:
+            var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+            valStmts.push(`(call $${expr.name})`);
+            return valStmts;
+          default:
+            throw new Error("Unsupported range() call!");
+        }
+      }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
