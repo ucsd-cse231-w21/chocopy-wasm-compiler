@@ -159,5 +159,5 @@ describe("LIST TEST", () => {
       i = i + 1
   `;
   assertPrint("Test .count() (prints)", source, ["2", "1", "1", "5", "1", "3", "0", "1", "0", "0", "1"]);
-  assert("Test .count()", source, PyNone);
+  assert("Test .count()", source, PyNone());
 });
