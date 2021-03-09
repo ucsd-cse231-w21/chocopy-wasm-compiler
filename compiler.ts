@@ -253,8 +253,8 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       //   have an opportunity to be rooted without fear of the GC cleaning it up
       // TODO(alex:mm): instead of relying on escape analysis, we'll just try to
       //   add the returned value to the parent temp frame
-      valStmts.push("(call $returnTemp)");
-      valStmts.push("(call $releaseLocals)");
+      valStmts.push("(call $$returnTemp)");
+      valStmts.push("(call $$releaseLocals)");
       valStmts.push("return");
 
       return valStmts;
@@ -463,7 +463,7 @@ function codeGenAssignable(target: Assignable<Type>, value: string[], env: Globa
           `(local.set $${target.name})`,
           `(i32.const ${localIndex.toString()})`,
           `(local.get $${target.name})`,
-          `(call $addLocal)`
+          `(call $$addLocal)`
         ];
 
         return result;
@@ -523,7 +523,7 @@ function myMemAlloc(name: string, sizeInValueCount: number): Array<string> {
   // TODO(alex:mm): Is this the right tag?
   allocs.push(`(i32.const ${Number(TAG_CLASS)}) ;; heap-tag: class (closures)`);
   allocs.push(`(i32.const ${sizeInBytes})`);
-  allocs.push(`(call $gcalloc)`);
+  allocs.push(`(call $$gcalloc)`);
   allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
   return allocs;
 }
@@ -620,13 +620,13 @@ function codeGenClosureDef(def: ClosureDef<Type>, env: GlobalEnv): Array<string>
   return [
     `(func $${def.name} (param ${funPtr} i32) ${params} (result i32)
     ${localDefs}
-    (call $pushFrame)
+    (call $$pushFrame)
     ${inits}
     ${refs}
     ${nonlocals}
     ${nested}
     ${stmts}
-    (call $releaseLocals)
+    (call $$releaseLocals)
     (i32.const 0)
     (return)
     )`,
@@ -674,10 +674,10 @@ function codeGenFunDef(def: FunDef<Type>, env: GlobalEnv): Array<string> {
   return [
     `(func $${def.name} ${params} (result i32)
     ${locals}
-    (call $pushFrame)
+    (call $$pushFrame)
     ${inits}
     ${stmtsBody}
-    (call $releaseLocals)
+    (call $$releaseLocals)
     (i32.const 0)
     (return))`,
   ];
@@ -722,7 +722,7 @@ function codeGenListCopy(concat: number): Array<string> {
   stmts.push(...[
     `(i32.mul (i32.const 4))`,      // new_cap = cap * 4 + 12
     `(i32.add (i32.const 12))`,
-    `(call $gcalloc)`,
+    `(call $$gcalloc)`,
     `(local.set $$list_base)`,
   ]);
 
@@ -899,9 +899,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
     case "call":
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      valStmts.push(`(call $pushCaller)`);
+      valStmts.push(`(call $$pushCaller)`);
       valStmts.push(`(call $${expr.name})`);
-      valStmts.push(`(call $popCaller)`);
+      valStmts.push(`(call $$popCaller)`);
       return valStmts;
     case "call_expr":
       const callExpr: Array<string> = [];
@@ -917,13 +917,13 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         });
 
         // NOTE(alex:mm): necessary in order to root the return value
-        callExpr.push(`(call $pushCaller)`);
+        callExpr.push(`(call $$pushCaller)`);
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
           }) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
         );
-        callExpr.push(`(call $popCaller)`);
+        callExpr.push(`(call $$popCaller)`);
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
         callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $funPtr`);
@@ -931,13 +931,13 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
         // NOTE(alex:mm): necessary in order to root the return value
-        callExpr.push(`(call $pushCaller)`);
+        callExpr.push(`(call $$pushCaller)`);
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
           }) (i32.load (i32.load (local.get $${funName}))))`
         );
-        callExpr.push(`(call $popCaller)`);
+        callExpr.push(`(call $$popCaller)`);
       } else {
         throw new Error(`Compile Error. Invalid name of tag ${nameExpr.tag}`);
       }
@@ -946,7 +946,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var stmts: Array<string> = [
         `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
         `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
-        `(call $gcalloc)`,
+        `(call $$gcalloc)`,
         `(local.set $$allocPointer)`,
         `(local.get $$allocPointer)`,   // return to parent expr
         `(local.get $$allocPointer)`,   // use in __init__
@@ -993,9 +993,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return [
         ...objStmts,
         ...argsStmts,
-        `(call $pushCaller)`,
+        `(call $$pushCaller)`,
         `(call $${className}$${expr.method})`,
-        `(call $popCaller)`,
+        `(call $$popCaller)`,
       ];
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
@@ -1161,7 +1161,7 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number
   dictAllocStmts = dictAllocStmts.concat([
     `(i32.const ${Number(TAG_DICT)})   ;; heap-tag: dictionary`,
     `(i32.const ${hashtableSize * 4})   ;; size in bytes`,
-    `(call $gcalloc)`,
+    `(call $$gcalloc)`,
     `(local.set $$allocPointer)`,
     `(local.get $$allocPointer)`,   // return to parent expr
   ]);
@@ -1197,7 +1197,7 @@ function allocateStringMemory(string_val: string): Array<string> {
     ...[
       `(i32.const ${Number(TAG_STRING)})  ;; heap-tag: string`,
       `(i32.const ${allocSizeBytes})`,
-      `(call $gcalloc)`,
+      `(call $$gcalloc)`,
       `(local.set $$allocPointer)`,
       `(local.get $$allocPointer)`,
       `(i32.const ${string_val.length - 1})`, // Store ASCII value for 0 (end of string)
@@ -1514,7 +1514,7 @@ function codeGenBigInt(num: bigint): Array<string> {
   var alloc = [
     `(i32.const ${TAG_BIGINT})`,
     `(i32.const ${(2 + size) * WORD_SIZE})`, // size in bytes
-    `(call $gcalloc)`,
+    `(call $$gcalloc)`,
     `(local.tee $$allocPointer)`,
     `(i32.add (i32.const ${0 * WORD_SIZE}))`, // add space for sign field
     `(i32.const ${sign})`,
@@ -1600,13 +1600,13 @@ function codeGenBinOp(op: BinOp): string {
 function codeGenTempGuard(c: Array<string>, kind: number): Array<string> {
   switch (kind) {
     case FENCE_TEMPS:
-      return ["(call $captureTemps)"].concat(c).concat(["(call $releaseTemps)"]);
+      return ["(call $$captureTemps)"].concat(c).concat(["(call $$releaseTemps)"]);
 
     case HOLD_TEMPS:
-      return ["(call $captureTemps)"].concat(c);
+      return ["(call $$captureTemps)"].concat(c);
 
     case RELEASE_TEMPS:
-      return c.concat(["(call $releaseTemps)"]);
+      return c.concat(["(call $$releaseTemps)"]);
   }
 
 }
