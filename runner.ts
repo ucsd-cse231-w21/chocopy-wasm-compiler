@@ -85,7 +85,8 @@ export async function run(
     importObject.memoryManager = memoryManager;
     importMemoryManager(importObject, memoryManager);
   }
-  const view = new Int32Array(importObject.js.memory.buffer);
+
+  const oldView = new Int32Array(importObject.js.memory.buffer);
   // NOTE(alex:mm): view[0] becomes entirely meaningless b/c metadata
   //   is stored on the JS heap via MemoryManager
   //
@@ -93,7 +94,7 @@ export async function run(
   // console.log("before updating: ", offsetBefore);
   // view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
   // console.log("after updating: ", view[0]);
-  console.log("mem view:", view);
+  console.log("mem view:", oldView);
 
   const funs = compiled.newEnv.funs;
   let sorted_funs = new Array<string>(funs.size);
@@ -206,8 +207,8 @@ export async function run(
   )`;
   console.log(wasmSource);
   const result = await runWat(wasmSource, importObject);
-  const view = new Int32Array(importObject.js.memory.buffer);
+  const newView = new Int32Array(importObject.js.memory.buffer);
 
   console.log("About to return", progTyp, result);
-  return [PyValue(progTyp, result, view), compiled.newEnv, tenv, compiled.functions];
+  return [PyValue(progTyp, result, newView), compiled.newEnv, tenv, compiled.functions];
 }
