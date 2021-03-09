@@ -883,4 +883,12 @@ describe("defaults", () => {
   print((a+b)*2)`,
     ["ABCDABCD"]
   );
+
+  assertPrint(
+    "print-string-escape-seq-new-line",
+    `
+  print("Design\\nABC")`,
+    ["Design","ABC"]
+  );
+
 });
