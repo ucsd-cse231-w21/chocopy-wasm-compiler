@@ -134,8 +134,38 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
 
     // prepopulate the globEnv with builtin functions
     case "builtin1": // TODO
-    case "builtin2": // TODO
-      throw new Error("Inference for built-ins not supported yet");
+      let argType = inferExprType(expr.arg, globEnv, locEnv);
+      if (argType === UNSAT) {
+        return UNSAT;
+      }
+      if (argType === FAILEDINFER) {
+        return FAILEDINFER;
+      }
+      switch (expr.name) {
+        case "print": 
+          return NONE;
+        case "abs":
+          return NUM;
+        default: 
+          throw new Error(`Inference not supported for unknown builtin '${expr.name}'`)
+      }
+
+    case "builtin2":
+      let lhs = inferExprType(expr.left, globEnv, locEnv);
+      let rhs = inferExprType(expr.right, globEnv, locEnv);
+      if (lhs === UNSAT || rhs === UNSAT) {
+        return UNSAT;
+      }
+      if (lhs === FAILEDINFER || rhs === FAILEDINFER) {
+        return FAILEDINFER;
+      }
+      switch (expr.name) {
+        case "min": case "max": case "pow":
+          return NUM;
+        default: 
+        throw new Error(`Inference not supported for unknown builtin '${expr.name}'`)
+      }
+
     case "call": // TODO
       throw new Error("Inference for calls not supported yet");
     case "list-expr":
@@ -158,7 +188,6 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
       if (exprType === FAILEDINFER) {
         return FAILEDINFER;
       }
-
       switch (expr.op) {
         case UniOp.Neg:
           if (exprType != NUM) {

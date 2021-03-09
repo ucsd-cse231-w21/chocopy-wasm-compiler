@@ -132,9 +132,11 @@ describe("tc", () => {
   );
 });
 
+// Type inference group tests
+
 describe("type inference", () => {
   assertTC(
-    "program-I",
+    "infer the type of arithmetic expression",
     `
     x = (1 + 3) * 2
     x
@@ -143,11 +145,30 @@ describe("type inference", () => {
   );
 
   assertTC(
-    "program-II",
+    "infer the type of a comparsion of integer values",
     `
     y = (10-5) < (2 * 3)
     y
     `,
     BOOL
   );
+  
+  assertTC(
+    "infer the type of builtin2 in an assignment",
+    `
+    y = min(0, 4)
+    y
+    `,
+    NUM
+  );
+
+  assertTC(
+    "infer the type of a call to abs() in an assignment",
+    `
+    y = abs(-4)
+    y
+    `,
+    NUM
+  );
+
 });
