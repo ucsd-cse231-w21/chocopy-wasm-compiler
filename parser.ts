@@ -130,7 +130,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             name: callName,
             arguments: args,
           };
-        }else {
+        } else {
           expr = {
             a: location,
             tag: "call_expr",
@@ -483,7 +483,7 @@ function traverseAssignment(c: TreeCursor, s: string): AssignTarget<Location> {
     ignore,
     starred,
   };
-}
+};
 
 // Traverse the lhs of assign operations and return the assignment targets
 function traverseDestructure(c: TreeCursor, s: string): Destructure<Location> {
