@@ -1,8 +1,8 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
-import { themeList_export } from "./themelist";
+import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
 import { defaultTypeEnv } from "./type-check";
-import { NUM, BOOL, NONE, STRING, PyValue, unhandledTag } from "./utils";
+import { themeList_export } from "./themelist";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -12,62 +12,25 @@ import "codemirror/addon/lint/lint";
 import "./style.scss";
 import { toEditorSettings } from "typescript";
 
-var mem_js: { memory: any };
-
-function stringify(result: Value): string {
-  switch (result.tag) {
-    case "num":
-      return result.value.toString();
-    case "bool":
-      return result.value ? "True" : "False";
-    case "string":
-      return result.value;
-    case "none":
-      return "None";
-    case "object":
-      return `<${result.name} object at ${result.address}`;
-    default:
-      throw new Error(`Could not render value: ${result}`);
-  }
-}
-
-function print(typ: Type, arg: number, mem: any): any {
-  console.log("Logging from WASM: ", arg);
+function print(val: Value) {
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
-  const val = PyValue(typ, arg, mem);
   elt.innerText = stringify(val); // stringify(typ, arg, mem);
-  return arg;
 }
 
 function webStart() {
   document.addEventListener("DOMContentLoaded", function () {
     var filecontent: string | ArrayBuffer;
-    const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
-    const view = new Int32Array(memory.buffer);
-    view[0] = 4;
-    var memory_js = { memory: memory };
 
     var importObject = {
       imports: {
-        print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_str: (arg: number) =>
-          print(STRING, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_num: (arg: number) =>
-          print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_bool: (arg: number) =>
-          print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_none: (arg: number) =>
-          print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print: print,
         abs: Math.abs,
         min: Math.min,
         max: Math.max,
         pow: Math.pow,
       },
-      js: memory_js,
     };
-
-    mem_js = importObject.js;
 
     var repl = new BasicREPL(importObject);
 
@@ -83,11 +46,16 @@ function webStart() {
       elt.innerText = stringify(result);
     }
 
-    function renderError(result: any): void {
+    function renderError(result: any, source: string): void {
       const elt = document.createElement("pre");
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
-      elt.innerText = String(result);
+      var text = "";
+      if (result.loc != undefined)
+        text = `line ${result.loc.line}: ${source
+          .split(/\r?\n/)
+          [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
+      elt.innerText = text.concat("\n").concat(String(result));
     }
 
     function setupRepl() {
@@ -116,7 +84,7 @@ function webStart() {
               console.log("run finished");
             })
             .catch((e) => {
-              renderError(e);
+              renderError(e, source);
               console.log("run failed", e);
             });
         }
@@ -138,8 +106,8 @@ function webStart() {
           console.log("run finished");
         })
         .catch((e) => {
-          renderError(e);
-          console.log("run failed", e);
+          renderError(e, source.value);
+          console.log("run failed", e.stack);
         });
     });
 

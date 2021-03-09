@@ -4,6 +4,7 @@ import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
 import { importMemoryManager, MemoryManager } from "./alloc";
+import { NUM, STRING, BOOL, NONE, PyValue } from "./utils";
 import { bignumfunctions } from "./bignumfunctions";
 
 interface REPL {
@@ -40,6 +41,37 @@ export class BasicREPL {
       locals: new Map(),
       funs: new Map(),
     };
+    this.importObject.imports.__internal_print = (arg: any) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(
+        PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
+      );
+      return arg;
+    };
+    this.importObject.imports.__internal_print_num = (arg: number) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(
+        PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
+      );
+      return arg;
+    };
+    this.importObject.imports.__internal_print_str = (arg: number) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(
+        PyValue(STRING, arg, new Uint32Array(this.importObject.js.memory.buffer))
+      );
+      return arg;
+    };
+    this.importObject.imports.__internal_print_bool = (arg: number) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(PyValue(BOOL, arg, null));
+      return arg;
+    };
+    this.importObject.imports.__internal_print_none = (arg: number) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(PyValue(NONE, arg, null));
+      return arg;
+    };
 
     // initialization for range() calss and its constructor.
     const classFields: Map<string, [number, Literal]> = new Map();
@@ -75,6 +107,6 @@ export class BasicREPL {
     };
     const parsed = parse(source);
     const [result, _] = await tc(this.currentTypeEnv, parsed);
-    return result.a;
+    return result.a[0];
   }
 }
