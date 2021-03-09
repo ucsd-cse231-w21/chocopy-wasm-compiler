@@ -384,7 +384,7 @@ export class MnS<A extends MarkableAllocator> {
           // Layout: [32-bit TAG_LIST, 32-bit <length>, 32-bit <capacity>, data...]
 
           // Extract value at childPtr + 4. Assumed to be a primitive value
-          const listLength = this.getField(childPtr + 4n);
+          const listLength = childSize;
           
           // Sanity check, just-in-case
           // NOTE(sagar): probably not necessary
@@ -392,8 +392,9 @@ export class MnS<A extends MarkableAllocator> {
             throw new Error("Pointer value stored in the place of list length");
           }
 
-          const startPtr = childPtr + 12n;
-          for(let dataPtr = startPtr; dataPtr !== startPtr + listLength * 4n; dataPtr = dataPtr + 4n) {
+          // Note(sagar): Memory layout is abstracted by allocator
+          // childPtr always points to start of data, not header
+          for(let dataPtr = childPtr; dataPtr !== childPtr + listLength * 4n; dataPtr = dataPtr + 4n) {
             const elementValue = this.getField(dataPtr);
 
             if(isPointer(elementValue)) {
