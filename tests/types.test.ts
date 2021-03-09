@@ -5,12 +5,15 @@ import { NUM, BOOL, NONE } from '../utils';
 describe('tc', () => {
 
   assertTC("number", "1", NUM);
+  assertTC("bignum", "4294967295", NUM);
   assertTC("true", "True", BOOL);
   assertTC("false", "False", BOOL);
 
   assertTC("plus", "1 + 2", NUM);
   assertTCFail("plusBoolRight", "1 + True");
+  assertTCFail("plusBoolRightBigNum", "4294967295 + True");
   assertTCFail("plusBoolLeft", "False + 2");
+  assertTCFail("plusBoolLeftBigNum", "False + 4294967295");
   assertTCFail("plusBoolBoth", "False + True");
 
   assertTC("mul", "1 * 2", NUM);
