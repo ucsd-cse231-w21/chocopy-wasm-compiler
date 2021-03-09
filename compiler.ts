@@ -145,6 +145,25 @@ export function makeId<A>(a: A, x: string): Destructure<A> {
   };
 }
 
+export function makeLookup<A>(a: A, obj: Expr<A>, field: string): Destructure<A> {
+  return {
+    isDestructured: false,
+    targets: [
+      {
+        ignore: false,
+        starred: false,
+        target: {
+          a: a,
+          tag: "lookup",
+          field: field,
+          obj: obj,
+        },
+      },
+    ],
+    valueType: a,
+  };
+}
+
 export function compile(ast: Program<[Type, Location]>, env: GlobalEnv): CompileResult {
   const withDefines = augmentEnv(env, ast);
 
@@ -319,11 +338,11 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         left: Expr_cur,
         right: Expr_step,
       };
+      console.log("rgexpr",rgExpr)
       var step: Stmt<[Type, Location]> = {
-        a: [NONE, stmt.a[1]],
-        tag: "field-assign",
-        obj: rgExpr,
-        field: "cur",
+        a: rgExpr.a,
+        tag: "assignment",
+        destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
         value: ncur,
       };
       var Code_step = codeGenStmt(step, env);
@@ -411,20 +430,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       return [`(br ${stmt.depth})`];
     case "continue":
       console.log(stmt);
-      return [`(br ${stmt.depth})`]
-    case "field-assign":
-      var objStmts = codeGenExpr(stmt.obj, env);
-      var objTyp = stmt.obj.a[0];
-      if (objTyp.tag !== "class") {
-        // I don't think this error can happen
-        throw new Error(
-          "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
-        );
-      }
-      var className = objTyp.name;
-      var [offset, _] = env.classes.get(className).get(stmt.field);
-      var valStmts = codeGenExpr(stmt.value, env);
-      return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, ...valStmts, `(i32.store)`];
+      return [`(br ${stmt.depth})`];
     default:
       unhandledTag(stmt);
   }
