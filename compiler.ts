@@ -1049,7 +1049,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           ...objStmts,
           ...argsStmts,
           `(call $$pushCaller)`,
-          `(call $${className}$${expr.method})`
+          `(call $${className}$${expr.method})`,
           `(call $$popCaller)`,
         ];
       }
