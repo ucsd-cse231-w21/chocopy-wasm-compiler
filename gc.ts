@@ -7,13 +7,15 @@ export type HeapTag =
   | typeof TAG_LIST
   | typeof TAG_STRING
   | typeof TAG_DICT
-  | typeof TAG_BIGINT;
+  | typeof TAG_BIGINT
+  | typeof TAG_REF;
 
 export const TAG_CLASS = 0x1n;
 export const TAG_LIST = 0x2n;
 export const TAG_STRING = 0x3n;
 export const TAG_DICT = 0x4n;
 export const TAG_BIGINT = 0x5n;
+export const TAG_REF = 0x6n;
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
@@ -385,6 +387,12 @@ export class MnS<A extends MarkableAllocator> {
 
         case TAG_BIGINT: {
           throw new Error("TODO: trace bigint");
+        }
+
+        // NOTE(alex:mm): Used to represent a boxed value
+        // No metadata
+        case TAG_REF: {
+          throw new Error("TODO: trace ref");
         }
       }
 
