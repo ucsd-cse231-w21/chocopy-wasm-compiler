@@ -15,7 +15,7 @@ import {
   AssignTarget,
   Parameter,
 } from "./ast";
-import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
+import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged, LIST } from "./utils";
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -120,10 +120,14 @@ export function isNoneOrClass(t: Type) {
 
 const objtypes = ["class", "list", "dict", "callable"];
 function isObjectTypeTag(t: string): boolean {
-  return objtypes.indexOf(t) >= 0;
+  return objtypes.indexOf(t) >= 0 
+}
+
+function isEmptyList(t: Type): boolean {
+  return JSON.stringify(t) === JSON.stringify(LIST(null))
 }
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && isObjectTypeTag(t2.tag));
+  return equalType(t1, t2) || (t1.tag === "none" && isObjectTypeTag(t2.tag)) || isEmptyList(t1) || isEmptyList(t2);
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -601,7 +605,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
-          if (expr.op == BinOp.Plus && tLeft.a.tag === "list" && equalType(tLeft.a, tRight.a)) {
+          if (expr.op == BinOp.Plus && tLeft.a.tag === "list" && (equalType(tLeft.a, tRight.a) || isEmptyList(tLeft.a) || isEmptyList(tRight.a)) ) {
             return { a: tLeft.a, ...tBin };
           }
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
@@ -831,6 +835,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             throw new TypeCheckError("method call on an unknown class");
           }
         case "list":
+          if (tObj.a.content_type === null && tArgs.length > 0){
+            tObj.a.content_type = tArgs[0].a
+          }
           const list_builtin = new Map<string, [Array<Type>,Type]>([
             ["append",[[tObj.a.content_type], tObj.a]],
             ["clear", [[], tObj.a]],
@@ -864,7 +871,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       var commonType = null;
       const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
       if (listExpr.length == 0) {
-        commonType = NONE;
+        commonType = null;
       } else {
         commonType = listExpr[0].a;
         for (var i = 1; i < listExpr.length; ++i) {

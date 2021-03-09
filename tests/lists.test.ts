@@ -1,4 +1,4 @@
-import { PyInt, PyBool, PyNone, PyObj, LIST } from "../utils";
+import { PyInt, PyBool, PyNone, PyObj, LIST, NONE, NUM } from "../utils";
 import { assert, asserts, assertPrint, assertTC } from "./utils.test";
 
 describe("LIST TEST", () => {
@@ -60,8 +60,6 @@ describe("LIST TEST", () => {
   assert("Program 5: List Assign", source, PyInt(90));
 
   //Other Tests
-
-  assertTC("Empty List", "[]", LIST({ tag: "none" }));
   assertTC("List With Number", "[1,2,3]", LIST({ tag: "number" }));
 
   assert("Lists Declaration", "items : [int] = None\nitems", PyNone());
@@ -121,6 +119,8 @@ describe("LIST TEST", () => {
   `;
   assert("List Append", source, PyInt(1));
 
+
+
   var source = `
     items : [int] = None
     items = [1,2,3]
@@ -160,4 +160,47 @@ describe("LIST TEST", () => {
   `;
   assertPrint("Test .count() (prints)", source, ["2", "1", "1", "5", "1", "3", "0", "1", "0", "0", "1"]);
   assert("Test .count()", source, PyNone());
+
+  var source = `
+    []
+  `;
+  assertTC("Empty list", source, LIST(null));
+  var source = `
+  a : [int] = None
+  a = []
+  a
+  `;
+  assertTC("Assign Empty list", source, LIST(NUM));
+
+  var source = `
+  a : [int] = None
+  a = []
+  a.append(1)
+  a[0]
+  `;
+  assert("Empty list append", source, PyInt(1));
+
+  var source = `
+  [].append(1)[0]
+  `;
+  assert("Empty list append 2", source, PyInt(1));
+
+  var source = `
+  [].clear()
+  `;
+  assertTC("Empty list clear 2", source, LIST(null));
+
+  var source = `
+  a : [int] = None
+  a = [] + []
+  a
+  `;
+  assertTC("Assign Empty list", source, LIST(NUM));
+
+  var source = `
+  a : [int] = None
+  a = [] + [1,2,3]
+  a[1]
+  `;
+  assert("Empty list append 2", source, PyInt(2));
 });
