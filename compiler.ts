@@ -321,6 +321,24 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       };
       var Code_step_expr = codeGenExpr(Expr_step, env);
 
+
+      // use cur-step to replace cur at the begining considering about continue
+      var Expr_icur: Expr<[Type, Location]> = {
+        a: [NUM, stmt.a[1]],
+        tag: "binop",
+        op: BinOp.Minus,
+        left: Expr_cur,
+        right: Expr_step,
+      };
+      
+      var cur_ass: Stmt<[Type, Location]> = {
+        a: [NONE, stmt.a[1]],
+        tag: "assignment",
+        destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
+        value: Expr_icur,
+      };
+      var Code_cur_iniass = codeGenStmt(cur_ass, env);
+
       // name = cur
       var ass: Stmt<[Type, Location]> = {
         a: [NONE, stmt.a[1]],
@@ -339,7 +357,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         right: Expr_step,
       };
       var step: Stmt<[Type, Location]> = {
-        a: rgExpr.a,
+        a: [NONE, stmt.a[1]],
         tag: "assignment",
         destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
         value: ncur,
@@ -362,7 +380,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           a: [NONE, stmt.a[1]],
           tag: "assignment",
           destruct: makeId([NUM, stmt.a[1]], stmt.index),
-          value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(0) } },
+          value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(-1) } },
         };
         var Code_iass = codeGenStmt(iass, env);
 
@@ -387,6 +405,8 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           ${iter.join("\n")}
           (i32.store)
           ${Code_iass.join("\n")}
+          ${Code_cur_iniass.join("\n")}
+
           (block
             (loop
               ${Code_step.join("\n")}
@@ -399,6 +419,9 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           ))`,
         ];
       }
+
+
+
       // iterable should be a Range object
       // test
       // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
@@ -410,7 +433,8 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         (i32.const ${envLookup(env, "rg")})
         ${iter.join("\n")}
         (i32.store)
-
+        ${Code_cur_iniass.join("\n")}
+        
         (block
           (loop
             ${Code_step.join("\n")}
