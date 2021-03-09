@@ -788,7 +788,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
     c.nextSibling(); // arg or ]
     var temp = c;
     while (temp.type.name !== "]") {
-      if (temp.type.name !== "VariableName") {
+      if (temp.type.name !== "VariableName" && temp.type.name !== "MemberExpression") {
         throw new BaseException.CompileError(location, "Invalid Callable arg type");
       }
       args.push(traverseType(c, s));
