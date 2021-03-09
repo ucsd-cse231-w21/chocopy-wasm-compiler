@@ -60,7 +60,11 @@ export const encodeLiteral: Array<string> = [
 
 export const decodeLiteral: Array<string> = [`(i32.const ${nTagBits})`, "(i32.shr_s)"];
 
-export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>, mm: MemoryManager): GlobalEnv {
+export function augmentEnv(
+  env: GlobalEnv,
+  prog: Program<[Type, Location]>,
+  mm: MemoryManager
+): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
   const newFuns = new Map(env.funs);
@@ -148,7 +152,11 @@ export function makeId<A>(a: A, x: string): Destructure<A> {
   };
 }
 
-export function compile(ast: Program<[Type, Location]>, env: GlobalEnv, mm: MemoryManager): CompileResult {
+export function compile(
+  ast: Program<[Type, Location]>,
+  env: GlobalEnv,
+  mm: MemoryManager
+): CompileResult {
   const withDefines = augmentEnv(env, ast, mm);
 
   let stackIndexOffset = 0; // NOTE(alex:mm): assumes start function has no params
@@ -256,11 +264,14 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       const getValue = "(local.get $$destruct)";
 
       // TODO(alex): make more granular?
-      return codeGenTempGuard([
-        ...valueCode,
-        "(local.set $$destruct)",
-        ...codeGenDestructure(stmt.destruct, getValue, env),
-      ], FENCE_TEMPS);
+      return codeGenTempGuard(
+        [
+          ...valueCode,
+          "(local.set $$destruct)",
+          ...codeGenDestructure(stmt.destruct, getValue, env),
+        ],
+        FENCE_TEMPS
+      );
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
       return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]), FENCE_TEMPS);
