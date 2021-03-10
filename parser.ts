@@ -447,7 +447,6 @@ export function traverseArgumentValue(c: TreeCursor, s: string): Expr<Location> 
     case "AssignOp":
       c.nextSibling(); // Move onto argument value
       let val = traverseExpr(c, s);
-      //console.warn(val);
       c.nextSibling(); // Move onto "," or ")"
       return val;
     default:
