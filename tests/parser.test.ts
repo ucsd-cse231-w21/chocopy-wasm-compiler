@@ -2,7 +2,18 @@ import * as mocha from "mocha";
 import { expect } from "chai";
 import { parser } from "lezer-python";
 import { UniOp, BinOp } from "../ast";
-import { traverseExpr, traverseStmt, traverse, parse } from "../parser";
+// TODO: add additional tests here to ensure parse works as expected
+import { traverseExpr, traverseStmt, traverse, parse, traverseVarInit } from "../parser";
+import { singleVarAssignment } from "./utils.test";
+
+// We write tests for each function in parser.ts here. Each function gets its
+// own describe statement. Each it statement represents a single test. You
+// should write enough unit tests for each function until you are confident
+// the parser works as expected.
+// describe('traverseExpr(c, s) function', () => {
+//   it('parses a number in the beginning', () => {
+//     const source = "987";
+//     const cursor = parser.parse(source).cursor();
 
 // We write tests for each function in parser.ts here. Each function gets its
 // own describe statement. Each it statement represents a single test. You
@@ -22,6 +33,11 @@ describe("traverseExpr(c, s) function", () => {
 
     // Note: we have to use deep equality when comparing objects
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 3,
+        line: 1,
+      },
       tag: "literal",
       value: {
         tag: "num",
@@ -39,6 +55,11 @@ describe("traverseExpr(c, s) function", () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 4,
+        line: 1,
+      },
       tag: "literal",
       value: { tag: "none" },
     });
@@ -52,9 +73,22 @@ describe("traverseExpr(c, s) function", () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 8,
+        line: 1,
+      },
       tag: "uniop",
       op: UniOp.Not,
-      expr: { tag: "literal", value: { tag: "bool", value: true } },
+      expr: {
+        a: {
+          col: 4,
+          length: 4,
+          line: 1,
+        },
+        tag: "literal",
+        value: { tag: "bool", value: true },
+      },
     });
   });
 
@@ -66,10 +100,31 @@ describe("traverseExpr(c, s) function", () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 5,
+        line: 1,
+      },
       tag: "binop",
       op: BinOp.Minus,
-      left: { tag: "literal", value: { tag: "num", value: BigInt(7) } },
-      right: { tag: "literal", value: { tag: "num", value: BigInt(3) } },
+      left: {
+        a: {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        tag: "literal",
+        value: { tag: "num", value: BigInt(7) },
+      },
+      right: {
+        a: {
+          col: 4,
+          length: 1,
+          line: 1,
+        },
+        tag: "literal",
+        value: { tag: "num", value: BigInt(3) },
+      },
     });
   });
 
@@ -82,10 +137,39 @@ describe("traverseExpr(c, s) function", () => {
 
     expect(parsedExpr).to.deep.equal({
       tag: "list-expr",
+      a: {
+        col: 0,
+        length: 9,
+        line: 1,
+      },
       contents: [
-        { tag: "literal", value: { tag: "num", value: BigInt(1) } },
-        { tag: "literal", value: { tag: "num", value: BigInt(2) } },
-        { tag: "literal", value: { tag: "num", value: BigInt(3) } },
+        {
+          a: {
+            col: 1,
+            length: 1,
+            line: 1,
+          },
+          tag: "literal",
+          value: { tag: "num", value: BigInt(1) },
+        },
+        {
+          a: {
+            col: 4,
+            length: 1,
+            line: 1,
+          },
+          tag: "literal",
+          value: { tag: "num", value: BigInt(2) },
+        },
+        {
+          a: {
+            col: 7,
+            length: 1,
+            line: 1,
+          },
+          tag: "literal",
+          value: { tag: "num", value: BigInt(3) },
+        },
       ],
     });
   });
@@ -99,9 +183,30 @@ describe("traverseExpr(c, s) function", () => {
     const parsedExpr = traverseExpr(cursor, source);
 
     expect(parsedExpr).to.deep.equal({
+      a: {
+        col: 0,
+        length: 8,
+        line: 1,
+      },
       tag: "bracket-lookup",
-      obj: { tag: "id", name: "items" },
-      key: { tag: "literal", value: { tag: "num", value: BigInt(6) } },
+      obj: {
+        a: {
+          col: 0,
+          length: 5,
+          line: 1,
+        },
+        tag: "id",
+        name: "items",
+      },
+      key: {
+        a: {
+          col: 6,
+          length: 1,
+          line: 1,
+        },
+        tag: "literal",
+        value: { tag: "num", value: BigInt(6) },
+      },
     });
   });
 });
@@ -142,9 +247,682 @@ describe("parse(source) function", () => {
   it("parse a number", () => {
     const parsed = parse("987");
     expect(parsed.stmts).to.deep.equal([
-      { tag: "expr", expr: { tag: "literal", value: { tag: "num", value: BigInt(987) } } },
+      {
+        a: {
+          col: 0,
+          length: 3,
+          line: 1,
+        },
+        tag: "expr",
+        expr: {
+          a: {
+            col: 0,
+            length: 3,
+            line: 1,
+          },
+          tag: "literal",
+          value: { tag: "num", value: BigInt(987) },
+        },
+      },
+    ]);
+  });
+});
+
+describe("parse(source) function", () => {
+  it("parse a Callable[[], None] type initialization", () => {
+    const parsed = parse("f:Callable[[], None] = None");
+    expect(parsed.inits).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 27,
+          line: 1,
+        },
+        name: "f",
+        type: {
+          tag: "callable",
+          args: [],
+          ret: { tag: "none" },
+        }, //end of type
+        value: { tag: "none" },
+      },
     ]);
   });
 
   // TODO: add additional tests here to ensure parse works as expected
+  it("parse a Callable[[int], bool] type initialization", () => {
+    const parsed = parse("f:Callable[[int], bool] = None");
+    expect(parsed.inits).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 30,
+          line: 1,
+        },
+        name: "f",
+        type: {
+          tag: "callable",
+          args: [{ name: "callable_0", type: { tag: "number" } }],
+          ret: { tag: "bool" },
+        }, //end of type
+        value: { tag: "none" },
+      },
+    ]);
+  });
+
+  it("parse an empty dict expression", () => {
+    const parsed = parse("d = {}");
+    expect(parsed.stmts).to.deep.equal([
+      singleVarAssignment(
+        "d",
+        {
+          a: {
+            col: 4,
+            length: 2,
+            line: 1,
+          },
+          tag: "dict",
+          entries: [],
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 6,
+          line: 1,
+        }
+      ),
+    ]);
+  });
+
+  it("parse a dict expression", () => {
+    const parsed = parse("d = {2:True}");
+    expect(parsed.stmts).to.deep.equal([
+      singleVarAssignment(
+        "d",
+        {
+          a: {
+            col: 4,
+            length: 8,
+            line: 1,
+          },
+          tag: "dict",
+          entries: [
+            [
+              {
+                a: {
+                  col: 5,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "num", value: 2n },
+              },
+              {
+                a: {
+                  col: 7,
+                  length: 4,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "bool", value: true },
+              },
+            ],
+          ],
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 12,
+          line: 1,
+        }
+      ),
+    ]);
+  });
+
+  it("parse a nested dict expression", () => {
+    const parsed = parse("d = {2:{4:True}}");
+    expect(parsed.stmts).to.deep.equal([
+      singleVarAssignment(
+        "d",
+        {
+          a: {
+            col: 4,
+            length: 12,
+            line: 1,
+          },
+          tag: "dict",
+          entries: [
+            [
+              {
+                a: {
+                  col: 5,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "num", value: 2n },
+              },
+              {
+                tag: "dict",
+                a: {
+                  col: 7,
+                  length: 8,
+                  line: 1,
+                },
+                entries: [
+                  [
+                    {
+                      a: {
+                        col: 8,
+                        length: 1,
+                        line: 1,
+                      },
+                      tag: "literal",
+                      value: { tag: "num", value: 4n },
+                    },
+                    {
+                      a: {
+                        col: 10,
+                        length: 4,
+                        line: 1,
+                      },
+                      tag: "literal",
+                      value: { tag: "bool", value: true },
+                    },
+                  ],
+                ],
+              },
+            ],
+          ],
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 1,
+          line: 1,
+        },
+        {
+          col: 0,
+          length: 16,
+          line: 1,
+        }
+      ),
+    ]);
+  });
+
+  it("parse a Callable[[int, Callable[[int], bool]], Foo] type initialization", () => {
+    const parsed = parse("f:Callable[[int, Callable[[int], bool]], Foo] = None");
+    expect(parsed.inits).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 52,
+          line: 1,
+        },
+        name: "f",
+        type: {
+          tag: "callable",
+          args: [
+            { name: "callable_0", type: { tag: "number" } },
+            {
+              name: "callable_1",
+              type: {
+                tag: "callable",
+                args: [{ name: "callable_0", type: { tag: "number" } }],
+                ret: { tag: "bool" },
+              },
+            },
+          ],
+          ret: { tag: "class", name: "Foo" },
+        }, //end of type
+        value: { tag: "none" },
+      },
+    ]);
+  });
+
+  it("parse a Callable[[int, bool], Foo] type initialization", () => {
+    const parsed = parse("f:Callable[[int, bool], Foo] = None");
+    expect(parsed.inits).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 35,
+          line: 1,
+        },
+        name: "f",
+        type: {
+          tag: "callable",
+          args: [
+            { name: "callable_0", type: { tag: "number" } },
+            { name: "callable_1", type: { tag: "bool" } },
+          ],
+          ret: { tag: "class", name: "Foo" },
+        }, //end of type
+        value: { tag: "none" },
+      },
+    ]);
+  });
+
+  it("parse a nested function", () => {
+    const parsed = parse(`
+            def f(x: int) -> int:
+                def g() -> int:
+                    return x
+                return g()
+        `);
+    expect(parsed.funs).to.deep.equal([
+      {
+        a: {
+          col: 13,
+          length: 110,
+          line: 2,
+        },
+        name: "f",
+        parameters: [{ name: "x", type: { tag: "number" } }],
+        ret: { tag: "number" },
+        decls: [],
+        inits: [],
+        funs: [
+          {
+            a: {
+              col: 17,
+              length: 45,
+              line: 3,
+            },
+            name: "g",
+            parameters: [],
+            ret: { tag: "number" },
+            decls: [],
+            inits: [],
+            funs: [],
+            body: [
+              {
+                a: {
+                  col: 21,
+                  length: 8,
+                  line: 4,
+                },
+                tag: "return",
+                value: {
+                  a: {
+                    col: 28,
+                    length: 1,
+                    line: 4,
+                  },
+                  tag: "id",
+                  name: "x",
+                },
+              },
+            ],
+          },
+        ],
+        body: [
+          {
+            a: {
+              col: 17,
+              length: 10,
+              line: 5,
+            },
+            tag: "return",
+            value: {
+              a: {
+                col: 24,
+                length: 3,
+                line: 5,
+              },
+              tag: "call_expr",
+              name: {
+                a: {
+                  col: 24,
+                  length: 3,
+                  line: 5,
+                },
+                tag: "id",
+                name: "g",
+              },
+              arguments: [],
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parse a nested function with nonlocal", () => {
+    const parsed = parse(`
+            def f(x: int) -> Callable[[], bool]:
+                def k():
+                    pass
+                def g() -> bool:
+                    nonlocal x
+                    return True
+                return g
+        `);
+    expect(parsed.funs).to.deep.equal([
+      {
+        a: {
+          col: 13,
+          length: 208,
+          line: 2,
+        },
+        name: "f",
+        parameters: [{ name: "x", type: { tag: "number" } }],
+        ret: { tag: "callable", args: [], ret: { tag: "bool" } },
+        decls: [],
+        inits: [],
+        funs: [
+          {
+            a: {
+              col: 17,
+              length: 34,
+              line: 3,
+            },
+            name: "k",
+            parameters: [],
+            ret: { tag: "none" },
+            decls: [],
+            inits: [],
+            funs: [],
+            body: [
+              {
+                a: {
+                  col: 21,
+                  length: 4,
+                  line: 4,
+                },
+                tag: "pass",
+              },
+            ],
+          },
+          {
+            a: {
+              col: 17,
+              length: 80,
+              line: 5,
+            },
+            name: "g",
+            parameters: [],
+            ret: { tag: "bool" },
+            decls: [
+              {
+                a: {
+                  col: 21,
+                  length: 10,
+                  line: 6,
+                },
+                tag: "nonlocal",
+                name: "x",
+              },
+            ],
+            inits: [],
+            funs: [],
+            body: [
+              {
+                a: {
+                  col: 21,
+                  length: 11,
+                  line: 7,
+                },
+                tag: "return",
+                value: {
+                  a: {
+                    col: 28,
+                    length: 4,
+                    line: 7,
+                  },
+                  tag: "literal",
+                  value: { tag: "bool", value: true },
+                },
+              },
+            ],
+          },
+        ],
+        body: [
+          {
+            a: {
+              col: 17,
+              length: 8,
+              line: 8,
+            },
+            tag: "return",
+            value: {
+              a: {
+                col: 24,
+                length: 1,
+                line: 8,
+              },
+              tag: "id",
+              name: "g",
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parse a function call with callable return type", () => {
+    const parsed = parse(`id(f())(5)`);
+    expect(parsed.stmts).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 10,
+          line: 1,
+        },
+        tag: "expr",
+        expr: {
+          a: {
+            col: 0,
+            length: 10,
+            line: 1,
+          },
+          tag: "call_expr",
+          name: {
+            a: {
+              col: 0,
+              length: 7,
+              line: 1,
+            },
+            tag: "call_expr",
+            name: {
+              a: {
+                col: 0,
+                length: 7,
+                line: 1,
+              },
+              tag: "id",
+              name: "id",
+            },
+            arguments: [
+              {
+                a: {
+                  col: 3,
+                  length: 3,
+                  line: 1,
+                },
+                tag: "call_expr",
+                name: {
+                  a: {
+                    col: 3,
+                    length: 3,
+                    line: 1,
+                  },
+                  tag: "id",
+                  name: "f",
+                },
+                arguments: [],
+              },
+            ],
+          },
+          arguments: [
+            {
+              a: {
+                col: 8,
+                length: 1,
+                line: 1,
+              },
+              tag: "literal",
+              value: { tag: "num", value: 5n },
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("parse a method call with callable return type", () => {
+    const parsed = parse(`a.id()(5)`);
+    expect(parsed.stmts).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 9,
+          line: 1,
+        },
+        tag: "expr",
+        expr: {
+          tag: "call_expr",
+          name: {
+            a: {
+              col: 0,
+              length: 6,
+              line: 1,
+            },
+            tag: "method-call",
+            obj: {
+              a: {
+                col: 0,
+                length: 1,
+                line: 1,
+              },
+              tag: "id",
+              name: "a",
+            },
+            method: "id",
+            arguments: [],
+          },
+          a: {
+            col: 0,
+            length: 9,
+            line: 1,
+          },
+          arguments: [
+            {
+              a: {
+                col: 7,
+                length: 1,
+                line: 1,
+              },
+              tag: "literal",
+              value: { tag: "num", value: 5n },
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("parse a lambda expression (no arg)", () => {
+    const parsed = parse(`lambda a : a + 10`);
+    expect(parsed.stmts).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 17,
+          line: 1,
+        },
+        tag: "expr",
+        expr: {
+          a: {
+            col: 0,
+            length: 17,
+            line: 1,
+          },
+          tag: "lambda",
+          args: ["a"],
+          ret: {
+            a: {
+              col: 11,
+              length: 6,
+              line: 1,
+            },
+            tag: "binop",
+            op: BinOp.Plus,
+            left: {
+              a: {
+                col: 11,
+                length: 1,
+                line: 1,
+              },
+              tag: "id",
+              name: "a",
+            },
+            right: {
+              a: {
+                col: 15,
+                length: 2,
+                line: 1,
+              },
+              tag: "literal",
+              value: { tag: "num", value: 10n },
+            },
+          },
+        },
+      },
+    ]);
+  });
+
+  it("parse a lambda expression (multiple arg)", () => {
+    const parsed = parse(`lambda a, b, c : 10`);
+    expect(parsed.stmts).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 19,
+          line: 1,
+        },
+        tag: "expr",
+        expr: {
+          a: {
+            col: 0,
+            length: 19,
+            line: 1,
+          },
+          tag: "lambda",
+          args: ["a", "b", "c"],
+          ret: {
+            a: {
+              col: 17,
+              length: 2,
+              line: 1,
+            },
+            tag: "literal",
+            value: { tag: "num", value: 10n },
+          },
+        },
+      },
+    ]);
+  });
 });
