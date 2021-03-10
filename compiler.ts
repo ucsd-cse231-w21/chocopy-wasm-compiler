@@ -40,6 +40,17 @@ export const nTagBits = 1;
 const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
 const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
 
+export enum ListContentTag {
+  Num = 0,
+  Bool,
+  None,
+  Str,
+  Class,
+  List,
+  Dict,
+  Callable
+}
+
 export const encodeLiteral: Array<string> = [
   `(i32.const ${nTagBits})`,
   "(i32.shl)",
@@ -827,6 +838,10 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         callName = "print_num";
       } else if (expr.name === "print" && argTyp === STRING) {
         callName = "print_str";
+        //print_list takes an additional arg: type of elements in list
+        //print_list(base_addr, elem_type)
+      } else if (expr.name === "print" && argTyp.tag === "list") {
+        return argStmts.concat([codeGenListElemType(argTyp.content_type), `(call $print_list)`]);
       } else if (expr.name === "print" && argTyp === BOOL) {
         return argStmts.concat([`(call $print_bool)`]);
       } else if (expr.name === "print" && argTyp === NONE) {
@@ -1888,5 +1903,26 @@ function codeGenBinOp(op: BinOp): string {
       return "(i32.and)";
     case BinOp.Or:
       return "(i32.or)";
+  }
+}
+
+function codeGenListElemType(elemTyp : Type): string {
+  switch(elemTyp.tag) {
+    case "number":
+      return `(i32.const ${ListContentTag.Num})`;
+    case "bool":
+      return `(i32.const ${ListContentTag.Bool})`;
+    case "none":
+      return `(i32.const ${ListContentTag.None})`;
+    case "string":
+      return `(i32.const ${ListContentTag.Str})`;
+    case "class":
+      return `(i32.const ${ListContentTag.Class})`;
+    case "list":
+      return `(i32.const ${ListContentTag.List})`;
+    case "dict":
+      return `(i32.const ${ListContentTag.Dict})`;
+    case "callable":
+      return `(i32.const ${ListContentTag.Callable})`;
   }
 }
