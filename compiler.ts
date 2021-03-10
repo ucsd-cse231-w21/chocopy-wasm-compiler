@@ -404,7 +404,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         };
         var Code_idstep = codeGenStmt(niass, env);
         // iterable should be a Range object
-        return [
+        return codeGenTempGuard([
           `(i32.const ${envLookup(env, "rg")})`,
           ...iter,
           `(i32.store)`,
@@ -418,7 +418,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           ...bodyStmts,
           "(br 0)",
           "))",
-        ];
+        ], FENCE_TEMPS);
       }
       // iterable should be a Range object
       // test
@@ -426,7 +426,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
       // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
       // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
-      return [
+      return codeGenTempGuard([
         `(i32.const ${envLookup(env, "rg")})`,
         ...iter,
         `(i32.store)`,
@@ -438,7 +438,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         ...bodyStmts,
         `(br 0)`,
         `))`,
-      ];
+      ], FENCE_TEMPS);
     case "pass":
       return [];
     case "break":
