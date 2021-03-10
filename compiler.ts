@@ -1312,7 +1312,7 @@ function codeGenDictBracketLookup(
     `(i32.const ${hashtableSize})`,
     "(call $ha$htable$Lookup)",
   ]);
-  return dictKeyValStmts.concat(["i32.load"]);
+  return dictKeyValStmts.concat(["(i32.load)"]);
 }
 
 //Assumes that base address of dict is pushed onto the stack already
