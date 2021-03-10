@@ -141,7 +141,7 @@ describe("FOR LOOP TEST", () => {
         for k in range(1, 3):
           print(i*j*k)
     `,
-    ['1', '2', '2', '4', '2', '4', '4', '8']
+    ["1", "2", "2", "4", "2", "4", "4", "8"]
   );
 
   assertPrint(
@@ -160,7 +160,7 @@ describe("FOR LOOP TEST", () => {
             pass
           print(i*j*k)
     `,
-    ['1', '2', '2', '4']
+    ["1", "2", "2", "4"]
   );
 
   assertPrint(
@@ -179,7 +179,7 @@ describe("FOR LOOP TEST", () => {
             pass
           print(i*j*k)
     `,
-    ['2', '4', '4', '8']
+    ["2", "4", "4", "8"]
   );
 
   assertPrint(
@@ -194,7 +194,7 @@ describe("FOR LOOP TEST", () => {
       
     count(k)
     `,
-    ['0', '1', '2', '3', '4']
+    ["0", "1", "2", "3", "4"]
   );
 
 
@@ -211,9 +211,11 @@ describe("FOR LOOP TEST", () => {
           print(i)
         
         
-    Counter().print_loop(5)
+    Counter().print_loop(7)
     `,
-    ['0', '1', '2', '3', '4']
+    ["0", "1", "2", "3", "4", "5", "6"]
   );
+
+
 
 });
