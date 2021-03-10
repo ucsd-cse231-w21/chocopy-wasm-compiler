@@ -438,8 +438,10 @@ export function tcStmt(
               if (target.target.tag === "id") {
                 locals.vars.set(target.target.name, iter_type);
               } else {
-                throw new BaseException.CompileError(stmt.a, 
-                  "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang");
+                throw new BaseException.CompileError(
+                  stmt.a, 
+                  "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
+                );
               }
             });
             break;
@@ -459,8 +461,10 @@ export function tcStmt(
             if (target.target.tag === "id") {
               locals.vars.set(target.target.name, iter_type);
             } else {
-              throw new BaseException.CompileError(stmt.a, 
-                "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang");
+              throw new BaseException.CompileError(
+                stmt.a, 
+                "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
+              );
             }
           });
           break;
