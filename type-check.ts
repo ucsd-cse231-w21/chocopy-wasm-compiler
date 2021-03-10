@@ -459,7 +459,7 @@ export function tcStmt(
         case "list":
           iter_type = iterable_type.content_type;
           stmt.name.targets.forEach((target) => {
-            if (target.target.tag === "id"){
+            if (target.target.tag === "id") {
               locals.vars.set(target.target.name, iter_type);
             } else {
               throw new BaseException.CompileError(
