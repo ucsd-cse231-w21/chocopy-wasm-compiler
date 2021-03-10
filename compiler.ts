@@ -437,20 +437,20 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           //   ];
           // }
 
-          return [
-            `
-            ${Code_iass.join("\n")}
-
-            (block
-              (loop
-                ${Code_idstep.join("\n")}
-                (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
-
-                ${Code_ass.join("\n")}
-                ${bodyStmts.join("\n")}
-                (br 0)
-            ))`,
-          ];
+          return codeGenTempGuard(
+            [
+              ...Code_iass,
+              `(block`,
+              `  (loop`,
+              ...Code_idstep,
+              ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ")"],
+              ...Code_ass,
+              ...bodyStmts,
+              `(br 0)`,
+              `))`,
+            ],
+            FENCE_TEMPS
+          );
         case "call":
           // must be range()
           var iter = codeGenExpr(stmt.iterable, env);
