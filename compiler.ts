@@ -339,7 +339,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           var ass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
             tag: "assignment",
-            destruct: makeId([NUM, stmt.a[1]], stmt.name),
+            destruct: stmt.name,
             value: list_lookup,
           };
           var Code_ass = codeGenStmt(ass, env);
@@ -449,7 +449,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           var ass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
             tag: "assignment",
-            destruct: makeId([NUM, stmt.a[1]], stmt.name),
+            destruct: stmt.name,
             value: Expr_cur,
           };
           var Code_ass = codeGenStmt(ass, env);
