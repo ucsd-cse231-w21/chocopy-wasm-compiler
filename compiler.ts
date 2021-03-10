@@ -81,6 +81,11 @@ export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): Glo
     newGlobals.set("rng" + index, newOffset);
     newOffset += 1;
   }
+  // set bars for indexing in for loops
+  for (let index = lastCount+1; index <= forCount; index++) {
+    newGlobals.set("idx" + index, newOffset);
+    newOffset += 1;
+  }
 
   prog.classes.forEach((cls) => {
     const classFields = new Map();
@@ -293,12 +298,106 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       ];
     case "for":
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      var iter = codeGenExpr(stmt.iterable, env);
 
       switch(stmt.iterable.tag) {
+        case "id":
+          // not handled yet
+          return []
         case "list-expr":
-          return [];
-        default:
+          var iass: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeId([NUM, stmt.a[1]], "idx" + stmt.id),
+            value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(-1) } },
+          };
+          var Code_iass = codeGenStmt(iass, env);
+
+          var nid: Expr<[Type, Location]> = {
+            a: [NUM, stmt.a[1]],
+            tag: "binop",
+            op: BinOp.Plus,
+            left: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id },
+            right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
+          };
+          var niass: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeId([NUM, stmt.a[1]], "idx" + stmt.id),
+            value: nid,
+          };
+          var Code_idstep = codeGenStmt(niass, env);
+    
+
+          var list_lookup: Expr<[Type, Location]> = { 
+            a: [NUM, stmt.a[1]],
+            tag: "bracket-lookup",
+            obj: stmt.iterable,
+            key: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id }
+          };
+
+          // name = cur
+          var ass: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeId([NUM, stmt.a[1]], stmt.name),
+            value: list_lookup,
+          };
+          var Code_ass = codeGenStmt(ass, env);
+    
+          // stop condition cur<step
+          var Expr_cond: Expr<[Type, Location]> = {
+            a: [BOOL, stmt.a[1]],
+            tag: "binop",
+            op: BinOp.Gte,
+            left: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id },
+            right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(stmt.iterable.contents.length) } },
+          };
+          var Code_cond = codeGenExpr(Expr_cond, env); 
+
+
+          if (stmt.index) {
+            var idass: Stmt<[Type, Location]> = {
+              a: [NONE, stmt.a[1]],
+              tag: "assignment",
+              destruct: makeId([NUM, stmt.a[1]], stmt.index),
+              value: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id },
+            };
+            var Code_idass = codeGenStmt(idass, env);
+            return [
+              `
+              ${Code_iass.join("\n")}
+    
+              (block
+                (loop
+                  ${Code_idstep.join("\n")}
+                  (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
+    
+                  ${Code_ass.join("\n")}
+                  ${Code_idass.join("\n")}
+                  ${bodyStmts.join("\n")}
+                  (br 0)
+              ))`,
+            ];
+          }
+        
+          return [
+            `
+            ${Code_iass.join("\n")}
+  
+            (block
+              (loop
+                ${Code_idstep.join("\n")}
+                (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
+  
+                ${Code_ass.join("\n")}
+                ${bodyStmts.join("\n")}
+                (br 0)
+            ))`,
+          ];
+        case "call":
+          // must be range()
+          var iter = codeGenExpr(stmt.iterable, env);
+
           var rgExpr: Expr<[Type, Location]> = {
             a: [CLASS("Range"), stmt.a[1]],
             tag: "id",
