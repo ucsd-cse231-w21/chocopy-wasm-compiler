@@ -17,12 +17,11 @@ hello_world: str = "Hello! World"
 
 ### #2
 
-Adding two strings to create a new string:  
+String arithmetic:
 
 ```python
-a: str = "first"
-b: str = "second"
-c: str = a + b
+str_add: str = "First" + " " + "second"
+str_mult: str = "Patern = " + ("*" * 8)
 ```
 
 ### #3
@@ -47,32 +46,38 @@ Slicing a substring from a string:
 
 ```python
 hello_world: str = "Hello! World"
-hello: str = hello_world[0:6]
+
+print(hello_world[0:6]) # Hello!
+print(numbers[0:-1])    # Hello! World
 ```
 
 ### #6
 
-Slicing a string with a step value:
+Slicing a string with a step value.
 
 ```python
 numbers: str = "1 2 3 4 5 6"
-numbers_without_space = numbers[0:11:2]
+
+print(numbers[0:11:2])  # 123456
+print(numbers[::2])     # 123456
+print(numbers[::-2])    # 654321
+print(numbers[::-1])    # 6 5 4 3 2 1
 ```
 
 
 ### #7
 
-Getting length of a string:
+Builtin functions:
 
 ```python
 test_str: str = "String of length 19"
-print(len(test_str) == 19)
+print(len(test_str) == 19) # True
+print(int(-100) == "-100") # True
 ```
 
 ### #8
 
 Escape sequences `\n`, `\\`, `\t`:  
-(tabs expands to 4 spaces)
 
 ```python
 test_string: str = "\tThis line is tabbed\nThis is not\nNew lines with: \\n, tabs with \\t"
@@ -80,13 +85,15 @@ test_string: str = "\tThis line is tabbed\nThis is not\nNew lines with: \\n, tab
 
 ### #9
 
-Comparing two strings:
+Relational operators:
 
 ```python
-test1: str = "equal"
-test2: str = "equal"
-
-print(test1 == test2)
+print("abc" == "abc") # True
+print("abc" != "ab_") # True
+print("abc" <= "abc") # True
+print("abc" <  "bbc") # True
+print("abc" >  "bbc") # False
+print("abc" <  "bbc") # True
 ```
 
 
@@ -96,7 +103,8 @@ For loop iterator, create a variable of type `str` and assign the next
 value:
 
 ```python
-hello_world = "Hello! World"
+hello_world: str = "Hello! World"
+var: str = None
 for var in hello_world:
      print(var)
 ```
