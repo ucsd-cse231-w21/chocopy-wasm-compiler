@@ -439,7 +439,7 @@ export function tcStmt(
                 locals.vars.set(target.target.name, iter_type);
               } else {
                 throw new BaseException.CompileError(
-                  stmt.a, 
+                  stmt.a,
                   "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
                 );
               }
@@ -462,7 +462,7 @@ export function tcStmt(
               locals.vars.set(target.target.name, iter_type);
             } else {
               throw new BaseException.CompileError(
-                stmt.a, 
+                stmt.a,
                 "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
               );
             }
