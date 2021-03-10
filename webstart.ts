@@ -28,6 +28,8 @@ function stringify(result: Value): string {
       return "None";
     case "object":
       return `<${result.name} object at ${result.address}`;
+    case "list":
+      return `<${result.name} at ${result.address}>`;
     default:
       throw new Error(`Could not render value: ${result}`);
   }
@@ -56,19 +58,15 @@ function addAccordionEvent(){
 }
 
 function prettyPrintObjects(result: Value, repl : BasicREPL, currentEle : any){
-  // TODO Need to change this when list team changes AST for list value, tag will be "list" instead
-  if(result.tag == "object"){
-    const view = new Int32Array(repl.importObject.js.memory.buffer);
-    if(view[result.address/4] == 10){ // list
+  switch(result.tag){
+    case "object":
+      prettyPrintClassObject(result, repl, currentEle);
+      break;
+    case "list":
       prettyPrintList(result, repl, currentEle);
-    }
-    else{ // Normal object
-      prettyPrintClassObject(result, repl, currentEle)
-    }
+      break;
+    // case "dict";
   }
-  // pretty printing dict here, this else if statement should call another helper function
-  // similar to prettyPrintClassObject()
-  // else if (result.tag === "dict"){}
 }
 function prettyPrintClassObject(result: Value, repl : BasicREPL, currentEle : any){
   if(result.tag == "object"){
@@ -126,21 +124,16 @@ function prettyPrintClassObject(result: Value, repl : BasicREPL, currentEle : an
 }
 
 function prettyPrintList(result: any, repl: BasicREPL, currentEle: any){
-      //getting element type, since type is contained in result.name
-      //TODO Need to change this after list team implement list Value in AST
       const view = new Int32Array(repl.importObject.js.memory.buffer);
-
-      var regExp = /\<(.*?)\>/g;
-      var button_name = String(result.name);
-      var type_info = regExp.exec(result.name)[1].split(" ");
-      var type = type_info[0];
+      var type = result.content_type;
       var size = view[result.address/4 + 1]
       var bound = view[result.address/4 + 2]
 
       console.log(type, size, bound)
 
       const exp  = document.createElement("button") as HTMLButtonElement;
-      exp.innerHTML = "<i class='arrow' id='arrow'></i> " + button_name + " object";
+      exp.innerHTML = "<i class='arrow' id='arrow'></i> " + result.tag + `&lt${result.content_type.tag}&gt`;
+      console.log(exp)
       exp.setAttribute("class","accordion");
       const div = document.createElement("div");
       div.setAttribute("class","panel");
@@ -151,12 +144,12 @@ function prettyPrintList(result: any, repl: BasicREPL, currentEle: any){
       var i = 0;
       for (i = 0; i < size; i++){
         const ele = document.createElement("pre");
-        switch(type){
+        switch(type.tag){
           case "class":
             const val = PyValue({tag: "number"}, view[result.address/4 + 3 + i], view)
             if(val.tag !== "none"){
               ele.innerHTML = "<b class='tag'>" + i + ":</b>";
-              var class_name = type_info[1]; // TODO !!! Need to change this 
+              var class_name = type.name;
               const new_div = document.createElement("div");
               ele.appendChild(new_div);
               prettyPrintClassObject({
@@ -170,12 +163,11 @@ function prettyPrintList(result: any, repl: BasicREPL, currentEle: any){
             else{
               ele.innerHTML = "<b class='tag'>" + i + ": </b> <p class='val'>none</p>";
             }
-
             break;
-          case "number":
-            var ele_val = PyValue({tag: "number"}, view[result.address/4 + 3 + i], view) as any;
+          default:
+            var ele_val = PyValue(type, view[result.address/4 + 3 + i], view) as any;
             ele.innerHTML = "<b class='tag'>" + i + ": </b><p class='val'>" + ele_val.value + "</p>";
-            console.log(ele_val, ele)
+            break;
         }
         div.appendChild(ele);
       }

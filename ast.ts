@@ -180,6 +180,7 @@ export type Value =
   | Literal
   | { tag: "string"; value: string; address: number }
   | { tag: "object"; name: string; address: number }
-  | { tag: "callable"; name: string; address: number };
+  | { tag: "callable"; name: string; address: number }
+  | { tag: "list", name: string, address: number, content_type: Type};
 
 export type Location = { line: number; col: number; length: number };
