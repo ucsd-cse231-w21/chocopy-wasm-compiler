@@ -33,6 +33,28 @@ describe("Heap", () => {
         expect(bmb.getNumFreeBlocks()).to.eq(84);
       });
 
+      it("Should allocate appropriate number of blocks 2", () => {
+        const ptr1 = bmb.gcalloc(TAG_CLASS, 10n);
+        // Three blocks are allocated for request of size 25
+        expect(Number(ptr1)).to.eq(100);
+        expect(bmb.getNumFreeBlocks()).to.eq(89);
+
+        const ptr2 = bmb.gcalloc(TAG_CLASS, 10n);
+        expect(Number(ptr2)).to.eq(110);
+        expect(bmb.getNumFreeBlocks()).to.eq(88);
+      });
+
+      it("Should allocate appropriate number of blocks 3", () => {
+        const ptr1 = bmb.gcalloc(TAG_CLASS, 4n);
+        // Three blocks are allocated for request of size 25
+        expect(Number(ptr1)).to.eq(100);
+        expect(bmb.getNumFreeBlocks()).to.eq(89);
+
+        const ptr2 = bmb.gcalloc(TAG_CLASS, 8n);
+        expect(Number(ptr2)).to.eq(110);
+        expect(bmb.getNumFreeBlocks()).to.eq(88);
+      });
+
       it("Should return an invalid pointer if request exceeds available memory", () => {
         // 901 > 900, the total available  memory
         const ptr = bmb.gcalloc(TAG_CLASS, 901n);
