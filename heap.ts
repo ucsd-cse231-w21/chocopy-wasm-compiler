@@ -358,6 +358,8 @@ export class BitMappedBlocks implements MarkableAllocator {
       blocksRequested += 1n
     }
 
+    // console.warn(`Requested blocks: ${blocksRequested}`);
+
     if(blocksRequested > this.getNumFreeBlocks()) {
       return -1n;
     }
@@ -365,26 +367,29 @@ export class BitMappedBlocks implements MarkableAllocator {
     // Linearly Traverse the infomap to find blocks
     // This can lead to fragmentation
     // Can this be optimized further?
-    let index = 0n;
-    while (index < this.numBlocks) {
+    for (let index = 0n; index < this.numBlocks; index += 1n) {
       // Find the first free block
-      while (!this.isFree(index)) {
-        ++index;
+      // console.warn(`Index ${index} free: ${this.isFree(index)}`);
+      if (!this.isFree(index)) {
+        continue;
       }
 
       // Hit the end
-      if (index + blocksRequested > this.numBlocks) {
+      if (index + blocksRequested >= this.numBlocks) {
         return -1n;
       }
 
-      let count = 1n; // Keep track of free blocks
-
-      while (count < blocksRequested && index < this.numBlocks) {
-        ++count;
-        ++index;
+      let extendIndex = 0n;
+      let contiguous = true;
+      for (extendIndex = index + 1n; extendIndex < index + blocksRequested; extendIndex++) {
+        if (!this.isFree(extendIndex)) {
+          contiguous = false;
+          break;
+        }
       }
 
-      if (count == blocksRequested) {
+      if (contiguous) {
+        // console.warn(`Choosing index: ${index}`);
         return index;
       }
     }
@@ -395,6 +400,7 @@ export class BitMappedBlocks implements MarkableAllocator {
   alloc(size: bigint): Block {
     // Search for a free block(or a group of contiguous free blocks)`
     const blockIndex = this.getBlockIndex(size);
+    // console.warn(`Allocating at index: ${blockIndex}`);
     if (blockIndex === -1n) {
       return NULL_BLOCK;
     }
@@ -403,12 +409,17 @@ export class BitMappedBlocks implements MarkableAllocator {
     if (size % this.blockSize !== 0n) {
       nBlocks += 1n; // (Hack) in place of Math.ceil
     }
+    // console.warn(`nBlocks: ${nBlocks}`);
+    // console.warn(`Inner alloc: ${this.start + BigInt(blockIndex) * this.blockSize}`);
 
     // Set the bit(byte) as "used"
     // Size is stored in header -  Useful when sweeping
     // Edit: Store the number of blocks allocated instead of just 1 for the first block
+    // console.warn(`map-index: ${Number(this.metadataSize * blockIndex)}`);
     this.infomap[Number(this.metadataSize * blockIndex)] = Number(nBlocks);
+    // console.warn(`\tAllocating ${blockIndex}`);
     for (let index = blockIndex + 1n; index < blockIndex + nBlocks; ++index) {
+      // console.warn(`\tAllocating extended ${index}`);
       this.infomap[Number(this.metadataSize * index)] = 1;
     }
 
@@ -436,11 +447,14 @@ export class BitMappedBlocks implements MarkableAllocator {
   description(): string {
     return `BitMapped { Max blocks: ${this.numBlocks}, block size: ${
       this.blockSize
-    }, free blocks: ${this.getNumFreeBlocks()} } `;
+    }, free blocks: ${this.getNumFreeBlocks()}, start: ${this.start}, end: ${this.end}, metadataSize: ${this.metadataSize} } `;
   }
 
   getHeader(ptr: Pointer): Header {
-    return new Header(this.infomap, (ptr - this.start) / this.blockSize + 1n);
+    // NOTE(alex:mm): can assume metadataSize === HEADER_SIZE_BYTES + 1
+    const headerAddr = (ptr - this.start) / this.blockSize * this.metadataSize + 1n;
+    // console.warn(`headerAddr: ${headerAddr} (ptr: ${ptr})`);
+    return new Header(this.infomap, headerAddr);
   }
 
   gcalloc(tag: HeapTag, size: bigint): Pointer {
