@@ -427,21 +427,17 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
       // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
       return [
-        `
-        (i32.const ${envLookup(env, "rg")})
-        ${iter.join("\n")}
-        (i32.store)
-
-        (block
-          (loop
-            ${Code_step.join("\n")}
-            (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
-
-            ${Code_ass.join("\n")}
-            ${bodyStmts.join("\n")}
-
-            (br 0)
-        ))`,
+        `(i32.const ${envLookup(env, "rg")})`,
+        ...iter,
+        `(i32.store)`,
+        `(block`,
+        `  (loop`,
+        ...Code_step,
+        ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ')'],
+        ...Code_ass,
+        ...bodyStmts,
+        `(br 0)`,
+        `))`,
       ];
     case "pass":
       return [];
