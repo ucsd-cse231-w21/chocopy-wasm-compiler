@@ -41,7 +41,9 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
     case "none":
       return PyNone();
     case "list":
-      return PyObj(typ.tag + `<${typ.content_type.tag}>`, result);
+      var type_info = typ.content_type.tag
+      if (typ.content_type.tag === "class") type_info += " " + typ.content_type.name;
+      return PyObj(typ.tag + `<${type_info}>`, result);
     default:
       unhandledTag(typ);
   }

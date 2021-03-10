@@ -32,8 +32,49 @@ function stringify(result: Value): string {
   }
 }
 
-function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
+function addAccordionEvent(){        
+  var acc = document.getElementsByClassName("accordion");
+  var i = 0;       
+  for (i; i < acc.length; i++) {
+    if(acc[i].getAttribute("listener") !== "true"){
+      acc[i].setAttribute("listener", "true")
+      acc[i].addEventListener("click", function() {
+        this.classList.toggle("active");
+        var panel = this.nextElementSibling;
+        var arrow = this.firstChild;
+        if (panel.style.display === "block") {
+          panel.style.display = "none";
+          arrow.style.transform = "rotate(-45deg)"
+        } else {
+          panel.style.display = "block";
+          arrow.style.transform = "rotate(45deg)"
+        }
+      });        
+    }
+  }
+}
+
+function prettyPrintObjects(result: Value, repl : BasicREPL, currentEle : any){
+  // TODO Need to change this when list team changes AST for list value, tag will be "list" instead
   if(result.tag == "object"){
+    const view = new Int32Array(repl.importObject.js.memory.buffer);
+    if(view[result.address/4] == 10){ // list
+      prettyPrintList(result, repl, currentEle);
+    }
+    else{ // Normal object
+      prettyPrintClassObject(result, repl, currentEle)
+    }
+  }
+  // pretty printing dict here, this else if statement should call another helper function
+  // similar to prettyPrintClassObject()
+  // else if (result.tag === "dict"){}
+}
+function prettyPrintClassObject(result: Value, repl : BasicREPL, currentEle : any){
+  if(result.tag == "object"){
+    const view = new Int32Array(repl.importObject.js.memory.buffer);
+    const typedCls = repl.currentTypeEnv.classes.get(result.name)[0];
+    const cls = repl.currentEnv.classes.get(result.name);
+
     const exp  = document.createElement("button") as HTMLButtonElement;
     exp.setAttribute("class","accordion");
     const div = document.createElement("div");
@@ -41,13 +82,8 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
     const addr = document.createElement("p");
     addr.innerHTML = "<b class='tag'>address: </b><p class='val'>" + result.address + "</p>";
   
-    exp.innerHTML = "<i class='arrow right' id='arrow'></i> " + result.name + " object";
+    exp.innerHTML = "<i class='arrow' id='arrow'></i> " + result.name + " object";
     div.appendChild(addr);
-  
-    const view = new Int32Array(repl.importObject.js.memory.buffer);
-  
-    const cls = repl.currentEnv.classes.get(result.name);
-    const typedCls = repl.currentTypeEnv.classes.get(result.name)[0];
 
     cls.forEach((value, key) =>{
       var offset = value[0];
@@ -64,7 +100,7 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
             ele.innerHTML = "<b class='tag'>" + key + ":</b>";
             const new_div = document.createElement("div");
             ele.appendChild(new_div)
-            prettyPrintObject({ 
+            prettyPrintClassObject({ 
                                 tag: "object", 
                                 name: type.name, 
                                 address: view[result.address/4 + offset] 
@@ -86,6 +122,64 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
     currentEle.appendChild(exp);
     currentEle.appendChild(div);
   }
+}
+
+function prettyPrintList(result: any, repl: BasicREPL, currentEle: any){
+      //getting element type, since type is contained in result.name
+      //TODO Need to change this after list team implement list Value in AST
+      const view = new Int32Array(repl.importObject.js.memory.buffer);
+
+      var regExp = /\<(.*?)\>/g;
+      var button_name = String(result.name);
+      var type_info = regExp.exec(result.name)[1].split(" ");
+      var type = type_info[0];
+      var size = view[result.address/4 + 1]
+      var bound = view[result.address/4 + 2]
+
+      console.log(type, size, bound)
+
+      const exp  = document.createElement("button") as HTMLButtonElement;
+      exp.innerHTML = "<i class='arrow' id='arrow'></i> " + button_name + " object";
+      exp.setAttribute("class","accordion");
+      const div = document.createElement("div");
+      div.setAttribute("class","panel");
+      const addr = document.createElement("p");
+      addr.innerHTML = "<b class='tag'>address: </b><p class='val'>" + result.address + "</p>";
+      div.appendChild(addr);
+
+      var i = 0;
+      for (i = 0; i < size; i++){
+        const ele = document.createElement("pre");
+        switch(type){
+          case "class":
+            const val = PyValue({tag: "number"}, view[result.address/4 + 3 + i], view)
+            if(val.tag !== "none"){
+              ele.innerHTML = "<b class='tag'>" + i + ":</b>";
+              var class_name = type_info[1]; // TODO !!! Need to change this 
+              const new_div = document.createElement("div");
+              ele.appendChild(new_div);
+              prettyPrintClassObject({
+                                      tag: "object", 
+                                      name: class_name, 
+                                      address: view[result.address/4 + 3 + i]
+                                    }, 
+                                    repl, 
+                                    new_div)
+            }
+            else{
+              ele.innerHTML = "<b class='tag'>" + i + ": </b> <p class='val'>none</p>";
+            }
+
+            break;
+          case "number":
+            var ele_val = PyValue({tag: "number"}, view[result.address/4 + 3 + i], view) as any;
+            ele.innerHTML = "<b class='tag'>" + i + ": </b><p class='val'>" + ele_val.value + "</p>";
+            console.log(ele_val, ele)
+        }
+        div.appendChild(ele);
+      }
+      currentEle.appendChild(exp);
+      currentEle.appendChild(div);
 }
 
 function print(typ: Type, arg: number, mem: any): any {
@@ -125,7 +219,7 @@ function webStart() {
     };
 
     mem_js = importObject.js;
-
+    (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -138,27 +232,8 @@ function webStart() {
       elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
       elt.innerText = stringify(result);
-      prettyPrintObject(result, repl, document.getElementById("output"));
-      
-      var acc = document.getElementsByClassName("accordion");
-      var i = 0;       
-      for (i; i < acc.length; i++) {
-        if(acc[i].getAttribute("listener") !== "true"){
-          acc[i].setAttribute("listener", "true")
-          acc[i].addEventListener("click", function() {
-            this.classList.toggle("active");
-            var panel = this.nextElementSibling;
-            var arrow = this.firstChild;
-            if (panel.style.display === "block") {
-              panel.style.display = "none";
-              arrow.style.transform = "rotate(-45deg)"
-            } else {
-              panel.style.display = "block";
-              arrow.style.transform = "rotate(45deg)"
-            }
-          });        
-        }
-      }
+      prettyPrintObjects(result, repl, document.getElementById("output"));
+      addAccordionEvent();
     }
 
     function renderError(result: any, source: string): void {
@@ -170,7 +245,6 @@ function webStart() {
         text = `line ${result.loc.line}: ${source
           .split(/\r?\n/)
           [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
-        highlightLine(result.loc.line - 1, result.message);
       }
       elt.innerText = text.concat("\n").concat(String(result));
     }
@@ -224,6 +298,7 @@ function webStart() {
         })
         .catch((e) => {
           renderError(e, source.value);
+          highlightLine(e.loc.line - 1, e.message);
           console.log("run failed", e.stack);
         });
     });
