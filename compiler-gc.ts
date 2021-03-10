@@ -15,6 +15,11 @@ export function augmentFnGc(fnInstrs: Array<string>, locals: Map<string, number>
 
       let kontinue = true;
       if (index === 1) {
+        if (sub !== "local" && !afterLocals) {
+          results.push("(call $$pushFrame)");
+          afterLocals = true;
+        }
+
         switch (sub) {
           case "local.set": {
             const varName = split[index + 1].substring(1);

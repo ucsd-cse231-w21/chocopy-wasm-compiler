@@ -673,7 +673,6 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
     .flat()
 
   let body = locals
-  .concat(["(call $$pushFrame)"])
   .concat(inits)
   .concat(refs)
   .concat(nonlocals)
@@ -734,7 +733,6 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
   var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
 
   const body = locals
-  .concat(["(call $$pushFrame)"])
   .concat(inits)
   .concat(stmts)
   .concat([
