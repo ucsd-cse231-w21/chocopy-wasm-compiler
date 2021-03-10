@@ -132,12 +132,13 @@ function transformComprehension(comprehension: Expr<[Type, Location]>,
         tmp_lst_name = tmp_lst_name + [expr]
   tmp_lst_name
  */
-  return [current_scope, {
+  let block : Expr<[Type, Location]> = {
     tag: "block",
     a: comprehension.a,
     expr: tmp_lst_expr,
     block: block_stmts
-  }];
+  };
+  return [current_scope, block];
 }
 
 function transformAssignable(assignable: Assignable<[Type, Location]>,
@@ -365,20 +366,35 @@ function transformClosureDef(closureDef: ClosureDef<[Type, Location]>,
 }
 
 
-// OLD NOTES NO LONGER VALID!! DELETE THIS: This would have to use the compiler's ENV to generate unique local temp var def names
-//  since this will ensure that names are not duplicated across repl entries, etc.!
-//  So, we would have to call this transform function with the compiler's env
+/**
+ * This function takes a typed Program AST and the compiler env (before the current repl entry is run),
+ * and uses this to transform the typed Program AST into another typed Program AST.
+ *
+ * This is useful for traversing the Program AST to add any additional local temp variables directly to the AST as needed.
+ * For example, when doing list comprehensions (e.g., [i for i in range(10)]),
+ * we use this to define temporary list variables in the appropriate scopes where all the comprehensions are.
+ *
+ * By following this approach for comprehensions, for example, we were able to not need to worry about how lists are managed with wasm.
+ *
+ * This will be called in runner.ts, right after "tc(program)" and before compiler.compile(...)
+ * @param program   The type-checked program, Program<[Type, Location]>
+ * @param env       The compiler env (before this current repl entry is run),   compiler.GlobalEnv
+ */
 export function transform(program: Program<[Type, Location]>, env: compiler.GlobalEnv): Program<[Type, Location]> {
 
-  // Traverse the entire program
-  // Keep track of the current scope we're in as we traverse (ie., Program, FuncDef)
-  // Whenever we see a comprehension, add a new local temp var def to the current scope (with the right list type & a new unique generated name)
-  // Transform the comprehension into a block ast (which will use the newly created local temp var def)
-  // Replace the comprehension in the program with this block ast
-  // At the end, return the transformed program AST
+  /*
+   * Note on how this is used to support comprehensions:
+
+    * Traverse the entire program
+    * Keep track of the current scope we're in as we traverse (ie., Program, FuncDef)
+    * Whenever we see a comprehension:
+    *   add a new local temp var def to the current scope (with the right list type & a new unique generated name)
+    * Transform the comprehension into a block ast (which will use the newly created local temp var def)
+    * Replace the comprehension in the program with this block ast
+    * At the end, return the transformed program AST
+   */
 
   let current_scope: CurrentScope = program;
-
 
   for (let i in program.funs) {
     [current_scope, program.funs[i]] = transformFunDef(program.funs[i], current_scope, env);
