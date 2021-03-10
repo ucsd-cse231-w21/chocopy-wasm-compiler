@@ -2,7 +2,7 @@ const http = require("http");
 const child_process = require("child_process");
 
 var fuzzProcess;
-const hostname = "localhost";
+const hostname = "0.0.0.0";
 const port = 11500;
 
 const server = http.createServer((req, res) => {
