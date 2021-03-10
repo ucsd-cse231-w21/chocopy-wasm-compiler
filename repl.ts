@@ -3,7 +3,7 @@ import { GlobalEnv, libraryFuns, ListContentTag } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
-import { NUM, STRING, BOOL, NONE, LIST, CLASS, CALLABLE, PyValue } from "./utils";
+import { NUM, STRING, BOOL, NONE, LIST, CLASS, CALLABLE, PyValue ,stringify, PyString} from "./utils";
 import { bignumfunctions } from "./bignumfunctions";
 
 interface REPL {
@@ -54,54 +54,66 @@ export class BasicREPL {
     };
     this.importObject.imports.__internal_print_list = (arg: number, typ: ListContentTag) => {
       console.log("Logging from WASM: ", arg);
-      switch(typ) {
-        case ListContentTag.Num:
-          this.importObject.imports.print(
-            PyValue(LIST(NUM), arg, new Uint32Array(this.importObject.js.memory.buffer))
-          );
-          break;
-        case ListContentTag.Bool:
-          this.importObject.imports.print(
-            PyValue(LIST(BOOL), arg, new Uint32Array(this.importObject.js.memory.buffer))
-          );
-          break;
-        //Realistically can never happen
-        case ListContentTag.None:
-          this.importObject.imports.print(
-            PyValue(LIST(NONE), arg, new Uint32Array(this.importObject.js.memory.buffer))
-          );
-          break;
-        case ListContentTag.Str:
-          this.importObject.imports.print(
-            PyValue(LIST(STRING), arg, new Uint32Array(this.importObject.js.memory.buffer))
-          );
-          break;
-        //We didn't actually store the name of the class anywhere
-        //This will display as "<list<class> object at N>"
-        case ListContentTag.Class:
-          this.importObject.imports.print(
-            PyValue(LIST(CLASS("class")), arg, new Uint32Array(this.importObject.js.memory.buffer))
-          );
-          break;
-        //Doesn't display type of inner list
-        //This will display as "<list<list> object at N>"
-        case ListContentTag.List:
-          this.importObject.imports.print(
-            PyValue(LIST(LIST(null)), arg, new Uint32Array(this.importObject.js.memory.buffer))
-          );
-          break;
-        //TODO: Placeholder for Dict
-        case ListContentTag.Dict:
-          this.importObject.imports.print(
-            PyValue(LIST(LIST(null)), arg, new Uint32Array(this.importObject.js.memory.buffer))
-          );
-          break;
-        //TODO: Placeholder for Callable
-        case ListContentTag.Callable:
-          this.importObject.imports.print(
-            PyValue(LIST(NUM), arg, new Uint32Array(this.importObject.js.memory.buffer))
-          );
+      let mem = new Uint32Array(this.importObject.js.memory.buffer)
+      const view = new Int32Array(mem);
+      let list_length = view[(arg / 4) + 1];
+      let list_bound = view[(arg / 4) + 2];
+      var base_str = ""
+      var index = 0
+      let p_list = []
+  
+      while(index < list_length)
+      {
+        switch(typ) {
+          case ListContentTag.Num:
+            base_str = stringify( PyValue(LIST(NUM), arg, mem))
+            p_list.push(stringify(PyValue(NUM, view[(arg / 4) + 3 + index], mem)) )
+            break
+          case ListContentTag.Bool:
+            base_str = stringify( PyValue(LIST(BOOL), arg, mem))
+            p_list.push(stringify(PyValue(BOOL, view[(arg / 4) + 3 + index], mem)) )
+            break
+          //Realistically can never happen
+          case ListContentTag.None:
+            base_str = stringify( PyValue(LIST(NONE), arg, mem))
+            p_list.push(stringify(PyValue(NONE, view[(arg / 4) + 3 + index], mem)) )
+            break
+          //We didn't actually store the name of the class anywhere
+          //This will display as "<list<class> object at N>"
+          case ListContentTag.Str:
+            base_str = stringify( PyValue(LIST(STRING), arg, mem))
+            p_list.push(stringify(PyValue(STRING, view[(arg / 4) + 3 + index], mem)) )
+            break
+          case ListContentTag.Class:
+            base_str = stringify( PyValue(LIST(CLASS("class")), arg, mem))
+            p_list.push(stringify(PyValue(CLASS("CLASS"), view[(arg / 4) + 3 + index], mem)) )
+            break
+          //Doesn't display type of inner list
+          //This will display as "<list<list> object at N>"
+          case ListContentTag.List:
+            base_str = stringify( PyValue(LIST(LIST(null)), arg, mem))
+            p_list.push(stringify(PyValue(LIST(LIST(null)), view[(arg / 4) + 3 + index], mem) )) 
+            break
+          //TODO: Placeholder for Dict
+          case ListContentTag.Dict:
+            base_str = stringify( PyValue(LIST(LIST(null)), arg, mem))
+            p_list.push(stringify(PyValue(CLASS("Dict"), view[(arg / 4) + 3 + index], mem)) )
+            break
+          //TODO: Placeholder for Callable
+          case ListContentTag.Callable:
+            base_str = stringify( PyValue(LIST(NUM), arg, mem))
+            p_list.push(stringify(PyValue(CLASS("Callable"), view[(arg / 4) + 3 + index], mem)) )
+            break
+            
+        }
+        index += 1
       }
+
+      this.importObject.imports.print(
+        PyString( `${base_str} [ ${p_list.join(", ")} ]`, arg)
+      );
+
+
       return arg;
     };
     this.importObject.imports.__internal_print_bool = (arg: number) => {
