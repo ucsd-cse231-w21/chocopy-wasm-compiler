@@ -497,7 +497,7 @@ export function traverseArguments(
       args.push(arg[1]);
     } else {
       traversedKeywordArg = true;
-      if (arg[0] in seenKws) {
+      if (seenKws.indexOf(arg[0]) > -1) {
         // Check if keyword has already been previously defined
         throw new BaseException.CompileError(
           getSourcePos(c, s),

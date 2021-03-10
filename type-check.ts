@@ -920,7 +920,13 @@ export function tcExpr(
               methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
             ) {
-              return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs, kwargs: tcKwargs };
+              return {
+                ...expr,
+                a: [methodRet, expr.a],
+                obj: tObj,
+                arguments: tArgs,
+                kwargs: tcKwargs,
+              };
             }
             // handle default values
             else if (
@@ -932,7 +938,7 @@ export function tcExpr(
                 a: [methodRet, expr.a],
                 obj: tObj,
                 arguments: populateDefaultParams(tArgs, realArgs, methodParams, kwargsMap),
-                kwargs: tcKwargs
+                kwargs: tcKwargs,
               };
             } else if (methodArgs.length != realArgs.length) {
               throw new BaseException.TypeError(
@@ -1094,7 +1100,7 @@ export function populateDefaultParams(
     if (kwKeys.indexOf(paramName) > -1) {
       augArgs = augArgs.concat(kwargsMap.get(paramName));
     } else if (params[argNums].value === undefined) {
-      throw new Error("Missing argument from call");
+      throw new Error("Missing parameter " + paramName + " from call");
     } else {
       // add default values into arguments as an Expr
       augArgs = augArgs.concat({
