@@ -17,6 +17,17 @@ import {
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 import { RunTime } from "./errorManager"
+import {
+  MemoryManager,
+  TAG_BIGINT,
+  TAG_CLASS,
+  TAG_DICT,
+  TAG_DICT_ENTRY,
+  TAG_LIST,
+  TAG_REF,
+  TAG_STRING,
+} from "./alloc";
+import { augmentFnGc } from "./compiler-gc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -24,18 +35,20 @@ import { RunTime } from "./errorManager"
 export type GlobalEnv = {
   globals: Map<string, number>;
   classes: Map<string, Map<string, [number, Literal]>>;
-  locals: Set<string>;
-  offset: number;
+  locals: Map<string, number>; // Map from local/param to stack slot index
   funs: Map<string, [number, Array<string>]>; // <function name, [tbl idx, Array of nonlocals]>
 };
 
 export const emptyEnv: GlobalEnv = {
   globals: new Map(),
   classes: new Map(),
-  locals: new Set(),
-  offset: 0,
+  locals: new Map(),
   funs: new Map(),
 };
+
+const FENCE_TEMPS = 2;
+const RELEASE_TEMPS = 1;
+const HOLD_TEMPS = 0;
 
 export const nTagBits = 1;
 const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
@@ -50,7 +63,11 @@ export const encodeLiteral: Array<string> = [
 
 export const decodeLiteral: Array<string> = [`(i32.const ${nTagBits})`, "(i32.shr_s)"];
 
-export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): GlobalEnv {
+export function augmentEnv(
+  env: GlobalEnv,
+  prog: Program<[Type, Location]>,
+  mm: MemoryManager
+): GlobalEnv {
   const newGlobals = new Map(env.globals);
   const newClasses = new Map(env.classes);
   const newFuns = new Map(env.funs);
@@ -60,25 +77,29 @@ export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): Glo
   RefMap.set("$deref", [0, { tag: "num", value: BigInt(0) }]);
   newClasses.set("$ref", RefMap);
 
-  let newOffset = env.offset;
-
   let idx = newFuns.size;
   prog.closures.forEach((clo) => {
     newFuns.set(clo.name, [idx, clo.nonlocals]);
     idx += 1;
     if (clo.isGlobal) {
-      newGlobals.set(clo.name, newOffset);
-      newOffset += 1;
+      const globalAddr = mm.staticAlloc(4n);
+      newGlobals.set(clo.name, Number(globalAddr));
+      mm.addGlobal(globalAddr);
     }
   });
 
   prog.inits.forEach((v) => {
-    newGlobals.set(v.name, newOffset);
-    newOffset += 1;
+    // Allocate static memory for the global variable
+    // NOTE(alex:mm) assumes that allocations return a 32-bit address
+    const globalAddr = mm.staticAlloc(4n);
+    console.log(`global var '${v.name}' addr: ${globalAddr.toString()}`);
+    newGlobals.set(v.name, Number(globalAddr));
+    mm.addGlobal(globalAddr);
   });
   // for rg
-  newGlobals.set("rg", newOffset);
-  newOffset += 1;
+  const rgAddr = mm.staticAlloc(4n);
+  newGlobals.set("rg", Number(rgAddr));
+  mm.addGlobal(rgAddr);
 
   prog.classes.forEach((cls) => {
     const classFields = new Map();
@@ -90,7 +111,6 @@ export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): Glo
     globals: newGlobals,
     classes: newClasses,
     locals: env.locals,
-    offset: newOffset,
     funs: newFuns,
   };
 }
@@ -108,17 +128,6 @@ type CompileResult = {
   mainSource: string;
   newEnv: GlobalEnv;
 };
-
-function myMemAlloc(name: string, size: number): Array<string> {
-  const allocs: Array<string> = [];
-  allocs.push(`(local.set ${name} (i32.load (i32.const 0))) ;; allocate memory for ${name}`);
-  allocs.push(
-    `(i32.store (i32.const 0) (i32.add (local.get ${name}) (i32.const ${
-      size * 4
-    }))) ;; update the heap ptr`
-  );
-  return allocs;
-}
 
 export function makeLocals(locals: Set<string>): Array<string> {
   const localDefines: Array<string> = [];
@@ -165,22 +174,33 @@ export function makeLookup<A>(a: A, obj: Expr<A>, field: string): Destructure<A>
   };
 }
 
-export function compile(ast: Program<[Type, Location]>, env: GlobalEnv): CompileResult {
-  const withDefines = augmentEnv(env, ast);
+export function compile(
+  ast: Program<[Type, Location]>,
+  env: GlobalEnv,
+  mm: MemoryManager
+): CompileResult {
+  const withDefines = augmentEnv(env, ast, mm);
 
+  let stackIndexOffset = 0; // NOTE(alex:mm): assumes start function has no params
   const definedVars: Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.add("$addr"); // address of the allocated memory
   definedVars.add("$list_base");
   definedVars.add("$list_index");
   definedVars.add("$list_temp");
+  definedVars.add("$list_bound");
   definedVars.add("$list_cmp");
+  definedVars.add("$list_cmp2");
   definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
   definedVars.add("$string_address"); //needed for string indexing
-  definedVars.forEach(env.locals.add, env.locals);
+  definedVars.forEach((v) => {
+    env.locals.set(v, stackIndexOffset);
+    stackIndexOffset += 1;
+  });
   const localDefines = makeLocals(definedVars);
 
   const funs: Array<string> = [];
@@ -205,15 +225,14 @@ export function compile(ast: Program<[Type, Location]>, env: GlobalEnv): Compile
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
 
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
-
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
   const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
-
+  const augmentedCommands = augmentFnGc(commands, withDefines.locals, true);
   withDefines.locals.clear();
 
   return {
     functions: allFuns,
-    mainSource: commands.join("\n"),
+    mainSource: augmentedCommands.join("\n"),
     newEnv: withDefines,
   };
 }
@@ -234,15 +253,6 @@ function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
   return inits;
 }
 
-function myMemForward(n: number): Array<string> {
-  const forward: Array<string> = [];
-  forward.push(`;; update the heap ptr`);
-  forward.push(`(i32.const 0)`);
-  forward.push(`(i32.add (i32.load (i32.const 0)) (i32.const ${n * 4}))`);
-  forward.push(`(i32.store)`);
-  return forward;
-}
-
 function envLookup(env: GlobalEnv, name: string): number {
   //if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
   if (!env.globals.has(name)) {
@@ -257,38 +267,50 @@ function envLookup(env: GlobalEnv, name: string): number {
 function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string> {
   switch (stmt.tag) {
     case "return":
-      var valStmts = codeGenExpr(stmt.value, env);
-      valStmts.push("return");
+      var valStmts = codeGenTempGuard(codeGenExpr(stmt.value, env), FENCE_TEMPS);
+      valStmts.push("(return)");
       return valStmts;
     case "assignment":
       const valueCode = codeGenExpr(stmt.value, env);
       const getValue = "(local.get $$destruct)";
 
-      return [
-        ...valueCode,
-        "(local.set $$destruct)",
-        ...codeGenDestructure(stmt.destruct, getValue, env),
-      ];
+      // TODO(alex): make more granular?
+      return codeGenTempGuard(
+        [
+          ...valueCode,
+          "(local.set $$destruct)",
+          ...codeGenDestructure(stmt.destruct, getValue, env),
+        ],
+        FENCE_TEMPS
+      );
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
-      return exprStmts.concat([`(local.set $$last)`]);
+      return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]), FENCE_TEMPS);
     case "if":
-      var condExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
+      // TODO(alex:mm): Are these temporary guards correct/minimal?
+      var condExpr = codeGenTempGuard(
+        codeGenExpr(stmt.cond, env).concat(decodeLiteral),
+        FENCE_TEMPS
+      );
       var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      return [
-        `${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join(
-          "\n"
-        )}))`,
-      ];
+      return condExpr
+        .concat(["(if (then"])
+        .concat(thnStmts)
+        .concat([")", "(else"])
+        .concat(elsStmts)
+        .concat(["))"]);
     case "while":
-      var wcondExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
+      var wcondExpr = codeGenTempGuard(
+        codeGenExpr(stmt.cond, env).concat(decodeLiteral),
+        FENCE_TEMPS
+      );
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      return [
-        `(block (loop (br_if 1 ${wcondExpr.join("\n")}\n(i32.eqz)) ${bodyStmts.join(
-          "\n"
-        )} (br 0) ))`,
-      ];
+      return ["(block (loop (br_if 1"]
+        .concat(wcondExpr)
+        .concat(["(i32.eqz))"])
+        .concat(bodyStmts)
+        .concat(["(br 0) ))"]);
     case "for":
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var iter = codeGenExpr(stmt.iterable, env);
@@ -382,23 +404,24 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         };
         var Code_idstep = codeGenStmt(niass, env);
         // iterable should be a Range object
-        return [
-          `
-          (i32.const ${envLookup(env, "rg")})
-          ${iter.join("\n")}
-          (i32.store)
-          ${Code_iass.join("\n")}
-          (block
-            (loop
-              ${Code_step.join("\n")}
-              ${Code_idstep.join("\n")}
-              (br_if 1 (${Code_cond.join("\n")} ${decodeLiteral.join("\n")}))
-
-              ${Code_ass.join("\n")}
-              ${bodyStmts.join("\n")}
-              (br 0)
-          ))`,
-        ];
+        return codeGenTempGuard(
+          [
+            `(i32.const ${envLookup(env, "rg")})`,
+            ...iter,
+            `(i32.store)`,
+            ...Code_iass,
+            "(block",
+            "(loop",
+            ...Code_step,
+            ...Code_idstep,
+            ...["(bf_if 1", ...Code_cond, ...decodeLiteral, "))"],
+            ...Code_ass,
+            ...bodyStmts,
+            "(br 0)",
+            "))",
+          ],
+          FENCE_TEMPS
+        );
       }
       // iterable should be a Range object
       // test
@@ -406,23 +429,22 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
       // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
       // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
-      return [
-        `
-        (i32.const ${envLookup(env, "rg")})
-        ${iter.join("\n")}
-        (i32.store)
-
-        (block
-          (loop
-            ${Code_step.join("\n")}
-            (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
-
-            ${Code_ass.join("\n")}
-            ${bodyStmts.join("\n")}
-
-            (br 0)
-        ))`,
-      ];
+      return codeGenTempGuard(
+        [
+          `(i32.const ${envLookup(env, "rg")})`,
+          ...iter,
+          `(i32.store)`,
+          `(block`,
+          `  (loop`,
+          ...Code_step,
+          ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ")"],
+          ...Code_ass,
+          ...bodyStmts,
+          `(br 0)`,
+          `))`,
+        ],
+        FENCE_TEMPS
+      );
     case "pass":
       return [];
     case "break":
@@ -485,10 +507,14 @@ function codeGenAssignable(
   value: string[],
   env: GlobalEnv
 ): string[] {
+  // NOTE(alex:mm): temp guards are generated at the statement level
   switch (target.tag) {
     case "id": // Variables
       if (env.locals.has(target.name)) {
-        return [...value, `(local.set $${target.name})`];
+        const localIndex = env.locals.get(target.name);
+        const result = [...value, `(local.set $${target.name})`];
+
+        return result;
       } else {
         const locationToStore = [`(i32.const ${envLookup(env, target.name)}) ;; ${target.name}`];
         return [...locationToStore, ...value, "(i32.store)"];
@@ -544,6 +570,18 @@ function codeGenInit(init: VarInit<[Type, Location]>, env: GlobalEnv): Array<str
   }
 }
 
+// NOTE(alex:mm): Assuming this is only called for closure allocation
+//   which uses a class-based layout
+function myMemAlloc(name: string, sizeInValueCount: number): Array<string> {
+  const allocs: Array<string> = [];
+  const sizeInBytes = sizeInValueCount * 4;
+  allocs.push(`(i32.const ${Number(TAG_REF)}) ;; heap-tag: ref`);
+  allocs.push(`(i32.const ${sizeInBytes})`);
+  allocs.push(`(call $$gcalloc)`);
+  allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
+  return allocs;
+}
+
 function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
   // this is where the closures are constructed, except for global closures
   // the accesses of callable variables does not create a closure
@@ -594,7 +632,9 @@ function initRef(refs: Set<string>): Array<string> {
 }
 
 function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): Array<string> {
+  let currentLocalIndex = 0;
   const definedVars: Set<string> = new Set();
+  definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.add("$last");
   definedVars.add("$addr");
   definedVars.add("$destruct");
@@ -612,39 +652,43 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
   // references that required memory allocation
   const extraRefs: Set<string> = new Set();
   def.inits.forEach((v) => extraRefs.add(`${v.name}`));
-  def.parameters.forEach((p) => extraRefs.add(`${p.name}`));
+  def.parameters.forEach((p) => {
+    extraRefs.add(`${p.name}`);
+    env.locals.set(p.name, currentLocalIndex);
+    currentLocalIndex += 1;
+  });
 
-  definedVars.forEach(env.locals.add, env.locals);
-  def.parameters.forEach((p) => env.locals.add(p.name));
+  definedVars.forEach((v) => {
+    env.locals.set(v, currentLocalIndex);
+    currentLocalIndex += 1;
+  });
 
-  const localDefs = makeLocals(definedVars).join("\n");
-  const inits = def.inits
-    .map((init) => codeGenInit(init, env))
-    .flat()
-    .join("\n");
-  const refs = initRef(extraRefs).join("\n");
-  const nonlocals = initNonlocals(def.nonlocals).join("\n");
-  const nested = initNested(def.nested, env).join("\n");
+  const locals = makeLocals(definedVars);
+  const inits = def.inits.map((init) => codeGenInit(init, env)).flat();
+  const refs = initRef(extraRefs);
+  const nonlocals = initNonlocals(def.nonlocals);
+  const nested = initNested(def.nested, env);
 
   let params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
-  let stmts = def.body
-    .map((stmt) => codeGenStmt(stmt, env))
-    .flat()
-    .join("\n");
+  let stmts = def.body.map((stmt) => codeGenStmt(stmt, env)).flat();
 
+  let body = locals
+    .concat(inits)
+    .concat(refs)
+    .concat(nonlocals)
+    .concat(nested)
+    .concat(stmts)
+    .concat(["(i32.const 0)", "(return)"]);
+
+  const localMap = env.locals;
+  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
 
   return [
     `(func $${def.name} (param ${fPTR} i32) ${params} (result i32)
-${localDefs}
-${inits}
-${refs}
-${nonlocals}
-${nested}
-${stmts}
-(i32.const 0)
-(return)
-)`,
+      ${augmentedBodyStr}
+    )`,
   ];
 }
 
@@ -652,32 +696,47 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
   var definedVars: Set<string> = new Set();
   def.inits.forEach((v) => definedVars.add(v.name));
   definedVars.add("$last");
+  // Used to cache the result of `gcalloc` and dump
+  //   it to the stack for initialization
+  // NOTE(alex:mm): need to `local.get` object pointer BEFORE generating code
+  //   for inner expressions
+  definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.add("$destruct");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
   definedVars.add("$string_address"); //needed for string indexing
-  // def.parameters.forEach(p => definedVars.delete(p.name));
-  definedVars.forEach(env.locals.add, env.locals);
-  def.parameters.forEach((p) => env.locals.add(p.name));
 
-  const localDefines = makeLocals(definedVars);
-  const locals = localDefines.join("\n");
-  const inits = def.inits
-    .map((init) => codeGenInit(init, env))
-    .flat()
-    .join("\n");
-  var params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
+  // NOTE(alex:mm): parameters indices go first
+  let currLocalIndex = 0;
+  var params = def.parameters
+    .map((p) => {
+      env.locals.set(p.name, currLocalIndex);
+      currLocalIndex += 1;
+      return `(param $${p.name} i32)`;
+    })
+    .join(" ");
+
+  // def.parameters.forEach(p => definedVars.delete(p.name));
+  definedVars.forEach((v) => {
+    env.locals.set(v, currLocalIndex);
+    currLocalIndex += 1;
+  });
+
+  const locals = makeLocals(definedVars);
+  const inits = def.inits.map((init) => codeGenInit(init, env)).flat();
   var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-  var stmtsBody = stmts.join("\n");
+
+  const body = locals.concat(inits).concat(stmts).concat(["(i32.const 0)", "(return)"]);
+  const localMap = env.locals;
+  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
+
   return [
     `(func $${def.name} ${params} (result i32)
-    ${locals}
-    ${inits}
-    ${stmtsBody}
-    (i32.const 0)
-    (return))`,
+    ${augmentedBodyStr}
+    )`,
   ];
 }
 
@@ -690,35 +749,75 @@ function codeGenClass(cls: Class<[Type, Location]>, env: GlobalEnv): Array<strin
 
 // If concat is 0, then the function generate code for list.copy()
 // If concat is 2, then the function generate code for concat.
+// If concat is 3, then the function generate code for append.
 function codeGenListCopy(concat: number): Array<string> {
   var stmts: Array<string> = [];
   var loopstmts: Array<string> = [];
   var condstmts: Array<string> = [];
+  var tempstmts: Array<string> = [];
   var listType = 10; //temporary list type number
   var header = [4, 8]; //size, bound relative position
+  var cmp = [""];
   stmts.push(...[`(local.set $$list_cmp)`]); //store first address to local var
-  stmts.push(...[`(i32.load (i32.const 0))`, `(local.set $$list_base)`]); //store the starting address for the new list
-  if (concat != 1)
-    stmts.push(...[`(local.get $$list_base)`, "(i32.const " + listType + ")", "(i32.store)"]); //create a new list with type
+  if (concat == 2) {
+    stmts.push(...[`(local.set $$list_cmp2)`]);
+    tempstmts = [`(local.get $$list_cmp2)`, `(i32.add (i32.const 8))`, `(i32.load)`, `(i32.add)`];
+    cmp = ["", "2"];
+  }
+  if (concat == 3) {
+    tempstmts = tempstmts.concat("(i32.mul (i32.const 2))");
+  }
 
-  //check if the current index has reached the size of the list
-  condstmts.push(
+  stmts.push(
     ...[
-      `(local.get $$list_cmp)`,
-      `(i32.add (i32.const 4))`,
+      `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
+      `(local.get $$list_cmp)`, // load capacty
+      `(i32.add (i32.const 8))`,
       `(i32.load)`,
-      `(local.get $$list_index)`,
-      `(i32.eq)`,
     ]
   );
+  stmts.push(...tempstmts);
+  stmts.push(
+    ...[
+      `(i32.mul (i32.const 4))`, // new_cap = cap * 4 + 12
+      `(i32.add (i32.const 12))`,
+      `(call $$gcalloc)`,
+      `(local.set $$list_base)`,
+    ]
+  );
+
+  //add/modify header info of the list
+  header.forEach((addr) => {
+    var double_size = addr == 8 && concat == 3 ? [`(i32.mul (i32.const 2))`] : [];
+    var tempstmts =
+      concat == 2
+        ? [`(local.get $$list_cmp2)`, `(i32.add (i32.const ${addr}))`, `(i32.load)`, `(i32.add)`]
+        : [];
+    stmts.push(
+      ...[
+        `(local.get $$list_base)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(local.get $$list_cmp)`,
+        `(i32.add (i32.const ${addr}))`,
+        `(i32.load)`,
+        ...tempstmts,
+        ...double_size,
+        `(i32.store)`,
+      ]
+    );
+  });
+
+  stmts.push(...[`(local.get $$list_base)`, "(i32.const " + listType + ")", "(i32.store)"]); //create a new list with type
+
+  //check if the current index has reached the size of the list
+  condstmts.push(...[`(local.get $$list_bound)`, `(local.get $$list_index)`, `(i32.eq)`]);
 
   //statement for loop through the compared list and add the elements to the new list
   loopstmts.push(
     ...[
       `(local.get $$list_base)`,
       `(i32.add (i32.const 12))`,
-      `(local.get $$list_index)`,
-      concat == 1 ? `(i32.add (local.get $$list_temp))` : ``,
+      `(local.get $$list_temp)`,
       `(i32.mul (i32.const 4))`,
       `(i32.add)`,
       `(local.get $$list_cmp)`,
@@ -731,77 +830,54 @@ function codeGenListCopy(concat: number): Array<string> {
       `(local.get $$list_index)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
+      `(local.get $$list_temp)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_temp)`,
     ]
   );
 
-  if (concat == 1) {
+  cmp.forEach((s) => {
+    if (s === ``) {
+      stmts.push(
+        ...[
+          `(i32.const 0)`,
+          `(local.set $$list_bound)`,
+          `(i32.const 0)`,
+          `(local.set $$list_temp)`, //second index
+        ]
+      );
+    } else {
+      stmts.push(...[`(local.get $$list_cmp2)`, `(local.set $$list_cmp)`]);
+    }
+
     stmts.push(
       ...[
-        `(local.get $$list_base)`,
+        `(i32.const 0)`,
+        `(local.set $$list_index)`,
+        `(local.get $$list_cmp)`,
         `(i32.add (i32.const 4))`,
         `(i32.load)`,
-        `(local.set $$list_temp)`,
+        `(i32.add (local.get $$list_bound))`,
+        `(local.set $$list_bound)`,
       ]
     );
-  }
 
-  //while loop structure
-  stmts.push(
-    ...[
-      `(i32.const 0)`,
-      `(local.set $$list_index)`,
-      `(block`,
-      `(loop`,
-      `(br_if 1 ${condstmts.join("\n")})`,
-      `${loopstmts.join("\n")}`,
-      `(br 0)`,
-      `)`,
-      `)`,
-    ]
-  );
-
-  //add/modify header info of the list
-  header.forEach((addr) => {
-    var stmt = null;
-    if (concat == 1) {
-      stmt = [
-        `(local.get $$list_base)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(local.get $$list_base)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(i32.load)`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(i32.load)`,
-        `(i32.add)`,
-        `(i32.store)`,
-      ];
-    } else {
-      stmt = [
-        `(local.get $$list_base)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(i32.load)`,
-        `(i32.store)`,
-      ];
-    }
-    stmts.push(...stmt);
+    //while loop structure
+    stmts.push(
+      ...[
+        `(block`,
+        `(loop`,
+        `(br_if 1 ${condstmts.join("\n")})`,
+        `${loopstmts.join("\n")}`,
+        `(br 0)`,
+        `)`,
+        `)`,
+      ]
+    );
   });
-
-  if (concat == 2) return stmts.concat(codeGenListCopy(1));
 
   return stmts.concat([
     `(local.get $$list_base)`, // Get address for the object (this is the return value)
-    "(i32.const 0)", // Address for our upcoming store instruction
-    `(local.get $$list_base)`, // Load the dynamic heap head offset
-    `(local.get $$list_cmp)`,
-    `(i32.add (i32.const 8))`,
-    `(i32.load)`,
-    `(i32.mul (i32.const 4))`,
-    `(i32.add (i32.const 12))`,
-    `(i32.add)`,
-    "(i32.store)", // Save the new heap offset
   ]);
 }
 
@@ -904,9 +980,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         funName = nameExpr.name;
         callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $fPTR`);
         expr.arguments.forEach((arg) => {
-          callExpr.push(codeGenExpr(arg, env).join("\n"));
+          callExpr.push(...codeGenExpr(arg, env));
         });
         callExpr.push(...codeGenPushStack(expr.a[1]));
+
+        // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
@@ -916,20 +994,21 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         funName = (nameExpr.obj as any).name;
         callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $fPTR`);
         expr.arguments.forEach((arg) => {
-          callExpr.push(codeGenExpr(arg, env).join("\n"));
+          callExpr.push(...codeGenExpr(arg, env));
         });
         callExpr.push(...codeGenPushStack(expr.a[1]));
+        // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
           }) (i32.load (i32.load (local.get $${funName}))))`
         );
       } else if (nameExpr.tag == "call_expr") {
-        callExpr.push(codeGenExpr(nameExpr, env).join("\n"));
+        callExpr.push(...codeGenExpr(nameExpr, env));
         callExpr.push(`(local.set $$addr)`);
         callExpr.push(`(local.get $$addr) ;; function ptr for the extra argument`);
         expr.arguments.forEach((arg) => {
-          callExpr.push(codeGenExpr(arg, env).join("\n"));
+          callExpr.push(...codeGenExpr(arg, env));
         });
         callExpr.push(...codeGenPushStack(expr.a[1]));
         callExpr.push(
@@ -945,46 +1024,49 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       callExpr.push(...codeGenPopStack());
       return callExpr;
     case "construct":
-      var stmts: Array<string> = [];
-      stmts.push(
-        ...[
-          "(i32.const 0) ;; to store the updated heap ptr", // Address for our upcoming store instruction
-          "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-          "(local.set $$string_class)",
-          "(i32.load (i32.const 0))",
-          `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the k words we just created for fields
-          "(i32.store) ;; to store the updated heap ptr", // Save the new heap offset
-        ]
-      );
-      env.classes.get(expr.name).forEach(([offset, initVal], field) =>
+      var stmts: Array<string> = [
+        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
+        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
+        `(call $$gcalloc)`,
+        `(local.set $$allocPointer)`,
+        `(local.get $$allocPointer)`, // return to parent expr
+        `(local.get $$allocPointer)`, // use in __init__
+      ];
+      // NOTE(alex): hack to get nested allocations to work
+      // Let F by the number of fields in the class
+      // Dump the pointer F + 2 times on the stack
+      //   * +1 in order to call the __init__ method
+      //   * +1 in order to return the leave the pointer at the top of the stack
+      const classLayout = env.classes.get(expr.name);
+      classLayout.forEach(() => {
+        stmts.push(`(local.get $$allocPointer)`);
+      });
+      classLayout.forEach(([offset, initVal], field) =>
         stmts.push(
           ...[
-            `(local.get $$string_class) ;; object address for ${expr.name}`,
-            `(i32.add (i32.const ${offset * 4})) ;; offset for ${field}`, // Calc field offset from heap offset
+            // Pointer should be on the top of the stack already
+            `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
             ...codeGenLiteral(initVal), // Initialize field
             `(i32.store) ;; store for ${field}`, // Put the default field value on the heap
           ]
         )
       );
-      stmts.push(
-        ...[
-          "(local.get $$string_class)",
-          ...codeGenCall(expr.a[1], `(call $${expr.name}$__init__)`), // call __init__
-          "(drop)",
-          "(local.get $$string_class) ;; return the address of the constructed object",
-        ]
-      );
-      return stmts;
+      return stmts.concat([
+        // Pointer to deref should be on the top of the stack already
+        ...codeGenCall(expr.a[1],`(call $${expr.name}$__init__)`), // call __init__
+        `(drop)`, // Drop None from __init__
+        // Pointer to return should be on the top of the stack already
+      ]);
     case "method-call":
       let clsName = (expr.obj.a[0] as any).name;
       if (env.classes.get(clsName).has(expr.method)) {
         let callExpr: Array<string> = [];
         let argsExprs = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-        callExpr.push(codeGenExpr(expr.obj, env).join("\n"));
+        callExpr.push(...codeGenExpr(expr.obj, env));
         callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
         callExpr.push(`(i32.load) ;; load the function pointer for the extra argument`);
-        callExpr.push(argsExprs.join("\n"));
-        callExpr.push(codeGenExpr(expr.obj, env).join("\n"));
+        callExpr.push(...argsExprs);
+        callExpr.push(...codeGenExpr(expr.obj, env));
         callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
         callExpr.push(`(i32.load) ;; load the function pointer`);
         callExpr.push(`(i32.load) ;; load the function index`);
@@ -1106,22 +1188,17 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               `(i32.add (i32.const 4))`, //Adding 4 since string length is at first index
               `(i32.load)`, //Load the ASCII value of the string index
               `(local.set $$string_val)`, //store value in temp variable
-              `(i32.load (i32.const 0))`, //load value at 0
+              `(i32.const ${TAG_STRING})`,
+              `(i32.const 8)`,
+              `(call $$gcalloc)`,
+              `(local.tee $$allocPointer)`,
               `(i32.const 0)`, //Length of string is 1
               `(i32.store)`, //Store length of string in the first position
-              `(i32.load (i32.const 0))`, //Load latest free memory
+              `(local.get $$allocPointer)`,
               `(i32.add (i32.const 4))`, //Add 4 since we have stored string length at beginning
               `(local.get $$string_val)`, //load value in temp variable
               "(i32.store)", //Store the ASCII value in the new address
-            ]
-          );
-          brStmts.push(
-            ...[
-              "(i32.load (i32.const 0))", // Get address for the indexed character of the string
-              "(i32.const 0)", // Address for our upcoming store instruction
-              "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-              `(i32.add (i32.const 8))`, // Move heap head beyond the string length
-              "(i32.store)", // Save the new heap offset
+              `(local.get $$allocPointer)`,
             ]
           );
           return brStmts;
@@ -1171,12 +1248,22 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
 }
 
 function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number): Array<string> {
+  // NOTE(alex:mm): $$allocPointer is clobbered by inner exprs
+  // Dump it to the stack before you codegen for inner exprs
   let dictAllocStmts: Array<string> = [];
+  dictAllocStmts = dictAllocStmts.concat([
+    `(i32.const ${Number(TAG_DICT)})   ;; heap-tag: dictionary`,
+    `(i32.const ${hashtableSize * 4})   ;; size in bytes`,
+    `(call $$gcalloc)`,
+    `(local.set $$allocPointer)`,
+    `(local.get $$allocPointer)`, // return to parent expr
+  ]);
+
   //Ideally this loop should be replaced by call to allocator API to allocate hashtablesize entries on heap.
   for (let i = 0; i < hashtableSize; i++) {
     dictAllocStmts.push(
       ...[
-        `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+        `(local.get $$allocPointer)`,
         `(i32.add (i32.const ${i * 4}))`, // Calc hash table entry offset from heap offset
         ...codeGenLiteral({ tag: "none" }), // CodeGen for "none" literal
         "(i32.store)", // Initialize to none
@@ -1185,24 +1272,27 @@ function codeGenDictAlloc(hashtableSize: number, env: GlobalEnv, entries: number
   }
   //Push the base address of dict on the stack to be consumed by each of the key:val pair initialization
   for (let i = 0; i < entries; i++) {
-    dictAllocStmts = dictAllocStmts.concat(["(i32.load (i32.const 0))"]);
+    dictAllocStmts = dictAllocStmts.concat(["(local.get $$allocPointer)"]);
   }
-  return dictAllocStmts.concat([
-    "(i32.load (i32.const 0))", // Get address for the dict (this is the return value)
-    "(i32.const 0)", // Address for our upcoming store instruction
-    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-    `(i32.add (i32.const ${hashtableSize * 4}))`, // Increment heap offset according to hashtable size
-    "(i32.store)", // Save the new heap offset
-  ]);
+
+  // entries + 1 dict pointers should be on the stack
+  return dictAllocStmts;
 }
 
 function allocateStringMemory(string_val: string): Array<string> {
   const stmts = [];
   var i = 1;
-  //Storing the length of the string at the beginning
+  // NOTE(alex:mm): It looks like characters are stored in 4 bytes?
+  const allocSizeBytes = (string_val.length + 1) * 4;
+  // Storing the length of the string at the beginning
+  // TODO(alex:mm): Where is the length storing code?
   stmts.push(
     ...[
-      `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+      `(i32.const ${Number(TAG_STRING)})  ;; heap-tag: string`,
+      `(i32.const ${allocSizeBytes})`,
+      `(call $$gcalloc)`,
+      `(local.set $$allocPointer)`,
+      `(local.get $$allocPointer)`,
       `(i32.const ${string_val.length - 1})`, // Store ASCII value for 0 (end of string)
       "(i32.store)", // Store the ASCII value 0 in the new address
     ]
@@ -1211,7 +1301,7 @@ function allocateStringMemory(string_val: string): Array<string> {
     const char_ascii = string_val.charCodeAt(i - 1);
     stmts.push(
       ...[
-        `(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+        `(local.get $$allocPointer)`,
         `(i32.add (i32.const ${i * 4}))`, // Calc string index offset from heap offset
         `(i32.const ${char_ascii})`, // Store the ASCII value of the string index
         "(i32.store)", // Store the ASCII value in the new address
@@ -1220,11 +1310,7 @@ function allocateStringMemory(string_val: string): Array<string> {
     i += 1;
   }
   return stmts.concat([
-    "(i32.load (i32.const 0))", // Get address for the first character of the string
-    "(i32.const 0)", // Address for our upcoming store instruction
-    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-    `(i32.add (i32.const ${(string_val.length + 1) * 4}))`, // Move heap head beyond the string length + 1(len at beginning)
-    "(i32.store)", // Save the new heap offset
+    `(local.get $$allocPointer)`, // return the allocated pointer
   ]);
 }
 
@@ -1244,7 +1330,7 @@ function codeGenDictBracketLookup(
     `(i32.const ${hashtableSize})`,
     ...codeGenCall(obj.a[1], "(call $ha$htable$Lookup)"),
   ]);
-  return dictKeyValStmts.concat(["i32.load"]);
+  return dictKeyValStmts.concat(["(i32.load)"]);
 }
 
 //Assumes that base address of dict is pushed onto the stack already
@@ -1268,20 +1354,25 @@ function dictUtilFuns(): Array<string> {
   let dictFunStmts: Array<string> = [];
   dictFunStmts.push(
     ...[
-      "(func $ha$htable$CreateEntry (param $key i32) (param $val i32)",
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(func $ha$htable$CreateEntry (param $key i32) (param $val i32) (result i32)",
+      "(local $$allocPointer i32)",
+      `(i32.const ${TAG_DICT_ENTRY})    ;; heap-tag: opaque`,
+      "(i32.const 96)   ;; size in bytes",
+      "(call $$gcalloc)",
+      "(local.tee $$allocPointer)",
       "(local.get $key)",
       "(i32.store)", // Dumping tag
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $$allocPointer)",
       "(i32.const 4)",
       "(i32.add)", // Moving to the next block
       "(local.get $val)",
       "(i32.store)", // Dumping value
-      "(i32.load (i32.const 0))", // Loading the address of first empty space
+      "(local.get $$allocPointer)",
       "(i32.const 8)",
       "(i32.add)", // Moving to the next block
       "(i32.const 0)", //None
       "(i32.store)", // Dumping None in the next
+      "(local.get $$allocPointer)",
       "(return))",
       "",
     ]
@@ -1368,6 +1459,7 @@ function dictUtilFuns(): Array<string> {
       "(func $ha$htable$Update (param $baseAddr i32) (param $key i32) (param $val i32) (param $hashtablesize i32)",
       "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
       "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(local $$allocPointer i32)",
       "(i32.const 0)",
       "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
       "(local.get $baseAddr)",
@@ -1384,19 +1476,15 @@ function dictUtilFuns(): Array<string> {
       "(local.get $key)",
       "(local.get $val)",
       "(call $ha$htable$CreateEntry)", //create node
+      "(local.set $$allocPointer)",
       "(local.get $baseAddr)", // Recomputing the bucketAddress to update it.
       "(local.get $key)",
       "(local.get $hashtablesize)",
       "(i32.rem_s)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Recomputed bucketAddress
-      "(i32.load (i32.const 0))",
+      "(local.get $$allocPointer)",
       "(i32.store)", //Updated the bucketAddress pointing towards first element.
-      "(i32.const 0)",
-      "(i32.load (i32.const 0))",
-      "(i32.const 12)",
-      "(i32.add)",
-      "(i32.store)", // Updating the empty space address in first block
       ")", // Closing then
       "(else", // Opening else
       "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
@@ -1485,14 +1573,10 @@ function dictUtilFuns(): Array<string> {
       "(local.get $key)",
       "(local.get $val)",
       "(call $ha$htable$CreateEntry)", //create node
+      "(local.set $$allocPointer)",
       "(local.get $nodePtr)", // Get the address of "next" block in node, whose next is None.
-      "(i32.load (i32.const 0))",
+      "(local.get $$allocPointer)",
       "(i32.store)", // Updated the next pointing towards first element of new node.
-      "(i32.const 0)",
-      "(i32.load (i32.const 0))",
-      "(i32.const 12)",
-      "(i32.add)",
-      "(i32.store)", // Updating the empty space address in first block
       ")", // Closing then inside else
       ")", // Closing if inside else
       ")", // Closing else
@@ -1520,20 +1604,23 @@ function codeGenBigInt(num: bigint): Array<string> {
     size += 1;
   } while (num > 0n);
   // size MUST be > 0
+  // NOTE(alex:mm): $$allocPointer is clobbered when codegen'ing inner exprs
   var alloc = [
-    // eventually we will be able to call something like alloc(size+2)
-    "(i32.load (i32.const 0))", // Load dynamic heap head offset
+    `(i32.const ${TAG_BIGINT})`,
+    `(i32.const ${(2 + size) * WORD_SIZE})`, // size in bytes
+    `(call $$gcalloc)`,
+    `(local.tee $$allocPointer)`,
     `(i32.add (i32.const ${0 * WORD_SIZE}))`, // add space for sign field
     `(i32.const ${sign})`,
     "(i32.store)", // store sign val
-    "(i32.load (i32.const 0))", // Load dynamic heap head offset
+    `(local.get $$allocPointer)`,
     `(i32.add (i32.const ${1 * WORD_SIZE}))`, // move offset another 4 for size
     `(i32.const ${size})`, // size is only 32 bits :(
     "(i32.store)", // store size
   ];
   words.forEach((w, i) => {
     alloc = alloc.concat([
-      "(i32.load (i32.const 0))", // Load dynamic heap head offset
+      `(local.get $$allocPointer)`,
       `(i32.add (i32.const ${(2 + i) * WORD_SIZE}))`, // advance pointer
       `(i32.const ${w})`,
       ...encodeLiteral,
@@ -1541,12 +1628,7 @@ function codeGenBigInt(num: bigint): Array<string> {
     ]);
   });
   alloc = alloc.concat([
-    "(i32.const 0)", // where will we store the updated heap offset
-    "(i32.load (i32.const 0))", // Load dynamic heap head offset
-    `(i32.add (i32.const ${(2 + size) * WORD_SIZE}))`, // this is how much space we need
-    "(i32.store)", // store new offset
-    "(i32.load (i32.const 0))", // reload offset
-    `(i32.sub (i32.const ${(2 + size) * WORD_SIZE}))`, // this is the addr for the number
+    `(local.get $$allocPointer)`, // address for the number
   ]);
   console.log(words, size, sign);
   return alloc;
@@ -1641,4 +1723,25 @@ function codeGenCall(loc: Location, code: string): Array<string> {
     code,
     ...codeGenPopStack()
   ]
+}
+function isInternal(s: string): boolean {
+  return s.substring(1).indexOf("$") !== -1;
+}
+
+// Required so that heap-allocated temporaries are considered rooted/reachable
+// Without the call to `captureTemps`, heap-allocated temporaries may be accidently
+//   freed
+// Necessary because cannot scan the WASM stack for pointers so the MemoryManager
+//   must maintain its own list of reachable objects
+function codeGenTempGuard(c: Array<string>, kind: number): Array<string> {
+  switch (kind) {
+    case FENCE_TEMPS:
+      return ["(call $$captureTemps)"].concat(c).concat(["(call $$releaseTemps)"]);
+
+    case HOLD_TEMPS:
+      return ["(call $$captureTemps)"].concat(c);
+
+    case RELEASE_TEMPS:
+      return c.concat(["(call $$releaseTemps)"]);
+  }
 }
