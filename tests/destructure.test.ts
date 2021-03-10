@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { parse } from "../parser";
-import { PyInt, PyBool, PyNone, PyObj, NUM, CLASS, BOOL, LIST } from "../utils";
-import { assert, assertFail, asserts, assertTC, assertTCFail } from "./utils.test";
+import { PyInt, PyBool, PyNone, PyObj, NUM, CLASS, BOOL, LIST, TUPLE, PyValue } from "../utils";
+import { assert, assertFail, assertPrint, asserts, assertTC, assertTCFail } from "./utils.test";
 
 describe("Destructure integration (class based. to be converted to tuples)", () => {
   // NOTE: Assigning from class fields is a temporary measure
@@ -140,14 +140,14 @@ describe("Destructure lists", () => {
   assertTC(
     "destructure list to ids",
     `
-    listy: [int] = None
-    a: int = 0
-    b: int = 0
-    c: int = 0
-    d: int = 0
-    listy = [1, 3, 4, 7]
-    a, b, c, d = listy
-    c
+      listy: [int] = None
+      a: int = 0
+      b: int = 0
+      c: int = 0
+      d: int = 0
+      listy = [1, 3, 4, 7]
+      a, b, c, d = listy
+      c
     `,
     NUM
   );
@@ -155,17 +155,17 @@ describe("Destructure lists", () => {
   assertTC(
     "destructure list to lookups",
     `
-    class BoolContainer(object):
-      a: bool = False
-      b: bool = True
-      c: bool = False
-      d: bool = False
-    listy: [bool] = None
-    bc: BoolContainer = None
-        listy = [True, False, False, True]
-    bc = BoolContainer()
-    bc.a, bc.b, bc.c, bc.d = listy
-    bc.d
+      class BoolContainer(object):
+        a: bool = False
+        b: bool = True
+        c: bool = False
+        d: bool = False
+      listy: [bool] = None
+      bc: BoolContainer = None
+          listy = [True, False, False, True]
+      bc = BoolContainer()
+      bc.a, bc.b, bc.c, bc.d = listy
+      bc.d
     `,
     BOOL
   );
@@ -173,10 +173,10 @@ describe("Destructure lists", () => {
   assertTC(
     "destructure list to bracket-lookups",
     `
-    listy: [int] = None
-    listy = [1, 4, 5, 9]
-    listy[0], listy[1], listy[2], listy[3] = listy
-    listy[1]
+      listy: [int] = None
+      listy = [1, 4, 5, 9]
+      listy[0], listy[1], listy[2], listy[3] = listy
+      listy[1]
     `,
     NUM
   );
@@ -184,14 +184,226 @@ describe("Destructure lists", () => {
   assertTC(
     "destructure list with starred assignment",
     `
-    list_parent: [bool] = None
-    list_child: [bool] = None
-    booly: bool = False
-    list_parent = [False, True, False, True]
-    booly, *list_child, booly = list_parent
-    list_child
+      list_parent: [bool] = None
+      list_child: [bool] = None
+      booly: bool = False
+      list_parent = [False, True, False, True]
+      booly, *list_child, booly = list_parent
+      list_child
     `,
     LIST(BOOL)
+  );
+});
+
+describe("General tuple tests", () => {
+  assertTC("tuple literal type test", "(1, 2, True, False)", TUPLE(NUM, NUM, BOOL, BOOL));
+
+  assertTC(
+    "tuple variable type test",
+    `
+      tupel: (bool, int, bool) = None
+      tupel = (True, 24, False)
+      tupel
+    `,
+    TUPLE(BOOL, NUM, BOOL)
+  );
+
+  assertTCFail(
+    "tuple variable assigned incorrect tuple type (item mismatch)",
+    `
+      tupel: (bool, bool, int) = None
+      tupel = (True, False, True)
+    `
+  );
+
+  assertTCFail(
+    "tuple variable assigned incorrect tuple type (too many items)",
+    `
+      tupel: (bool, bool) = None
+      tupel = (False, False, False)
+    `
+  );
+
+  assertTCFail(
+    "tuple variable assigned incorrect tuple type (too few items)",
+    `
+      tupel: (int, bool, int, int) = None
+      tupel = (19, False, 20)
+    `
+  );
+
+  assertTC(
+    "tuple indexing returns correct type",
+    `
+      tupel: (int, bool) = None
+      tupel = (17, False)
+      tupel[1]
+    `,
+    BOOL
+  );
+
+  assertTCFail(
+    "tuple indexing does not support non-numbers",
+    `
+      tupel: (int, int, int) = None
+      tupel = (5, 10, 20)
+      tupel[True]
+    `
+  );
+
+  assertTCFail(
+    "tuple indexing does not support non-literal numbers",
+    `
+      tupel: (bool) = None
+      index: int = 0
+      tupel = (True,)
+      tupel[index]
+    `
+  );
+
+  assertTCFail(
+    "tuple indexing does not support indexing past size of tuple",
+    `
+      tupel: (int, int) = None
+      tupel = (100, -100)
+      tupel[2]
+    `
+  );
+
+  assertTCFail(
+    "tuple indexing does not support assignment",
+    `
+      tupel: (bool, bool) = None
+      tupel = (True, False)
+      tupel[1] = True
+    `
+  );
+
+  assertTC(
+    "allow nested tuples",
+    `
+      tupel: ((bool, bool), (int, int)) = None
+      tupel = ((True, False), (9, -91))
+      tupel[1]
+    `,
+    TUPLE(NUM, NUM)
+  );
+
+  assertTC(
+    "allow chained indexing on nested tuples",
+    `
+      tupel: ((int, bool), (int, bool)) = None
+      tupel = ((-11, True), (-111, False))
+      tupel[0][1]
+    `,
+    BOOL
+  );
+
+  assertPrint(
+    "tuple indexing produces the right values",
+    `
+      tupel: (int, bool, int, bool, int) = None
+      tupel = (1, True, 3, False, 8)
+      print(tupel[0])
+      print(tupel[1])
+      print(tupel[2])
+      print(tupel[3])
+      print(tupel[4])
+      print((True,)[0])
+      print((5, 6, 11, 17, 28, 45)[4])
+    `,
+    ["1", "True", "3", "False", "8", "True", "28"]
+  );
+
+  assertPrint(
+    "supports object tuples",
+    `
+      class Ghost(object):
+         boo: str = "boo"
+      ghost: Ghost = None
+      ghostly: (Ghost, Ghost) = None
+      ghost = Ghost()
+      ghostly = (None, ghost)
+      print(ghostly[1].boo)
+      print(ghostly[1] is ghost)
+    `,
+    ["boo", "True"]
+  );
+});
+
+describe("Destructure tuples", () => {
+  asserts("destructuring proposal test 1, support destructuring tuples", [
+    [
+      `
+          a: int = 0
+          b: bool = False
+          t: (int, bool) = None
+          t = (1, True)
+          a, b = t
+          a
+        `,
+      PyInt(1),
+    ],
+    [
+      `
+          b
+        `,
+      PyBool(true),
+    ],
+  ]);
+
+  assert(
+    "destructuring proposal test 2, support single element tuples",
+    `
+      a: int = 0
+      a, = (1,)
+      a
+    `,
+    PyInt(1)
+  );
+
+  asserts("destructuring proposal test 12, support object field assignment", [
+    [
+      `
+          class Test(object):
+            a: int = 0
+            b: int = 0
+          t: Test = None
+          t = Test()
+          t.a, t.b = (5, 6)
+          t.a
+        `,
+      PyInt(5),
+    ],
+    [
+      `
+          t.b
+        `,
+      PyInt(6),
+    ],
+  ]);
+
+  assertPrint(
+    "swaps two variables using tuples",
+    `
+      class Sky(object):
+        color: int = 135206255
+      good_sky: Sky = None
+      bad_sky: Sky = None
+      s1: Sky = None
+      s2: Sky = None
+      good_sky = Sky()
+      bad_sky = Sky()
+      bad_sky.color = 139000000
+      s1 = good_sky
+      s2 = bad_sky
+      print(s1 is good_sky)
+      print(s2 is bad_sky)
+      s1, s2 = (s2, s1)
+      print(s1 is bad_sky)
+      print(s2 is good_sky)
+    `,
+    ["True", "True", "True", "True"]
   );
 });
 
