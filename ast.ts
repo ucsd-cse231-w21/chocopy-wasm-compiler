@@ -24,8 +24,6 @@ export type Scope<A> =
 
 export type Parameter = { name: string; type: Type; value?: Literal };
 
-export type Argument<A> = { a?: A; name?: string; value: Expr<A> }
-
 export type Program<A> = {
   a?: A;
   funs: Array<FunDef<A>>;
