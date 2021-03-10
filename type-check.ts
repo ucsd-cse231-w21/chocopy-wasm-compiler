@@ -570,7 +570,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             }
             return { ...expr, a: tObj.a.value, obj: tObj, arguments: [tKeyGet] };
           case "update":
-            console.log("TC: update function in dict");
+            console.log("TC: To-Do update function in dict");
             let numArgsUpdate = expr.arguments.length;
             if (numArgsUpdate > 2) {
               throw new TypeCheckError(
@@ -580,39 +580,16 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             let isArgDict = expr.arguments[0];
             if (isArgDict.tag === "literal") {
               throw new TypeCheckError(
-                `'dict' update() expected an iterable, got ${isArgDict.value.tag} (which is not iterable)`
+                `'dict' update() expected an iterable, got ${isArgDict.value.tag}`
               );
             }
-            if (isArgDict.tag === "dict") {
-              let dictArguments = isArgDict.entries;
-              let updateTypes: Array<[Expr<Type>, Expr<Type>]> = [];
-              let updateKeyTypes = new Set();
-              let updateValueTypes = new Set();
-              for (let dictArgIndex = 0; dictArgIndex < dictArguments.length; dictArgIndex++) {
-                let updateKeyType = tcExpr(env, locals, dictArguments[dictArgIndex][0]);
-                let updateValueType = tcExpr(env, locals, dictArguments[dictArgIndex][1]);
-                console.log("argument types got from update");
-                console.log(updateKeyType);
-                console.log(updateValueType);
-                updateTypes.push([updateKeyType, updateValueType]);
-                updateKeyTypes.add(JSON.stringify(updateKeyType.a));
-                updateValueTypes.add(JSON.stringify(updateValueType.a));
-              }
-              if (updateKeyTypes.size > 1) {
-                throw new TypeCheckError("Heterogenous `Key` type updates aren't supported");
-              }
-              if (updateValueTypes.size > 1) {
-                throw new TypeCheckError("Heterogenous `Value` type updates aren't supported");
-              }
-              return {
-                ...expr,
-                a: { tag: "none" },
-                obj: tObj,
-                arguments: [{ tag: "literal", value: { tag: "none" } }],
-              };
-            } else {
-              throw new TypeCheckError(`Expected 'dict' type for update(), got '${isArgDict.tag}'`);
-            }
+            let tUpdate = tcExpr(env, locals, isArgDict);
+            return {
+              ...expr,
+              a: { tag: "none" },
+              obj: tObj,
+              arguments: [tUpdate],
+            };
           case "clear":
             // throw error if there are any arguments in clear()
             let numArgsClear = expr.arguments.length;
@@ -623,7 +600,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               ...expr,
               a: { tag: "none" },
               obj: tObj,
-              arguments: [{ tag: "literal", value: { tag: "none" } }],
+              arguments: [{ tag: "literal", value: { tag: "none" } }]
             };
           default:
             throw new TypeCheckError(`'dict' object has no attribute '${expr.method}'`);
