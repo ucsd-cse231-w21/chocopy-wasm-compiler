@@ -267,7 +267,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
   switch (stmt.tag) {
     case "return":
       var valStmts = codeGenTempGuard(codeGenExpr(stmt.value, env), FENCE_TEMPS);
-      valStmts.push("return");
+      valStmts.push("(return)");
       return valStmts;
     case "assignment":
       const valueCode = codeGenExpr(stmt.value, env);
