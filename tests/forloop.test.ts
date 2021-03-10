@@ -37,7 +37,7 @@ describe("FOR LOOP TEST", () => {
     `,
     PyInt(9)
   );
-  
+
   assert(
     "for range(1, 10, 2)",
     `
@@ -113,109 +113,4 @@ describe("FOR LOOP TEST", () => {
     `,
     ["0", "1", "2", "3", "4", "1", "2"]
   );
-
-  assert(
-    "double nested for loop",
-    `
-    i:int = 0
-    x:int = 0
-    z:int = 0
-      
-    for i in range(10):
-      for x in range(5):
-        z = z + 1
-    z
-    `,
-    PyInt(50)
-  );
-
-  assertPrint(
-    "triple nested for loop",
-    `
-    i:int = 0
-    j:int = 0
-    k:int = 0
-      
-    for i in range(1, 3):
-      for j in range(1, 3):
-        for k in range(1, 3):
-          print(i*j*k)
-    `,
-    ["1", "2", "2", "4", "2", "4", "4", "8"]
-  );
-
-  assertPrint(
-    "break in nested for loop",
-    `
-    i:int = 0
-    j:int = 0
-    k:int = 0
-      
-    for i in range(1, 3):
-      for j in range(1, 3):
-        for k in range(1, 3):
-          if k > 1:
-            break
-          else:
-            pass
-          print(i*j*k)
-    `,
-    ["1", "2", "2", "4"]
-  );
-
-  assertPrint(
-    "continue in nested for loop",
-    `
-    i:int = 0
-    j:int = 0
-    k:int = 0
-      
-    for i in range(1, 3):
-      for j in range(1, 3):
-        for k in range(1, 3):
-          if k == 1:
-            continue
-          else:
-            pass
-          print(i*j*k)
-    `,
-    ["2", "4", "4", "8"]
-  );
-
-  assertPrint(
-    "loop in function",
-    `
-    k:int = 5
-  
-    def count(x:int):
-      i:int = 0
-      for i in range(x):
-        print(i)
-      
-    count(k)
-    `,
-    ["0", "1", "2", "3", "4"]
-  );
-
-
-  assertPrint(
-    "loop in class",
-    `
-    class Counter(object):
-      x:int = 0
-  
-      def print_loop(self: Counter, x:int):
-        i:int = 0
-          
-        for i in range(x):
-          print(i)
-        
-        
-    Counter().print_loop(7)
-    `,
-    ["0", "1", "2", "3", "4", "5", "6"]
-  );
-
-
-
 });

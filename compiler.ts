@@ -312,8 +312,8 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
               tag: "literal",
               value: {
                 tag: "num",
-                value: BigInt(-1)
-              }
+                value: BigInt(-1),
+              },
             },
           };
           var Code_iass = codeGenStmt(iass, env);
@@ -325,14 +325,14 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             left: {
               a: [NUM, stmt.a[1]],
               tag: "id",
-              name: "idx" + stmt.id
+              name: "idx" + stmt.id,
             },
             right: {
               a: [NUM, stmt.a[1]],
               tag: "literal",
               value: {
                 tag: "num",
-                value: BigInt(1)
+                value: BigInt(1),
               },
             },
           };
@@ -351,7 +351,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             key: {
               a: [NUM, stmt.a[1]],
               tag: "id",
-              name: "idx" + stmt.id
+              name: "idx" + stmt.id,
             },
           };
 
@@ -359,7 +359,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           if (stmt.name.targets[0].target.tag === "id") {
             tarname = stmt.name.targets[0].target.name;
           }
-          console.log(tarname)
           // name = cur
           var ass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
@@ -377,14 +376,14 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             left: {
               a: [NUM, stmt.a[1]],
               tag: "id",
-              name: "idx" + stmt.id
+              name: "idx" + stmt.id,
             },
             right: {
               a: [NUM, stmt.a[1]],
               tag: "literal",
               value: {
                 tag: "num",
-                value: BigInt(stmt.iterable.contents.length)
+                value: BigInt(stmt.iterable.contents.length),
               },
             },
           };
@@ -588,7 +587,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             ))`,
           ];
       }
-
     case "pass":
       return [];
     case "break":
