@@ -404,7 +404,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         // iterable should be a Range object
         return [
           `
-          (i32.const ${envLookup(env, "rg")})
+          (i32.const ${envLookup(env, "rng" + stmt.id)})
           ${iter.join("\n")}
           (i32.store)
           ${Code_iass.join("\n")}
@@ -433,7 +433,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
       return [
         `
-        (i32.const ${envLookup(env, "rg")})
+        (i32.const ${envLookup(env, "rng" + stmt.id)})
         ${iter.join("\n")}
         (i32.store)
         ${Code_cur_iniass.join("\n")}
