@@ -108,16 +108,14 @@ describe("fancy-calling-convention tests", () => {
     `
   );
 
-
   assert(
     "function-with-kwarg",
     `
   def foo(x : int, y : int) -> int:
-    return x + y
+    return x - y
 
-  foo(x = 2, y = 4)
+  foo(y = 2, x = 4)
     `,
-    PyNone()
+    PyInt(2)
   );
-
 });

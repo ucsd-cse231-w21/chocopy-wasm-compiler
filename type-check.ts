@@ -806,22 +806,37 @@ export function tcExpr(
         const argTypes = args.map((p) => p.type);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
+        var tcKwargs: Array<[string, Expr<[Type, Location]>]> = [];
+        var kwargsMap: Map<string, Expr<[Type, Location]>> = new Map();
+        // typecheck each keyword and make a map
+        for (var kw of expr.kwargs) {
+          const argExpr = tcExpr(env, locals, kw[1]);
+          tcKwargs = tcKwargs.concat([kw[0], argExpr]);
+          kwargsMap.set(kw[0], argExpr);
+        }
         if (
           argTypes.length === expr.arguments.length &&
           tArgs.every((tArg, i) => isAssignable(env, tArg.a[0], argTypes[i]))
         ) {
-          return { ...expr, a: [retType, expr.a], name: innercall, arguments: tArgs };
+          return {
+            ...expr,
+            a: [retType, expr.a],
+            name: innercall,
+            arguments: tArgs,
+            kwargs: tcKwargs,
+          };
         }
-        // case where the function may have default values
+        // case where the function may have default values or kwargs
         else if (
-          argTypes.length > expr.arguments.length &&
+          argTypes.length >= expr.arguments.length + expr.kwargs.length &&
           tArgs.every((tArg, i) => tArg.a[0] === argTypes[i])
         ) {
           return {
             ...expr,
             a: [retType, expr.a],
             name: innercall,
-            arguments: populateDefaultParams(tArgs, tArgs, params),
+            arguments: populateDefaultParams(tArgs, tArgs, params, kwargsMap),
+            kwargs: tcKwargs,
           };
         } else {
           throw new BaseException.TypeMismatchError(
@@ -906,7 +921,7 @@ export function tcExpr(
                 ...expr,
                 a: [methodRet, expr.a],
                 obj: tObj,
-                arguments: populateDefaultParams(tArgs, realArgs, methodParams),
+                arguments: populateDefaultParams(tArgs, realArgs, methodParams, new Map()),
               };
             } else if (methodArgs.length != realArgs.length) {
               throw new BaseException.TypeError(
@@ -1055,12 +1070,19 @@ export function toObject(types: Type[]): string {
 export function populateDefaultParams(
   tArgs: Expr<[Type, Location]>[],
   actualArgs: Expr<[Type, Location]>[],
-  params: Parameter[]
+  params: Parameter[],
+  kwargsMap: Map<string, Expr<[Type, Location]>>
 ) {
   var augArgs = tArgs;
   var argNums = actualArgs.length;
+  const kwKeys = Array.from(kwargsMap.keys());
+
   while (argNums < params.length) {
-    if (params[argNums].value === undefined) {
+    // look up param to see if its a kwarg
+    const paramName = params[argNums].name;
+    if (kwKeys.indexOf(paramName) > -1) {
+      augArgs = augArgs.concat(kwargsMap.get(paramName));
+    } else if (params[argNums].value === undefined) {
       throw new Error("Missing argument from call");
     } else {
       // add default values into arguments as an Expr
