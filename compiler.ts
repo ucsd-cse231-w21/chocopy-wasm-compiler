@@ -96,7 +96,6 @@ export function augmentEnv(
     newGlobals.set(v.name, Number(globalAddr));
     mm.addGlobal(globalAddr);
   });
-  
   // encoding for var rngi
   for (let index = lastCount + 1; index <= forCount; index++) {
     let rgAddr = mm.staticAlloc(4n);
