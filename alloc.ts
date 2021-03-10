@@ -84,9 +84,7 @@ export class MemoryManager {
   memory: Uint8Array;
   staticAllocator: H.BumpAllocator;
 
-  // In the future, we can do something like
-  // globalAllocator: Fallback<BumpAllocator, Generic>
-  gc: GC.MnS<H.BumpAllocator>;
+  gc: GC.MnS<GC.MarkableAllocator>
 
   constructor(
     memory: Uint8Array,
@@ -96,8 +94,33 @@ export class MemoryManager {
     }
   ) {
     this.memory = memory;
+    const staticStart = 4n;
+    const staticEnd = staticStart + cfg.staticStorage;
     this.staticAllocator = new H.BumpAllocator(memory, 4n, cfg.staticStorage + 4n);
-    const gcHeap = new H.BumpAllocator(memory, cfg.staticStorage, cfg.total);
+
+
+    const gcStart = BigInt(staticEnd);
+    const gcEnd = BigInt(cfg.total);
+
+    const wordBucketCount = 64n;
+    const bucketWordStart = gcStart;
+    const bucketWordEnd = gcStart + wordBucketCount * 4n;
+
+    const flStart = bucketWordEnd;
+    const flEnd = cfg.total;
+    if (flStart >= flEnd) {
+      throw new Error(`flEnd (${flEnd}) >= ${flStart}`);
+    }
+
+    const bucketWord = new H.BitMappedBlocks(bucketWordStart, bucketWordEnd, 4n, BigInt(GC.HEADER_SIZE_BYTES));
+
+    const fl = new H.FreeListAllocator(memory, flStart, flEnd);
+
+    const gcHeap = new GC.MarkableSegregator(4n,
+      bucketWord,
+      // new GC.MarkableFallback(bucketWord, fl),
+      fl);
+
     this.gc = new GC.MnS(memory, gcHeap);
   }
 
