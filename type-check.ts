@@ -874,7 +874,7 @@ export function tcExpr(
           arguments: tArgs,
         };
       }
-      throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
+      throw new BaseException.TypeError(expr.a, "Parser should use call_expr instead whose callee is an expression.");
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
       if (tObj.a[0].tag === "class") {
@@ -940,17 +940,18 @@ export function tcExpr(
         throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
       }
     case "comprehension":
+
       // iter
       const iter = tcExpr(env, locals, expr.iter);
       let expectedFieldType: Type;
 
       // TODO: add "iter" class type when that's available
-      if (iter.a.tag === "class" && iter.a.name === "Range") {
+      if (iter.a[0].tag === "class" && iter.a[0].name === "Range") {
         expectedFieldType = NUM;
-      } else if (iter.a.tag === "list") {
-        expectedFieldType = iter.a.content_type;
+      } else if (iter.a[0].tag === "list") {
+        expectedFieldType = iter.a[0].content_type;
       } else {
-        throw new TypeCheckError(`${iter.a.tag} object is not iterable`);
+        throw new BaseException.TypeError(iter.a[1], `${iter.a[0].tag} object is not iterable`);
       }
 
       // field
@@ -958,47 +959,60 @@ export function tcExpr(
        * Right now, users will have to define the field before using it in comprehensions.
        * This will save us the trouble of defining temporary variables in the environment.
        * However, this also means that the value will escape its scope.
+       *
+       * This also follows how the for loop works, since that also requires users to predefine the looper variable(s)
        */
+      let field: Assignable<[Type, Location]> = null;
       if (expr.field.tag === "id") {
-        const fieldType: Type = tcExpr(env, locals, { tag: "id", name: expr.field.name }).a;
-        if (!equalType(fieldType, expectedFieldType)) {
-          throw new TypeCheckError(`Type mismatch for ${expr.field.name} in comprehension`);
+        field = tcAssignable(env, locals, expr.field);
+        const fieldType: Type = field.a[0];
+        // We should use isAssignable here
+        if (!isAssignable(env, expectedFieldType, fieldType)) {
+          throw new BaseException.TypeMismatchError(
+            expr.a,
+            expectedFieldType,
+            fieldType
+          );
         }
       } else {
         //* We don't know if we (or the for loop team) will support this special case.
-        throw new TypeCheckError("Unsupported comphrehension");
+        throw new BaseException.TypeError(expr.a, "Unsupported comphrehension");
       }
 
       // expr
       const newExpr = tcExpr(env, locals, expr.expr);
-      const comprehensionType: Type = { tag: "list", content_type: newExpr.a };
+      const comprehensionType: Type = { tag: "list", content_type: newExpr.a[0] };
 
       // cond
       //*Notice that in regular Python, cond can be of any type. We make this restriction here to make life easier :)
       if (expr.cond) {
         const cond = tcExpr(env, locals, expr.cond);
 
-        if (cond.a.tag !== "bool") {
-          throw new TypeCheckError("condition must be boolean");
+        if (cond.a[0].tag !== "bool") {
+          throw new BaseException.TypeMismatchError(
+            cond.a[1],
+            { tag: "bool" },
+            cond.a[0]
+          );
         }
 
-        return transformComprehension({
-          a: comprehensionType,
+        return {
+          a: [comprehensionType, expr.a],
           tag: "comprehension",
           expr: newExpr,
-          field: expr.field,
+          field: field,
           iter,
           cond,
-        });
+        };
       }
 
-      return transformComprehension({
-        a: comprehensionType,
+      return {
+        a: [comprehensionType, expr.a],
         tag: "comprehension",
         expr: newExpr,
-        field: expr.field,
+        field: field,
         iter,
-      });
+      };
 
     case "list-expr":
       var commonType = null;

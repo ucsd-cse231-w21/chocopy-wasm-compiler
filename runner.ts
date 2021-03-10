@@ -12,6 +12,7 @@ import { GlobalTypeEnv, tc } from "./type-check";
 import { Value, Type, Location } from "./ast";
 import { PyValue, NONE } from "./utils";
 import { ea } from "./ea";
+import { transform } from "./transform";
 
 export type Config = {
   importObject: any;
@@ -50,13 +51,18 @@ export async function run(
   source: string,
   config: Config
 ): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
+  // Parse the program here
   const parsed = parse(source);
   console.log(parsed);
-  const [tprogram, tenv] = tc(config.typeEnv, parsed);
-  console.log(tprogram);
+
+  // Type check the program here
+  let [typed_program, tenv] = tc(config.typeEnv, parsed);
+  console.log(typed_program);
+
+  // Transform the program here
+  const tprogram = transform(typed_program, config.env);
   const progTyp = tprogram.a[0];
-  // TODO: Insert transofrmation here: tprogram = transform(...)
-  const progTyp = tprogram.a;
+
   var returnType = "";
   var returnExpr = "";
   // const lastExpr = parsed.stmts[parsed.stmts.length - 1]
