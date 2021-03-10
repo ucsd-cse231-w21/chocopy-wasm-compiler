@@ -293,13 +293,12 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       );
       var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      return condExpr.concat(["(if (then"])
+      return condExpr
+        .concat(["(if (then"])
         .concat(thnStmts)
-        .concat([
-          ")",
-          "(else"
-        ]).concat(elsStmts)
-      .concat(["))"]);
+        .concat([")", "(else"])
+        .concat(elsStmts)
+        .concat(["))"]);
     case "while":
       var wcondExpr = codeGenTempGuard(
         codeGenExpr(stmt.cond, env).concat(decodeLiteral),
@@ -404,21 +403,24 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         };
         var Code_idstep = codeGenStmt(niass, env);
         // iterable should be a Range object
-        return codeGenTempGuard([
-          `(i32.const ${envLookup(env, "rg")})`,
-          ...iter,
-          `(i32.store)`,
-          ...Code_iass,
-          "(block",
-          "(loop",
-          ...Code_step,
-          ...Code_idstep,
-          ...["(bf_if 1", ...Code_cond, ...decodeLiteral, "))"],
-          ...Code_ass,
-          ...bodyStmts,
-          "(br 0)",
-          "))",
-        ], FENCE_TEMPS);
+        return codeGenTempGuard(
+          [
+            `(i32.const ${envLookup(env, "rg")})`,
+            ...iter,
+            `(i32.store)`,
+            ...Code_iass,
+            "(block",
+            "(loop",
+            ...Code_step,
+            ...Code_idstep,
+            ...["(bf_if 1", ...Code_cond, ...decodeLiteral, "))"],
+            ...Code_ass,
+            ...bodyStmts,
+            "(br 0)",
+            "))",
+          ],
+          FENCE_TEMPS
+        );
       }
       // iterable should be a Range object
       // test
@@ -426,19 +428,22 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
       // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
       // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
-      return codeGenTempGuard([
-        `(i32.const ${envLookup(env, "rg")})`,
-        ...iter,
-        `(i32.store)`,
-        `(block`,
-        `  (loop`,
-        ...Code_step,
-        ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ')'],
-        ...Code_ass,
-        ...bodyStmts,
-        `(br 0)`,
-        `))`,
-      ], FENCE_TEMPS);
+      return codeGenTempGuard(
+        [
+          `(i32.const ${envLookup(env, "rg")})`,
+          ...iter,
+          `(i32.store)`,
+          `(block`,
+          `  (loop`,
+          ...Code_step,
+          ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ")"],
+          ...Code_ass,
+          ...bodyStmts,
+          `(br 0)`,
+          `))`,
+        ],
+        FENCE_TEMPS
+      );
     case "pass":
       return [];
     case "break":
@@ -506,10 +511,7 @@ function codeGenAssignable(
     case "id": // Variables
       if (env.locals.has(target.name)) {
         const localIndex = env.locals.get(target.name);
-        const result = [
-          ...value,
-          `(local.set $${target.name})`,
-        ];
+        const result = [...value, `(local.set $${target.name})`];
 
         return result;
       } else {
@@ -656,28 +658,21 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
   });
 
   const locals = makeLocals(definedVars);
-  const inits = def.inits
-    .map((init) => codeGenInit(init, env))
-    .flat();
+  const inits = def.inits.map((init) => codeGenInit(init, env)).flat();
   const refs = initRef(extraRefs);
   const nonlocals = initNonlocals(def.nonlocals);
   const nested = initNested(def.nested, env);
 
   let params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
-  let stmts = def.body
-    .map((stmt) => codeGenStmt(stmt, env))
-    .flat()
+  let stmts = def.body.map((stmt) => codeGenStmt(stmt, env)).flat();
 
   let body = locals
-  .concat(inits)
-  .concat(refs)
-  .concat(nonlocals)
-  .concat(nested)
-  .concat(stmts)
-  .concat([
-    "(i32.const 0)",
-    "(return)",
-  ]);
+    .concat(inits)
+    .concat(refs)
+    .concat(nonlocals)
+    .concat(nested)
+    .concat(stmts)
+    .concat(["(i32.const 0)", "(return)"]);
 
   const localMap = env.locals;
   const augmentedBody = augmentFnGc(body, localMap, false);
@@ -723,18 +718,10 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
   });
 
   const locals = makeLocals(definedVars);
-  const inits = def.inits
-    .map((init) => codeGenInit(init, env))
-    .flat();
+  const inits = def.inits.map((init) => codeGenInit(init, env)).flat();
   var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
 
-  const body = locals
-  .concat(inits)
-  .concat(stmts)
-  .concat([
-    "(i32.const 0)",
-    "(return)",
-  ]);
+  const body = locals.concat(inits).concat(stmts).concat(["(i32.const 0)", "(return)"]);
   const localMap = env.locals;
   const augmentedBody = augmentFnGc(body, localMap, false);
   const augmentedBodyStr = augmentedBody.join("\n");
@@ -1085,11 +1072,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         }
         var className = objTyp.name;
         var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-        return [
-          ...objStmts,
-          ...argsStmts,
-          `(call $${className}$${expr.method})`,
-        ];
+        return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
       }
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
@@ -1686,7 +1669,7 @@ function codeGenBinOp(op: BinOp): string {
 }
 
 function isInternal(s: string): boolean {
-  return (s.substring(1).indexOf("$")) !== -1;
+  return s.substring(1).indexOf("$") !== -1;
 }
 
 // Required so that heap-allocated temporaries are considered rooted/reachable

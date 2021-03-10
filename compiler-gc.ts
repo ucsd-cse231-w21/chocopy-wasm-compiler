@@ -1,4 +1,8 @@
-export function augmentFnGc(fnInstrs: Array<string>, locals: Map<string, number>, main: boolean): Array<string> {
+export function augmentFnGc(
+  fnInstrs: Array<string>,
+  locals: Map<string, number>,
+  main: boolean
+): Array<string> {
   let results: Array<string> = [];
 
   let afterLocals = false;
@@ -55,7 +59,7 @@ export function augmentFnGc(fnInstrs: Array<string>, locals: Map<string, number>
             break;
           }
 
-          case "call_indirect":{
+          case "call_indirect": {
             // console.warn(`[${wasmIndex}]: guarding '${wasmInstr}'`);
             results.push(`(call $$pushCaller)`);
             results.push(wasmInstr);
@@ -79,6 +83,7 @@ export function augmentFnGc(fnInstrs: Array<string>, locals: Map<string, number>
             results.push("(call $$releaseLocals)");
             results.push(wasmInstr);
             kontinue = false;
+            break;
           }
 
           default:
