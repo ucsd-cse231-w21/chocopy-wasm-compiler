@@ -249,7 +249,7 @@ function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
     let idx = fun_info[0];
     let length = fun_info[1].length;
     let loc = envLookup(env, fun);
-    inits.push(myMemAlloc(`$$addr`, length + 1).join("\n"));
+    inits.push(...myMemAlloc(`$$addr`, length + 1));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function reference`);
   });
@@ -588,12 +588,12 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
   const inits: Array<string> = [];
 
   nested.forEach((fun) => {
-    inits.push(myMemAlloc(`$${fun}_$ref`, 1).join("\n"));
+    inits.push(...myMemAlloc(`$${fun}_$ref`, 1));
   });
 
   nested.forEach((fun) => {
     let [idx, nonlocals] = env.funs.get(fun);
-    inits.push(myMemAlloc(`$$addr`, nonlocals.length + 1).join("\n"));
+    inits.push(...myMemAlloc(`$$addr`, nonlocals.length + 1));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
       // the dependent variable 'v' exists in the parent scope
@@ -624,7 +624,7 @@ function initRef(refs: Set<string>): Array<string> {
   // for parameters and local variables, extra references are created and initialized
   const inits: Array<string> = [];
   refs.forEach((name) => {
-    inits.push(myMemAlloc(`$${name}_$ref`, 1).join("\n"));
+    inits.push(...myMemAlloc(`$${name}_$ref`, 1));
     inits.push(`(i32.store (local.get $${name}_$ref) (local.get $${name}))`);
   });
 
@@ -877,8 +877,10 @@ function codeGenListCopy(concat: number): Array<string> {
       ...[
         `(block`,
         `(loop`,
-        `(br_if 1 ${condstmts.join("\n")})`,
-        `${loopstmts.join("\n")}`,
+        `(br_if 1`,
+        ...condstmts,
+        `)`,
+        ...loopstmts,
         `(br 0)`,
         `)`,
         `)`,
@@ -1183,9 +1185,9 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           var brStmts = [];
           brStmts.push(
             ...[
-              `${brObjStmts.join("\n")}`, //Load the string object to be indexed
+              ...brObjStmts, //Load the string object to be indexed
               `(local.set $$string_address)`,
-              `${brKeyStmts.join("\n")}`, //Gets the index
+              ...brKeyStmts, //Gets the index
               ...decodeLiteral,
               `(local.set $$string_index)`,
               `(local.get $$string_index)`,
