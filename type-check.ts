@@ -430,13 +430,14 @@ export function tcStmt(
     case "for":
       // check the type of iterator items, then add the item name into local variables with its type
       const fIter = tcExpr(env, locals, stmt.iterable);
-      const iterable_type = fIter.a[0]
+      const iterable_type = fIter.a[0];
+      var iter_type = NUM;
       switch (iterable_type.tag) {
         case "class":
           if (iterable_type.name === "Range") {
             stmt.name.targets.forEach(target => {
               if(target.target.tag === "id"){
-                locals.vars.set(target.target.name, NUM);
+                locals.vars.set(target.target.name, iter_type);
               }else{
                 throw new BaseException.CompileError(stmt.a, "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang")
               }
@@ -453,13 +454,7 @@ export function tcStmt(
           // locals.vars.set(stmt.name, {tag: 'char'});
           throw new BaseException.CompileError(stmt.a, "for-loop with strings are not implmented.");
         case "list":
-          stmt.name.targets.forEach(target => {
-            if(target.target.tag === "id"){
-              locals.vars.set(target.target.name, iterable_type.content_type);
-            }else{
-              throw new BaseException.CompileError(stmt.a, "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang")
-            }
-          });
+          iter_type = iterable_type.content_type;
           break;
         default:
           throw new BaseException.SyntaxError(stmt.a, "Illegal iterating item in for-loop.");
@@ -480,7 +475,7 @@ export function tcStmt(
         a: [NONE, stmt.a],
         id: stmt.id,
         tag: "for",
-        name: tcDestructure( env, locals, stmt.name, NUM, stmt.iterable), // change NUM to fix this issue
+        name: tcDestructure( env, locals, stmt.name, iter_type, stmt.iterable), // change NUM to fix this issue
         iterable: fIter,
         body: fBody,
       };
@@ -556,8 +551,8 @@ function tcDestructure(
       tcLambda(locals, expr, targetType[0]);
       valueType = tcExpr(env, locals, expr).a[0];
     }
+    console.log(targetType[0]===valueType);
     if (!isAssignable(env, valueType, targetType[0]))
-      console.log("here!")
       throw new BaseException.TypeMismatchError(aTarget.target.a, targetType[0], valueType);
     return {
       starred,
