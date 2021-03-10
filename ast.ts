@@ -31,6 +31,7 @@ export type Function = { pos: Pos, name: Name, parametersPos: Pos, parameters: A
 
 export type Stmt =
   | { tag: "comment", pos: Pos }
+  | { tag: "break", pos: Pos} 
   | { tag: "pass", pos: Pos }
   | { tag: "func", content: Function }
   | { tag: "define", pos: Pos, name: Name, staticType: Type, value: Expr }
@@ -43,6 +44,7 @@ export type Stmt =
   | { tag: "for", varName: Name, str: Expr, body: Array<Stmt> }
 
 export type Expr =
+  | { iType?: Type, tag: "nop", pos: Pos }
   | { iType?: Type, tag: "intervalExp", pos: Pos, expr: Expr, args: Expr[] }
   | { iType?: Type, tag: "num", pos: Pos, value: number }
   | { iType?: Type, tag: "self", pos: Pos }

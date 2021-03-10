@@ -76,13 +76,29 @@ export function codeGenOp(op: string, leftT: Type, rightT: Type) : Array<string>
     case "*":
       return codeGenMult(op, leftT, rightT);
     case ">":
-      return [`(i64.gt_s)`, `(i64.extend_i32_s)`];
+      if (leftT.tag == "str" && rightT.tag == "str") {
+	return [`(call $str$gt)`];
+      } else {
+	return [`(i64.gt_s)`, `(i64.extend_i32_s)`];
+      }
     case "<":
-      return [`(i64.lt_s)`, `(i64.extend_i32_s)`];
+      if (leftT.tag == "str" && rightT.tag == "str") {
+	return [`(call $str$lt)`];
+      } else {
+	return [`(i64.lt_s)`, `(i64.extend_i32_s)`];
+      }
     case "<=":
-      return [`(i64.le_s)`, `(i64.extend_i32_s)`];
+      if (leftT.tag == "str" && rightT.tag == "str") {
+	return [`(call $str$le)`];
+      } else {
+	return [`(i64.le_s)`, `(i64.extend_i32_s)`];
+      }
     case ">=":
-      return [`(i64.ge_s)`, `(i64.extend_i32_s)`];
+      if (leftT.tag == "str" && rightT.tag == "str") {
+	return [`(call $str$ge)`];
+      } else {
+	return [`(i64.ge_s)`, `(i64.extend_i32_s)`];
+      }
     case "//":
       return [`(i64.div_s)`];
     case "%":

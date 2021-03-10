@@ -17,6 +17,44 @@ export const PTR_BI   = BigInt(1) << BigInt(60);
 export const STR_BI   = BigInt(1) << BigInt(59);
 export const CHAR_BI  = BigInt(1) << BigInt(58);
 
+export function dumpMem(memUint8: Uint8Array, from: number = 0, to: number = 10) {
+  var i = from;
+  while (i < to) {
+    var fmt = "";
+    var j = 0;
+    
+    while (j < 8) {
+      fmt += (memUint8[i*8 + j]).toString(16).padStart(2, '0') + " ";
+      j += 1;
+    }
+
+    fmt += "\t";
+
+    var j = 0;
+    
+    while (j < 8) {
+      var repr: string = "";
+      const charCode = memUint8[i*8 + j];
+
+      if (charCode <= 126 && charCode >= 32) {
+	repr = String.fromCharCode(charCode);
+      } else {
+	repr = ".";
+      }
+      
+      if (repr.length == 0) {
+	repr += " ";
+      }
+		  
+      fmt += repr + " ";
+      j += 1;
+    }
+
+    console.log(`${(i*8).toString().padStart(3, '0')}: ${fmt}`);
+    i+=1;
+  }
+}
+
 export function i64ToValue(val: any, classMap: Map<number, string> = new Map()): Value {
   if (val == undefined) {
     console.log("Input undefined, returning undefined");

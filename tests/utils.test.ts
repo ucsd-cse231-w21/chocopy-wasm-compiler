@@ -1,3 +1,5 @@
+// -*- mode: typescript; typescript-indent-level: 2; -*-
+
 import "mocha";
 import { expect } from "chai";
 import { BasicREPL } from "../repl";
@@ -21,7 +23,8 @@ export function assert(name: string, source: string, expected: Value) {
   it(name, async () => {
     const repl = new BasicREPL(importObject);
     const result = await repl.run(source);
-    expect(result).to.deep.eq(expected);
+    expect(result[0]).to.deep.eq(expected);
+    repl.destroy();
   });
 }
 
@@ -43,7 +46,7 @@ export function assertFail(name: string, source: string) {
       const result = await repl.run(source);
       fail("Expected an exception, got a type " + JSON.stringify(result));
     } catch (err) {
-      expect(err).to.be.an("Error");
+	// Any error is a success
     }
   });
 }
@@ -52,7 +55,7 @@ export function assertPrint(name: string, source: string, expected: Array<string
   it(name, async () => {
     const repl = new BasicREPL(importObject);
     const result = await repl.run(source);
-    expect(importObject.output.trim().split("\n")).to.deep.eq(expected);
+    expect(importObject.output.split("\n")).to.deep.eq(expected.concat([""]));
   });
 }
 

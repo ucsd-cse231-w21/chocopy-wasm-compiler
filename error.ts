@@ -47,6 +47,7 @@ export const idxError = (pos: Pos, msg: string, source: string): never => generi
 export const parseError = (pos: Pos, msg: string, source: string): never => genericError('ParseError', pos, msg, source);
 export function internalError(): never {
   const errTxt = `CompilerError: An internal function ran into an invalid state. Please report this bug to the compiler devs.`;
+  console.trace();
   throw (errTxt);
 }
 

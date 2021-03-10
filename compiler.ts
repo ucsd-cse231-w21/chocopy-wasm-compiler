@@ -9,26 +9,27 @@ import { codeGenOp, codeGenUOp } from "./codegen_operators";
 import { FuncEnv, ClassEnv } from "./env"
 import * as envM from './env';
 import * as cmn from "./common";
+import * as builtins from "./builtins";
 
 // https://learnxinyminutes.com/docs/wasm/
 
 // Store all the functions separately
 
 export var prevFuncs: Array<Array<string>> = [];
-export var funcs : Array<Array<string>> = [];
+export var funcs : Array<Array<string>> = [...builtins.funcs];
 
 var tempHeapPtr: number = 0;
 var tempStrAlloc : Map<string, number> = new Map();
 
 export function reset() {
-  funcs = [];
+  funcs = [...builtins.funcs];
   tempStrAlloc = new Map();
   tempHeapPtr = 0;
   prevFuncs = [];
 }
 
 export function abort() {
-  funcs = [];
+  funcs = [...builtins.funcs];
   tempStrAlloc = new Map();
 }
 
@@ -163,7 +164,7 @@ export function compile(source: string, env: envM.GlobalEnv) : CompileResult {
   const withDefines = augmentEnv(env, ast);
 
   tempHeapPtr = withDefines.offset;
-  tempStrAlloc = new Map();
+  tempStrAlloc = env.globalStrs;
   
   const scratchVar : string = `(local $$last i64)`;
     
@@ -342,7 +343,7 @@ function codeGenMemberExpr(expr: Expr, env: envM.GlobalEnv, source: string, loca
     result = result.concat(codeGenExpr(varExpr, env, localParams, source, classT));
 
     /* Add the field offset */
-    var result = codeGenExpr(varExpr, env, localParams, source, classT);
+    // result = result.concat(codeGenExpr(varExpr, env, localParams, source, classT));
 
     result = result.concat([`(call $runtime_check$assert_non_none) ;; Check for None `,
 			    `(i64.const ${getFieldOffset(className, memName, env)}) ;; Offset for field ${memName}`,
@@ -436,6 +437,8 @@ codeGenForLoop(stmt: Stmt, env : envM.GlobalEnv, source: string, localParams: Ar
 
 function codeGen(stmt: Stmt, env : envM.GlobalEnv, source: string, localParams: Array<Parameter> = [], classT: Type = undefined) : Array<string> {
   switch(stmt.tag) {
+    case "break":
+      return [`(br 1)`];
     case "class":
       return codeGenClass(stmt, env, source, classT);
     case "for":
@@ -597,7 +600,9 @@ function codeGenFuncCall(expr: Expr, env: envM.GlobalEnv, localParams: Array<Par
       	result = argStmts.concat([`(call $print$other)`, ``]);
       } else if (expr.name.name == "len") {
 	result = argStmts.concat([`(call $str$len)`, ``]);
-      }else {
+      } else if (expr.name.name == "str" && expr.args[0].iType == IntT) {
+	result = argStmts.concat([`(call $str$fromInt)`, ``]);
+      } else {
 	result = argStmts.concat([`(call $${expr.name.name})`, ``]);
       }
     } else {
@@ -662,7 +667,6 @@ export function codeGenString(expr: Expr, env: envM.GlobalEnv, localParams : Arr
     const str: string = expr.value;
     const strLen: number = expr.value.length + 1; // Extra null character
 
-
     var strPtr = tempHeapPtr;
     if (tempStrAlloc.get(str) == undefined) {
       tempStrAlloc.set(str, tempHeapPtr);
@@ -673,7 +677,7 @@ export function codeGenString(expr: Expr, env: envM.GlobalEnv, localParams : Arr
     
     return [
       `(i64.const ${cmn.STR_BI + BigInt(strPtr)}) ;; `+
-	`(${strPtr}) Heap pointer for string '${str}' of length ${strLen}`];
+	`(${strPtr}) Heap pointer for string '${escape(str)}' of length ${strLen}`];
   } else {
     err.internalError();
   }
@@ -688,15 +692,20 @@ export function codeGenIntervalExpr(expr: Expr, env: envM.GlobalEnv, source: str
     /* Evaluate all the arguments */
     var args: string[] = []
     var argCnt = 0;
+    var explicitArgs = 0; // Bitarray for each argument 
+
     expr.args.forEach(arg => {
       args = args.concat(codeGenExpr(arg, env, localParams, source, classT));
+      explicitArgs += 1<<argCnt;
       argCnt += 1;
     });
 
     while (argCnt < 3) {
-      args.push(`(i64.const ${cmn.NONE_BI})`);
+      args.push(`(i64.const ${cmn.NONE_BI}) ;; Missing argument replaced with None`);
       argCnt += 1;
     }
+
+    args.push(`(i64.const ${explicitArgs}) ;; Number of argument explicitly specified`);
 
     result = result.concat(args);
     
@@ -710,6 +719,8 @@ export function codeGenIntervalExpr(expr: Expr, env: envM.GlobalEnv, source: str
 
 export function codeGenExpr(expr : Expr, env : envM.GlobalEnv, localParams : Array<Parameter>, source: string, classT: Type = undefined) : Array<string> {
   switch(expr.tag) {
+    case "nop":
+      return [`(i64.const ${cmn.NONE_BI})`];
     case "string":
       return codeGenString(expr, env, localParams, source, classT);
     case "self":
@@ -744,8 +755,18 @@ export function codeGenExpr(expr : Expr, env : envM.GlobalEnv, localParams : Arr
 	  result.push(`(i64.const ${cmn.PTR_VAL})`);
 	  result.push(`(i64.sub)`);
 	  return result.concat(codeGenFuncCall(fCallAug, env, localParams, source, classT));
+	} else if (className.tag == "str") {
+	  const fCallAug: Expr = {
+	    tag: "funcCall",
+	    name: {tag: "id", pos: expr.name.pos, name: `str$${expr.name.member.str}`},
+	    pos: expr.pos,
+	    prmPos: expr.prmPos,
+	    prmsPosArr: expr.prmsPosArr,
+	    args: expr.args
+	  }
+	  return result.concat(codeGenFuncCall(fCallAug, env, localParams, source, classT));  
 	} else {
-	  err.internalError()
+	  err.internalError();
 	}
       } else {
 	err.internalError();

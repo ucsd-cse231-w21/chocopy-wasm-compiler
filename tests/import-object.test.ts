@@ -1,5 +1,8 @@
+// -*- mode: typescript; typescript-indent-level: 2; -*-
+
 import { Type } from "../ast";
-import { NUM, BOOL, NONE } from "../utils";
+import { STR, NUM, BOOL, NONE } from "../utils";
+import * as err from "../error";
 
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
@@ -9,16 +12,23 @@ function stringify(typ: Type, arg: any): string {
       return (arg as boolean) ? "True" : "False";
     case "none":
       return "None";
+    case "str":
+      return arg;
     case "class":
       return typ.name;
+    default:
+      err.internalError();
   }
 }
 
 function print(typ: Type, arg: any): any {
+  console.log(`type: ${typ.tag}, arg: ${arg}`);
   importObject.output += stringify(typ, arg);
   importObject.output += "\n";
   return arg;
 }
+
+
 
 export const importObject = {
   imports: {
@@ -30,6 +40,7 @@ export const importObject = {
     print_num: (arg: number) => print(NUM, arg),
     print_bool: (arg: number) => print(BOOL, arg),
     print_none: (arg: number) => print(NONE, arg),
+    print_txt: (arg: string) => print(STR, arg),
     abs: Math.abs,
     min: Math.min,
     max: Math.max,

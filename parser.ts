@@ -63,9 +63,15 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 	pos: getSourcePos(c, s)
       }
     case "String":
+      const origStr = s.substring(c.node.from+1, c.node.to-1);
+      const fixedStr = origStr
+	  .replace(/\\t/g, String.fromCharCode(9))  // Horizontal tab
+	  .replace(/\\n/g, String.fromCharCode(10)) // Line feed
+	  .replace(/\\"/g, `"`)
+	  .replace(/\\\\/g, `\\`);
       return {
 	tag: "string",
-	value: s.substring(c.node.from+1, c.node.to-1),
+	value: fixedStr,
 	pos: getSourcePos(c, s)
       }
     case "MemberExpression":
@@ -95,25 +101,34 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 	case ("["):
 	  c.nextSibling();
 
-	  var args: Expr[] = [traverseExpr(c, s)];
+	  var args: Expr[] = [];
+	  var foundArg = false;
 	  
-	  c.nextSibling();
-
 	  while (c.node.type.name != ']') {
-	    c.nextSibling(); // Skip the colon
-	    args.push(traverseExpr(c, s));
-
+	    console.log(`> ${s.substring(c.node.from, c.node.to)}`);
+	    if (s.substring(c.node.from, c.node.to) == ':') {
+	      if (foundArg) {
+	      } else {
+		args.push({tag: "nop", pos: getSourcePos(c, s)});
+	      }
+	      foundArg = false;
+	    } else {
+	      foundArg = true;
+	      args.push(traverseExpr(c, s));
+	    }
 	    c.nextSibling();
 	  }
 
 	  c.parent();
-
-	  return {
+	  
+	  const result: Expr =  {
 	    tag: "intervalExp",
 	    expr: lhsExpr,
 	    pos: pos,
 	    args: args,
 	  }
+
+	  return result;
       }
     case "CallExpression":
       const cExpPos = getSourcePos(c, s);
@@ -384,6 +399,8 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
 	tag: "comment",
 	pos: getSourcePos(c, s)
       };
+    case "BreakStatement":
+      return { tag: "break", pos: getSourcePos(c, s) };
     case "PassStatement":
       return { tag: "pass", pos: getSourcePos(c, s) };
     case "ClassDefinition":

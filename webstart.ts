@@ -188,9 +188,6 @@ function webStart() {
     }
 
     function showSource(compiled: string): void {
-      console.log("showing source");
-      console.log(prettifyWasmSource(compiled));
-
       const compiledHtml = prettifyWasmSource(compiled).replace(/\n/g, "<br>").replace(/ /g, "&nbsp;");
       document.getElementById("outputSource").innerHTML = compiledHtml;
     }

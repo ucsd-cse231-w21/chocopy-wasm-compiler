@@ -12,7 +12,7 @@ import * as compiler from './compiler';
 import { parse } from './parser';
 import { GlobalEnv } from './env';
 import { prettifyWasmSource } from './linter';
-import { NONE_VAL } from './common';
+import { NONE_VAL, dumpMem } from './common';
 
 // NOTE(joe): This is a hack to get the CLI Repl to run. WABT registers a global
 // uncaught exn handler, and this is not allowed when running the REPL
@@ -55,6 +55,7 @@ export async function run(source : string, config: any) : Promise<[any, GlobalEn
   importObject.updateTableMap(compiled.newEnv);
 
   var memUint8: Uint8Array = new Uint8Array(importObject.js.memory.buffer);
+  var memUint64 = new BigUint64Array(importObject.js.memory.buffer);
   
   compiled.newEnv.globalStrs.forEach((off, str) => {
     const strLen: number = str.length;
@@ -63,9 +64,11 @@ export async function run(source : string, config: any) : Promise<[any, GlobalEn
       memUint8[iter + off] = str.charCodeAt(iter);
       iter += 1;
     }
-    memUint8[iter] = 0;
+    memUint8[iter+off] = 0;
   });
-  
+
+  dumpMem(memUint8);
+
   const wasmSource = `(module
     (func $print$other (import "imports" "print_other") (param i64) (result i64))
     (func $print$obj (import "imports" "print_obj") (param i64) (param i64) (result i64))
@@ -73,13 +76,20 @@ export async function run(source : string, config: any) : Promise<[any, GlobalEn
 
     (func $str$len (import "imports" "str_len") (param i64) (result i64))
     (func $str$concat (import "imports" "str_concat") (param i64) (param i64) (result i64))
-    (func $str$slice (import "imports" "str_slice") (param i64) (param i64) (param i64) (param i64) (result i64))
+    (func $str$slice (import "imports" "str_slice") (param i64) (param i64) (param i64) (param i64) (param i64) (result i64))
+    (func $str$mult (import "imports" "str_mult") (param i64) (param i64) (result i64))
     (func $str$eq (import "imports" "str_eq") (param i64) (param i64) (result i64))
     (func $str$neq (import "imports" "str_neq") (param i64) (param i64) (result i64))
-    (func $str$mult (import "imports" "str_mult") (param i64) (param i64) (result i64))
+    (func $str$le (import "imports" "str_le") (param i64) (param i64) (result i64))
+    (func $str$lt (import "imports" "str_lt") (param i64) (param i64) (result i64))
+    (func $str$ge (import "imports" "str_ge") (param i64) (param i64) (result i64))
+    (func $str$gt (import "imports" "str_gt") (param i64) (param i64) (result i64))
+    (func $str$fromInt (import "imports" "str_fromInt") (param i64) (result i64))
+    (func $str$upper (import "imports" "str_upper") (param i64) (result i64))
+    (func $str$lower (import "imports" "str_lower") (param i64) (result i64))
 
     (import "js" "memory" (memory 1))
-    (import "js" "table" (table 1 funcref))
+    ;; (import "js" "table" (table 1 funcref))
     (func (export "exported_func") ${returnType}      
       ${compiled.wasmSource}
       ${returnExpr}
@@ -103,10 +113,12 @@ export async function run(source : string, config: any) : Promise<[any, GlobalEn
   }
 
   // Update the heap pointer after execution
-  const heapPtrBuffer = importObject.js.memory.buffer.slice(0, 8);
-  const heapPtrDV = new DataView(heapPtrBuffer, 0, 8);
-  const heapPtr = heapPtrDV.getBigUint64(0, true);
-  compiled.newEnv.offset = Number(heapPtr);
-  
+
+  // const heapPtrBuffer = importObject.js.memory.buffer.slice(0, 8);
+  // const heapPtrDV = new DataView(heapPtrBuffer, 0, 8);
+  // const heapPtr = heapPtrDV.getBigUint64(0, true);
+  // compiled.newEnv.offset = Number(heapPtr);
+  compiled.newEnv.offset = Number(memUint64[0]);
+
   return [result, compiled.newEnv, wasmSource];
 }
