@@ -161,7 +161,7 @@ export class IndentationError extends SyntaxError {
 }
 
 export class TypeError extends CompileError {
-  constructor(callStack: Location, message?: string, name = "TypeError") {
+  constructor(callStack: Location | Array<Location>, message?: string, name = "TypeError") {
     super(callStack, message, name);
   }
 }

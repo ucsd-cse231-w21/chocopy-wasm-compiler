@@ -16,6 +16,7 @@ import {
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
+import { RunTime } from "./errorManager"
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -501,7 +502,8 @@ function codeGenAssignable(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
-      objStmts = objStmts.concat(codeGenRuntimeCheck(target.obj.a[1], "check_none"));
+      var checkNone =  codeGenRuntimeCheck(target.obj.a[1], objStmts, RunTime.CHECK_NONE_CLASS);
+      objStmts = objStmts.concat(checkNone);
       const className = objTyp.name;
       const [offset, _] = env.classes.get(className).get(target.field);
       if (target.field == "$deref") {
@@ -514,7 +516,8 @@ function codeGenAssignable(
         case "dict":
           var objStmts = codeGenExpr(target.obj, env);
           // Should be typeError
-          objStmts = objStmts.concat(codeGenRuntimeCheck(target.obj.a[1], "check_none"));
+          var checkNone = codeGenRuntimeCheck(target.obj.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP);
+          objStmts = objStmts.concat(checkNone);
           return objStmts.concat(codeGenDictKeyVal(target.key, value, 10, env));
         case "list":
         default:
@@ -1010,7 +1013,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
-      objStmts = objStmts.concat(codeGenRuntimeCheck(expr.a[1], "check_none"));
+      var checkNone = codeGenRuntimeCheck(expr.a[1], objStmts, RunTime.CHECK_NONE_CLASS);
+      objStmts = objStmts.concat(checkNone);
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
       if (expr.field == "$deref") {
@@ -1125,7 +1129,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           return brStmts;
         case "list":
           var objStmts = codeGenExpr(expr.obj, env);
-          objStmts = objStmts.concat(codeGenRuntimeCheck(expr.a[1], "check_none"));
           //This should eval to a number
           //Multiply it by 4 to use as offset in memory
           var keyStmts = codeGenExpr(expr.key, env);
@@ -1148,6 +1151,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             ],
               objStmts, //reload list base addr & key stmts?
             */
+            codeGenRuntimeCheck(expr.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP),
+            codeGenRuntimeCheck(expr.a[1], [...objStmts, `(i32.add (i32.const 4))`, `(i32.load)`, ...keyStmts, ...decodeLiteral], RunTime.CHECK_INDEX_ERROR),
             keyStmts,
             [
               ...decodeLiteral,
@@ -1233,8 +1238,9 @@ function codeGenDictBracketLookup(
 ): Array<string> {
   let dictKeyValStmts: Array<string> = [];
   var objStmts = codeGenExpr(obj, env);
-  objStmts = objStmts.concat(codeGenRuntimeCheck(obj.a[1], "check_none"));
+  var checkNone = codeGenRuntimeCheck(obj.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP);
   dictKeyValStmts = dictKeyValStmts.concat(objStmts);
+  dictKeyValStmts = dictKeyValStmts.concat(checkNone);
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
   dictKeyValStmts = dictKeyValStmts.concat([
     `(i32.const ${hashtableSize})`,
@@ -1601,10 +1607,12 @@ function codeGenBinOp(op: BinOp): string {
 }
 
 
-function codeGenRuntimeCheck(loc: Location, funcName: string) : Array<string> {
+function codeGenRuntimeCheck(loc: Location, code: Array<string>, func: RunTime) : Array<string> {
+  if (func == RunTime.CHECK_ZERO_DIVISION || func == RunTime.CHECK_KEY_ERROR || func == RunTime.CHECK_VALUE_ERROR) return[];
   return [
     ...codeGenPushStack(loc),
-    `call $$${funcName}`,
+    ...code,
+    `call $$${func.toString()}`,
     ...codeGenPopStack()
   ]
 }

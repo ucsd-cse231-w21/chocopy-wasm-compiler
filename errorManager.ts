@@ -41,24 +41,50 @@ export class ErrorManager {
     this.callStack = new Array<Location>();
   }
 
-  __checkNonPointer(arg: number) : number {
-    console.log(arg);
+  __checkNoneClass(arg: number) {
     if (arg == 0) throw new BaseException.AttributeError(this.callStack, {tag: "none"}, this.locToString(this.callStack[this.callStack.length - 1]));
-    return arg;
+    console.log(arg);
+  };
+
+  __checkNoneLookup(arg: number) {
+    if (arg == 0) throw new BaseException.TypeError(this.callStack, "'NoneType' object is not subscriptable or does not support item assignment");
+    console.log(arg);
+  };
+
+  __checkIndex(size: number, key: number) {
+    console.log(key + " " + size)
+    if (key >= size) throw new BaseException.IndexError(this.callStack);
   };
 }
 
 
-export function importStackManager(importObject: any, em: ErrorManager) {
-  importObject.imports.__pushStack = function (col: number, line: number, length: number, id: number) {
+export function importErrorManager(importObject: any, em: ErrorManager) {
+  importObject.imports.__pushStack = (col: number, line: number, length: number, id: number) => {
     em.__pushStack(col, line, length, id);
   }
 
-  importObject.imports.__popStack = function () {
+  importObject.imports.__popStack = () => {
     em.__popStack();
   }
 
-  importObject.imports.__checkNonPointer = function(arg: number) {
-    em.__checkNonPointer(arg);
+  importObject.imports.__checkNoneClass = (arg: number) => {
+    em.__checkNoneClass(arg);
   }
+
+  importObject.imports.__checkNoneLookup = (arg: number) => {
+    em.__checkNoneLookup(arg);
+  }
+
+  importObject.imports.__checkIndex = (size: number, id: number) => {
+    em.__checkIndex(size, id);
+  }
+}
+
+export enum RunTime{
+  CHECK_NONE_CLASS = "check_none_class",
+  CHECK_NONE_LOOKUP = "check_none_lookup",
+  CHECK_ZERO_DIVISION = "check_division",
+  CHECK_INDEX_ERROR = "check_index",
+  CHECK_VALUE_ERROR = "check_value",
+  CHECK_KEY_ERROR = "check_key",
 }
