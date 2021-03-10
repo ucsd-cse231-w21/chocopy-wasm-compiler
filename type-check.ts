@@ -41,6 +41,7 @@ defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
 defaultGlobalFunctions.set("range", [[NUM], CLASS("Range")]);
+defaultGlobalFunctions.set("len", [[LIST(null)], NUM]);
 
 const defaultGlobalClasses = new Map();
 // Range initialization
@@ -872,6 +873,25 @@ export function tcExpr(
           name: expr.name,
           arguments: tArgs,
         };
+      } else if (expr.name == "len") {
+        const tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
+
+        if (tArg.length == 1) {
+          if(tArg[0].a[0].tag === 'list' || tArg[0].a[0].tag === 'dict' ) {
+            return { ...expr, a: [NUM, expr.a], arguments: tArg };
+          } else {
+            throw new BaseException.TypeMismatchError(expr.a, LIST(null), tArg[0].a[0]);
+          }
+
+        } else{
+          throw new BaseException.TypeError(
+            expr.a,
+            `len takes 1 positional arguments but ${
+              expr.arguments.length + 1
+            } were given`
+          );
+        }
+        
       }
       throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
     case "lookup":

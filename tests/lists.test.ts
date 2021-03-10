@@ -213,4 +213,17 @@ describe("LIST TEST", () => {
   a[1]
   `;
   assert("Empty list append 2", source, PyInt(2));
+  var source = `
+  a : [int] = None
+  a = [] + [1,2,3]
+  len(a)
+  `;
+  assert("List len ", source, PyInt(3));
+
+  var source = `
+  a : [int] = None
+  a = []
+  len(a)
+  `;
+  assert("List len 0", source, PyInt(0));
 });

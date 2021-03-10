@@ -896,6 +896,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           return unreachable(expr);
       }
     case "call":
+      var prefix = ""
       if (expr.name === "range") {
         switch (expr.arguments.length) {
           case 1:
@@ -916,9 +917,20 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           default:
             throw new Error("Unsupported range() call!");
         }
+      } else if(expr.name === "len" )
+      {
+        
+        if(expr.arguments[0].a[0].tag === "list")
+        {
+          prefix = "$$list"
+        }
+        else{
+          throw new Error("Unimplemented len() for " + expr.arguments[0].a[0].tag);
+        }
+        
       }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      valStmts.push(`(call $${expr.name})`);
+      valStmts.push(`(call ${prefix}$${expr.name})`);
       return valStmts;
     case "call_expr":
       const callExpr: Array<string> = [];
@@ -1323,7 +1335,18 @@ function codeGenDictKeyVal(
 
 function listBuiltInFuns(): Array<string> {
   let listFunStmts: Array<string> = [];
-
+  //len function
+  listFunStmts.push(
+    ...[
+      "(func $$list$len (param $$list_cmp i32) (result i32)",
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      ...encodeLiteral,
+      "(return))",
+      "",
+    ]
+  );
   //append function
   listFunStmts.push(
     ...[
