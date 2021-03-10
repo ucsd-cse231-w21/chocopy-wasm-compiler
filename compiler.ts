@@ -23,6 +23,7 @@ import {
   TAG_DICT,
   TAG_DICT_ENTRY,
   TAG_LIST,
+  TAG_OPAQUE,
   TAG_REF,
   TAG_STRING,
 } from "./alloc";
@@ -226,7 +227,12 @@ export function compile(
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
   const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
-  const augmentedCommands = augmentFnGc(commands, withDefines.locals, true);
+  const augmentedCommands = augmentFnGc(commands, withDefines.locals, {
+    main: true,
+    debug: {
+      name: "entry",
+    }
+  });
   withDefines.locals.clear();
 
   return {
@@ -243,7 +249,7 @@ function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
     let idx = fun_info[0];
     let length = fun_info[1].length;
     let loc = envLookup(env, fun);
-    inits.push(myMemAlloc(`$$addr`, length + 1).join("\n"));
+    inits.push(...myMemAlloc(`$$addr`, length + 1));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function reference`);
   });
@@ -582,12 +588,12 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
   const inits: Array<string> = [];
 
   nested.forEach((fun) => {
-    inits.push(myMemAlloc(`$${fun}_$ref`, 1).join("\n"));
+    inits.push(...myMemAlloc(`$${fun}_$ref`, 1));
   });
 
   nested.forEach((fun) => {
     let [idx, nonlocals] = env.funs.get(fun);
-    inits.push(myMemAlloc(`$$addr`, nonlocals.length + 1).join("\n"));
+    inits.push(...myMemAlloc(`$$addr`, nonlocals.length + 1));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
       // the dependent variable 'v' exists in the parent scope
@@ -618,7 +624,7 @@ function initRef(refs: Set<string>): Array<string> {
   // for parameters and local variables, extra references are created and initialized
   const inits: Array<string> = [];
   refs.forEach((name) => {
-    inits.push(myMemAlloc(`$${name}_$ref`, 1).join("\n"));
+    inits.push(...myMemAlloc(`$${name}_$ref`, 1));
     inits.push(`(i32.store (local.get $${name}_$ref) (local.get $${name}))`);
   });
 
@@ -675,7 +681,12 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
     .concat(["(i32.const 0)", "(return)"]);
 
   const localMap = env.locals;
-  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBody = augmentFnGc(body, localMap, {
+    main: false,
+    debug: {
+      name: def.name,
+    }
+  });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
 
@@ -723,7 +734,12 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
 
   const body = locals.concat(inits).concat(stmts).concat(["(i32.const 0)", "(return)"]);
   const localMap = env.locals;
-  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBody = augmentFnGc(body, localMap, {
+    main: false,
+    debug: {
+      name: def.name,
+    }
+  });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
 
@@ -861,8 +877,10 @@ function codeGenListCopy(concat: number): Array<string> {
       ...[
         `(block`,
         `(loop`,
-        `(br_if 1 ${condstmts.join("\n")})`,
-        `${loopstmts.join("\n")}`,
+        `(br_if 1`,
+        ...condstmts,
+        `)`,
+        ...loopstmts,
         `(br 0)`,
         `)`,
         `)`,
@@ -1013,9 +1031,18 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
       return callExpr;
     case "construct":
+      let allocSize = env.classes.get(expr.name).size * 4;
+      let heapTag = TAG_CLASS;
+      // TODO(alex:mm): figure out what do with ZSTs
+      // NOTE(alex:mm): calling `gcalloc` with size 0 is an error
+      // Either somehow do something with ZSTs or just allocate a placeholder
+      if (allocSize === 0) {
+        allocSize = 4;
+        heapTag = TAG_OPAQUE;
+      }
       var stmts: Array<string> = [
-        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
-        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
+        `(i32.const ${Number(heapTag)})   ;; heap-tag: class`,
+        `(i32.const ${allocSize})   ;; size in bytes`,
         `(call $$gcalloc)`,
         `(local.set $$allocPointer)`,
         `(local.get $$allocPointer)`, // return to parent expr
@@ -1158,9 +1185,9 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           var brStmts = [];
           brStmts.push(
             ...[
-              `${brObjStmts.join("\n")}`, //Load the string object to be indexed
+              ...brObjStmts, //Load the string object to be indexed
               `(local.set $$string_address)`,
-              `${brKeyStmts.join("\n")}`, //Gets the index
+              ...brKeyStmts, //Gets the index
               ...decodeLiteral,
               `(local.set $$string_index)`,
               `(local.get $$string_index)`,
