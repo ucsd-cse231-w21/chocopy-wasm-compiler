@@ -96,7 +96,7 @@ export class MemoryManager {
     this.memory = memory;
     const staticStart = 4n;
     const staticEnd = staticStart + cfg.staticStorage;
-    this.staticAllocator = new H.BumpAllocator(memory, 4n, cfg.staticStorage + 4n);
+    this.staticAllocator = new H.BumpAllocator(memory, staticStart, staticEnd);
 
 
     const gcStart = BigInt(staticEnd);
