@@ -906,22 +906,33 @@ export function tcExpr(
             if (methods.has(expr.method)) {
               realArgs = [tObj].concat(tArgs);
             }
+
+            var tcKwargs: Array<[string, Expr<[Type, Location]>]> = [];
+            var kwargsMap: Map<string, Expr<[Type, Location]>> = new Map();
+            // typecheck each keyword and make a map
+            for (var kw of expr.kwargs) {
+              const argExpr = tcExpr(env, locals, kw[1]);
+              tcKwargs = tcKwargs.concat([kw[0], argExpr]);
+              kwargsMap.set(kw[0], argExpr);
+            }
+
             if (
               methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
             ) {
-              return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs };
+              return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs, kwargs: tcKwargs };
             }
             // handle default values
             else if (
-              realArgs.length < methodArgs.length &&
+              realArgs.length + expr.kwargs.length <= methodArgs.length &&
               realArgs.every((arg, i) => isAssignable(env, methodArgs[i], arg.a[0]))
             ) {
               return {
                 ...expr,
                 a: [methodRet, expr.a],
                 obj: tObj,
-                arguments: populateDefaultParams(tArgs, realArgs, methodParams, new Map()),
+                arguments: populateDefaultParams(tArgs, realArgs, methodParams, kwargsMap),
+                kwargs: tcKwargs
               };
             } else if (methodArgs.length != realArgs.length) {
               throw new BaseException.TypeError(

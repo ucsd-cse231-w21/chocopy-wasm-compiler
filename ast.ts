@@ -129,7 +129,7 @@ export type Expr<A> =
       obj: Expr<A>;
       method: string;
       arguments: Array<Expr<A>>;
-      //kwargs: Map<string, Expr<A>>;
+      kwargs: Array<[string, Expr<A>]>;
     }
   | { a?: A; tag: "construct"; name: string }
   | { a?: A; tag: "lambda"; args: Array<string>; ret: Expr<A> }

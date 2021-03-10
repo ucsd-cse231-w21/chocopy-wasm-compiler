@@ -826,6 +826,7 @@ describe("parse(source) function", () => {
             },
             method: "id",
             arguments: [],
+            kwargs: [],
           },
           a: {
             col: 0,
