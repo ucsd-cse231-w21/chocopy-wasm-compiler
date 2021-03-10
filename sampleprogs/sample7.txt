@@ -1,1 +1,8 @@
 print("hello")
+print(10 + 20)
+print(True)
+print(True and False)
+print(True and True)
+print(min(10,20))
+print(abs(10 - 20))
+print(pow(2,4))

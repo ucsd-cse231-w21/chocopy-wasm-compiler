@@ -259,6 +259,7 @@ function tcExpr(expr: Expr<null>,
       const equalityOps = new Set([BinOp.Eq, BinOp.Neq]);
       const relational = new Set([BinOp.Lte, BinOp.Lt, BinOp.Gte, BinOp.Gt]);
       const arithOps = new Set([BinOp.Plus, BinOp.Minus, BinOp.Mul, BinOp.IDiv, BinOp.Mul]);
+      const boolOps = new Set([BinOp.And, BinOp.Or]);
 
       if(expr.op === BinOp.Is){
           if(leftType.tag === "bool" || leftType.tag === "number" || 
@@ -267,6 +268,13 @@ function tcExpr(expr: Expr<null>,
           }
 
           return {a: {tag: "bool"}, tag: "binop", op: expr.op, left: left, right: right};
+      }
+      else if(boolOps.has(expr.op)){
+        if(leftType.tag !== "bool" || rightType.tag !== "bool"){
+          throw new TypeCheckError(`The 'and' , 'or' operators can only be applied on booleans`);
+        }
+
+        return {a: {tag: "bool"}, tag: "binop", op: expr.op, left: left, right: right};
       }
       else if(equalityOps.has(expr.op)){
          if( (leftType.tag === "class" && (rightType.tag === "class" || rightType.tag === "none")) || 

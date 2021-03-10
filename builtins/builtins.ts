@@ -1,7 +1,7 @@
 import { Type, typeToString, Value } from "../ast";
 import { Instance, MainAllocator } from "../heap";
 import { ClassPresenter, FuncIdentity, ModulePresenter } from "../types";
-import { NONE } from "../utils";
+import { CLASS, NONE, NUM } from "../utils";
 /**
  * Represents a built-in ChocoPy module
  * whose internal code is actually written in Type/Javascript
@@ -10,6 +10,10 @@ export abstract class BuiltInModule {
     readonly name: string;
     readonly classes : Map<string, BuiltInClass>;
     readonly variables: Map<string, BuiltVariable>;
+
+    /**
+     * Keys - function signature as key
+     */
     readonly functions: Map<string, BuiltInFunction>;
 
     /**
@@ -134,18 +138,101 @@ export class NativeTypes extends BuiltInModule{
         this.classes = new Map();
         this.variables = new Map();
         this.functions = new Map([
-            ["print()", {isConstructor: false, 
-                            identity: {signature: {name: "print", parameters: [{tag: "class", name: "object"}]}, 
-                                       returnType: NONE},
-                            func: this.print}]             
+            ["print()", 
+              {   
+                isConstructor: false, 
+                identity: {signature: {name: "print", parameters: [CLASS("object")]}, 
+                            returnType: NONE},
+                func: this.print
+              }
+            ],
+            ["abs(number)", 
+              {
+                  isConstructor: false,
+                  identity: {signature: {name: "abs", parameters: [NUM]}, returnType: NUM},
+                  func: this.abs
+              }
+            ],
+            ["min(number, number)", 
+              {
+                  isConstructor: false,
+                  identity: {signature: {name: "min", parameters: [NUM, NUM]}, returnType: NUM},
+                  func: this.min
+              }
+            ],
+            ["max(number, number)", 
+              {
+                  isConstructor: false,
+                  identity: {signature: {name: "max", parameters: [NUM, NUM]}, returnType: NUM},
+                  func: this.max
+              }
+            ],
+            ["pow(number, number)", 
+              {
+                  isConstructor: false,
+                  identity: {signature: {name: "pow", parameters: [NUM, NUM]}, returnType: NUM},
+                  func: this.pow
+              }
+            ]               
         ]);
     }
 
-    print(... args:  number[]) : number{
-        console.log("hello world! from builtin "+this.allocator.getStr(args[0]));
-        return 0;
+    private stringtify(addr: number) : string {
+        if(addr === 0 ){
+            return "None";
+        }
+
+        const instance = this.allocator.getInstance(addr);
+        switch(instance.tag){
+            case "bool": return instance.value ? "True" : "False";
+            case "int": return instance.value.toString();
+            case "string": return instance.value;
+            case "instance": return `Instance of typecode=${instance.moduleCode}.${instance.typeCode}, 
+                                        attrs count ${instance.attrs.length}`;
+        }
     }
-}
+
+    print(... args:  number[]) : number{
+        console.log("hello world! from builtin "+this.stringtify(args[0]));
+        return args[0];
+    }
+
+    abs (... args:  number[]) : number{
+        const target = this.allocator.getInstance(args[0]);
+        if(target.tag === "int"){
+            return this.allocator.allocInt(Math.abs(target.value));
+        }
+        return args[0];
+    }
+
+    min (... args:  number[]) : number{
+        const left = this.allocator.getInstance(args[0]);
+        const right = this.allocator.getInstance(args[1]);
+        if(left.tag === "int" && right.tag === "int"){
+            return left.value < right.value ? args[0] : args[1];
+        }
+        return args[0];
+    }
+
+    max (... args:  number[]) : number{
+        const left = this.allocator.getInstance(args[0]);
+        const right = this.allocator.getInstance(args[1]);
+        if(left.tag === "int" && right.tag === "int"){
+            return left.value > right.value ? args[0] : args[1];
+        }
+        return args[0];
+    }
+
+    pow (... args:  number[]) : number{
+        const left = this.allocator.getInstance(args[0]);
+        const right = this.allocator.getInstance(args[1]);
+        if(left.tag === "int" && right.tag === "int"){
+            return this.allocator.allocInt(Math.pow(left.value, right.value));
+        }
+        return args[0];
+    }
+
+}   
 
 
 export class OtherModule extends BuiltInModule {

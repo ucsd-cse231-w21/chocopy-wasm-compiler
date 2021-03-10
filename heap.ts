@@ -39,6 +39,10 @@ export class MainAllocator{
     this.heapIndex = 1;
   }
 
+  getInstance(addr: number): Instance{
+    return this.heap[addr];
+  }
+
   getInt(addr: number): number {
     const intInstance = this.heap[addr];
     if(intInstance.tag !== "int"){

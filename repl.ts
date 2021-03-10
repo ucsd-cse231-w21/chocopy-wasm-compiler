@@ -6,7 +6,7 @@ import { builtinModules } from "module";
 import { attachPresenter, BuiltInModule, gatherPresenters, NativeTypes, OtherModule } from "./builtins/builtins";
 import { type } from "cypress/types/jquery";
 import { ModulePresenter, ClassPresenter, OrganizedModule, FuncIdentity, idenToStr } from "./types";
-import { last, thru } from "cypress/types/lodash";
+import { last, thru, values } from "cypress/types/lodash";
 import { NONE } from "./utils";
 import fs from 'fs';
 import { MainAllocator } from "./heap";
@@ -121,7 +121,7 @@ export class BasicREPL {
   }
   
   async run(source: string): Promise<Value> {
-    source += "from natives import print \n"
+    source += "from natives import print, abs, min, max, pow \n"
 
     const parsed = parse(source);
     const organized = tc(this.curModule === undefined ? 
@@ -131,7 +131,9 @@ export class BasicREPL {
     const compiled = compile(organized, labeled, this.labeler.labeledBuiltIns, this.config.allocator);
     console.log("---------INSTRS--------\n"+compiled.join("\n"));
 
+    
     run(compiled.join("\n"), this.config.funcs);
+    
 
     return undefined;
   }
@@ -171,10 +173,23 @@ async function main(){
 
   const testFuncs = {
     builtin: {
-      natives_print: (...args: number[]) => natives.print(...args)
+      natives_print: (...args: number[]) => natives.print(...args),
+      natives_abs: (...args: number[]) => natives.abs(...args),
+      natives_min: (...args: number[]) => natives.min(...args),
+      natives_max: (...args: number[]) => natives.max(...args),
+      natives_pow: (...args: number[]) => natives.pow(...args),
     },
     system: {
+      instanciate: (code: number) => allocator.allocObj(0, code),
+      objderef: (addr: number, index: number) => allocator.objRetr(addr, index),
+      objmute: (addr: number, index: number, val: number) => allocator.objMutate(addr, index, val),
+      modRef: (modCode: number, varIndex: number) => allocator.modVarRetr(modCode, varIndex),
+      modMute: (modCode: number, index: number, val: number) => allocator.modVarMute(modCode, index, val),
 
+      getInt: (addr: number) => allocator.getInt(addr),
+      getBool: (addr: number) => allocator.getBool(addr),
+      allocInt: (val: number) => allocator.allocInt(val),
+      allocBool: (val: number) => allocator.allocBool(val)
     }
   };
 

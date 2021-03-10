@@ -136,6 +136,22 @@ function lookup(name: string, maps: Array<Map<string, IdenType>>) : IdenType {
   return undefined;
 }
 
+function createSystemFuncHeaders(): Array<string>{
+  const headers = new Array<string>();
+  headers.push(
+    `(func $${INTANCTIATE} (import "system" "instanciate") (param i32) (result i32))`,
+    `(func $${OBJ_DEREF} (import "system" "objderef") (param i32) (param i32) (result i32))`,
+    `(func $${OBJ_MUTATE} (import "system" "objmute") (param i32) (param i32) (param i32) (result i32))`,
+    `(func $${MOD_REF} (import "system" "modRef") (param i32) (param i32) (result i32))`,
+    `(func $${MOD_STORE} (import "system" "modMute") (param i32) (param i32) (param i32) (result i32))`,
+
+    `(func $${GET_INT} (import "system" "getInt") (param i32) (result i32))`,
+    `(func $${GET_BOOL} (import "system" "getBool") (param i32) (result i32))`,
+    `(func $${ALLC_INT} (import "system" "allocInt") (param i32) (result i32))`,
+    `(func $${ALLC_BOOL} (import "system" "allocBool") (param i32) (result i32))`,
+    );
+  return headers;
+}
 
 function includeImports(imprts: Array<Stmt<Type>>, 
                         builtins: Map<string, LabeledModule>) : {vars: Map<string, IdenType>, instr: Array<string>}{
@@ -190,11 +206,15 @@ export function compile(progam: OrganizedModule,
                         allcator: MainAllocator) : Array<string> {
   const allInstrs = new Array<string>();
 
-  //set the first global vars to be imports
-  const globalVars = includeImports(progam.imports, builtins);
+  //add system function headers
+  const system = createSystemFuncHeaders();
+  allInstrs.push(...system);
 
-  console.log(` ----------PRE COMPILE: ${globalVars.instr.join("\n")}`);
-  allInstrs.push(...globalVars.instr);
+  //set the first global vars to be imports
+  const imports = includeImports(progam.imports, builtins);
+
+  console.log(` ----------PRE COMPILE: ${imports.instr.join("\n")}`);
+  allInstrs.push(...imports.instr);
 
   allInstrs.push(`(func $exported_func (export "exported_func") (result i32)`);
   allInstrs.push(`(local $${TEMP_VAR} i32)`); //used for statement values
@@ -203,7 +223,7 @@ export function compile(progam: OrganizedModule,
   for(let [vName, info] of progam.fileVars.entries()){
     const index = labeledSource.globalVars.get(vName);
 
-    globalVars.vars.set(vName, {tag: "globalvar", moduleCode: 0, index: index});
+    imports.vars.set(vName, {tag: "globalvar", moduleCode: 0, index: index});
 
     switch(info.value.tag){
       case "num": {
@@ -251,7 +271,7 @@ export function compile(progam: OrganizedModule,
 
   //now compile top level stmts
   for(let tlStmt of progam.topLevelStmts){
-    allInstrs.push(codeGenStmt(tlStmt, [globalVars.vars], labeledSource, builtins, allcator).join("\n"));
+    allInstrs.push(codeGenStmt(tlStmt, [imports.vars], labeledSource, builtins, allcator).join("\n"));
   }
   allInstrs.push(`(local.get $${TEMP_VAR})`);
   allInstrs.push(`)`);
@@ -376,8 +396,8 @@ function codeGenExpr(expr: Expr<Type>,
     }
     case "literal": {
       switch(expr.value.tag){
-        case "num": return `(call ${ALLC_INT} (i32.const ${expr.value.value}))`;
-        case "bool": return `(call ${ALLC_BOOL} (i32.const ${expr.value.value ? 1 : 0}))`;
+        case "num": return `(call $${ALLC_INT} (i32.const ${expr.value.value}))`;
+        case "bool": return `(call $${ALLC_BOOL} (i32.const ${expr.value.value ? 1 : 0}))`;
         case "string": {
           const strAddr = allcator.allocStr(expr.value.value)
           return `(i32.const ${strAddr})`;
@@ -505,7 +525,7 @@ function codeGenBinOp(left: Expr<Type>,
   }
 
   if(boolResultOps.has(op)){
-    return `(call ${ALLC_BOOL} ${instr})`;
+    return `(call $${ALLC_BOOL} ${instr})`;
   }
-  return `(call ${ALLC_INT} ${instr})`;
+  return `(call $${ALLC_INT} ${instr})`;
 }
