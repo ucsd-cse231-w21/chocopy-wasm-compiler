@@ -586,6 +586,10 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
                 (br 0)
             ))`,
           ];
+        default:
+          throw new BaseException.InternalException(
+            "wrong tag for iterable"
+          );
       }
     case "pass":
       return [];
@@ -593,7 +597,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       // break to depth
       return [`(br ${stmt.depth})`];
     case "continue":
-      console.log(stmt);
       return [`(br ${stmt.depth})`];
     default:
       unhandledTag(stmt);
