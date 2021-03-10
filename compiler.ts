@@ -587,9 +587,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             ))`,
           ];
         default:
-          throw new BaseException.InternalException(
-            "wrong tag for iterable"
-          );
+          throw new BaseException.InternalException("wrong tag for iterable");
       }
     case "pass":
       return [];
