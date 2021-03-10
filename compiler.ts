@@ -293,22 +293,24 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       );
       var thnStmts = stmt.thn.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var elsStmts = stmt.els.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      return [
-        `${condExpr.join("\n")} \n (if (then ${thnStmts.join("\n")}) (else ${elsStmts.join(
-          "\n"
-        )}))`,
-      ];
+      return condExpr.concat(["(if (then"])
+        .concat(thnStmts)
+        .concat([
+          ")",
+          "(else"
+        ]).concat(elsStmts)
+      .concat(["))"]);
     case "while":
       var wcondExpr = codeGenTempGuard(
         codeGenExpr(stmt.cond, env).concat(decodeLiteral),
         FENCE_TEMPS
       );
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      return [
-        `(block (loop (br_if 1 ${wcondExpr.join("\n")}\n(i32.eqz)) ${bodyStmts.join(
-          "\n"
-        )} (br 0) ))`,
-      ];
+      return ["(block (loop (br_if 1"]
+        .concat(wcondExpr)
+        .concat(["(i32.eqz))"])
+        .concat(bodyStmts)
+        .concat(["(br 0) ))"]);
     case "for":
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
       var iter = codeGenExpr(stmt.iterable, env);
