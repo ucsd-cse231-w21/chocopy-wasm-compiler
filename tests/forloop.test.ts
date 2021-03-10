@@ -26,29 +26,29 @@ describe("FOR LOOP TEST", () => {
     PyInt(9)
   );
 
-  // assert(
-  //   "for range(1, 10, 1)",
-  //   `
-  //   i:int = 0
-  //   x:int = 0
-  //   for i in range(1, 10, 1):
-  //     x = x + 1
-  //   x
-  //   `,
-  //   PyInt(9)
-  // );
-  //
-  // assert(
-  //   "for range(1, 10, 2)",
-  //   `
-  //   i:int = 0
-  //   x:int = 0
-  //   for i in range(1, 10, 2):
-  //     x = x + 1
-  //   x
-  //   `,
-  //   PyInt(5)
-  // );
+  assert(
+    "for range(1, 10, 1)",
+    `
+    i:int = 0
+    x:int = 0
+    for i in range(1, 10, 1):
+      x = x + 1
+    x
+    `,
+    PyInt(9)
+  );
+
+  assert(
+    "for range(1, 10, 2)",
+    `
+    i:int = 0
+    x:int = 0
+    for i in range(1, 10, 2):
+      x = x + 1
+    x
+    `,
+    PyInt(5)
+  );
 
   assertTCFail(
     "break outside loop",
@@ -99,5 +99,18 @@ describe("FOR LOOP TEST", () => {
     x
     `,
     PyInt(0)
+  );
+
+  assertPrint(
+    "Multiple for loops with print",
+    `
+    i:int = 3
+    j:int = 5
+    for i in range(5):
+      print(i)
+    for j in range(1, 3, 1):
+      print(j)
+    `,
+    ["0", "1", "2", "3", "4", "1", "2"]
   );
 });
