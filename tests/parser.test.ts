@@ -603,6 +603,7 @@ describe("parse(source) function", () => {
                 name: "g",
               },
               arguments: [],
+              kwargs: [],
             },
           },
         ],
@@ -773,8 +774,10 @@ describe("parse(source) function", () => {
                   name: "f",
                 },
                 arguments: [],
+                kwargs: [],
               },
             ],
+            kwargs: [],
           },
           arguments: [
             {
@@ -787,6 +790,7 @@ describe("parse(source) function", () => {
               value: { tag: "num", value: 5n },
             },
           ],
+          kwargs: [],
         },
       },
     ]);
@@ -822,6 +826,7 @@ describe("parse(source) function", () => {
             },
             method: "id",
             arguments: [],
+            kwargs: [],
           },
           a: {
             col: 0,
@@ -839,6 +844,7 @@ describe("parse(source) function", () => {
               value: { tag: "num", value: 5n },
             },
           ],
+          kwargs: [],
         },
       },
     ]);

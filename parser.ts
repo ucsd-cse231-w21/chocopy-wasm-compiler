@@ -97,7 +97,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           tag: "call_expr",
           name: callExpr,
           arguments: args,
-          // kwargs
+          kwargs,
         };
       } else if (callExpr.tag === "lookup") {
         return {
@@ -106,7 +106,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           obj: callExpr.obj,
           method: callExpr.field,
           arguments: args,
-          // kwargs
+          kwargs,
         };
       } else if (callExpr.tag === "id") {
         const callName = callExpr.name;
@@ -138,7 +138,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             tag: "call_expr",
             name: { a: location, tag: "id", name: callName },
             arguments: args,
-            // kwargs
+            kwargs,
           };
           // expr = { tag: "call", name: callName, arguments: args };
         }
@@ -443,7 +443,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
 }
 
 export function traverseArgumentValue(c: TreeCursor, s: string): Expr<Location> {
-  switch(c.type.name) {
+  switch (c.type.name) {
     case "AssignOp":
       c.nextSibling(); // Move onto argument value
       let val = traverseExpr(c, s);
@@ -455,7 +455,7 @@ export function traverseArgumentValue(c: TreeCursor, s: string): Expr<Location> 
 }
 
 export function traverseArgument(c: TreeCursor, s: string): [string, Expr<Location>] {
-  switch(c.type.name) {
+  switch (c.type.name) {
     case "VariableName":
       let potentialKeyword = s.substring(c.from, c.to); // We don't know if the first symbol is a keyword yet
       let potentialArgVal = traverseExpr(c, s); // We don't know if the first symbol is an argument value yet
@@ -473,23 +473,39 @@ export function traverseArgument(c: TreeCursor, s: string): [string, Expr<Locati
   }
 }
 
-export function traverseArguments(c: TreeCursor, s: string): [Array<Expr<Location>>, Map<string, Expr<Location>>] {
+export function traverseArguments(
+  c: TreeCursor,
+  s: string
+): [Array<Expr<Location>>, Array<[string, Expr<Location>]>] {
   c.firstChild(); // Focuses on open paren
   const args = [];
-  const kwargs : Map<string, Expr<Location>> = new Map<string, Expr<Location>>();
+  const kwargs: Array<[string, Expr<Location>]> = [];
+  const seenKws: Array<string> = [];
   c.nextSibling();
   let traversedKeywordArg = false; // When a keyword arg is encountered once, all following args must also be keyword args
   while (c.type.name !== ")") {
     let arg = traverseArgument(c, s); // Can be regular argument ([null, argVal]) or keyword argument ([kwargName, kwargVal])
     if (arg[0] === null) {
-      if (traversedKeywordArg === true) { throw new BaseException.CompileError(getSourcePos(c, s), "positional argument follows keyword argument", "SyntaxError"); }
+      if (traversedKeywordArg === true) {
+        throw new BaseException.CompileError(
+          getSourcePos(c, s),
+          "positional argument follows keyword argument",
+          "SyntaxError"
+        );
+      }
       args.push(arg[1]);
     } else {
       traversedKeywordArg = true;
-      if (kwargs.has(arg[0]) === true) { // Check if keyword has already been previously defined
-        throw new BaseException.CompileError(getSourcePos(c, s), "keyword argument repeated", "SyntaxError");
+      if (seenKws.indexOf(arg[0]) > -1) {
+        // Check if keyword has already been previously defined
+        throw new BaseException.CompileError(
+          getSourcePos(c, s),
+          "keyword argument repeated",
+          "SyntaxError"
+        );
       } else {
-        kwargs.set(arg[0], arg[1]);
+        kwargs.push(arg);
+        seenKws.push(arg[0]);
       }
     }
     c.nextSibling(); // Focuses on the next argument or ")"
@@ -879,7 +895,7 @@ export function traverseTypeDef(c: TreeCursor, s: string): Type {
       c.nextSibling(); // Focuses on type itself
       let typ = traverseType(c, s);
       c.parent();
-      return typ
+      return typ;
     default:
       throw new BaseException.CompileError(
         getSourcePos(c, s),
@@ -890,14 +906,14 @@ export function traverseTypeDef(c: TreeCursor, s: string): Type {
 }
 
 export function traverseDefaultValue(c: TreeCursor, s: string): Literal {
-  switch(c.type.name) {
+  switch (c.type.name) {
     case "AssignOp":
-        c.nextSibling(); // Move on to default value
-        let val = traverseLiteral(c, s);
-        c.nextSibling(); // Move on to comma
-        return val;
+      c.nextSibling(); // Move on to default value
+      let val = traverseLiteral(c, s);
+      c.nextSibling(); // Move on to comma
+      return val;
     default:
-        return null;
+      return null;
   }
 }
 
@@ -914,11 +930,14 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
     c.nextSibling(); // Move on to comma or ")" or "="
     let val = traverseDefaultValue(c, s);
     if (val !== null) {
-      traversedDefaultValue = true
+      traversedDefaultValue = true;
       parameters.push({ name, type: typ, value: val });
     } else {
       if (traversedDefaultValue === true) {
-        throw new BaseException.CompileError(getSourcePos(c, s), "Expected a default value for " + name);
+        throw new BaseException.CompileError(
+          getSourcePos(c, s),
+          "Expected a default value for " + name
+        );
       }
       parameters.push({ name, type: typ });
     }
