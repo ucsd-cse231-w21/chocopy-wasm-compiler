@@ -803,6 +803,11 @@ export function annotateExpr(
         return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
       }
 
+
+      if (globEnv.classes.has(expr.name)) {
+        return [Action.None, { ...expr, a: CLASS(expr.name) }];
+      }
+
       // we check with the inferred function map first since all changes the
       // algorithem makes to the function sigs go there
       if (globEnv.inferred_functions.has(expr.name)) {
@@ -1004,24 +1009,31 @@ export function annotateStmt(
 ): [Action, Stmt<Type>] {
   switch (stmt.tag) {
     case "assign": {
-      const [s, value] = annotateExpr(stmt.value, globEnv, locEnv, topLevel);
-      //let a = value.a; // Shouldn't this always be type None? The type of `x = 0`?
-      let a = NONE  // TODO: make sure algorithm doesn't expect anything other than this.
-      if (locEnv.vars.has(stmt.name)) {
-        let type_ = locEnv.vars.get(stmt.name);
-        // FIXME: make isSubtype work with LocalTypeEnv since this is a local
-        // variable we are talking about
-        if (type_ === FAILEDINFER) {
-          locEnv.vars.set(stmt.name, a);
-        } else {
-          if (!isSubtype(globEnv, a, type_)) {
-            a = UNSAT;
-          }
-        }
+      if (topLevel && globEnv.globals.has(stmt.name)) {
+        const type_ = globEnv.globals.get(stmt.name);
+        const [s1, value] = annotateExpr(stmt.value, globEnv, locEnv, topLevel);
+        const [s2, value_] = constrainExprType(value, type_, globEnv, locEnv);
+        return [joinAction(s1, s2), { ...stmt, a: NONE, value: value_ }]
       } else {
-        locEnv.vars.set(stmt.name, a);
+        const [s, value] = annotateExpr(stmt.value, globEnv, locEnv, topLevel);
+        //let a = value.a; // Shouldn't this always be type None? The type of `x = 0`?
+        let a = NONE  // TODO: make sure algorithm doesn't expect anything other than this.
+        if (locEnv.vars.has(stmt.name)) {
+          let type_ = locEnv.vars.get(stmt.name);
+          // FIXME: make isSubtype work with LocalTypeEnv since this is a local
+          // variable we are talking about
+          if (type_ === FAILEDINFER) {
+            locEnv.vars.set(stmt.name, a);
+          } else {
+            if (!isSubtype(globEnv, a, type_)) {
+              a = UNSAT;
+            }
+          }
+        } else {
+          locEnv.vars.set(stmt.name, a);
+        }
+        return [s, { ...stmt, a, value }];
       }
-      return [s, { ...stmt, a, value }];
     }
     // TODO: For now we only infer the type of the return value by the RHS.
     // We might need to restructure part of the code to get it to infer the type

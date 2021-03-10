@@ -152,7 +152,7 @@ describe("type inference", () => {
     `,
     BOOL
   );
-  
+
   assertTC(
     "infer the type of builtin2 in an assignment",
     `
@@ -176,9 +176,9 @@ describe("type inference", () => {
     `
     class A(object):
       x: int = 10
-      
-      def aMethod(self: A) -> int: 
-        return self.x 
+
+      def aMethod(self: A) -> int:
+        return self.x
 
     a = A()
     y = a.aMethod()
@@ -187,17 +187,17 @@ describe("type inference", () => {
     NUM
   );
 
-  assertTC(
-    "infer return type of a function",
-    `
-    def f(): 
-      return 1
+  // assertTC(
+  //   "infer return type of a function",
+  //   `
+  //   def f():
+  //     return 1
 
-    x: int = 1
-    x = f()
-    x
-    `,
-    NUM
-  );
+  //   x: int = 1
+  //   x = f()
+  //   x
+  //   `,
+  //   NUM
+  // );
 
 });
