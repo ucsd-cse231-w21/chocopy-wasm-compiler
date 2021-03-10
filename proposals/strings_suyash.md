@@ -9,7 +9,7 @@ Implementation: https://github.com/suyashmahar/py-wasm
 
 ### #1
 
-Statically allocating strings:  
+Statically allocated strings:  
 
 ```python
 hello_world: str = "Hello! World"
@@ -20,8 +20,8 @@ hello_world: str = "Hello! World"
 String arithmetic:
 
 ```python
-str_add: str = "First" + " " + "second"
-str_mult: str = "Patern = " + ("*" * 8)
+str_add: str = "First" + " " + "second"   # First second
+str_mult: str = "Pattern = " + ("*" * 8)  # Pattern = ********
 ```
 
 ### #3
@@ -29,7 +29,7 @@ str_mult: str = "Patern = " + ("*" * 8)
 Printing strings:  
 
 ```python
-print("Printing a string!")
+print("Printing a string!") # Printing a string
 ```
 
 ### #4
@@ -37,7 +37,7 @@ print("Printing a string!")
 Slicing character from a strings:
 
 ```python
-c: str = "This is a number: 1"[18]
+c: str = "This is a number: 1"[18]    # 1
 ```
 
 ### #5
@@ -71,8 +71,15 @@ Builtin functions:
 
 ```python
 test_str: str = "String of length 19"
-print(len(test_str) == 19) # True
-print(int(-100) == "-100") # True
+
+print(len(test_str) == 19)        # True
+print(int(-100) == "-100")        # True
+
+print("abc".upper() == "ABC")     # True
+print("ABC".lower() == "abc")     # True
+
+print("abcde".startswith("abc"))  # True
+print("abcde".endswith("cde"))    # True
 ```
 
 ### #8
@@ -81,6 +88,11 @@ Escape sequences `\n`, `\\`, `\t`:
 
 ```python
 test_string: str = "\tThis line is tabbed\nThis is not\nNew lines with: \\n, tabs with \\t"
+
+# All these string should be of length 1
+print(len("\n"))    # 1
+print(len("\t"))    # 1
+print(len("\\"))    # 1
 ```
 
 ### #9
@@ -105,6 +117,7 @@ value:
 ```python
 hello_world: str = "Hello! World"
 var: str = None
+
 for var in hello_world:
      print(var)
 ```
