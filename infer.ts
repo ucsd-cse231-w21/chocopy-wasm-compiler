@@ -315,7 +315,6 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
       if (exprType === FAILEDINFER) {
         return FAILEDINFER;
       }
-
       switch (expr.op) {
         case UniOp.Neg:
           if (exprType != NUM) {

@@ -87,16 +87,6 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   const newGlobs = new Map(env.globals);
   const newFuns = new Map(env.functions);
   const newClasses = new Map(env.classes);
-  program.inits.forEach((init) => {
-    if (init.declaredType === undefined) {
-      env.globals = newGlobs;
-      init.declaredType = inferExprType(init.value, env, emptyLocalTypeEnv());
-    }
-    newGlobs.set(init.name, init.declaredType);
-  });
-  program.funs.forEach((fun) =>
-    newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret])
-  );
   program.classes.forEach((cls) => {
     const fields = new Map();
     const methods = new Map();
@@ -110,8 +100,20 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
       methods.set(method.name, [method.parameters.map((p) => p.type), method.ret])
     );
     newClasses.set(cls.name, [fields, methods]);
+    env.classes = newClasses;
   });
-  return { globals: newGlobs, functions: newFuns, inferred_functions: new Map(), classes: newClasses };
+  program.inits.forEach((init) => {
+    if (init.declaredType === undefined) {
+      env.globals = newGlobs;
+      init.declaredType = inferExprType(init.value, env, emptyLocalTypeEnv());
+    }
+    newGlobs.set(init.name, init.declaredType);
+  });
+  program.funs.forEach((fun) =>
+    newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret])
+  );
+
+  return { globals: newGlobs, functions: newFuns, inferred_functions: new Map, classes: newClasses };
 }
 
 // x : int = 5 valid
@@ -159,7 +161,8 @@ export function tcInit(
     valTyp = inferExprType(init.value, env, localEnv);
     init.declaredType = valTyp;
   } else {
-    valTyp = tcExpr(env, emptyLocalTypeEnv(), init.value).a;
+    init.value = tcExpr(env, emptyLocalTypeEnv(), init.value)
+    valTyp = init.value.a;
   }
   if (isAssignable(env, valTyp, init.declaredType)) {
     return { ...init, a: NONE };
