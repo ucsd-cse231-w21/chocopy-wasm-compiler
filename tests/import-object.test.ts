@@ -1,5 +1,6 @@
 import { Type, Value } from "../ast";
 import { NUM, STRING, BOOL, NONE, unhandledTag, stringify } from "../utils";
+import { MemoryManager } from "../alloc";
 import { nTagBits } from "../compiler";
 
 function print(val: Value) {
@@ -8,8 +9,6 @@ function print(val: Value) {
 }
 
 const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
-const view = new Int32Array(memory.buffer);
-view[0] = 4;
 var memory_js = { memory: memory };
 
 export const importObject = {
@@ -28,4 +27,5 @@ export const importObject = {
   },
   js: memory_js,
   output: "",
+  memoryManager: undefined as undefined | MemoryManager,
 };
