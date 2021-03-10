@@ -1,7 +1,7 @@
 // import { TypeCheckError } from "./type-check";
 
 import { type } from "cypress/types/jquery";
-import { FuncIdentity } from "./types";
+import { ClassPresenter, FuncIdentity, ModulePresenter } from "./types";
 
 // export enum Type {NUM, BOOL, NONE, OBJ};
 export type Type =
@@ -61,12 +61,6 @@ export function typeToString(type: Type) : string {
   }
 }
 
-export type Scope<A> =
-  | { a?: A; tag: "global"; name: string } // not support
-  | { a?: A; tag: "nonlocal"; name: string };
-
-export type Parameter<A> = { name: string; type: Type; value?: Literal };
-
 /**
  * An organized representation of a ChocoPy program
  */
@@ -81,38 +75,29 @@ export type OrganizedProgram<A> = {
 */
 
 export type Program<A> = {
-  a?: A;
-  funs: Array<FunDef<A>>;
-  inits: Array<VarInit<A>>;
-  classes: Array<Class<A>>;
+  funcs: Map<string, FunDef<A>>;
+  inits: Map<string, VarInit<A>>;
+  classes: Map<string, Class<A>>;
   stmts: Array<Stmt<A>>;
+  presenter? : ModulePresenter;
 };
 
 export type Class<A> = {
   a?: A;
   name: string;
-  fields: Array<VarInit<A>>;
-  methods: Array<FunDef<A>>;
+  fields: Map<string, VarInit<A>>;
+  methods: Map<string, FunDef<A>>;
+  presenter? : ClassPresenter;
 };
 
 export type VarInit<A> = { a?: A; name: string; type: Type; value: Literal };
 
 export type FunDef<A> = {
   a?: A;
-  name: string;
-  parameters: Array<Parameter<A>>;
-  ret: Type;
-  decls: Array<Scope<A>>;
-  inits: Array<VarInit<A>>;
-  funs: Array<FunDef<A>>;
+  identity: FuncIdentity;
+  parameters: Map<string, Type>;
+  localVars: Map<string, VarInit<A>>;
   body: Array<Stmt<A>>;
-};
-
-export type Closure<A> = {
-  a?: A;
-  name: string;
-  fields: Array<VarInit<A>>;
-  apply: FunDef<A>;
 };
 
 export type CallSite = {
@@ -122,6 +107,11 @@ export type CallSite = {
 }
 
 export type Stmt<A> =
+  | { a?: A; tag: "class"; def: Class<A>}
+  | { a?: A; tag: "vardec"; def: VarInit<A>}
+  | { a?: A; tag: "func"; def: FunDef<A>}
+  | { a?: A, tag: "import", isFromStmt:boolean, target: string, compName?: Array<string>, alias?: string}
+
   | { a?: A; tag: "assign"; name: string; value: Expr<A> }
   | { a?: A; tag: "return"; value: Expr<A> }
   | { a?: A; tag: "expr"; expr: Expr<A> }
@@ -134,7 +124,6 @@ export type Stmt<A> =
   | { a?: A; tag: "break" } //unsupported for builtins at the moment
   | { a?: A; tag: "for"; name: string; index?: Expr<A>; iterable: Expr<A>; body: Array<Stmt<A>> } //unsupported for builtins at the moment
   | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> } //unsupported for builtins at the moment
-  | {  a?: A, tag: "import", isFromStmt:boolean, target: string, compName?: Array<string>, alias?: string};
 
 
 export interface Destructure<A> {
@@ -162,9 +151,8 @@ export type Expr<A> =
   | { a?: A; tag: "literal"; value: Literal }
   | { a?: A; tag: "binop"; op: BinOp; left: Expr<A>; right: Expr<A> }
   | { a?: A; tag: "uniop"; op: UniOp; expr: Expr<A> }
-  | { a?: A; tag: "builtin1"; name: string; arg: Expr<A> }
-  | { a?: A; tag: "builtin2"; name: string; left: Expr<A>; right: Expr<A> }
   | { a?: A; tag: "call"; name: string; arguments: Array<Expr<A>>, callSite?: CallSite }
+  | { a?: A; tag: "nestedexpr"; expr: Expr<A> }
   // ASSIGNABLE EXPRS
   | { a?: A; tag: "id"; name: string }
   | { a?: A; tag: "lookup"; obj: Expr<A>; field: string }
@@ -182,25 +170,25 @@ export type Expr<A> =
 
 // TODO: should we split up arithmetic ops from bool ops?
 export enum BinOp {
-  Plus,
-  Minus,
-  Mul,
-  IDiv,
-  Mod,
-  Eq,
-  Neq,
-  Lte,
-  Gte,
-  Lt,
-  Gt,
-  Is,
-  And,
-  Or,
+  Plus = "+",
+  Minus = "-",
+  Mul = "*",
+  IDiv = "//",
+  Mod = "%",
+  Eq = "==",
+  Neq = "!=",
+  Lte = "<=",
+  Gte = ">=",
+  Lt = "<",
+  Gt = ">",
+  Is = "is",
+  And = "and",
+  Or = "or",
 }
 
 export enum UniOp {
-  Neg,
-  Not,
+  Neg = "-",
+  Not = "not",
 }
 
 export type Value =

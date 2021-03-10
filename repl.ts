@@ -1,11 +1,11 @@
 import { run } from "./runner";
-import { tc } from "./type-check";
-import { Value, Type, typeToString } from "./ast";
+import { GlobalTable, tc } from "./type-check";
+import { Value, Type, typeToString, Program } from "./ast";
 import { parse } from "./parser";
 import { builtinModules } from "module";
 import { attachPresenter, BuiltInModule, gatherPresenters, NativeTypes, OtherModule } from "./builtins/builtins";
 import { type } from "cypress/types/jquery";
-import { ModulePresenter, ClassPresenter, OrganizedModule, FuncIdentity, idenToStr } from "./types";
+import { ModulePresenter, ClassPresenter, FuncIdentity, idenToStr } from "./types";
 import { last, thru, values } from "cypress/types/lodash";
 import { NONE } from "./utils";
 import fs from 'fs';
@@ -110,8 +110,7 @@ export class BasicREPL {
   private config: Config;
   private labeler: Labeler;
 
-  private curModule: OrganizedModule;
-  private curModuleLabeled: LabeledModule;
+  private currentTable: GlobalTable;
 
   constructor(config: Config) {
     this.config = config;
@@ -124,11 +123,14 @@ export class BasicREPL {
     source += "from natives import print, abs, min, max, pow \n"
 
     const parsed = parse(source);
-    const organized = tc(this.curModule === undefined ? 
+    const typed = tc(this.currentTable === undefined ? 
                           undefined :  
-                          this.curModule.presented, this.config.builtInPresenters, parsed);
-    const labeled = this.labeler.label(0, organized.presented, true);
-    const compiled = compile(organized, labeled, this.labeler.labeledBuiltIns, this.config.allocator);
+                          this.currentTable, this.config.builtInPresenters, parsed);
+    this.currentTable = typed.table;
+
+    
+    const labeled = this.labeler.label(0, typed.typed.presenter, true);
+    const compiled = compile(typed.typed, labeled, this.labeler.labeledBuiltIns, this.config.allocator);
     console.log("---------INSTRS--------\n"+compiled.join("\n"));
 
     
@@ -139,13 +141,13 @@ export class BasicREPL {
   }
 
   async tc(source: string): Promise<Type> {
-    source += "from natives import print \n"
+    source += "from natives import print, abs, min, max, pow \n"
 
     const parsed = parse(source);
-    const organized = tc(this.curModule === undefined ? 
+    const typed = tc(this.currentTable === undefined ? 
                           undefined :  
-                          this.curModule.presented, this.config.builtInPresenters, parsed);
-    const lastStmt = organized.topLevelStmts[organized.topLevelStmts.length - 1];
+                          this.currentTable, this.config.builtInPresenters, parsed);
+    const lastStmt = typed.typed.stmts[typed.typed.stmts.length - 1];
 
     //console.log(` LAST STMT , is expr? ${lastStmt.tag} ${JSON.stringify(lastStmt)}`);
     if(lastStmt.tag === "expr"){
@@ -172,12 +174,16 @@ async function main(){
   builtins.set(natives.name, natives);
 
   const testFuncs = {
-    builtin: {
+    natives: {
       natives_print: (...args: number[]) => natives.print(...args),
       natives_abs: (...args: number[]) => natives.abs(...args),
       natives_min: (...args: number[]) => natives.min(...args),
       natives_max: (...args: number[]) => natives.max(...args),
-      natives_pow: (...args: number[]) => natives.pow(...args),
+      natives_pow: (...args: number[]) => natives.pow(...args)
+    },
+    otherModule: {
+      otherModule_someFunc: (...args: number[]) => otherModule.someFunc(),
+      otherModule_otherFunc: (...args: number[]) => otherModule.otherFunc()
     },
     system: {
       instanciate: (code: number) => allocator.allocObj(0, code),

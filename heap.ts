@@ -100,6 +100,8 @@ export class MainAllocator{
     const targetClass = module.classes.get(typeCode);
 
     const attrs = new Array<number>();
+
+    /*
     for(let [_, info] of targetClass.instanceVars.entries()){
       switch(info.initValue.tag){
         case "bool": {
@@ -123,6 +125,7 @@ export class MainAllocator{
         }
       }
     }
+    */
 
     const addr = this.heapIndex;
     this.heap.push({tag: "instance", moduleCode: modCode, typeCode: typeCode, attrs: attrs});

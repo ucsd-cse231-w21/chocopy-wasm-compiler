@@ -1,7 +1,7 @@
-import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class, typeToString, Parameter } from "./ast";
+import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class, typeToString } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { callToSignature, ClassPresenter, fdefToIdentity, fdefToSigStr, FuncIdentity, idenToStr, literalToType, ModulePresenter, OrganizedClass, OrganizedFunc, OrganizedModule } from "./types";
+import { callToSignature, ClassPresenter, FuncIdentity, idenToStr, literalToType, ModulePresenter } from "./types";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -130,22 +130,13 @@ function makePresenter(classDef: Class<null>) : ClassPresenter{
   };
 
   //add instance variables
-  for(let v of classDef.fields){
-    if(result.instanceVars.has(v.name)){
-      throw new TypeCheckError(`For the class ${result.name}, the field ${v.name} already exists`);
-    }
-
-    result.instanceVars.set(v.name, {type: v.type, initValue: v.value});
+  for(let [name, info] of classDef.fields.entries()){
+    result.instanceVars.set(name, info.type);
   }
 
   //add instance methods
-  for(let m of classDef.methods){
-    const fSig = fdefToSigStr(m);
-    if(result.instanceMethods.has(fSig)){
-      throw new TypeCheckError(`For the class ${result.name}, the method ${fSig} already exists`);
-    }
-
-    result.instanceMethods.set(fSig, fdefToIdentity(m));
+  for(let [fsig, def] of classDef.methods.entries()){
+    result.instanceMethods.set(fsig, def.identity);
   }
 
   return result;
@@ -285,7 +276,7 @@ function tcExpr(expr: Expr<null>,
               return {a: {tag: "bool"}, tag: "binop", op: expr.op, left: left, right: right};
          }
          
-          throw new TypeCheckError("Both operands must be of the same time when using '"+expr.op+"'");     
+          throw new TypeCheckError("Both operands must be of the same type when using '"+expr.op+"'");     
       }
       else if((relational.has(expr.op) || arithOps.has(expr.op))){
           if(leftType.tag !== "number" || rightType.tag !== "number"){
@@ -322,16 +313,6 @@ function tcExpr(expr: Expr<null>,
         }
       }
     }
-    case "builtin1":{
-      return tcExpr({tag: "call", 
-                     name: expr.name, 
-                     arguments: [expr.arg]}, vars, global, builtIns);
-    }
-    case "builtin2":{
-      return tcExpr({tag: "call", 
-                     name: expr.name, 
-                     arguments: [expr.left, expr.right]}, vars, global, builtIns);
-    }
     case "call":{
       const typedArgExprs : Array<Expr<Type>> = new Array();
 
@@ -365,12 +346,16 @@ function tcExpr(expr: Expr<null>,
                            isConstructor: true}};
       }
 
-      throw new TypeCheckError(`Unfound function: ${callToSignature(expr.name, argTypes)}`);
+      throw new TypeCheckError(`Unfound function: ${callToSignature(expr.name, argTypes)} ${JSON.stringify(global.funcs)}`);
     }
     case "id": {
       const idType = lookup(expr.name, vars);
       if(idType === undefined){
-        throw new TypeCheckError(`Cannot find variable named ${expr.name}`);
+        const gVar = global.vars.get(expr.name);
+        if(gVar === undefined){
+          throw new TypeCheckError(`Cannot find variable named ${expr.name}`);
+        }
+        return {a: gVar.type, tag: "id", name: expr.name};
       }
 
       return {a: idType, tag: "id", name: expr.name};
@@ -407,7 +392,7 @@ function tcExpr(expr: Expr<null>,
               throw new TypeError(`The type ${targetType.name} has no instance variable ${expr.field}`);
             }
 
-            return {a: fieldType.type, tag: "lookup", obj: target, field: expr.field};
+            return {a: fieldType, tag: "lookup", obj: target, field: expr.field};
           }
         }
       }
@@ -429,7 +414,7 @@ function tcExpr(expr: Expr<null>,
 
       const target = tcExpr(expr.obj, vars, global, builtIns);
       const targetArgs = expr.arguments.map(x => tcExpr(x, vars, global, builtIns));
-      const argTypes = [target.a].concat(targetArgs.map(x => x.a));
+      const argTypes = targetArgs.map(x => x.a);
       const callSig = callToSignature(expr.method, argTypes);
       const targetType = target.a;
 
@@ -465,6 +450,9 @@ function tcExpr(expr: Expr<null>,
             throw new TypeError(`Cannot find the type ${targetType.name}`);
           }
           else{
+            //append class type to argTypes
+            argTypes.unshift(target.a);
+
             const instanceMeths = new Map<string, {iden: FuncIdentity, module: string}>();
             for(let [name, info] of targetClass.classPresen.instanceMethods.entries()){
               instanceMeths.set(name, {iden: {signature: info.signature, returnType: info.returnType}, module: undefined});
@@ -499,8 +487,12 @@ function tcStmt(stmt: Stmt<null>,
                 builtIns: Map<string, ModulePresenter>) : Stmt<Type>{
   switch(stmt.tag){
     case "import": {
-      //ignore. This has already been accounted for
-      break;
+      return {a: {tag: "class", name: "module$"+stmt.target}, 
+              tag: "import",
+              isFromStmt: stmt.isFromStmt,
+              target: stmt.target,
+              compName: stmt.compName,
+              alias: stmt.alias};
     }
     case "assign": {
       const varType = lookup(stmt.name, vars);
@@ -578,53 +570,50 @@ function tcStmt(stmt: Stmt<null>,
 
 function tcClassDef(def: Class<null>, 
                     global: GlobalTable, 
-                    builtIns: Map<string, ModulePresenter>) : OrganizedClass{
+                    builtIns: Map<string, ModulePresenter>) : Class<Type>{
   //structures for OrganizedClass
   const newFields : Map<string, VarInit<Type>> = new Map();
-  const newMethods : Map<string, OrganizedFunc> = new Map();
+  const newMethods : Map<string, FunDef<Type>> = new Map();
 
-  //for presenter
-  const presenter : ClassPresenter = global.classes.get(def.name).classPresen;
+  const presenterMethods: Map<string, FuncIdentity> = new Map();
+  const presenterVars: Map<string, Type> = new Map();
 
-  for(let v of def.fields){
-    if(!isAssignable(v.type, literalToType(v.value))){
-      throw new TypeCheckError(`The type ${typeToString(literalToType(v.value))} is not assignable to ${typeToString(v.type)}`);
-    }
-    else if(newFields.has(v.name)){
-      throw new TypeCheckError(`Duplicate class variable ${v.name} for class ${def.name}`);
+  for(let [name, info] of def.fields.entries()){
+    if(!isAssignable(info.type, literalToType(info.value))){
+      throw new TypeCheckError(`The type ${typeToString(literalToType(info.value))} is not assignable to ${typeToString(info.type)}`);
     }
 
     //presenter.instanceVars.set(v.name, {type: v.type, initValue: v.value});
-    newFields.set(v.name, {a: literalToType(v.value), 
-                           name: v.name, 
-                           type: v.type, 
-                           value: v.value});
+    newFields.set(name, {a: literalToType(info.value), 
+                           name: name, 
+                           type: info.type, 
+                           value: info.value});
+    presenterVars.set(name, info.type);
   }
 
 
-  for(let f of def.methods){
-    const newF = tcFuncDef(f, global, builtIns);
-    const sig = idenToStr(newF.identity);
-    if(newMethods.has(sig)){
-      throw new TypeCheckError(`Duplicate method ${sig} for class ${def.name}`);
-    }
-
-    //presenter.instanceMethods.set(sig, newF.identity);
+  for(let [sig, info] of def.methods.entries()){
+    const newF = tcFuncDef(info, global, builtIns);
     newMethods.set(sig, newF);
+    presenterMethods.set(sig, newF.identity);
   }
+
+  const presenter: ClassPresenter = {name: def.name, 
+                                     instanceVars: presenterVars, 
+                                     instanceMethods: presenterMethods};
                     
   return {name: def.name, fields: newFields, methods: newMethods, presenter: presenter};
 }
 
 function tcFuncDef(def: FunDef<null>, 
                    global: GlobalTable, 
-                   builtIns: Map<string, ModulePresenter>) : OrganizedFunc{
+                   builtIns: Map<string, ModulePresenter>) : FunDef<Type>{
   //function signature. Useful for errors
-  const funcIdentity = fdefToIdentity(def);
-  console.log(`-------TCing Func def: ${idenToStr(funcIdentity)}`);
+  const funcIdentity = idenToStr(def.identity);
+  console.log(`-------TCing Func def: ${funcIdentity}`);
 
   //check if return type exists
-  const retMissing = doesTypeExist(def.ret, global);
+  const retMissing = doesTypeExist(def.identity.returnType, global);
   if(retMissing !== undefined){
     throw new TypeCheckError(`The type ${retMissing} cannot be found!`);
   }
@@ -633,40 +622,35 @@ function tcFuncDef(def: FunDef<null>,
   const localScope: Map<string, Type> = new Map();
 
   //structures are for the OrganizedFunc to be returned
-  const newParams: Map<string, Type> = new Map();
+  const newParams: Map<string, Type> = new Map(def.parameters);
   const newLocals: Map<string, VarInit<Type>> = new Map();
   const newStmts: Array<Stmt<Type>> = new Array();
 
   //add parameters to local scope
-  for(let param of def.parameters){
-    if(localScope.has(param.name)){
-      throw new TypeCheckError(`Duplicate variable declaration ${param.name}`);
-    }
-
+  for(let [name, type] of def.parameters.entries()){
     //check for type existence
-    const missingType = doesTypeExist(param.type, global);
+    const missingType = doesTypeExist(type, global);
     if(missingType !== undefined){
       throw new TypeCheckError(`The type ${missingType} cannot be found!`);
     }
 
-    localScope.set(param.name, param.type);
-    newParams.set(param.name, param.type);
+    localScope.set(name, type);
   }
 
   //add local variables to scope
-  for(let v of def.inits){
-    const missingType = doesTypeExist(v.type, global);
+  for(let [name, info] of def.localVars.entries()){
+    const missingType = doesTypeExist(info.type, global);
     if(missingType !== undefined){
       throw new TypeCheckError(`The type ${missingType} cannot be found!`);
     }
 
-    const literalType = literalToType(v.value);
-    if(!isAssignable(v.type, literalType)){
-      throw new TypeCheckError(`${literalToType(v.value)} isn't assignable to ${typeToString(v.type)} for variable ${v.name}`);
+    const literalType = literalToType(info.value);
+    if(!isAssignable(info.type, literalType)){
+      throw new TypeCheckError(`${typeToString(literalType)} isn't assignable to ${typeToString(info.type)} for variable ${name}`);
     }
 
-    localScope.set(v.name, literalType);
-    newLocals.set(v.name, {a: literalToType(v.value), name: v.name, type: v.type, value: v.value});
+    localScope.set(name, info.type);
+    newLocals.set(name, {a: literalType, name: name, type: info.type, value: info.value});
   }
 
   //a return statement may have been encountered already.
@@ -681,58 +665,39 @@ function tcFuncDef(def: FunDef<null>,
     newStmts.push(newStmt);
   }
 
-  console.log(`======> is func return type undef? ${funcIdentity.returnType === undefined}`);
-  if(!checkReturn(newStmts, funcIdentity.returnType)){
-    if(funcIdentity.returnType.tag !== "none"){
-      throw new TypeCheckError(`The function ${idenToStr(funcIdentity)} must have 
-                                a return type of ${typeToString(funcIdentity.returnType)}`);
+  console.log(`======> is func return type undef? ${def.identity.returnType === undefined}`);
+  if(!checkReturn(newStmts, def.identity.returnType)){
+    if(def.identity.returnType.tag !== "none"){
+      throw new TypeCheckError(`The function ${idenToStr(def.identity)} must have 
+                                a return type of ${typeToString(def.identity.returnType)}`);
     }
     else{
       newStmts.push({tag: "return", value: {tag: "literal", value: {tag: "none"}}});
     }
   }
 
-  return {identity: funcIdentity, params: newParams, vars: newLocals, stmts: newStmts};
+  return {a: {tag: "callable", 
+              args: Array.from(newParams.values()), 
+              ret: def.identity.returnType}, 
+          identity: def.identity, 
+          parameters: newParams, 
+          localVars: newLocals, 
+          body: newStmts};
 }
 
-export function tc(existingEnv: ModulePresenter, 
+export function tc(existingEnv: GlobalTable, 
                    builtIns: Map<string, ModulePresenter>, 
-                   program: Program<null>): OrganizedModule {
+                   program: Program<null>) : 
+                   {table: GlobalTable, typed: Program<Type>} {
 
   const curGlobalTable: GlobalTable = {
-    vars: existingEnv === undefined ? new Map() : new Map(existingEnv.moduleVars),
-    funcs: existingEnv === undefined ? new Map() : new Map(existingEnv.functions),
+    vars: existingEnv === undefined ? new Map() : new Map(existingEnv.vars),
+    funcs: existingEnv === undefined ? new Map() : new Map(existingEnv.funcs),
     classes: existingEnv === undefined ? new Map() : new Map(existingEnv.classes)
   }
 
   //first include imports
   includeImports(curGlobalTable, builtIns, program.stmts);
-
-  //start adding module components
-  //start with classes
-  for(let c of program.classes){
-    if(curGlobalTable.classes.has(c.name)){
-      throw new TypeCheckError(`The class ${c.name} already exists!`);
-    }
-    curGlobalTable.classes.set(c.name, {classPresen: makePresenter(c), module: undefined});
-  }
-
-  //continue with functions
-  for(let f of program.funs){
-    const fSig = fdefToSigStr(f);
-    if(curGlobalTable.funcs.has(fSig)){
-      throw new TypeCheckError(`The function ${fSig} already exists!`);
-    }
-    curGlobalTable.funcs.set(fSig, {iden: fdefToIdentity(f), module: undefined});
-  }
-
-  //====================Now we do type checking!
-
-  //These structures are for the OrganizedModule we'll be returning
-  const modVars: Map<string, VarInit<Type>> = new Map();
-  const modFunctions: Map<string, OrganizedFunc> = new Map();
-  const modClasses: Map<string, OrganizedClass> = new Map();
-  const tlStmts: Array<Stmt<Type>> = new Array();
 
   const modPresenter: ModulePresenter = {
     name: undefined,
@@ -741,64 +706,86 @@ export function tc(existingEnv: ModulePresenter,
     classes: new Map()
   };
 
-  Array.from(curGlobalTable.funcs.entries()).forEach(x => 
-                                     modPresenter.functions.set(x[0], x[1].iden));
-  Array.from(curGlobalTable.classes.entries()).forEach(x => 
-                                     modPresenter.classes.set(x[0], x[1].classPresen));
+  //start adding module components
+  //start with classes
+  for(let [name, def] of program.classes.entries()){
+    if(curGlobalTable.classes.has(name)){
+      throw new TypeCheckError(`The class ${name} already exists!`);
+    }
 
+    curGlobalTable.classes.set(name, {classPresen: makePresenter(def), module: undefined});
+  }
+
+  //continue with functions
+  for(let [fSig, def] of program.funcs.entries()){
+    if(curGlobalTable.funcs.has(fSig)){
+      throw new TypeCheckError(`The function ${fSig} already exists!`);
+    }
+    curGlobalTable.funcs.set(fSig, {iden: def.identity, module: undefined});
+  }
+
+  //====================Now we do type checking!
+
+  //These structures are for the OrganizedModule we'll be returning
+  const modVars: Map<string, VarInit<Type>> = new Map();
+  const modFunctions: Map<string, FunDef<Type>> = new Map();
+  const modClasses: Map<string, Class<Type>> = new Map();
+
+  const tlStmts: Array<Stmt<Type>> = new Array();
 
   //Check global variables
-  for(let v of program.inits){
-    if(curGlobalTable.vars.has(v.name)){
-      throw new TypeCheckError(`The variable ${v.name} already exists!`);
+  for(let [name, def] of program.inits.entries()){
+    if(curGlobalTable.vars.has(name)){
+      throw new TypeCheckError(`The variable ${name} already exists!`);
     }
     else{
-      const unfoundType = doesTypeExist(v.type, curGlobalTable);
+      const unfoundType = doesTypeExist(def.type, curGlobalTable);
       if(unfoundType !== undefined){
         throw new TypeCheckError(`The type ${unfoundType} cannot be found!`);
       }
-      else if(!isAssignable(v.type, literalToType(v.value))){
-        throw new TypeCheckError(`For the variable ${v.name}: cannot assign ${literalToType(v.value)} to ${typeToString(v.type)}`);
+      else if(!isAssignable(def.type, literalToType(def.value))){
+        throw new TypeCheckError(`For the variable ${name}: cannot assign ${literalToType(def.value)} to ${typeToString(def.type)}`);
       }
     }
     
-    curGlobalTable.vars.set(v.name, {type: v.type, module: undefined});
-    modVars.set(v.name, {a: literalToType(v.value), 
-                         name: v.name, 
-                         type: v.type, 
-                         value: v.value});
-    modPresenter.moduleVars.set(v.name, v.type);
+    curGlobalTable.vars.set(name, {type: def.type, module: undefined});
+    modVars.set(name, {a: literalToType(def.value), 
+                         name: name, 
+                         type: def.type, 
+                         value: def.value});
+    modPresenter.moduleVars.set(name, def.type);
   }
 
   //check functions
-  for(let func of program.funs){
-    const signature = fdefToSigStr(func);
-    const newFunc = tcFuncDef(func, curGlobalTable, builtIns);
-    modFunctions.set(signature, newFunc);
+  for(let [sig, def] of program.funcs.entries()){
+    const newFunc = tcFuncDef(def, curGlobalTable, builtIns);
+    modFunctions.set(sig, newFunc);
+
+    modPresenter.functions.set(sig, def.identity);
   }
 
   //check class
-  for(let classDef of program.classes){
-    const newClassDef = tcClassDef(classDef, curGlobalTable, builtIns);
-    modClasses.set(classDef.name, newClassDef);
+  for(let [name, def] of program.classes.entries()){
+    const newClassDef = tcClassDef(def, curGlobalTable, builtIns);
+    modClasses.set(name, newClassDef);
+
+    modPresenter.classes.set(name, newClassDef.presenter);
   }
   
-  const imports = new Array<Stmt<null>>();
   //check top-level statements
   for(let stmt of program.stmts){
-    if(stmt.tag === "import"){
-      imports.push(stmt);
-    }
-    else{
-      const newStmt = tcStmt(stmt, [modPresenter.moduleVars], curGlobalTable, builtIns);
-      tlStmts.push(newStmt);
-    }
+    const newStmt = tcStmt(stmt, [modPresenter.moduleVars], curGlobalTable, builtIns);
+    tlStmts.push(newStmt);
   }
 
-  return {imports: imports,
-          fileVars: modVars, 
-          fileFunctions: modFunctions, 
-          fileClasses: modClasses, 
-          topLevelStmts: tlStmts, 
-          presented: modPresenter};
+  const typedProg : Program<Type> = 
+  {
+    inits: modVars, 
+    funcs: modFunctions, 
+    classes: modClasses, 
+    stmts: tlStmts, 
+    presenter: modPresenter
+  };
+
+  return {table: curGlobalTable, typed: typedProg};
 }

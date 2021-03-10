@@ -1,6 +1,6 @@
 import { Type, typeToString, Value } from "../ast";
 import { Instance, MainAllocator } from "../heap";
-import { ClassPresenter, FuncIdentity, ModulePresenter } from "../types";
+import { ClassPresenter, FuncIdentity, idenToStr, ModulePresenter } from "../types";
 import { CLASS, NONE, NUM } from "../utils";
 /**
  * Represents a built-in ChocoPy module
@@ -80,11 +80,11 @@ export function attachClassPresenter(c: BuiltInClass){
     }
 
     for(let [name, info] of c.variables.entries()){
-        presenter.instanceVars.set(name, {type: info.getType()});
+        presenter.instanceVars.set(name, info.getType());
     }
 
-    for(let [sig, info] of c.methods.entries()){
-        presenter.instanceMethods.set(sig, info.identity);
+    for(let [_, info] of c.methods.entries()){
+        presenter.instanceMethods.set(idenToStr(info.identity), info.identity);
     }
 
 
@@ -103,8 +103,8 @@ export function attachPresenter(b: BuiltInModule) {
         presenter.moduleVars.set(name, info.getType());
     }
 
-    for(let [sig, info] of b.functions.entries()){
-        presenter.functions.set(sig, info.identity);
+    for(let [_, info] of b.functions.entries()){
+        presenter.functions.set(idenToStr(info.identity), info.identity);
     }
 
     for(let [name, info] of b.classes.entries()){

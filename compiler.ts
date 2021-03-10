@@ -1,7 +1,7 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class, typeToString } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { FuncIdentity, idenToStr, ModulePresenter, OrganizedModule } from "./types";
+import { FuncIdentity, idenToStr, ModulePresenter } from "./types";
 import { BuiltInModule } from "./builtins/builtins";
 import { type } from "cypress/types/jquery";
 import { builtinModules } from "module";
@@ -158,49 +158,76 @@ function includeImports(imprts: Array<Stmt<Type>>,
   const imprtMap = new Map<string, IdenType>();
   const funcHeaders = new Array<string>();
 
+  const includedFuncs = new Map<string, Set<string>>(); //we don't want to repeat the same imported functions
+
   for(let imprt of imprts){
-    console.log(` ***PRELUDING IMPORT ${JSON.stringify(imprt)}`);
     if(imprt.tag === "import"){
+      console.log(` ***PRELUDING IMPORT ${imprt.target}`);
+
       const targetModule = builtins.get(imprt.target);
+
+      let importedFuncs: Set<string> = undefined;
+      if(includedFuncs.has(imprt.target)){
+        importedFuncs = includedFuncs.get(imprt.target);
+      }
+      else{
+        importedFuncs = new Set<string>();
+        includedFuncs.set(imprt.target, importedFuncs);
+      }
+
+      let compNames = new Set<String>();
       if(imprt.isFromStmt){
-        const compNames = new Set(imprt.compName);
-
-        //add function labels
-        for(let [_, info] of targetModule.funcs.entries()){
-          if(compNames.has(info.identity.signature.name)){
-            const params = "(param i32)".repeat(info.identity.signature.parameters.length);
-            const header = `(func $${info.label} (import "builtin" "${info.label}") ${params} (result i32))`;
-            funcHeaders.push(header);
-          }
-        }
-
-        //add class methods labels
-        for(let [name, info] of targetModule.classes.entries()){
-          if(compNames.has(name)){
-            for(let [_, fInfo] of info.methods.entries()){
-              const params = "(param i32)".repeat(fInfo.identity.signature.parameters.length);
-              const header = `(func $${fInfo.label} (import "builtin" "${fInfo.label}") ${params} (result i32))`;
-              funcHeaders.push(header);
-            }
-          }
-        }
-
-        for(let [name, index] of targetModule.globalVars.entries()){
-          if(compNames.has(name)){
-            imprtMap.set(name, {tag: "globalvar", moduleCode: targetModule.moduleCode, index: index});
-          }
-        }
+        imprt.compName.forEach(x => compNames.add(x));
       }
       else{
         const moduleCode = builtins.get(imprt.target).moduleCode;
-        imprtMap.set(imprt.alias, {tag: "module", code: moduleCode});
+        imprtMap.set(imprt.alias === undefined ? imprt.target : imprt.alias, {tag: "module", code: moduleCode});
       }
+
+
+      //add function labels
+      for(let [_, info] of targetModule.funcs.entries()){
+        if(!imprt.isFromStmt || compNames.has(info.identity.signature.name)){
+          const funcIden = idenToStr(info.identity);
+          if(!importedFuncs.has(funcIden)){
+            const params = "(param i32)".repeat(info.identity.signature.parameters.length);
+            const header = `(func $${info.label} (import "${imprt.target}" "${info.label}") ${params} (result i32))`;
+            funcHeaders.push(header);
+
+            importedFuncs.add(funcIden);
+          }
+        }
+      }
+
+      //add class methods labels
+      for(let [name, info] of targetModule.classes.entries()){
+        if(!imprt.isFromStmt || compNames.has(name)){
+          for(let [_, fInfo] of info.methods.entries()){
+            const methIden = name+"$"+idenToStr(fInfo.identity);
+            if(!importedFuncs.has(methIden)){
+              const params = "(param i32)".repeat(fInfo.identity.signature.parameters.length);
+              const header = `(func $${fInfo.label} (import "${imprt.target}" "${fInfo.label}") ${params} (result i32))`;
+              funcHeaders.push(header);
+
+              importedFuncs.add(methIden);
+            }
+          }
+        }
+      }
+
+      //add module variables
+      for(let [name, index] of targetModule.globalVars.entries()){
+        if(!imprt.isFromStmt || compNames.has(name)){
+          imprtMap.set(name, {tag: "globalvar", moduleCode: targetModule.moduleCode, index: index});
+        }
+      }
+      
     }
   }
   return {vars: imprtMap, instr: funcHeaders};
 }
 
-export function compile(progam: OrganizedModule, 
+export function compile(progam: Program<Type>, 
                         labeledSource: LabeledModule, 
                         builtins: Map<string, LabeledModule>,
                         allcator: MainAllocator) : Array<string> {
@@ -211,7 +238,7 @@ export function compile(progam: OrganizedModule,
   allInstrs.push(...system);
 
   //set the first global vars to be imports
-  const imports = includeImports(progam.imports, builtins);
+  const imports = includeImports(progam.stmts, builtins);
 
   console.log(` ----------PRE COMPILE: ${imports.instr.join("\n")}`);
   allInstrs.push(...imports.instr);
@@ -220,7 +247,7 @@ export function compile(progam: OrganizedModule,
   allInstrs.push(`(local $${TEMP_VAR} i32)`); //used for statement values
   allInstrs.push(`(local.set $${TEMP_VAR} (i32.const 0))`); //initialize it with 0
   //now, add on global variables
-  for(let [vName, info] of progam.fileVars.entries()){
+  for(let [vName, info] of progam.inits.entries()){
     const index = labeledSource.globalVars.get(vName);
 
     imports.vars.set(vName, {tag: "globalvar", moduleCode: 0, index: index});
@@ -262,23 +289,72 @@ export function compile(progam: OrganizedModule,
     }
   }
 
-  if(progam.topLevelStmts.length >= 1){
-    const lastStmt = progam.topLevelStmts[progam.topLevelStmts.length - 1];
+  if(progam.stmts.length >= 1){
+    const lastStmt = progam.stmts[progam.stmts.length - 1];
     if(lastStmt.tag === "expr"){
-      progam.topLevelStmts[progam.topLevelStmts.length - 1] = {a: lastStmt.a, tag: "return", value: lastStmt.expr};
+      progam.stmts[progam.stmts.length - 1] = {a: lastStmt.a, tag: "return", value: lastStmt.expr};
     }
   }
 
   //now compile top level stmts
-  for(let tlStmt of progam.topLevelStmts){
+  for(let tlStmt of progam.stmts){
     allInstrs.push(codeGenStmt(tlStmt, [imports.vars], labeledSource, builtins, allcator).join("\n"));
   }
   allInstrs.push(`(local.get $${TEMP_VAR})`);
   allInstrs.push(`)`);
 
+  //compile top level functions
+  Array.from(progam.funcs.values()).forEach(
+    x => {
+      const funcIden = idenToStr(x.identity);
+      const label = labeledSource.funcs.get(funcIden).label;
+      const funcInstrs = codeGenFunction(x, [imports.vars], label, labeledSource, builtins, allcator);
+
+      allInstrs.push(...funcInstrs);
+    }
+  );
+
+
   return allInstrs;
 }
 
+function codeGenFunction(func: FunDef<Type>, 
+                         idens: Array<Map<string, IdenType>>, 
+                         label: string, 
+                         sourceModule: LabeledModule,
+                         builtins: Map<string, LabeledModule>,
+                         allcator: MainAllocator): Array<string> {
+  const instrs = new Array<string>();
+  
+  //translate parameters to WASM
+  let params = "";
+  Array.from(func.parameters.entries()).forEach(
+    x => {params += `(param $${x[0]} i32) `}
+  );
+
+  const header = `(func $${label} ${params} (result i32)`;
+  instrs.push(header);
+  instrs.push(`(local $${TEMP_VAR} i32)`); //used for statement values
+
+  //add local variables
+  Array.from(func.localVars.entries()).forEach(
+    x => instrs.push(`(local $${x[0]} i32)`)
+  );
+
+  //set initial values for local variables
+  Array.from(func.localVars.entries()).forEach(
+    x => instrs.push(`(local.set $${x[0]} ${codeGenLiteral(x[1].value, allcator)})`)
+  );
+
+  //set initial value for TEMP_VAR
+  instrs.push(`(local.set $${TEMP_VAR} (i32.const 0))`);
+
+  func.body.forEach(x => instrs.push(...codeGenStmt(x, idens, sourceModule, builtins, allcator)));
+
+  instrs.push("(local.get $1emp)");
+  instrs.push(")");
+  return instrs;
+}
 
 function codeGenStmt(stmt: Stmt<Type>, 
                      idens: Array<Map<string, IdenType>>, 
@@ -362,6 +438,18 @@ function codeGenStmt(stmt: Stmt<Type>,
   }
 }
 
+function codeGenLiteral(literal: Literal, allcator: MainAllocator) : string{
+  switch(literal.tag){
+    case "num": return `(call $${ALLC_INT} (i32.const ${literal.value}))`;
+    case "bool": return `(call $${ALLC_BOOL} (i32.const ${literal.value ? 1 : 0}))`;
+    case "string": {
+      const strAddr = allcator.allocStr(literal.value);
+      return `(i32.const ${strAddr})`;
+    };
+    case "none": return `(i32.const 0)`;
+  }
+}
+
 function codeGenExpr(expr: Expr<Type>, 
                      idens: Array<Map<string, IdenType>>, 
                      sourceModule: LabeledModule,
@@ -395,15 +483,7 @@ function codeGenExpr(expr: Expr<Type>,
       throw new Error("objects of type "+typeToString(expr.obj.a)+" have no attributes");
     }
     case "literal": {
-      switch(expr.value.tag){
-        case "num": return `(call $${ALLC_INT} (i32.const ${expr.value.value}))`;
-        case "bool": return `(call $${ALLC_BOOL} (i32.const ${expr.value.value ? 1 : 0}))`;
-        case "string": {
-          const strAddr = allcator.allocStr(expr.value.value)
-          return `(i32.const ${strAddr})`;
-        };
-        case "none": return `(i32.const 0)`;
-      }
+      return codeGenLiteral(expr.value, allcator);
     }
     case "uniop":{
       const targetInstr = codeGenExpr(expr.expr, idens, sourceModule, builtins, allcator);

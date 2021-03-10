@@ -7,6 +7,7 @@ By March 11, we're looking to support the passing of arguments to functions in b
 from otherModule import someFunc
 someFunc(2, False, "helloWorld") 
 ```
+
 ### Object Instantiation 
 By March 11, we're also looking to support the instantiation of classes defined in built-in libraries. For example, say in the built-in module `exampleModule`, there was a class called `IntWrapper` that simply stored an `int`. 
 
