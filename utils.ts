@@ -41,10 +41,15 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
     case "none":
       return PyNone();
     case "list":
-      return PyObj(typ.tag + `<${typ.content_type.tag}>`, result);
+      // return PyObj(typ.tag + `<${typ.content_type.tag}>`, result);
+      return PyList(typ.tag, result, typ.content_type);
     default:
       unhandledTag(typ);
   }
+}
+
+export function PyList(name: string, address: number, type: Type): Value{
+  return { tag: "list", name, address, content_type: type}
 }
 
 export function PyString(s: string, address: number): Value {
