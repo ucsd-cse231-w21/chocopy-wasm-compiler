@@ -146,7 +146,7 @@ function prettyPrintList(result: any, repl: BasicREPL, currentEle: any){
         const ele = document.createElement("pre");
         switch(type.tag){
           case "class":
-            const val = PyValue({tag: "number"}, view[result.address/4 + 3 + i], view)
+            const val = PyValue(type, view[result.address/4 + 3 + i], view)
             if(val.tag !== "none"){
               ele.innerHTML = "<b class='tag'>" + i + ":</b>";
               var class_name = type.name;
