@@ -1187,6 +1187,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             ...codeGenExpr(expr.obj, env),
             // Get word offset from tuple address
             ...codeGenExpr(expr.key, env),
+            ...decodeLiteral,
             // Get byte offset
             "(i32.mul (i32.const 4))",
             // Calculate target address
