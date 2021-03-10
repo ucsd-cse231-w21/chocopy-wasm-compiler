@@ -990,7 +990,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         funName = nameExpr.name;
         callExpr.push(`(i32.load (i32.const ${envLookup(env, funName)})) ;; argument for $fPTR`);
         expr.arguments.forEach((arg) => {
-          callExpr.push(codeGenExpr(arg, env).join("\n"));
+          callExpr.push(...codeGenExpr(arg, env));
         });
 
         // NOTE(alex:mm): necessary in order to root the return value
@@ -1003,7 +1003,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         funName = (nameExpr.obj as any).name;
         callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $fPTR`);
         expr.arguments.forEach((arg) => {
-          callExpr.push(codeGenExpr(arg, env).join("\n"));
+          callExpr.push(...codeGenExpr(arg, env));
         });
         // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
@@ -1012,11 +1012,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           }) (i32.load (i32.load (local.get $${funName}))))`
         );
       } else if (nameExpr.tag == "call_expr") {
-        callExpr.push(codeGenExpr(nameExpr, env).join("\n"));
+        callExpr.push(...codeGenExpr(nameExpr, env));
         callExpr.push(`(local.set $$addr)`);
         callExpr.push(`(local.get $$addr) ;; function ptr for the extra argument`);
         expr.arguments.forEach((arg) => {
-          callExpr.push(codeGenExpr(arg, env).join("\n"));
+          callExpr.push(...codeGenExpr(arg, env));
         });
         callExpr.push(
           `(call_indirect (type $callType${
@@ -1068,11 +1068,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       if (env.classes.get(clsName).has(expr.method)) {
         let callExpr: Array<string> = [];
         let argsExprs = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-        callExpr.push(codeGenExpr(expr.obj, env).join("\n"));
+        callExpr.push(...codeGenExpr(expr.obj, env));
         callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
         callExpr.push(`(i32.load) ;; load the function pointer for the extra argument`);
-        callExpr.push(argsExprs.join("\n"));
-        callExpr.push(codeGenExpr(expr.obj, env).join("\n"));
+        callExpr.push(...argsExprs);
+        callExpr.push(...codeGenExpr(expr.obj, env));
         callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
         callExpr.push(`(i32.load) ;; load the function pointer`);
         callExpr.push(`(i32.load) ;; load the function index`);
