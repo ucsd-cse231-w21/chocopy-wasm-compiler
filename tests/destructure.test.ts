@@ -516,6 +516,44 @@ describe("Destructure tuples", () => {
     `,
     ["True", "True", "True", "True"]
   );
+
+  assertTC(
+    "TC destructure tuples with starred assignment, single length list",
+    `
+      t : (int, int, int) = None
+      a : int = 0
+      b : [int] = None
+      c : int = 0
+      t = (1,2,3)
+      a, *b, c = t
+      b
+    `,
+    LIST(NUM)
+  );
+
+  assertTC(
+    "TC destructure tuples with starred assignment, multiple length list",
+    `
+    t : (int, int, int) = None
+    a : int = 0
+    b : [int] = None
+    t = (1,2,3)
+    a, *b = t
+    b
+  `,
+    LIST(NUM)
+  );
+
+  assertTCFail(
+    "TC destructure tuples with starred assignment, incorrect typed list",
+    `
+    t : (int, int, bool) = None
+    a : int = 0
+    b : [int] = None
+    t = (1,2,True)
+    a, *b = t
+  `
+  );
 });
 
 describe("traverseDestructure()", () => {

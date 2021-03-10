@@ -11,6 +11,7 @@ import {
   VarInit,
   Class,
   Destructure,
+  AssignTarget,
   Location,
   Assignable,
 } from "./ast";
@@ -520,7 +521,34 @@ function codeGenDestructure(
         const targetStmts = destruct.targets.flatMap((target) => {
           const assignable = target.target;
           if (target.starred) {
-            throw new Error("Do not currently support starred assignment targets");
+            throw new Error("Star operator not implemented yet.");
+            let nonStarredElements = destruct.targets.length - 1;
+            let stmts: string[] = [];
+            // The WASM number of elements we need in our starred element list
+            const numStarElements = [
+              value,
+              `(i32.load offset=4)`, // list length, stored at byte offset 4
+              `(i32.const ${nonStarredElements})`,
+              `(i32.sub)`, // results in the number of elements needed in the starred list
+            ];
+
+            const listType = [`(i32.const 10)`];
+            const listLengthPlus10 = `(i32.add (${numStarElements.join(`\n`)}) (i32.const 10))`;
+            const listBound = [`(i32.mul (${listLengthPlus10}) (i32.const 2))`];
+            const listHeader = [listType, numStarElements, listBound];
+
+            let listindex = 0;
+            listHeader.forEach((val) => {
+              stmts.concat([
+                `(i32.load (i32.const 0))`,
+                `(i32.add (i32.const ${listindex * 4}))`,
+                ...val,
+                `(i32.store)`,
+              ]);
+              listindex += 1;
+            });
+
+            return stmts;
           } else {
             const fieldValue = [value, `(i32.load offset=${offset})`];
             offset += 4;
