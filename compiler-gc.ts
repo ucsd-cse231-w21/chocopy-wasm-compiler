@@ -30,6 +30,7 @@ export function augmentFnGc(
             const varName = split[index + 1].substring(1);
             // NOTE(alex: mm): $$locals are considered internal and non-rooted
             // Any rooting should be captured by temporary sets
+            results.push(wasmInstr);
             if (varName[0] !== "$") {
               const localIndex = locals.get(varName);
               if (localIndex === undefined) {
@@ -40,7 +41,6 @@ export function augmentFnGc(
               results.push(`(call $$addLocal)`);
             }
             kontinue = false;
-            results.push(wasmInstr);
             break;
           }
 
