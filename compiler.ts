@@ -227,7 +227,12 @@ export function compile(
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
   const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
-  const augmentedCommands = augmentFnGc(commands, withDefines.locals, true);
+  const augmentedCommands = augmentFnGc(commands, withDefines.locals, {
+    main: true,
+    debug: {
+      name: "entry",
+    }
+  });
   withDefines.locals.clear();
 
   return {
@@ -676,7 +681,12 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
     .concat(["(i32.const 0)", "(return)"]);
 
   const localMap = env.locals;
-  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBody = augmentFnGc(body, localMap, {
+    main: false,
+    debug: {
+      name: def.name,
+    }
+  });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
 
@@ -724,7 +734,12 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
 
   const body = locals.concat(inits).concat(stmts).concat(["(i32.const 0)", "(return)"]);
   const localMap = env.locals;
-  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBody = augmentFnGc(body, localMap, {
+    main: false,
+    debug: {
+      name: def.name,
+    }
+  });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
 

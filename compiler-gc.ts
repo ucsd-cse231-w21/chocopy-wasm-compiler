@@ -1,7 +1,27 @@
+export type AugmentConfig =  {
+  main: boolean,
+  debug?: {
+    name: string,
+  }
+};
+
+const DEBUG = true;
+
+function makeHash(s: string): number {
+  var hash = 0, i, chr;
+  if (s.length === 0) return hash;
+  for (i = 0; i < s.length; i++) {
+    chr   = s.charCodeAt(i);
+    hash  = ((hash << 5) - hash) + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+}
+
 export function augmentFnGc(
   fnInstrs: Array<string>,
   locals: Map<string, number>,
-  main: boolean
+  cfg: AugmentConfig,
 ): Array<string> {
   let results: Array<string> = [];
 
@@ -22,6 +42,15 @@ export function augmentFnGc(
       if (index === 1) {
         if (sub !== "local" && !afterLocals) {
           results.push("(call $$pushFrame)");
+
+          if (cfg.debug && DEBUG) {
+            const debug = cfg.debug;
+            const id = makeHash(debug.name);
+            console.warn(`${debug.name} => ${id}`);
+            results.push(`;; ${debug.name} ${id}`);
+            results.push(`(i32.const ${id})`);
+            results.push(`(call $$DEBUG)`);
+          }
           afterLocals = true;
         }
 
@@ -77,7 +106,7 @@ export function augmentFnGc(
             //   have an opportunity to be rooted without fear of the GC cleaning it up
             // TODO(alex:mm): instead of relying on escape analysis, we'll just try to
             //   add the returned value to the parent temp frame
-            if (!main) {
+            if (!cfg.main) {
               results.push("(call $$returnTemp)");
             }
             results.push("(call $$releaseLocals)");
