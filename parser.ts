@@ -17,7 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import {NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST, TUPLE} from "./utils";
+import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST, TUPLE } from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -305,7 +305,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         contents: listExpr,
       };
     case "TupleExpression":
-      let tupleExpr: Array<Expr<null>> = []
+      let tupleExpr: Array<Expr<null>> = [];
       c.firstChild(); // Open parenthesis "("
       c.nextSibling();
       while (c.name !== ")") {
@@ -316,8 +316,8 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
       c.parent();
       return {
         tag: "tuple-expr",
-        contents: tupleExpr
-      }
+        contents: tupleExpr,
+      };
     default:
       throw new Error(
         "Could not parse expr at " + c.from + " " + c.to + ": " + s.substring(c.from, c.to)
@@ -589,19 +589,17 @@ export function traverseType(c: TreeCursor, s: string): Type {
   let name = s.substring(c.from, c.to);
   if (c.node.type.name === "ArrayExpression") return traverseBracketType(c, s);
   if (c.name === "ParenthesizedExpression") {
-    if (name === "()")
-      return TUPLE();
+    if (name === "()") return TUPLE();
     c.firstChild(); // Open parenthesis
     c.nextSibling(); // Inner type
     let type = TUPLE(traverseType(c, s));
     c.parent();
     return type;
   } else if (c.name === "TupleExpression") {
-    let contentTypes: Array<Type> = []
+    let contentTypes: Array<Type> = [];
     c.firstChild(); // Open parenthesis
     c.nextSibling(); // First argument
-    // @ts-ignore TypeScript doesn't realize c.name can change.
-    while (c.name !== ")") {
+    while ((c.name as string) !== ")") {
       contentTypes.push(traverseType(c, s));
       c.nextSibling(); // "," or ")"
       c.nextSibling(); // Next type or ")"

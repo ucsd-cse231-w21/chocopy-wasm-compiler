@@ -88,16 +88,17 @@ export function isNoneOrClass(t: Type) {
 }
 
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list" || t2.tag === "tuple"));
+  return (
+    equalType(t1, t2) ||
+    (t1.tag === "none" && (t2.tag === "class" || t2.tag === "list" || t2.tag === "tuple"))
+  );
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
   if (t1.tag === "tuple" && t2.tag === "tuple") {
-    if (t1.contentTypes.length !== t2.contentTypes.length)
-      return false;
+    if (t1.contentTypes.length !== t2.contentTypes.length) return false;
     for (let i = 0; i < t1.contentTypes.length; i++) {
-      if (!isAssignable(env, t1.contentTypes[i], t2.contentTypes[i]))
-        return false;
+      if (!isAssignable(env, t1.contentTypes[i], t2.contentTypes[i])) return false;
     }
     return true;
   }
@@ -159,7 +160,9 @@ export function tcInit(env: GlobalTypeEnv, init: VarInit<null>): VarInit<Type> {
   if (isAssignable(env, valTyp, init.type)) {
     return { ...init, a: NONE };
   } else {
-    throw new TypeCheckError("Expected type `" + init.type.tag + "`; got type `" + valTyp.tag + "`");
+    throw new TypeCheckError(
+      "Expected type `" + init.type.tag + "`; got type `" + valTyp.tag + "`"
+    );
   }
 }
 
@@ -261,7 +264,9 @@ function tcDestructure(
     const tTarget = tcAssignable(env, locals, target);
     const targetType = tTarget.a;
     if (!isAssignable(env, valueType, targetType))
-      throw new TypeCheckError(`Non-assignable types: Cannot assign ${valueType.tag} to ${targetType.tag}`);
+      throw new TypeCheckError(
+        `Non-assignable types: Cannot assign ${valueType.tag} to ${targetType.tag}`
+      );
     return {
       starred,
       ignore,
@@ -330,7 +335,7 @@ function tcDestructure(
       };
     }
     case "tuple": {
-      let types = value.contentTypes
+      let types = value.contentTypes;
       let starOffset = 0;
       let tTargets: AssignTarget<Type>[] = destruct.targets.map((target, i, targets) => {
         if (i >= types.length)
@@ -340,17 +345,21 @@ function tcDestructure(
         if (target.starred) {
           let tTarget = tcAssignable(env, locals, target.target);
           if (tTarget.a.tag !== "list")
-            throw new TypeCheckError(`Starred assignment target must have type list, found type ${tTarget.a.tag}`);
+            throw new TypeCheckError(
+              `Starred assignment target must have type list, found type ${tTarget.a.tag}`
+            );
           starOffset = types.length - targets.length; // How many values to offset index to account for starred target
           for (let j = i; j <= i + starOffset; j++)
             if (!isAssignable(env, types[j], tTarget.a))
-              throw new TypeCheckError(`Cannot assign type ${types[j].tag} to list ` +
-                `of type ${tTarget.a.content_type.tag}`);
+              throw new TypeCheckError(
+                `Cannot assign type ${types[j].tag} to list ` +
+                  `of type ${tTarget.a.content_type.tag}`
+              );
           return {
             target: tTarget,
             starred: target.starred,
             ignore: target.ignore,
-          }
+          };
         }
         let valueType = types[i + starOffset];
         return tcTarget(target, valueType);
@@ -626,8 +635,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         } else if (key_t.value.value >= 2n ** 32n) {
           throw new TypeCheckError("Invalid tuple index, only a maximum of 2^32 - 1 is allowed");
         }
-        let i = Number(key_t.value.value)
-        return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.contentTypes[i]}
+        let i = Number(key_t.value.value);
+        return { ...expr, obj: obj_t, key: key_t, a: obj_t.a.contentTypes[i] };
       } else {
         throw new TypeCheckError("Bracket lookup on " + obj_t.a.tag + " type not possible");
       }
@@ -646,8 +655,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         throw new TypeCheckError("Slice indices must be integers or None");
       return { tag: "slicing", name, start, end, stride, a: name.a };
     case "tuple-expr": {
-      let contents = expr.contents.map(expr => tcExpr(env, locals, expr));
-      let contentTypes = contents.map(expr => expr.a);
+      let contents = expr.contents.map((expr) => tcExpr(env, locals, expr));
+      let contentTypes = contents.map((expr) => expr.a);
       return { tag: "tuple-expr", contents, a: { tag: "tuple", contentTypes } };
     }
     default:

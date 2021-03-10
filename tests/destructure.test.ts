@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { parse } from "../parser";
-import {PyInt, PyBool, PyNone, PyObj, NUM, CLASS, BOOL, LIST, TUPLE, PyValue} from "../utils";
-import {assert, assertFail, assertPrint, asserts, assertTC, assertTCFail} from "./utils.test";
+import { PyInt, PyBool, PyNone, PyObj, NUM, CLASS, BOOL, LIST, TUPLE, PyValue } from "../utils";
+import { assert, assertFail, assertPrint, asserts, assertTC, assertTCFail } from "./utils.test";
 
 describe("Destructure integration (class based. to be converted to tuples)", () => {
   // NOTE: Assigning from class fields is a temporary measure
@@ -196,11 +196,7 @@ describe("Destructure lists", () => {
 });
 
 describe("General tuple tests", () => {
-  assertTC(
-    "tuple literal type test",
-    "(1, 2, True, False)",
-    TUPLE(NUM, NUM, BOOL, BOOL)
-  );
+  assertTC("tuple literal type test", "(1, 2, True, False)", TUPLE(NUM, NUM, BOOL, BOOL));
 
   assertTC(
     "tuple variable type test",
@@ -333,14 +329,12 @@ describe("General tuple tests", () => {
     `,
     ["boo", "True"]
   );
-})
+});
 
 describe("Destructure tuples", () => {
-  asserts(
-    "destructuring proposal test 1, support destructuring tuples",
+  asserts("destructuring proposal test 1, support destructuring tuples", [
     [
-      [
-        `
+      `
           a: int = 0
           b: bool = False
           t: (int, bool) = None
@@ -348,16 +342,15 @@ describe("Destructure tuples", () => {
           a, b = t
           a
         `,
-        PyInt(1)
-      ],
-      [
-        `
+      PyInt(1),
+    ],
+    [
+      `
           b
         `,
-        PyBool(true)
-      ]
-    ]
-  );
+      PyBool(true),
+    ],
+  ]);
 
   assert(
     "destructuring proposal test 2, support single element tuples",
@@ -369,11 +362,9 @@ describe("Destructure tuples", () => {
     PyInt(1)
   );
 
-  asserts(
-    "destructuring proposal test 12, support object field assignment",
+  asserts("destructuring proposal test 12, support object field assignment", [
     [
-      [
-        `
+      `
           class Test(object):
             a: int = 0
             b: int = 0
@@ -382,16 +373,15 @@ describe("Destructure tuples", () => {
           t.a, t.b = (5, 6)
           t.a
         `,
-        PyInt(5)
-      ],
-      [
-        `
+      PyInt(5),
+    ],
+    [
+      `
           t.b
         `,
-        PyInt(6)
-      ]
-    ]
-  );
+      PyInt(6),
+    ],
+  ]);
 
   assertPrint(
     "swaps two variables using tuples",
@@ -414,8 +404,8 @@ describe("Destructure tuples", () => {
       print(s2 is good_sky)
     `,
     ["True", "True", "True", "True"]
-  )
-})
+  );
+});
 
 describe("traverseDestructure()", () => {
   it("*y = z is invalid (starred not in destructure)", () => {

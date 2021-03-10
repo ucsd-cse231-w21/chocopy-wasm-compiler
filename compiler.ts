@@ -199,7 +199,7 @@ function codeGenDestructure(destruct: Destructure<Type>, value: string, env: Glo
         const classFields = env.classes.get(className).values();
         // Collect every assignStmt
 
-        assignStmts = destruct.targets.flatMap(({target}) => {
+        assignStmts = destruct.targets.flatMap(({ target }) => {
           const [offset, _] = classFields.next().value;
           // The WASM code value that we extracted from the object at this current offset
           const addressOffset = offset * 4;
@@ -619,8 +619,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
           // Calculate target address
           "(i32.add)",
           // Load target value
-          "(i32.load)"
-        ]
+          "(i32.load)",
+        ];
       }
       break;
 
