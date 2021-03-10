@@ -292,7 +292,8 @@ function webStart() {
         })
         .catch((e) => {
           renderError(e, source.value);
-          highlightLine(e.loc.line - 1, e.message);
+          if(e.loc != undefined)
+            highlightLine(e.loc.line - 1, e.message);
           console.log("run failed", e.stack);
         });
     });
