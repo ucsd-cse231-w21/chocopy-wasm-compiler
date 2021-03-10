@@ -938,7 +938,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       const exprStmts = codeGenExpr(expr.expr, env);
       switch (expr.op) {
         case UniOp.Neg:
-          return [...exprStmts, ...codeGenCall(expr.a[1], "(call $$bignum_neg)")];
+          return [...exprStmts, "(call $$bignum_neg)"];
         case UniOp.Not:
           return [`(i32.const 0)`, ...exprStmts, ...decodeLiteral, `(i32.eq)`, ...encodeLiteral];
         default:
@@ -986,9 +986,12 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
 
         // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
-          `(call_indirect (type $callType${
-            expr.arguments.length + 1
-          }) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
+          ...codeGenCall(
+            expr.a[1],
+            `(call_indirect (type $callType${
+              expr.arguments.length + 1
+            }) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
+          )
         );
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
@@ -999,9 +1002,12 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         callExpr.push(...codeGenPushStack(expr.a[1]));
         // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
-          `(call_indirect (type $callType${
-            expr.arguments.length + 1
-          }) (i32.load (i32.load (local.get $${funName}))))`
+          ...codeGenCall(
+            expr.a[1],
+            `(call_indirect (type $callType${
+              expr.arguments.length + 1
+            }) (i32.load (i32.load (local.get $${funName}))))`
+          )
         );
       } else if (nameExpr.tag == "call_expr") {
         callExpr.push(...codeGenExpr(nameExpr, env));
@@ -1012,9 +1018,12 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         });
         callExpr.push(...codeGenPushStack(expr.a[1]));
         callExpr.push(
-          `(call_indirect (type $callType${
-            expr.arguments.length + 1
-          }) (i32.load (local.get $$addr)))`
+          ...codeGenCall(
+            expr.a[1],
+            `(call_indirect (type $callType${
+              expr.arguments.length + 1
+            }) (i32.load (local.get $$addr)))`
+          )
         );
       } else {
         throw new BaseException.InternalException(
@@ -1338,7 +1347,7 @@ function codeGenDictBracketLookup(
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
   dictKeyValStmts = dictKeyValStmts.concat([
     `(i32.const ${hashtableSize})`,
-    ...codeGenCall(obj.a[1], "(call $ha$htable$Lookup)"),
+    "(call $ha$htable$Lookup)",
   ]);
   return dictKeyValStmts.concat(["(i32.load)"]);
 }
@@ -1355,7 +1364,7 @@ function codeGenDictKeyVal(
   dictKeyValStmts = dictKeyValStmts.concat(val);
   dictKeyValStmts = dictKeyValStmts.concat([
     `(i32.const ${hashtableSize})`,
-    ...codeGenCall(key.a[1], "(call $ha$htable$Update)"),
+    "(call $ha$htable$Update)",
   ]);
   return dictKeyValStmts;
 }
