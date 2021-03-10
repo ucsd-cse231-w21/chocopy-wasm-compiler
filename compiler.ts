@@ -26,6 +26,7 @@ import {
   TAG_REF,
   TAG_STRING,
 } from "./alloc";
+import { augmentFnGc } from "./compiler-gc";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -225,11 +226,12 @@ export function compile(
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
   const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
+  const augmentedCommands = augmentFnGc(commands, withDefines.locals, true);
   withDefines.locals.clear();
 
   return {
     functions: allFuns,
-    mainSource: commands.join("\n"),
+    mainSource: augmentedCommands.join("\n"),
     newEnv: withDefines,
   };
 }
@@ -265,19 +267,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
   switch (stmt.tag) {
     case "return":
       var valStmts = codeGenTempGuard(codeGenExpr(stmt.value, env), FENCE_TEMPS);
-
-      // returnTemp places the return expr value into the caller's temp set
-      // NOTE(alex:mm): We need to put temporaries and escaping pointers into
-      //   the calling statement's temp frame, not a new one.
-      //
-      // By placing them into the calling statement's temp frame, escaping pointers
-      //   have an opportunity to be rooted without fear of the GC cleaning it up
-      // TODO(alex:mm): instead of relying on escape analysis, we'll just try to
-      //   add the returned value to the parent temp frame
-      valStmts.push("(call $$returnTemp)");
-      valStmts.push("(call $$releaseLocals)");
       valStmts.push("return");
-
       return valStmts;
     case "assignment":
       const valueCode = codeGenExpr(stmt.value, env);
@@ -523,9 +513,6 @@ function codeGenAssignable(
         const result = [
           ...value,
           `(local.set $${target.name})`,
-          `(i32.const ${localIndex.toString()})`,
-          `(local.get $${target.name})`,
-          `(call $$addLocal)`,
         ];
 
         return result;
@@ -672,35 +659,39 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
     currentLocalIndex += 1;
   });
 
-  const localDefs = makeLocals(definedVars).join("\n");
+  const locals = makeLocals(definedVars);
   const inits = def.inits
     .map((init) => codeGenInit(init, env))
-    .flat()
-    .join("\n");
-  const refs = initRef(extraRefs).join("\n");
-  const nonlocals = initNonlocals(def.nonlocals).join("\n");
-  const nested = initNested(def.nested, env).join("\n");
+    .flat();
+  const refs = initRef(extraRefs);
+  const nonlocals = initNonlocals(def.nonlocals);
+  const nested = initNested(def.nested, env);
 
   let params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
   let stmts = def.body
     .map((stmt) => codeGenStmt(stmt, env))
     .flat()
-    .join("\n");
 
+  let body = locals
+  .concat(["(call $$pushFrame)"])
+  .concat(inits)
+  .concat(refs)
+  .concat(nonlocals)
+  .concat(nested)
+  .concat(stmts)
+  .concat([
+    "(i32.const 0)",
+    "(return)",
+  ]);
+
+  const localMap = env.locals;
+  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
 
   return [
     `(func $${def.name} (param ${fPTR} i32) ${params} (result i32)
-    ${localDefs}
-    (call $$pushFrame)
-    ${inits}
-    ${refs}
-    ${nonlocals}
-    ${nested}
-    ${stmts}
-    (call $$releaseLocals)
-    (i32.const 0)
-    (return)
+      ${augmentedBodyStr}
     )`,
   ];
 }
@@ -736,24 +727,29 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
     currLocalIndex += 1;
   });
 
-  const localDefines = makeLocals(definedVars);
-  const locals = localDefines.join("\n");
+  const locals = makeLocals(definedVars);
   const inits = def.inits
     .map((init) => codeGenInit(init, env))
-    .flat()
-    .join("\n");
+    .flat();
   var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-  var stmtsBody = stmts.join("\n");
+
+  const body = locals
+  .concat(["(call $$pushFrame)"])
+  .concat(inits)
+  .concat(stmts)
+  .concat([
+    "(i32.const 0)",
+    "(return)",
+  ]);
+  const localMap = env.locals;
+  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
+
   return [
     `(func $${def.name} ${params} (result i32)
-    ${locals}
-    (call $$pushFrame)
-    ${inits}
-    ${stmtsBody}
-    (call $$releaseLocals)
-    (i32.const 0)
-    (return))`,
+    ${augmentedBodyStr}
+    )`,
   ];
 }
 
@@ -984,9 +980,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         }
       }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      valStmts.push(`(call $$pushCaller)`);
       valStmts.push(`(call $${expr.name})`);
-      valStmts.push(`(call $$popCaller)`);
       return valStmts;
     case "call_expr":
       const callExpr: Array<string> = [];
@@ -1002,13 +996,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         });
 
         // NOTE(alex:mm): necessary in order to root the return value
-        callExpr.push(`(call $$pushCaller)`);
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
           }) (i32.load (i32.load (i32.const ${envLookup(env, funName)}))))`
         );
-        callExpr.push(`(call $$popCaller)`);
       } else if (nameExpr.tag == "lookup") {
         funName = (nameExpr.obj as any).name;
         callExpr.push(`(i32.load (local.get $${funName})) ;; argument for $fPTR`);
@@ -1016,13 +1008,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
         // NOTE(alex:mm): necessary in order to root the return value
-        callExpr.push(`(call $$pushCaller)`);
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
           }) (i32.load (i32.load (local.get $${funName}))))`
         );
-        callExpr.push(`(call $$popCaller)`);
       } else if (nameExpr.tag == "call_expr") {
         callExpr.push(codeGenExpr(nameExpr, env).join("\n"));
         callExpr.push(`(local.set $$addr)`);
@@ -1030,13 +1020,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
-        callExpr.push(`(call $$pushCaller)`);
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
           }) (i32.load (local.get $$addr)))`
         );
-        callExpr.push(`(call $$popCaller)`);
       } else {
         throw new BaseException.InternalException(
           `Compile Error. Invalid name of tag ${nameExpr.tag}`
@@ -1090,9 +1078,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
         callExpr.push(`(i32.load) ;; load the function pointer`);
         callExpr.push(`(i32.load) ;; load the function index`);
-        callExpr.push(`(call $$pushCaller)`);
         callExpr.push(`(call_indirect (type $callType${expr.arguments.length + 1}))`);
-        callExpr.push(`(call $$popCaller)`);
         return callExpr;
       } else {
         var objStmts = codeGenExpr(expr.obj, env);
@@ -1108,9 +1094,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         return [
           ...objStmts,
           ...argsStmts,
-          `(call $$pushCaller)`,
           `(call $${className}$${expr.method})`,
-          `(call $$popCaller)`,
         ];
       }
     case "lookup":
@@ -1705,6 +1689,10 @@ function codeGenBinOp(op: BinOp): string {
     case BinOp.Or:
       return "(i32.or)";
   }
+}
+
+function isInternal(s: string): boolean {
+  return (s.substring(1).indexOf("$")) !== -1;
 }
 
 // Required so that heap-allocated temporaries are considered rooted/reachable
