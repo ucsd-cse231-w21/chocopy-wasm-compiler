@@ -13,12 +13,14 @@ import { Value, Type, Location } from "./ast";
 import { PyValue, NONE } from "./utils";
 import { importMemoryManager, MemoryManager, TAG_CLASS } from "./alloc";
 import { ea } from "./ea";
+import { ErrorManager } from "./errorManager";
 
 export type Config = {
   importObject: any;
   env: compiler.GlobalEnv;
   typeEnv: GlobalTypeEnv;
   functions: string; // prelude functions
+  errorManager: ErrorManager;
   memoryManager: MemoryManager;
 };
 
@@ -51,8 +53,9 @@ export async function runWat(source: string, importObject: any): Promise<any> {
 export async function run(
   source: string,
   config: Config
-): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
-  const parsed = parse(source);
+): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string, ErrorManager]> {
+  config.errorManager.sources.push(source);
+  const parsed = parse(source, config);
   console.log(parsed);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   console.log(tprogram);
@@ -131,6 +134,11 @@ export async function run(
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    (func $$pushStack (import "imports" "__pushStack") (param i32) (param i32) (param i32) (param i32))
+    (func $$popStack (import "imports" "__popStack"))
+    (func $$check_none_class (import "imports" "__checkNoneClass") (param i32))
+    (func $$check_index (import "imports" "__checkIndex") (param i32) (param i32))
+    (func $$check_none_lookup (import "imports" "__checkNoneLookup") (param i32))
 
     (func $$gcalloc (import "imports" "gcalloc") (param i32) (param i32) (result i32))
     (func $$pushCaller (import "imports" "pushCaller"))
@@ -207,5 +215,11 @@ export async function run(
   const newView = new Int32Array(importObject.js.memory.buffer);
 
   console.log("About to return", progTyp, result);
-  return [PyValue(progTyp, result, newView), compiled.newEnv, tenv, compiled.functions];
+  return [
+    PyValue(progTyp, result, newView),
+    compiled.newEnv,
+    tenv,
+    compiled.functions,
+    config.errorManager,
+  ];
 }
