@@ -419,12 +419,12 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
-    if (nextTagName !== "TypeDef") {
-      throw new Error("Missed type annotation for parameter " + name);
-    }
-    c.firstChild(); // Enter TypeDef
-    c.nextSibling(); // Focuses on type itself
-    let typ = traverseType(c, s);
+    let typ: Type = { tag: "failedToInfer" };
+    if (nextTagName === "TypeDef") {
+      c.firstChild(); // Enter TypeDef
+      c.nextSibling(); // Focuses on type itself
+      typ = traverseType(c, s);
+    };
     c.parent();
     c.nextSibling(); // Move on to comma or ")" or "="
     nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now

@@ -10,7 +10,8 @@ export type Type =
   | { tag: "callable"; args: Array<Type>; ret: Type }
   | { tag: "list"; content_type: Type }
   | { tag: "failedToInfer" } // Throws an error, asking for user to specify a type annotation
-  | { tag: "unsat" }; // Type inference constraints is unsatisfiable. Indicates type-checker should throw error
+  | { tag: "unsat" } // Type inference constraints is unsatisfiable. Indicates type-checker should throw error
+  | { tag: "open-object"; fields: Map<string, Type>; methods: Map<string, [Array<Type>, Type]> }
 
 export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support

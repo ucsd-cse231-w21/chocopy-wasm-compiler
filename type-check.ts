@@ -18,6 +18,7 @@ export class TypeCheckError extends Error {
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
   functions: Map<string, [Array<Type>, Type]>;
+  inferred_functions: Map<string, [Array<Type>, Type]>;
   classes: Map<string, [Map<string, Type>, Map<string, [Array<Type>, Type]>]>;
 };
 
@@ -37,6 +38,7 @@ defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
 export const defaultTypeEnv = {
   globals: new Map(),
   functions: defaultGlobalFunctions,
+  inferred_functions: new Map(),
   classes: new Map(),
 };
 
@@ -44,6 +46,7 @@ export function emptyGlobalTypeEnv(): GlobalTypeEnv {
   return {
     globals: new Map(),
     functions: new Map(),
+    inferred_functions: new Map(),
     classes: new Map(),
   };
 }
@@ -108,7 +111,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
     );
     newClasses.set(cls.name, [fields, methods]);
   });
-  return { globals: newGlobs, functions: newFuns, classes: newClasses };
+  return { globals: newGlobs, functions: newFuns, inferred_functions: new Map(), classes: newClasses };
 }
 
 // x : int = 5 valid
