@@ -44,12 +44,13 @@ export function augmentFnGc(
           results.push("(call $$pushFrame)");
 
           if (cfg.debug && DEBUG) {
-            const debug = cfg.debug;
-            const id = makeHash(debug.name);
-            console.warn(`${debug.name} => ${id}`);
-            results.push(`;; ${debug.name} ${id}`);
-            results.push(`(i32.const ${id})`);
-            results.push(`(call $$DEBUG)`);
+            // NOTE(alex:mm): used to trace function/allocation calls
+            // const debug = cfg.debug;
+            // const id = makeHash(debug.name);
+            // console.warn(`${debug.name} => ${id}`);
+            // results.push(`;; ${debug.name} ${id}`);
+            // results.push(`(i32.const ${id})`);
+            // results.push(`(call $$DEBUG)`);
           }
           afterLocals = true;
         }
