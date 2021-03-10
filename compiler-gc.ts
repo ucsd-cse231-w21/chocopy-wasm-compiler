@@ -2,9 +2,10 @@ export function augmentFnGc(fnInstrs: Array<string>, locals: Map<string, number>
   let results: Array<string> = [];
 
   let afterLocals = false;
-  fnInstrs.forEach((wasmInstr, instrIndex) => {
+  fnInstrs.forEach((wasmInstr, wasmIndex) => {
     const split = wasmInstr.split(/[ ()]/);
 
+    // console.warn(`[${wasmIndex}]: scanning '${wasmInstr}'`);
     for (let index = 0; index < split.length; index++) {
       const sub = split[index];
       if (index === 0 && sub !== "") {
@@ -39,7 +40,6 @@ export function augmentFnGc(fnInstrs: Array<string>, locals: Map<string, number>
             break;
           }
 
-          case "call_indirect":
           case "call": {
             const f = split[index + 1];
             if (sub === "call" && f.substring(0, 2) === "$$") {
@@ -48,6 +48,15 @@ export function augmentFnGc(fnInstrs: Array<string>, locals: Map<string, number>
               kontinue = false;
               break;
             }
+            results.push(`(call $$pushCaller)`);
+            results.push(wasmInstr);
+            results.push(`(call $$popCaller)`);
+            kontinue = false;
+            break;
+          }
+
+          case "call_indirect":{
+            console.warn(`[${wasmIndex}]: guarding '${wasmInstr}'`);
             results.push(`(call $$pushCaller)`);
             results.push(wasmInstr);
             results.push(`(call $$popCaller)`);
