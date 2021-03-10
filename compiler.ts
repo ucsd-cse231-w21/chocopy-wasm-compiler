@@ -23,6 +23,7 @@ import {
   TAG_DICT,
   TAG_DICT_ENTRY,
   TAG_LIST,
+  TAG_OPAQUE,
   TAG_REF,
   TAG_STRING,
 } from "./alloc";
@@ -1013,9 +1014,18 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
       return callExpr;
     case "construct":
+      let allocSize = env.classes.get(expr.name).size * 4;
+      let heapTag = TAG_CLASS;
+      // TODO(alex:mm): figure out what do with ZSTs
+      // NOTE(alex:mm): calling `gcalloc` with size 0 is an error
+      // Either somehow do something with ZSTs or just allocate a placeholder
+      if (allocSize === 0) {
+        allocSize = 4;
+        heapTag = TAG_OPAQUE;
+      }
       var stmts: Array<string> = [
-        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
-        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
+        `(i32.const ${Number(heapTag)})   ;; heap-tag: class`,
+        `(i32.const ${allocSize})   ;; size in bytes`,
         `(call $$gcalloc)`,
         `(local.set $$allocPointer)`,
         `(local.get $$allocPointer)`, // return to parent expr
