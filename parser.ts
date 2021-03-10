@@ -19,7 +19,7 @@ import {
   Location,
 } from "./ast";
 
-import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
+import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST, stringify } from "./utils";
 import * as BaseException from "./error";
 
 export function getSourcePos(c: TreeCursor, s: string): Location {
@@ -88,7 +88,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
       c.firstChild();
       const callExpr = traverseExpr(c, s);
       c.nextSibling(); // go to arglist
-      let args = traverseArguments(c, s);
+      let [args, kwargs] = traverseArguments(c, s);
       c.parent(); // pop CallExpression
 
       if (callExpr.tag === "call_expr" || callExpr.tag === "method-call") {
@@ -97,6 +97,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           tag: "call_expr",
           name: callExpr,
           arguments: args,
+          // kwargs
         };
       } else if (callExpr.tag === "lookup") {
         return {
@@ -105,6 +106,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           obj: callExpr.obj,
           method: callExpr.field,
           arguments: args,
+          // kwargs
         };
       } else if (callExpr.tag === "id") {
         const callName = callExpr.name;
@@ -129,7 +131,6 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             tag: "call",
             name: callName,
             arguments: args,
-            // kwargs
           };
         } else {
           expr = {
@@ -137,6 +138,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             tag: "call_expr",
             name: { a: location, tag: "id", name: callName },
             arguments: args,
+            // kwargs
           };
           // expr = { tag: "call", name: callName, arguments: args };
         }
@@ -471,25 +473,29 @@ export function traverseArgument(c: TreeCursor, s: string): [string, Expr<Locati
   }
 }
 
-export function traverseArguments(c: TreeCursor, s: string): Array<Expr<Location>> {
+export function traverseArguments(c: TreeCursor, s: string): [Array<Expr<Location>>, Map<string, Expr<Location>>] {
   c.firstChild(); // Focuses on open paren
   const args = [];
-  const kwargs = [];
+  const kwargs : Map<string, Expr<Location>> = new Map<string, Expr<Location>>();
   c.nextSibling();
   let traversedKeywordArg = false; // When a keyword arg is encountered once, all following args must also be keyword args
   while (c.type.name !== ")") {
-    let arg = traverseArgument(c, s); // Can be regular argument or keyword argument
+    let arg = traverseArgument(c, s); // Can be regular argument ([null, argVal]) or keyword argument ([kwargName, kwargVal])
     if (arg[0] === null) {
-      if (traversedKeywordArg === true) { throw new BaseException.CompileError(getSourcePos(c, s), "Expected a keyword for argument " + arg[0]); }
+      if (traversedKeywordArg === true) { throw new BaseException.CompileError(getSourcePos(c, s), "positional argument follows keyword argument", "SyntaxError"); }
       args.push(arg[1]);
     } else {
       traversedKeywordArg = true;
-      kwargs.push(arg);
+      if (kwargs.has(arg[0]) === true) { // Check if keyword has already been previously defined
+        throw new BaseException.CompileError(getSourcePos(c, s), "keyword argument repeated", "SyntaxError");
+      } else {
+        kwargs.set(arg[0], arg[1]);
+      }
     }
     c.nextSibling(); // Focuses on the next argument or ")"
   }
   c.parent(); // Pop to ArgList
-  return args;
+  return [args, kwargs];
 }
 
 // Traverse the next target of an assignment and return it

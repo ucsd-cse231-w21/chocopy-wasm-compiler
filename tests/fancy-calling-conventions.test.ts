@@ -79,4 +79,45 @@ describe("fancy-calling-convention tests", () => {
     return x + y + z
   `
   );
+
+  assert(
+    "function-with-default-param",
+    `
+  def add_default_10(x : int, y : int = 10) -> int:
+    return x + y`,
+    PyNone()
+  );
+
+  assertFail(
+    "function-with-redefined-kwarg",
+    `
+  def foo(x : int, y : int) -> int:
+    return x + y
+
+  foo(x = 2, y = 4, y = 5)
+    `
+  );
+
+  assertFail(
+    "function-with-out-of-order-kwarg",
+    `
+  def foo(x : int, y : int) -> int:
+    return x + y
+
+  foo(y = 4, 2)
+    `
+  );
+
+
+  assert(
+    "function-with-kwarg",
+    `
+  def foo(x : int, y : int) -> int:
+    return x + y
+
+  foo(x = 2, y = 4)
+    `,
+    PyNone()
+  );
+
 });

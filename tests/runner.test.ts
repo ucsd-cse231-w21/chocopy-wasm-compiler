@@ -445,14 +445,6 @@ while False:
     PyNone()
   );
 
-  assert(
-    "function-with-default-param",
-    `
-  def add_default_10(x : int, y : int = 10) -> int:
-    return x + y`,
-    PyNone()
-  );
-
   assertPrint(
     "print-1-string",
     `
