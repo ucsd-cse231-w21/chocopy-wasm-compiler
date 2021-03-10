@@ -876,11 +876,130 @@ describe("defaults", () => {
   );
 
   assertPrint(
+    "print-string-multiply",
+    `
+  a:str="Compiler"
+  print(a*2)`,
+    ["CompilerCompiler"]
+  );
+
+  assertPrint(
     "print-string-concat-multiply-variable",
     `
   a:str="AB"
   b:str="CD"
   print((a+b)*2)`,
     ["ABCDABCD"]
+  );
+
+  assertPrint(
+    "print-string-slice-concat",
+    `
+  a:str="Compiler"
+  b:str="commuter"
+  print(a[0:4] + b[-4:])`,
+    ["Computer"]
+  );
+
+  assertPrint(
+    "print-string-slice-concat-multiply",
+    `
+  a:str="Compiler"
+  b:str="Commuter"
+  print((a[0:4] + b[-4:])*3)`,
+    ["ComputerComputerComputer"]
+  );
+
+  assertPrint(
+    "print-string-equals",
+    `
+  a:str="Compiler"
+  b:str="Algorithms"
+  print(a == b)`,
+    ["False"]
+  );
+
+  assertPrint(
+    "print-string-greater-than",
+    `
+  a:str="Compiler"
+  b:str="Algorithms"
+  print(a > b)`,
+    ["True"]
+  );
+
+  assertPrint(
+    "print-string-greater-than-2",
+    `
+  a:str="Compiler"
+  print(a > a)`,
+    ["False"]
+  );
+
+  assertPrint(
+    "print-string-greater-equals",
+    `
+  a:str="Compiler"
+  print(a >= a)`,
+    ["True"]
+  );
+
+  assertPrint(
+    "print-string-less-than",
+    `
+  a:str="Compiler"
+  b:str="Commuter"
+  print(a < b)`,
+    ["False"]
+  );
+
+  assertPrint(
+    "print-string-less-than-2",
+    `
+  a:str="Compiler"
+  print(a < a)`,
+    ["False"]
+  );
+
+  assertPrint(
+    "print-string-less-equals",
+    `
+  a:str="Compiler"
+  print(a <= a)`,
+    ["True"]
+  );
+
+  assertPrint(
+    "print-string-not-equals",
+    `
+  a:str="Compiler"
+  b:str="Commuter"
+  print(a != b)`,
+    ["True"]
+  );
+
+  assertPrint(
+    "print-string-not-equals-2",
+    `
+  a:str="Compiler"
+  b:str="Compiler"
+  print(a != b)`,
+    ["False"]
+  );
+
+  assertPrint(
+    "print-string-escape-nextline",
+    `
+  a:str="Apple\nBall"
+  print(a)`,
+    ["Algo\nBall"]
+  );
+
+  assertPrint(
+    "print-string-escape-tab",
+    `
+  a:str="Apple\tBall"
+  print(a)`,
+    ["Algo    Ball"]
   );
 });
