@@ -27,7 +27,7 @@ export function runPython(program: string): Value | Error {
   var isError = false;
   let pyshell = PythonShell.runString(program, null, function (err, msgs) {
     if (err) return { tag: "error" };
-    if(msgs && msgs.length > 0 ) {
+    if (msgs && msgs.length > 0) {
       outString = msgs[msgs.length - 1];
     } else {
       return { tag: "none" };
@@ -36,13 +36,15 @@ export function runPython(program: string): Value | Error {
 
     return stringToAstValue(outString);
   });
-  while(outString !== undefined); //busywait
+  while (outString !== undefined); //busywait
   return { tag: "error" };
-  
 }
 
-export function logFailure(program:string, compilerValue: Value | Error, correctValue: Value | Error){
+export function logFailure(
+  program: string,
+  compilerValue: Value | Error,
+  correctValue: Value | Error
+) {
   let logMsg = `--------------------\nFuzzer program failed\n Program source:${program}\nCompiler value: ${compilerValue}\nPython value: ${correctValue}`;
-  appendFileSync('fuzzer/fuzzer_log.txt', logMsg);
-
+  appendFileSync("fuzzer/fuzzer_log.txt", logMsg);
 }

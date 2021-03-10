@@ -21,13 +21,11 @@ function stringify(typ: Type, arg: any): string {
   }
 }
 
-
 function print(typ: Type, arg: any): any {
   importObject.output += stringify(typ, arg);
   importObject.output += "\n";
   return arg;
 }
-
 
 let importObject = {
   imports: {
@@ -46,38 +44,33 @@ let importObject = {
   },
 
   output: "",
-}
+};
 
-
-console.log = function () {};
-
-while(true){
-  let program = genProgram()
+while (true) {
+  let program = genProgram();
   let pyProgram = program.to_python;
   let pyValue = runPython(pyProgram);
   importObject.output = "";
 
   let failed = false;
-  let compilerValue:Value | Error = { tag: "error" };
+  let compilerValue: Value | Error = { tag: "error" };
   let compilerPromise;
   try {
     compilerPromise = new BasicREPL(importObject).run(program.to_repl);
-
-  } catch(e) {
-    if(pyValue.tag != "error"){
+  } catch (e) {
+    if (pyValue.tag != "error") {
       failed = true;
     }
   }
-   
+
   compilerPromise.then((e) => {
     compilerValue = e;
   });
-  if(compilerValue != pyValue){
+  if (compilerValue != pyValue) {
     failed = true;
-  }  
+  }
 
-  if(failed){
+  if (failed) {
     logFailure(program.to_repl, compilerValue, pyValue);
   }
 }
-
