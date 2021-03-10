@@ -10,7 +10,7 @@ const server = http.createServer((req, res) => {
   res.setHeader("Content-Type", "text/plain");
   res.end("Success");
   if(fuzzProcess){
-    fuzzProcess.killSignal();
+    fuzzProcess.kill();
   }
   child_process.exec("git pull origin main");
   fuzzProcess = child_process.exec("npm run fuzz");
