@@ -182,6 +182,6 @@ export type Value =
   | { tag: "object"; name: string; address: number }
   | { tag: "callable"; name: string; address: number }
   | { tag: "list", name: string, address: number, content_type: Type}
-  | { tag: "dict"; key_type: Type; value_type: Type; address: number; nest_dict?:Value }
+  | { tag: "dict"; key_type: Type; value_type: Type; address: number; nest_dict?:Value };
 
 export type Location = { line: number; col: number; length: number };
