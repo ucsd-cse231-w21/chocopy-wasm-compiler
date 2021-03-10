@@ -16,7 +16,7 @@ describe("FOR LOOP TEST", () => {
   );
 
   assert(
-    "for range(10)",
+    "for range(0, 10)",
     `
     i:int = 0
     for i in range(10):
@@ -112,5 +112,20 @@ describe("FOR LOOP TEST", () => {
       print(j)
     `,
     ["0", "1", "2", "3", "4", "1", "2"]
+  );
+
+  assert(
+    "nested for loop",
+    `
+    i:int = 0
+    x:int = 0
+    z:int = 0
+
+    for i in range(10):
+      for x in range(5):
+        z = z + 1
+    z
+    `,
+    PyInt(50)
   );
 });
