@@ -451,38 +451,41 @@ function codeGenDestructure(
   if (destruct.isDestructured) {
     const objTyp = destruct.valueType[0];
     switch (objTyp.tag) {
+      // Remove class-based destructuring in the long term, leave for now until it can be safely removed
       case "class": {
         const className = objTyp.name;
         const classFields = env.classes.get(className).values();
+
         // Collect every assignStmt
-
-        assignStmts = destruct.targets.flatMap(({ target }) => {
-          const [offset, _] = classFields.next().value;
-          // The WASM code value that we extracted from the object at this current offset
-          const addressOffset = offset * 4;
-          const fieldValue = [`(i32.add ${value} (i32.const ${addressOffset}))`, `(i32.load)`];
-
-          return codeGenAssignable(target, fieldValue, env);
+        assignStmts = destruct.targets.flatMap((target) => {
+          const assignable = target.target;
+          if (target.starred) {
+            throw new Error("Do not currently support starred assignment targets");
+          } else {
+            const [offset, _] = classFields.next().value;
+            // The WASM code value that we extracted from the object at this current offset
+            const addressOffset = offset * 4;
+            const fieldValue = [value, `(i32.load offset=${addressOffset})`];
+            return codeGenAssignable(assignable, fieldValue, env);
+          }
         });
         break;
       }
       case "tuple": {
         let offset = 0;
-        for (let target of destruct.targets) {
+
+        assignStmts = destruct.targets.flatMap((target) => {
+          const assignable = target.target;
           if (target.starred) {
             throw new Error("Do not currently support starred assignment targets");
-          } else if (!target.ignore) {
-            let fieldValue = [value, `(i32.load offset=${offset})`];
-            assignStmts.push(...codeGenAssignable(target.target, fieldValue, env));
+          } else {
+            const fieldValue = [value, `(i32.load offset=${offset})`];
             offset += 4;
+            return codeGenAssignable(assignable, fieldValue, env);
           }
-        }
+        });
         break;
       }
-      default:
-        throw new BaseException.InternalException(
-          "Destructuring not supported yet for types other than 'class'"
-        );
     }
   } else {
     const target = destruct.targets[0];

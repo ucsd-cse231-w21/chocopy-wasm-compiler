@@ -569,8 +569,8 @@ function tcDestructure(
 
   let types: Type[] = [];
   switch (value.tag) {
+    // Remove class-based destructuring in the long term, leave for now until it can be safely removed
     case "class": {
-      // This is a temporary hack to get destructuring working (reuse for tuples later?)
       let cls = env.classes.get(value.name);
       if (cls === undefined)
         throw new BaseException.InternalException(
