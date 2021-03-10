@@ -701,26 +701,17 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       c.firstChild(); // Focus on for
       var targets: AssignTarget<Location>[] = [];
       c.nextSibling(); // Focus on variable name
-      let name = s.substring(c.from, c.to);
-      let ass: Assignable<Location> = { tag: "id", name: name };
-      targets.push({
-        target: ass,
-        starred: false,
-        ignore: false,
-      });
-      c.nextSibling(); // Focus on in / ','
-      if (s.substring(c.from, c.to) == ",") {
-        c.nextSibling(); // Focus on var name
-        name = s.substring(c.from, c.to);
-        ass = { tag: "id", name: name };
+      while (c.type.name == "VariableName") {
+        let name = s.substring(c.from, c.to);
+        let ass:Assignable<Location> = { tag: "id", name: name };
         targets.push({
           target: ass,
           starred: false,
           ignore: false,
         });
-        c.nextSibling(); // Focus on in
+        c.nextSibling(); // Focus on ,/in
+        c.nextSibling(); // Focus on next expression
       }
-      c.nextSibling(); // Focus on iterable expression
       var iter = traverseExpr(c, s);
       c.nextSibling(); // Focus on body
       var body = [];

@@ -1,6 +1,6 @@
 const python = require("lezer-python");
 
-const input = `for i, x in enumerate(fruits):
+const input = `for i, x, a, b in enumerate(fruits):
 break`;
 
 const tree = python.parser.parse(input);
