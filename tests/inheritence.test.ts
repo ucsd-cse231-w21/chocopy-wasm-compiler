@@ -80,6 +80,54 @@ kit:cat = None
 kit = cat()
 kit.run()`, ["5"]);
 
+    assertPrint("re-defined-methods", `
+class animal(object):
+    def run(self:animal):
+        print(1)
+        
+class cat(animal):
+    def run(self:cat):
+        print(2)
+        
+kit:cat = None
+kit = cat()
+kit.run()`, ["2"]);
+
+    assertPrint("polymorphism1", `
+class animal(object):
+    def run(self:animal):
+        print(1)
+        
+class cat(animal):
+    pass
+def f(pet:animal):
+    pet.run()
+
+kit:cat = None
+kit = cat()
+f(kit)`, ["1"]);
+
+    assertPrint("polymorphism2", `
+class animal(object):
+    def run(self:animal):
+        pass
+        
+class cat(animal):
+    def run(self:cat):
+        print(2)
+class dog(animal):
+    def run(self:dog):
+        print(1)
+def f(pet:animal):
+    pet.run()
+
+bob:dog = None
+kit:cat = None
+bob = dog()
+kit = cat()
+f(kit)
+f(bob)`, ["2", "1"]);
+
     assertPrint("extra1", `
 class cls1(object):
     x:int=1
