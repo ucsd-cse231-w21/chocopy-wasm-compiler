@@ -1092,15 +1092,14 @@ export function populateDefaultParams(
 ) {
   var augArgs = tArgs;
   var argNums = actualArgs.length;
-  const kwKeys = Array.from(kwargsMap.keys());
 
   while (argNums < params.length) {
     // look up param to see if its a kwarg
     const paramName = params[argNums].name;
-    if (kwKeys.indexOf(paramName) > -1) {
+    if (kwargsMap.has(paramName)) {
       augArgs = augArgs.concat(kwargsMap.get(paramName));
     } else if (params[argNums].value === undefined) {
-      throw new Error("Missing parameter " + paramName + " from call");
+      throw new Error("Missing parameter ${paramName} from call");
     } else {
       // add default values into arguments as an Expr
       augArgs = augArgs.concat({
