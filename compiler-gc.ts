@@ -56,7 +56,7 @@ export function augmentFnGc(fnInstrs: Array<string>, locals: Map<string, number>
           }
 
           case "call_indirect":{
-            console.warn(`[${wasmIndex}]: guarding '${wasmInstr}'`);
+            // console.warn(`[${wasmIndex}]: guarding '${wasmInstr}'`);
             results.push(`(call $$pushCaller)`);
             results.push(wasmInstr);
             results.push(`(call $$popCaller)`);
