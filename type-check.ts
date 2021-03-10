@@ -18,7 +18,6 @@ import {
 } from "./ast";
 import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
 import * as BaseException from "./error";
-import { at } from "cypress/types/lodash";
 
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
@@ -477,14 +476,12 @@ export function tcStmt(
       // delete the temp var information after finished the body, and restore last depth
       // locals.vars.delete(stmt.name);
       locals.loop_depth = last_depth;
-
-      console.log("TC over", fIter.a[0])
       // return type checked stmt
       return {
         a: [NONE, stmt.a],
         id: stmt.id,
         tag: "for",
-        name: tcDestructure( env, locals, stmt.name, iter_type, stmt.iterable), // change NUM to fix this issue
+        name: tcDestructure(env, locals, stmt.name, iter_type, stmt.iterable), // change NUM to fix this issue
         iterable: fIter,
         body: fBody,
       };
