@@ -298,7 +298,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       ];
     case "for":
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-
       switch(stmt.iterable.tag) {
         case "id":
           // not handled yet
@@ -327,7 +326,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           };
           var Code_idstep = codeGenStmt(niass, env);
 
-
           var list_lookup: Expr<[Type, Location]> = {
             a: [NUM, stmt.a[1]],
             tag: "bracket-lookup",
@@ -339,6 +337,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           if (stmt.name.targets[0].target.tag === "id") {
             tarname = stmt.name.targets[0].target.name;
           }
+          console.log(tarname)
           // name = cur
           var ass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
@@ -430,7 +429,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           };
           var Code_step_expr = codeGenExpr(Expr_step, env);
 
-
           // use cur-step to replace cur at the begining considering about continue
           var Expr_icur: Expr<[Type, Location]> = {
             a: [NUM, stmt.a[1]],
@@ -448,6 +446,10 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           };
           var Code_cur_iniass = codeGenStmt(cur_ass, env);
 
+          var tarname = "";
+          if (stmt.name.targets[0].target.tag === "id") {
+            tarname = stmt.name.targets[0].target.name;
+          }
           // name = cur
           var ass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
