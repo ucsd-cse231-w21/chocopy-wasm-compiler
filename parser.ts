@@ -14,6 +14,7 @@ import {
   Literal,
   Scope,
   AssignTarget,
+  Assignable,
   Destructure,
   ASSIGNABLE_TAGS,
   Location,
@@ -701,8 +702,9 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       var targets:AssignTarget<Location>[] = [];
       c.nextSibling(); // Focus on variable name
       let name = s.substring(c.from, c.to);
+      let ass:Assignable<Location> =  { tag: "id", name: name }
       targets.push({
-        target: { tag: "id", name: name },
+        target: ass,
         starred: false,
         ignore: false
       })
@@ -710,8 +712,9 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       if (s.substring(c.from, c.to) == ",") {
         c.nextSibling(); // Focus on var name
         name = s.substring(c.from, c.to);
+        ass = { tag: "id", name: name }
         targets.push({
-          target: { tag: "id", name: name },
+          target: ass,
           starred: false,
           ignore: false
         })

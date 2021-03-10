@@ -474,12 +474,13 @@ export function tcStmt(
       // locals.vars.delete(stmt.name);
       locals.loop_depth = last_depth;
 
+      console.log("TC over", fIter.a[0])
       // return type checked stmt
       return {
         a: [NONE, stmt.a],
         id: stmt.id,
         tag: "for",
-        name: tcDestructure( env, locals, stmt.name, fIter.a[0], stmt.iterable),
+        name: tcDestructure( env, locals, stmt.name, NUM, stmt.iterable), // change NUM to fix this issue
         iterable: fIter,
         body: fBody,
       };
@@ -556,6 +557,7 @@ function tcDestructure(
       valueType = tcExpr(env, locals, expr).a[0];
     }
     if (!isAssignable(env, valueType, targetType[0]))
+      console.log("here!")
       throw new BaseException.TypeMismatchError(aTarget.target.a, targetType[0], valueType);
     return {
       starred,

@@ -529,8 +529,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           //   ];
           // }
 
-          console.log("???")
-
           // iterable should be a Range object
           // test
           // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
