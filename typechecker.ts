@@ -254,27 +254,12 @@ export function tcLiteral(l: Literal): ClassType {
 }
 
 export function tcVarDef(vd: VarDef) {
-  if (curEnv.nameToVar.has(vd.tvar.name)) {
-    throw new Error("Redeclared variable " + vd.tvar.name);
-  }
-
-  let tVar = curEnv.findClass(vd.tvar.type);
-
-  if (!tVar) {
-    throw new Error("Unknown type " + vd.tvar.type);
-  }
+  let v = curEnv.nameToVar.get(vd.tvar.name);
 
   let tVal = tcLiteral(vd.value);
-  if (!tVar.hasDescendant(tVal)) {
-    throw new Error("Type not match for " + tVar.getName() + " and " + tVal.getName());
+  if (!v.type.hasDescendant(tVal)) {
+    throw new Error("Type not match for " + v.type.getName() + " and " + tVal.getName());
   }
-  
-  curEnv.nameToVar.set(vd.tvar.name, {
-    name: vd.tvar.name,
-    type: tVar,
-    value: vd.value,
-    offset: curEnv.nameToVar.size,
-  })
 }
 
 export function tcAllPathReturn(block: Array<Stmt>): boolean {
@@ -302,13 +287,18 @@ export function tcAllPathReturn(block: Array<Stmt>): boolean {
 }
 
 export function tcFuncBody(fb: FuncBody) {
-  fb.defs.funcDefs.forEach(funcDef => {
+  for (const funcDef of fb.defs.funcDefs) {
     loadFuncDef(funcDef);
-  });
+  }
+  for (const varDef of fb.defs.varDefs) {
+    loadVarDef(varDef);
+  }
+
   tcDefs(fb.defs);
-  fb.stmts.forEach(stmt => {
+
+  for (const stmt of fb.stmts) {
     tcStmt(stmt);
-  });
+  }
 }
 
 export function loadFuncDef(fd: FuncDef) {
@@ -513,6 +503,25 @@ function loadClassMethodDef(cd: ClassDef) {
   }
 }
 
+function loadVarDef(vd: VarDef) {
+  if (curEnv.nameToVar.has(vd.tvar.name)) {
+    throw new Error("Redeclared variable " + vd.tvar.name);
+  }
+
+  let tVar = curEnv.findClass(vd.tvar.type);
+
+  if (!tVar) {
+    throw new Error("Unknown type " + vd.tvar.type);
+  }
+  
+  curEnv.nameToVar.set(vd.tvar.name, {
+    name: vd.tvar.name,
+    type: tVar,
+    value: vd.value,
+    offset: curEnv.nameToVar.size,
+  })
+}
+
 export function tcClassDef(cd: ClassDef) {
   let classType = curEnv.nameToClass.get(cd.name);
 
@@ -540,24 +549,31 @@ export function tcDefs(pd: PreDef) {
   }
 }
 
+export function tcLoadDefs(pd: PreDef) {
+  for (const classDef of pd.classDefs) {
+    loadClassDef(classDef);
+  }
+  for (const classDef of pd.classDefs) {
+    loadClassAttrDef(classDef);
+  }
+  for (const classDef of pd.classDefs) {
+    loadClassMethodDef(classDef);
+  }
+  for (const funcDef of pd.funcDefs) {
+    loadFuncDef(funcDef);
+  }
+  for (const varDef of pd.varDefs) {
+    loadVarDef(varDef);
+  }
+}
+
 // class def -> attr def -> method def
 export function tcProgram(p: Program, gm: MemoryManager, em: EnvManager) {
   memoryManager = gm;
   envManager = em;
   curEnv = em.getGlobalEnv();
 
-  for (const classDef of p.defs.classDefs) {
-    loadClassDef(classDef);
-  }
-  for (const classDef of p.defs.classDefs) {
-    loadClassAttrDef(classDef);
-  }
-  for (const classDef of p.defs.classDefs) {
-    loadClassMethodDef(classDef);
-  }
-  for (const funcDef of p.defs.funcDefs) {
-    loadFuncDef(funcDef);
-  }
+  tcLoadDefs(p.defs);
   tcDefs(p.defs);
   for (const stmt of p.stmts) {
     tcStmt(stmt);

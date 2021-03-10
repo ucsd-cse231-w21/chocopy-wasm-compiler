@@ -148,6 +148,16 @@ b=cls2()
 b.x=a
 b.m()`, ["441"]);
 
+    assertPrint("extra2", `
+x:int=1
+def func1():
+    y:int=2
+    def func2():
+        z:int=3
+        print(x+y+z)
+    func2()
+func1()`, ["6"])
+
     assert("resolve-issue", `
 class blah(object):
   x: int = 123
