@@ -278,6 +278,32 @@ describe("Destructure lists", () => {
       PyBool(true),
     ],
   ]);
+
+  assertFail(
+    "destructure list incorrect number of targets",
+    `
+      x : [int] = None
+      a : int = 0
+      b : int = 0
+      c : int = 0
+
+      x = [1,2]
+      a,b,c = x
+    `
+  );
+
+  assertFail(
+    "destructure list incorrect list length",
+    `
+    x : [int] = None
+    a : int = 0
+    b : int = 0
+    c : int = 0
+
+    x = [1,2,3,4]
+    a,b,c = x
+  `
+  );
 });
 
 describe("General tuple tests", () => {

@@ -487,27 +487,37 @@ function codeGenDestructure(
         break;
       }
       case "list": {
-        /*
         // Determines if we have a single target with starred == true
-        // used to bypass runtime length check
+        // used to run a different runtime length check
         const isStarred = destruct.targets.some((target) => target.starred);
 
-        // TODO: Add runtime error detection for when length of the list doesn't match
-        // destruct.targets.length (requires help from the error team)
-        let lengthCheck : string[] = [];
-        if (!isStarred) {
-          lengthCheck =
-            [`(i32.add ${value} (i32.const 4))`, `(i32.load)`,   // list length, stored at byte offset 4
-             `(i32.const ${destruct.targets.length})`,           // number of destruct targets
-             `(i32.sub)`,                                        // subtract the two lengths
-             `(i32.eqz)`,                                        // Test if they're equal
-             //`(if (then (nop)) (else (call $SomeExitingErrorFunction)))`
-            ]
-        }*/
+        let targetListLength: number;
+        let compareLengthOperator: string;
+        if (isStarred) {
+          // Targets list length - 1 is the lower bound for number of required elements in our array
+          // The array can be larger/equal to this (because of star operator) but not smaller
+          targetListLength = destruct.targets.length - 1;
+          compareLengthOperator = `(i32.ge_u)`;
+        } else {
+          // No star operator simply means the target lists and the runtime list must be same length
+          targetListLength = destruct.targets.length;
+          compareLengthOperator = `(i32.eq)`;
+        }
+
+        // TODO: Add nice runtime error instead of "RuntimeError: unreachable"
+        const lengthCheck = [
+          value,
+          `(i32.load offset=4)`, // list length, stored at byte offset 4
+          `(i32.const ${targetListLength})`, // number of destruct targets
+          compareLengthOperator,
+          `(if (then (nop)) (else (unreachable)))`,
+          //`(if (then (nop)) (else (call $SomeExitingErrorFunction)))`
+        ];
+
         // Skip past the three header values of lists and to the actual values
         let offset = 12;
 
-        assignStmts = destruct.targets.flatMap((target) => {
+        const targetStmts = destruct.targets.flatMap((target) => {
           const assignable = target.target;
           if (target.starred) {
             throw new Error("Do not currently support starred assignment targets");
@@ -517,6 +527,7 @@ function codeGenDestructure(
             return codeGenAssignable(assignable, fieldValue, env);
           }
         });
+        assignStmts = lengthCheck.concat(targetStmts);
         break;
       }
     }
