@@ -435,11 +435,14 @@ export function tcStmt(
       switch (iterable_type.tag) {
         case "class":
           if (iterable_type.name === "Range") {
-            stmt.name.targets.forEach(target => {
-              if(target.target.tag === "id"){
+            stmt.name.targets.forEach((target) => {
+              if (target.target.tag === "id") {
                 locals.vars.set(target.target.name, iter_type);
-              }else{
-                throw new BaseException.CompileError(stmt.a, "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang")
+              } else {
+                throw new BaseException.CompileError(
+                  stmt.a,
+                  "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
+                );
               }
             });
             break;
@@ -455,11 +458,14 @@ export function tcStmt(
           throw new BaseException.CompileError(stmt.a, "for-loop with strings are not implmented.");
         case "list":
           iter_type = iterable_type.content_type;
-          stmt.name.targets.forEach(target => {
-            if(target.target.tag === "id"){
+          stmt.name.targets.forEach((target) => {
+            if (target.target.tag === "id"){
               locals.vars.set(target.target.name, iter_type);
-            }else{
-              throw new BaseException.CompileError(stmt.a, "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang")
+            } else {
+              throw new BaseException.CompileError(
+                stmt.a,
+                "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
+              );
             }
           });
           break;
@@ -475,14 +481,12 @@ export function tcStmt(
       // delete the temp var information after finished the body, and restore last depth
       // locals.vars.delete(stmt.name);
       locals.loop_depth = last_depth;
-
-      console.log("TC over", fIter.a[0])
       // return type checked stmt
       return {
         a: [NONE, stmt.a],
         id: stmt.id,
         tag: "for",
-        name: tcDestructure( env, locals, stmt.name, iter_type, stmt.iterable), // change NUM to fix this issue
+        name: tcDestructure(env, locals, stmt.name, iter_type, stmt.iterable), // change NUM to fix this issue
         iterable: fIter,
         body: fBody,
       };
@@ -558,7 +562,6 @@ function tcDestructure(
       tcLambda(locals, expr, targetType[0]);
       valueType = tcExpr(env, locals, expr).a[0];
     }
-    console.log(targetType[0]===valueType);
     if (!isAssignable(env, valueType, targetType[0]))
       throw new BaseException.TypeMismatchError(aTarget.target.a, targetType[0], valueType);
     return {
