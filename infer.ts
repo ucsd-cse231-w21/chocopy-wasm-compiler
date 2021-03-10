@@ -279,20 +279,67 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
     case "literal": // Literals get a simple substitution
       typeTag = inferTypeLit(expr.value);
       return typeTag;
-
     case "builtin1":
-    case "builtin2":
-      if (!globEnv.functions.has(expr.name)) {
-        throw new Error(`Not a known built-in function: ${expr.name}`);
+      let argType = inferExprType(expr.arg, globEnv, locEnv);
+      if (argType === UNSAT) {
+        return UNSAT;
       }
-      return globEnv.functions.get(expr.name)[1];
+      if (argType === FAILEDINFER) {
+        return FAILEDINFER;
+      }
+      switch (expr.name) {
+        case "print": 
+          return NONE;
+        case "abs":
+          return NUM;
+        default: 
+          throw new Error(`Inference not supported for unknown builtin '${expr.name}'`)
+      }
+    case "builtin2":
+      let lhs = inferExprType(expr.left, globEnv, locEnv);
+      let rhs = inferExprType(expr.right, globEnv, locEnv);
+      if (lhs === UNSAT || rhs === UNSAT) {
+        return UNSAT;
+      }
+      if (lhs === FAILEDINFER || rhs === FAILEDINFER) {
+        return FAILEDINFER;
+      }
+      switch (expr.name) {
+        case "min": case "max": case "pow":
+          return NUM;
+        default: 
+        throw new Error(`Inference not supported for unknown builtin '${expr.name}'`)
+      }
     case "call":
-      if (globEnv.inferred_functions.has(expr.name)) {
+      if (globEnv.classes.has(expr.name)) {
+        return CLASS(expr.name);
+      } if (globEnv.inferred_functions.has(expr.name)) {
         return globEnv.inferred_functions.get(expr.name)[1];
       } else if (globEnv.functions.has(expr.name)) {
-        return globEnv.functions.get(expr.name)[1];
+        let [_, retType] = globEnv.functions.get(expr.name);
+        return retType;
       } else {
-        return FAILEDINFER
+        return FAILEDINFER;
+      }
+    case "method-call": 
+      let objType = inferExprType(expr.obj, globEnv, locEnv);
+      if (objType === UNSAT) {
+        return UNSAT;
+      }
+      if (objType === FAILEDINFER || objType.tag !== "class") {
+        return FAILEDINFER;
+      }      
+      // we have been able to infer the type of the class before the dot
+      if (!globEnv.classes.has(objType.name)) {
+        return FAILEDINFER;
+      }
+
+      const [_, methods] = globEnv.classes.get(objType.name);
+      if (!methods.has(expr.method)) {
+        return FAILEDINFER;
+      } else {
+        let [_, returnType] = methods.get(expr.method)
+        return returnType; 
       }
     case "list-expr":
       throw new Error("Inference not implemented for lists yet");
@@ -876,10 +923,6 @@ export function annotateStmt(
   topLevel: boolean
 ): [Action, Stmt<Type>] {
   switch (stmt.tag) {
-    // FIXME: finish this. Tricky
-    // case "assignment":
-    //   const value = annotateExpr(stmt.value, globEnv, locEnv);
-    //   return { ...stmt, value };
     case "assign": {
       const [s, value] = annotateExpr(stmt.value, globEnv, locEnv, topLevel);
       let a = value.a;
@@ -887,8 +930,12 @@ export function annotateStmt(
         let type_ = locEnv.vars.get(stmt.name);
         // FIXME: make isSubtype work with LocalTypeEnv since this is a local
         // variable we are talking about
-        if (!isSubtype(a, type_, globEnv)) {
-          a = UNSAT;
+        if (type_ === FAILEDINFER) {
+          locEnv.vars.set(stmt.name, a);
+        } else {
+          if (!isSubtype(a, type_, globEnv)) {
+            a = UNSAT;
+          }
         }
       } else {
         locEnv.vars.set(stmt.name, a);

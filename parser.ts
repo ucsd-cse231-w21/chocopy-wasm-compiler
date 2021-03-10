@@ -419,7 +419,7 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
-    let typ: Type = { tag: "failedToInfer" };
+    let typ;
     if (nextTagName === "TypeDef") {
       c.firstChild(); // Enter TypeDef
       c.nextSibling(); // Focuses on type itself
