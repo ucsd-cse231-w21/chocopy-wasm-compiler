@@ -62,9 +62,9 @@ export class RuntimeError extends Error {
 
 export class CompileError extends Error {
   __proto__: Error;
-  callStack: Array<Location> | Location;
+  callStack: Array<Location>;
 
-  constructor(callStack: Array<Location> | Location, message?: string, name = "CompileError") {
+  constructor(callStack: Array<Location>, message?: string, name = "CompileError") {
     const trueProto = new.target.prototype;
     super(message);
     this.name = name;
@@ -128,7 +128,7 @@ export class MemoryError extends RuntimeError {
 
 export class NameError extends CompileError {
   varName: string;
-  constructor(callStack: Location, varName: string, name = "NameError") {
+  constructor(callStack: Array<Location>, varName: string, name = "NameError") {
     super(callStack, `name '${varName}' is not defined`, name);
     this.varName = varName;
   }
@@ -136,7 +136,7 @@ export class NameError extends CompileError {
 
 export class UnboundLocalError extends NameError {
   varName: string;
-  constructor(callStack: Location, varName: string) {
+  constructor(callStack: Array<Location>, varName: string) {
     super(callStack, `local variable '${varName}' referenced before assignment`, "UnboundLocalError");
     this.varName = varName;
   }
@@ -149,19 +149,19 @@ export class RecursionError extends RuntimeError {
 }
 
 export class SyntaxError extends CompileError {
-  constructor(callStack: Location, message?: string, name = "SyntaxError") {
+  constructor(callStack: Array<Location>, message?: string, name = "SyntaxError") {
     super(callStack, message == undefined ? `invalid syntax` : message, name);
   }
 }
 
 export class IndentationError extends SyntaxError {
-  constructor(callStack: Location, message = `unexpected indent`) {
+  constructor(callStack: Array<Location>, message = `unexpected indent`) {
     super(callStack, message, "IndentationError");
   }
 }
 
 export class TypeError extends CompileError {
-  constructor(callStack: Location | Array<Location>, message?: string, name = "TypeError") {
+  constructor(callStack: Array<Location>, message?: string, name = "TypeError") {
     super(callStack, message, name);
   }
 }
@@ -170,7 +170,7 @@ export class TypeMismatchError extends TypeError {
   expect: Type[];
   got: Type[];
   constructor(
-    callStack: Location,
+    callStack: Array<Location>,
     expect: Type | Type[],
     got: Type | Type[],
     name = "TypeMismatchError"
@@ -200,7 +200,7 @@ export class TypeMismatchError extends TypeError {
 export class UnsupportedOperandTypeError extends TypeError {
   op: BinOp | UniOp;
   oprand: Type[];
-  constructor(callStack: Location, op: BinOp | UniOp, operand: Type[], name = "TypeError") {
+  constructor(callStack: Array<Location>, op: BinOp | UniOp, operand: Type[], name = "TypeError") {
     if (operand.length == 1)
       super(
         callStack,
@@ -220,7 +220,7 @@ export class UnsupportedOperandTypeError extends TypeError {
 
 export class ConditionTypeError extends TypeError {
   type: Type;
-  constructor(callStack: Location, got: Type) {
+  constructor(callStack: Array<Location>, got: Type) {
     super(
       callStack,
       `Condition Expression Cannot be of type '${typeToString(got)}'`,

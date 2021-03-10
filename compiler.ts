@@ -515,7 +515,6 @@ function codeGenAssignable(
       switch (target.obj.a[0].tag) {
         case "dict":
           var objStmts = codeGenExpr(target.obj, env);
-          // Should be typeError
           var checkNone = codeGenRuntimeCheck(target.obj.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP);
           objStmts = objStmts.concat(checkNone);
           return objStmts.concat(codeGenDictKeyVal(target.key, value, 10, env));
@@ -1083,7 +1082,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
         case "dict":
-          // Should be TypeError for all bracket-lookup
           return codeGenDictBracketLookup(expr.obj, expr.key, 10, env);
         case "string":
           var brObjStmts = codeGenExpr(expr.obj, env);
@@ -1607,6 +1605,10 @@ function codeGenBinOp(op: BinOp): string {
 }
 
 
+
+// @param:  loc: Location of the stmt/expr
+//          code: codes for the parameters to pass in the check function
+//          func: ENUM to identify the checkFunction.
 function codeGenRuntimeCheck(loc: Location, code: Array<string>, func: RunTime) : Array<string> {
   if (func == RunTime.CHECK_ZERO_DIVISION || func == RunTime.CHECK_KEY_ERROR || func == RunTime.CHECK_VALUE_ERROR) return[];
   return [

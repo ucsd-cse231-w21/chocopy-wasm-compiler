@@ -24,11 +24,8 @@ export class ErrorManager {
     return this.sources[loc.fileId - 1].split(/\r?\n/)[loc.line - 1].substr(loc.col, loc.col+ loc.length).split(".")[1];
   }
 
-  stackToString(callStack: Array<Location> | Location) : string {
+  stackToString(callStack: Array<Location>) : string {
     var result = "";
-    if (!Array.isArray(callStack)) {
-      callStack = [callStack];
-    }
     callStack.forEach((loc, i) => {
       if (i <= 10)
       result = (`at line ${loc.line} of file ${loc.fileId}: ${this.sources[loc.fileId - 1].split(/\r?\n/)[loc.line - 1]}`)
@@ -53,7 +50,7 @@ export class ErrorManager {
 
   __checkIndex(size: number, key: number) {
     console.log(key + " " + size)
-    if (key >= size) throw new BaseException.IndexError(this.callStack);
+    if (key < 0 || key >= size) throw new BaseException.IndexError(this.callStack);
   };
 }
 
