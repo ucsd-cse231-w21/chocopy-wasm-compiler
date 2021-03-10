@@ -1,10 +1,5 @@
 import { Pointer } from "./alloc";
-import {
-  Header,
-  HeapTag,
-  HEADER_SIZE_BYTES,
-  MarkableAllocator,
-} from "./gc";
+import { Header, HeapTag, HEADER_SIZE_BYTES, MarkableAllocator } from "./gc";
 import { NONE } from "./utils";
 
 // NOTE(alex:mm): allocators should consider 0x0 as an invalid pointer
@@ -125,10 +120,12 @@ interface flmd {
 }
 
 class Node {
-	public next: Node | null = null;
-	public prev: Node | null = null;
+  public next: Node | null = null;
+  public prev: Node | null = null;
   data: flmd;
-	constructor(public data_: flmd) {this.data = data_}
+  constructor(public data_: flmd) {
+    this.data = data_;
+  }
 }
 
 class LinkedList {
@@ -147,16 +144,16 @@ class LinkedList {
   }
 
   public insert(d: flmd, curr: Node): Node {
-      const node = new Node(d);
-      let temp = curr.next;
-      curr.next = node;
-      node.prev = curr;
-      node.next = temp;
-      temp.prev = node;  
-      
-      curr.data.size = curr.data.size - node.data.size; 
-      node.data.addr = curr.data.addr + curr.data.size;
-      curr.data.size = curr.data.size - node.data.size;
+    const node = new Node(d);
+    let temp = curr.next;
+    curr.next = node;
+    node.prev = curr;
+    node.next = temp;
+    temp.prev = node;
+
+    curr.data.size = curr.data.size - node.data.size;
+    node.data.addr = curr.data.addr + curr.data.size;
+    curr.data.size = curr.data.size - node.data.size;
 
     return node;
   }
@@ -175,15 +172,15 @@ class LinkedList {
   }
 
   public getHead(): Node {
-    return (this.head);
+    return this.head;
   }
 
   public getPrev(n: Node): Node {
-    return (n.prev);
+    return n.prev;
   }
 
   public getNext(n: Node): Node {
-    return (n.next);
+    return n.next;
   }
 
   public size(): number {
@@ -202,7 +199,7 @@ export class FreeListAllocator implements MarkableAllocator {
   memory: Uint8Array;
   regStart: bigint;
   regEnd: bigint;
-  linkedList: LinkedList
+  linkedList: LinkedList;
 
   constructor(memory: Uint8Array, start: bigint, end: bigint) {
     this.memory = memory;
@@ -210,42 +207,40 @@ export class FreeListAllocator implements MarkableAllocator {
     this.regEnd = end;
 
     this.linkedList = new LinkedList();
-    this.linkedList.insertInBegin({ addr: end, size: 0n, isFree: true});
-    this.linkedList.insertInBegin({ addr: start, size: (end-start), isFree: true });
+    this.linkedList.insertInBegin({ addr: end, size: 0n, isFree: true });
+    this.linkedList.insertInBegin({ addr: start, size: end - start, isFree: true });
   }
 
   alloc(s: bigint): Block {
-
     let curr = this.linkedList.getHead();
 
-    while(curr.next!=null) {
-      if(curr.data.isFree==true && s<curr.data.size) {
-        s = s + (s%2n); // Aligning on an even boundary
-        const dataN = {addr:0x0n, size:s, isFree:false}; // Address 0x0n - As a placeholder before updation
-        const dataR =  this.linkedList.getData(this.linkedList.insert(dataN, curr));
+    while (curr.next != null) {
+      if (curr.data.isFree == true && s < curr.data.size) {
+        s = s + (s % 2n); // Aligning on an even boundary
+        const dataN = { addr: 0x0n, size: s, isFree: false }; // Address 0x0n - As a placeholder before updation
+        const dataR = this.linkedList.getData(this.linkedList.insert(dataN, curr));
         return {
           ptr: dataR.addr,
-          size: dataR.size
+          size: dataR.size,
         };
-      }
-      else {
+      } else {
         curr = curr.next;
       }
-    }   
+    }
     return NULL_BLOCK;
   }
 
   free2(ptr: Pointer) {
     let curr = this.linkedList.getHead();
-    while(curr.next!=null) {
-      if(curr.data.addr==ptr) {
+    while (curr.next != null) {
+      if (curr.data.addr == ptr) {
         curr.data.isFree = true;
         break;
       }
       curr = curr.next;
     }
   }
-  
+
   owns(ptr: Pointer): boolean {
     return ptr >= this.regStart && ptr < this.regEnd;
   }
@@ -277,38 +272,35 @@ export class FreeListAllocator implements MarkableAllocator {
 
   sweep() {
     let curr = this.linkedList.getHead();
-    while(curr.next!=null){
-      if(curr.data.isFree==false) {
+    while (curr.next != null) {
+      if (curr.data.isFree == false) {
         let header = new Header(this.memory, curr.data.addr);
-        if(!header.isMarked()) {
+        if (!header.isMarked()) {
           this.free2(curr.data.addr);
 
           //curr.prev --> curr --> curr.next
           //Coalesce
-          if(curr.prev?.data.isFree) {
+          if (curr.prev && curr.prev.data.isFree) {
             curr.prev.data.size = curr.prev.data.size + curr.data.size;
             curr.prev.next = curr.next;
             curr.next.prev = curr.prev;
             curr = curr.prev;
           }
-      
-          if(curr.next.data.isFree) {
+
+          if (curr.next.data.isFree) {
             curr.data.size = curr.next.data.size + curr.data.size;
             curr.next = curr.next.next;
             curr.next.prev = curr;
           }
-        }
-        else {
+        } else {
           header.unmark();
         }
-      }
-      else {
+      } else {
         curr = curr.next;
       }
     }
   }
 }
-
 
 // BitMappedBlocks: [infomap, bucket1, bucket2, bucket3...]
 
