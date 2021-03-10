@@ -152,9 +152,9 @@ class LinkedList {
       curr.next = node;
       node.prev = curr;
       node.next = temp;
-      temp.prev = node;  
-      
-      curr.data.size = curr.data.size - node.data.size; 
+      temp.prev = node;
+
+      curr.data.size = curr.data.size - node.data.size;
       node.data.addr = curr.data.addr + curr.data.size;
       curr.data.size = curr.data.size - node.data.size;
 
@@ -231,7 +231,7 @@ export class FreeListAllocator implements MarkableAllocator {
       else {
         curr = curr.next;
       }
-    }   
+    }
     return NULL_BLOCK;
   }
 
@@ -245,7 +245,7 @@ export class FreeListAllocator implements MarkableAllocator {
       curr = curr.next;
     }
   }
-  
+
   owns(ptr: Pointer): boolean {
     return ptr >= this.regStart && ptr < this.regEnd;
   }
@@ -291,7 +291,7 @@ export class FreeListAllocator implements MarkableAllocator {
             curr.next.prev = curr.prev;
             curr = curr.prev;
           }
-      
+
           if(curr.next.data.isFree) {
             curr.data.size = curr.next.data.size + curr.data.size;
             curr.next = curr.next.next;
