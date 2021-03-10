@@ -14,7 +14,7 @@ import {
   Location,
   Assignable,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
+import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable, WithTag } from "./utils";
 import * as BaseException from "./error";
 import {
   MemoryManager,
@@ -25,6 +25,7 @@ import {
   TAG_LIST,
   TAG_REF,
   TAG_STRING,
+  TAG_TUPLE,
 } from "./alloc";
 import { augmentFnGc } from "./compiler-gc";
 
@@ -562,7 +563,7 @@ function codeGenAssignable(
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
-      const err: never = <never>target;
+      const err: never = target;
       throw new BaseException.InternalException(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
@@ -1162,27 +1163,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         `(i32.add (i32.const ${(listBound + 3) * 4}))`,
         "(i32.store)",
       ]);
-    case "tuple-expr": {
-      // Much of this logic is copied from object construction. Is there a way to easily reuse that logic?
-      let stmts = [
-        "(i32.const 0)", // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-        "(local.set $$string_class)",
-        "(local.get $$string_class)",
-        `(i32.add (i32.const ${expr.contents.length * 4}))`, // Move heap head beyond the k words we just created for
-        // tuple items
-        "(i32.store)", // Save the new heap offset
-      ];
-      expr.contents.forEach((content, offset) => {
-        stmts.push(
-          "(local.get $$string_class)",
-          ...codeGenExpr(content, env),
-          `(i32.store offset=${offset * 4})`
-        );
-      });
-      stmts.push("(local.get $$string_class)");
-      return stmts;
-    }
+    case "tuple-expr":
+      return codeGenTupleAlloc(expr, env);
 
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
@@ -1280,6 +1262,29 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
     default:
       unhandledTag(expr);
+  }
+}
+
+function codeGenTupleAlloc(
+  expr: WithTag<Expr<[Type, Location]>, "tuple-expr">,
+  env: GlobalEnv
+): string[] {
+  {
+    let stmts = [
+      `(i32.const ${Number(TAG_TUPLE)})   ;; heap-tag: tuple`,
+      `(i32.const ${expr.contents.length * 4})   ;; size in bytes`,
+      `(call $$gcalloc)`,
+      `(local.set $$allocPointer)`,
+      `(local.get $$allocPointer)`, // return to parent expr (b/c nested expr could change this)
+    ];
+    expr.contents.forEach((content, offset) => {
+      stmts.push(
+        "(local.get $$allocPointer)",
+        ...codeGenExpr(content, env),
+        `(i32.store offset=${offset * 4})`
+      );
+    });
+    return stmts;
   }
 }
 
