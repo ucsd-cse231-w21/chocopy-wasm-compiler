@@ -152,7 +152,7 @@ y, z, x = Tuple()
 
 describe("Destructure lists", () => {
   assertTC(
-    "destructure list to ids",
+    "TC destructure list to ids",
     `
       listy: [int] = None
       a: int = 0
@@ -167,7 +167,7 @@ describe("Destructure lists", () => {
   );
 
   assertTC(
-    "destructure list to lookups",
+    "TC destructure list to lookups",
     `
       class BoolContainer(object):
         a: bool = False
@@ -176,7 +176,7 @@ describe("Destructure lists", () => {
         d: bool = False
       listy: [bool] = None
       bc: BoolContainer = None
-          listy = [True, False, False, True]
+      listy = [True, False, False, True]
       bc = BoolContainer()
       bc.a, bc.b, bc.c, bc.d = listy
       bc.d
@@ -185,7 +185,7 @@ describe("Destructure lists", () => {
   );
 
   assertTC(
-    "destructure list to bracket-lookups",
+    "TC destructure list to bracket-lookups",
     `
       listy: [int] = None
       listy = [1, 4, 5, 9]
@@ -196,7 +196,7 @@ describe("Destructure lists", () => {
   );
 
   assertTC(
-    "destructure list with starred assignment",
+    "TC destructure list with starred assignment",
     `
       list_parent: [bool] = None
       list_child: [bool] = None
@@ -207,6 +207,77 @@ describe("Destructure lists", () => {
     `,
     LIST(BOOL)
   );
+
+  asserts("destructure list to ids", [
+    [
+      `
+        listy: [int] = None
+        a: int = 0
+        b: int = 0
+        c: int = 0
+        d: int = 0
+        listy = [1, 3, 4, 7]
+        a, b, c, d = listy
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+          b
+        `,
+      PyInt(3),
+    ],
+    [
+      `
+          c
+        `,
+      PyInt(4),
+    ],
+    [
+      `
+          d
+        `,
+      PyInt(7),
+    ],
+  ]);
+
+  asserts("destructure list to lookups", [
+    [
+      `
+        class BoolContainer(object):
+          a: bool = False
+          b: bool = True
+          c: bool = False
+          d: bool = False
+        listy: [bool] = None
+        bc: BoolContainer = None
+        listy = [True, False, False, True]
+        bc = BoolContainer()
+        bc.a, bc.b, bc.c, bc.d = listy
+        bc.a
+      `,
+      PyBool(true),
+    ],
+    [
+      `
+        bc.b
+      `,
+      PyBool(false),
+    ],
+    [
+      `
+        bc.c
+      `,
+      PyBool(false),
+    ],
+    [
+      `
+        bc.d
+      `,
+      PyBool(true),
+    ],
+  ]);
 });
 
 describe("General tuple tests", () => {
