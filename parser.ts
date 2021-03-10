@@ -698,10 +698,18 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       return { tag: "break", a: location };
     case "ForStatement":
       c.firstChild(); // Focus on for
-      var targets:AssignTarget<Location>[] = []
+      var targets:AssignTarget<Location>[] = [];
+      c.nextSibling(); // Focus on variable name
+      let name = s.substring(c.from, c.to);
+      targets.push({
+        target: { tag: "id", name: name },
+        starred: false,
+        ignore: false
+      })
+      c.nextSibling(); // Focus on in / ','
       if (s.substring(c.from, c.to) == ",") {
         c.nextSibling(); // Focus on var name
-        let name = s.substring(c.from, c.to);
+        name = s.substring(c.from, c.to);
         targets.push({
           target: { tag: "id", name: name },
           starred: false,
