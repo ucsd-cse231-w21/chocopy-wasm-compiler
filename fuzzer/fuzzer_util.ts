@@ -45,6 +45,6 @@ export function logFailure(
   compilerValue: Value | Error,
   correctValue: Value | Error
 ) {
-  let logMsg = `--------------------\nFuzzer program failed\n Program source:${program}\nCompiler value: ${compilerValue}\nPython value: ${correctValue}`;
+  let logMsg = `\n--------------------\nFuzzer program failed\n Program source:${program}\nCompiler value: ${compilerValue}\nPython value: ${correctValue}`;
   appendFileSync("fuzzer/fuzzer_log.txt", logMsg);
 }
