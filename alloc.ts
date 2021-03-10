@@ -220,6 +220,9 @@ export class MemoryManager {
   // Returns an untagged pointer to the start of the object's memory (not the header)
   // Throws 'Out of memory' if allocation failed after the GC ran
   gcalloc(tag: GC.HeapTag, size: bigint): Pointer {
+    if (size <= 0n) {
+      throw new Error(`Invalid galloc size: ${size.toString()}`);
+    }
     const result = this.gc.gcalloc(tag, size);
     if (result == 0x0n) {
       throw new Error(`Out of memory`);
