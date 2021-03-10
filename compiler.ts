@@ -16,6 +16,7 @@ import {
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
+import { forCount, lastCount } from "./parser";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -75,9 +76,11 @@ export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): Glo
     newGlobals.set(v.name, newOffset);
     newOffset += 1;
   });
-  // for rg
-  newGlobals.set("rg", newOffset);
-  newOffset += 1;
+  // encoding for var rngi
+  for (let index = lastCount+1; index <= forCount; index++) {
+    newGlobals.set("rng" + index, newOffset);
+    newOffset += 1;
+  }
 
   prog.classes.forEach((cls) => {
     const classFields = new Map();
@@ -295,7 +298,7 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       var rgExpr: Expr<[Type, Location]> = {
         a: [CLASS("Range"), stmt.a[1]],
         tag: "id",
-        name: "rg",
+        name: "rng" + stmt.id,
       };
       var Expr_cur: Expr<[Type, Location]> = {
         a: [NUM, stmt.a[1]],
