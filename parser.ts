@@ -88,7 +88,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
       c.firstChild();
       const callExpr = traverseExpr(c, s);
       c.nextSibling(); // go to arglist
-      let args = traverseArguments(c, s);
+      let [args, kwargs] = traverseArguments(c, s);
       c.parent(); // pop CallExpression
 
       if (callExpr.tag === "call_expr" || callExpr.tag === "method-call") {
@@ -97,6 +97,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           tag: "call_expr",
           name: callExpr,
           arguments: args,
+          // kwargs
         };
       } else if (callExpr.tag === "lookup") {
         return {
@@ -105,6 +106,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           obj: callExpr.obj,
           method: callExpr.field,
           arguments: args,
+          // kwargs
         };
       } else if (callExpr.tag === "id") {
         const callName = callExpr.name;
@@ -136,6 +138,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             tag: "call_expr",
             name: { a: location, tag: "id", name: callName },
             arguments: args,
+            // kwargs
           };
           // expr = { tag: "call", name: callName, arguments: args };
         }
@@ -439,18 +442,60 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
   }
 }
 
-export function traverseArguments(c: TreeCursor, s: string): Array<Expr<Location>> {
+export function traverseArgumentValue(c: TreeCursor, s: string): Expr<Location> {
+  switch(c.type.name) {
+    case "AssignOp":
+      c.nextSibling(); // Move onto argument value
+      let val = traverseExpr(c, s);
+      c.nextSibling(); // Move onto "," or ")"
+      return val;
+    default:
+      return null;
+  }
+}
+
+export function traverseArgument(c: TreeCursor, s: string): [string, Expr<Location>] {
+  switch(c.type.name) {
+    case "VariableName":
+      let potentialKeyword = s.substring(c.from, c.to); // We don't know if the first symbol is a keyword yet
+      let potentialArgVal = traverseExpr(c, s); // We don't know if the first symbol is an argument value yet
+      c.nextSibling(); // Focuses on "=", "," or ")"
+      let potentialKeywordArgVal = traverseArgumentValue(c, s); // We try to parse an argument value assuming the argument is a keyword argument
+      if (potentialKeywordArgVal !== null) {
+        return [potentialKeyword, potentialKeywordArgVal]; // If an argument value could be parsed, the argument is a keyword argument
+      } else {
+        return [null, potentialArgVal]; // Otherwise, we know the argument is not a keyword argument
+      }
+    default:
+      let argVal = traverseExpr(c, s);
+      c.nextSibling(); // Focuses on "," or ")"
+      return [null, argVal];
+  }
+}
+
+export function traverseArguments(c: TreeCursor, s: string): [Array<Expr<Location>>, Map<string, Expr<Location>>] {
   c.firstChild(); // Focuses on open paren
   const args = [];
+  const kwargs : Map<string, Expr<Location>> = new Map<string, Expr<Location>>();
   c.nextSibling();
+  let traversedKeywordArg = false; // When a keyword arg is encountered once, all following args must also be keyword args
   while (c.type.name !== ")") {
-    let expr = traverseExpr(c, s);
-    args.push(expr);
-    c.nextSibling(); // Focuses on either "," or ")"
-    c.nextSibling(); // Focuses on a VariableName
+    let arg = traverseArgument(c, s); // Can be regular argument ([null, argVal]) or keyword argument ([kwargName, kwargVal])
+    if (arg[0] === null) {
+      if (traversedKeywordArg === true) { throw new BaseException.CompileError(getSourcePos(c, s), "positional argument follows keyword argument", "SyntaxError"); }
+      args.push(arg[1]);
+    } else {
+      traversedKeywordArg = true;
+      if (kwargs.has(arg[0]) === true) { // Check if keyword has already been previously defined
+        throw new BaseException.CompileError(getSourcePos(c, s), "keyword argument repeated", "SyntaxError");
+      } else {
+        kwargs.set(arg[0], arg[1]);
+      }
+    }
+    c.nextSibling(); // Focuses on the next argument or ")"
   }
   c.parent(); // Pop to ArgList
-  return args;
+  return [args, kwargs];
 }
 
 // Traverse the next target of an assignment and return it
