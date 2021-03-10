@@ -703,7 +703,7 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       c.nextSibling(); // Focus on variable name
       while (c.type.name == "VariableName") {
         let name = s.substring(c.from, c.to);
-        let ass:Assignable<Location> = { tag: "id", name: name };
+        let ass: Assignable<Location> = { tag: "id", name: name };
         targets.push({
           target: ass,
           starred: false,
