@@ -444,7 +444,10 @@ export function tcStmt(
         case "string":
           // Character not implemented
           // locals.vars.set(stmt.name, {tag: 'char'});
-          throw new BaseException.CompileError([stmt.a], "for-loop with strings are not implmented.");
+          throw new BaseException.CompileError(
+            [stmt.a],
+            "for-loop with strings are not implmented."
+          );
         case "list":
           locals.vars.set(stmt.name, fIter.a[0].content_type);
           break;
@@ -577,7 +580,8 @@ function tcDestructure(
     let starOffset = 0;
     let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map((target, i, targets) => {
       if (i >= types.length)
-        throw new BaseException.ValueError( [expr.a],
+        throw new BaseException.ValueError(
+          [expr.a],
           `Not enough values to unpack (expected at least ${i}, got ${types.length})`
         );
       if (target.starred) {
@@ -589,7 +593,8 @@ function tcDestructure(
     });
 
     if (types.length > destruct.targets.length + starOffset)
-      throw new BaseException.ValueError( [expr.a], 
+      throw new BaseException.ValueError(
+        [expr.a],
         `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
       );
 
@@ -977,7 +982,10 @@ export function tcExpr(
           valueTypes.add(JSON.stringify(valueType.a[0]));
         }
         if (keyTypes.size > 1) {
-          throw new BaseException.CompileError([expr.a], "Heterogenous `Key` types aren't supported");
+          throw new BaseException.CompileError(
+            [expr.a],
+            "Heterogenous `Key` types aren't supported"
+          );
         }
         if (valueTypes.size > 1) {
           throw new BaseException.CompileError(
@@ -1010,7 +1018,10 @@ export function tcExpr(
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
       } else if (obj_t.a[0].tag === "list") {
         if (!equalType(key_t.a[0], NUM)) {
-          throw new BaseException.CompileError([expr.a], "List lookup supports only integer indices");
+          throw new BaseException.CompileError(
+            [expr.a],
+            "List lookup supports only integer indices"
+          );
         }
         return { ...expr, obj: obj_t, key: key_t, a: [obj_t.a[0].content_type, expr.a] };
       } else {
@@ -1021,7 +1032,10 @@ export function tcExpr(
       }
 
     default:
-      throw new BaseException.CompileError([expr.a], `unimplemented type checking for expr: ${expr}`);
+      throw new BaseException.CompileError(
+        [expr.a],
+        `unimplemented type checking for expr: ${expr}`
+      );
   }
 }
 

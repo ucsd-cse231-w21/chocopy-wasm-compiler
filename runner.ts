@@ -215,5 +215,11 @@ export async function run(
   const newView = new Int32Array(importObject.js.memory.buffer);
 
   console.log("About to return", progTyp, result);
-  return [PyValue(progTyp, result, newView), compiled.newEnv, tenv, compiled.functions, config.errorManager];
+  return [
+    PyValue(progTyp, result, newView),
+    compiled.newEnv,
+    tenv,
+    compiled.functions,
+    config.errorManager,
+  ];
 }

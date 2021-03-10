@@ -6,7 +6,7 @@ import { parse } from "./parser";
 import { importMemoryManager, MemoryManager } from "./alloc";
 import { NUM, STRING, BOOL, NONE, PyValue } from "./utils";
 import { bignumfunctions } from "./bignumfunctions";
-import { AttributeError } from "./error"
+import { AttributeError } from "./error";
 import { ErrorManager, importErrorManager } from "./errorManager";
 
 interface REPL {
@@ -78,7 +78,7 @@ export class BasicREPL {
     };
 
     importErrorManager(this.importObject, this.errorManager);
-   
+
     // initialization for range() calss and its constructor.
     const classFields: Map<string, [number, Literal]> = new Map();
     classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);

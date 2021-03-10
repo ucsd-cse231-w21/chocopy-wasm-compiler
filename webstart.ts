@@ -54,7 +54,7 @@ function webStart() {
       elt.setAttribute("style", "color: red");
       var text = "";
       if (result.callStack != undefined) {
-        console.log(result.callStack)
+        console.log(result.callStack);
         text = repl.errorManager.stackToString(result.callStack);
       }
       elt.innerText = String(result).concat("\n").concat(text);

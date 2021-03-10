@@ -16,7 +16,7 @@ import {
 } from "./ast";
 import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
-import { RunTime } from "./errorManager"
+import { RunTime } from "./errorManager";
 import {
   MemoryManager,
   TAG_BIGINT,
@@ -528,7 +528,7 @@ function codeGenAssignable(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
-      var checkNone =  codeGenRuntimeCheck(target.obj.a[1], objStmts, RunTime.CHECK_NONE_CLASS);
+      var checkNone = codeGenRuntimeCheck(target.obj.a[1], objStmts, RunTime.CHECK_NONE_CLASS);
       objStmts = objStmts.concat(checkNone);
       const className = objTyp.name;
       const [offset, _] = env.classes.get(className).get(target.field);
@@ -1053,7 +1053,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       );
       return stmts.concat([
         // Pointer to deref should be on the top of the stack already
-        ...codeGenCall(expr.a[1],`(call $${expr.name}$__init__)`), // call __init__
+        ...codeGenCall(expr.a[1], `(call $${expr.name}$__init__)`), // call __init__
         `(drop)`, // Drop None from __init__
         // Pointer to return should be on the top of the stack already
       ]);
@@ -1070,7 +1070,9 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
         callExpr.push(`(i32.load) ;; load the function pointer`);
         callExpr.push(`(i32.load) ;; load the function index`);
-        callExpr.push(...codeGenCall(expr.a[1], (`(call_indirect (type $callType${expr.arguments.length + 1}))`)));
+        callExpr.push(
+          ...codeGenCall(expr.a[1], `(call_indirect (type $callType${expr.arguments.length + 1}))`)
+        );
         return callExpr;
       } else {
         var objStmts = codeGenExpr(expr.obj, env);
@@ -1083,7 +1085,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         }
         var className = objTyp.name;
         var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-        return [...objStmts, ...argsStmts, ...codeGenCall(expr.a[1], `(call $${className}$${expr.method})`)];
+        return [
+          ...objStmts,
+          ...argsStmts,
+          ...codeGenCall(expr.a[1], `(call $${className}$${expr.method})`),
+        ];
       }
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
@@ -1227,7 +1233,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               objStmts, //reload list base addr & key stmts?
             */
             codeGenRuntimeCheck(expr.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP),
-            codeGenRuntimeCheck(expr.a[1], [...objStmts, `(i32.add (i32.const 4))`, `(i32.load)`, ...keyStmts, ...decodeLiteral], RunTime.CHECK_INDEX_ERROR),
+            codeGenRuntimeCheck(
+              expr.a[1],
+              [...objStmts, `(i32.add (i32.const 4))`, `(i32.load)`, ...keyStmts, ...decodeLiteral],
+              RunTime.CHECK_INDEX_ERROR
+            ),
             keyStmts,
             [
               ...decodeLiteral,
@@ -1686,44 +1696,37 @@ function codeGenBinOp(op: BinOp): string {
   }
 }
 
-
-
 // @param:  loc: Location of the stmt/expr
 //          code: codes for the parameters to pass in the check function
 //          func: ENUM to identify the checkFunction.
-function codeGenRuntimeCheck(loc: Location, code: Array<string>, func: RunTime) : Array<string> {
-  if (func == RunTime.CHECK_ZERO_DIVISION || func == RunTime.CHECK_KEY_ERROR || func == RunTime.CHECK_VALUE_ERROR) return[];
-  return [
-    ...codeGenPushStack(loc),
-    ...code,
-    `call $$${func.toString()}`,
-    ...codeGenPopStack()
-  ]
+function codeGenRuntimeCheck(loc: Location, code: Array<string>, func: RunTime): Array<string> {
+  if (
+    func == RunTime.CHECK_ZERO_DIVISION ||
+    func == RunTime.CHECK_KEY_ERROR ||
+    func == RunTime.CHECK_VALUE_ERROR
+  )
+    return [];
+  return [...codeGenPushStack(loc), ...code, `(call $$${func.toString()})`, ...codeGenPopStack()];
 }
 
-function codeGenPushStack(loc: Location) : Array<string> {
+function codeGenPushStack(loc: Location): Array<string> {
   return [
-    `i32.const ${loc.line}`,
-    `i32.const ${loc.col}`,
-    `i32.const ${loc.length}`,
-    `i32.const ${loc.fileId}`,
-    "call $$pushStack",
+    `(i32.const ${loc.line})`,
+    `(i32.const ${loc.col})`,
+    `(i32.const ${loc.length})`,
+    `(i32.const ${loc.fileId})`,
+    "(call $$pushStack)",
   ];
 }
 
-function codeGenPopStack() : Array<string> {
-  return [
-    "call $$popStack",
-  ];
+function codeGenPopStack(): Array<string> {
+  return ["(call $$popStack)"];
 }
 
 function codeGenCall(loc: Location, code: string): Array<string> {
-  return [
-    ...codeGenPushStack(loc),
-    code,
-    ...codeGenPopStack()
-  ]
+  return [...codeGenPushStack(loc), code, ...codeGenPopStack()];
 }
+
 function isInternal(s: string): boolean {
   return s.substring(1).indexOf("$") !== -1;
 }

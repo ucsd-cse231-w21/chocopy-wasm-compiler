@@ -137,7 +137,11 @@ export class NameError extends CompileError {
 export class UnboundLocalError extends NameError {
   varName: string;
   constructor(callStack: Array<Location>, varName: string) {
-    super(callStack, `local variable '${varName}' referenced before assignment`, "UnboundLocalError");
+    super(
+      callStack,
+      `local variable '${varName}' referenced before assignment`,
+      "UnboundLocalError"
+    );
     this.varName = varName;
   }
 }
@@ -250,7 +254,8 @@ export class ValueError extends RuntimeError {
 
 export class UnicodeError extends ValueError {
   constructor(callStack: Array<Location>, codec: string, character: string, pos: number) {
-    super(callStack,
+    super(
+      callStack,
       `'${codec}' codec can't encode character '${character}' in position ${pos}`,
       "UnicodeError"
     );
