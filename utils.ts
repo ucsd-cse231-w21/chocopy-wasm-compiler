@@ -1,4 +1,3 @@
-import { result } from "cypress/types/lodash";
 import { Value, Type } from "./ast";
 import { nTagBits } from "./compiler";
 
