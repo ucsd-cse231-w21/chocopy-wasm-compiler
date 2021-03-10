@@ -29,9 +29,9 @@
                 <input id = "save_title">
             </div>
             <div id="ls_btns">
-                <button id = "load">Load</button>
+                <button class = "btn" id = "load">Load</button>
                 <br/>
-                <button id = "save">Save</button>
+                <button class = "btn" id = "save">Save</button>
             </div>
         </div>
         <div class = "theme-dropdown">
@@ -39,17 +39,20 @@
             <select id = "themes">
             </select>
         </div>
+        <div class = "settings">
+            <button class="btn" id= "hiderepls">Hide REPLs</button>
+        </div>
         <div class= "code">
             <textarea class="user-code" id="user-code"></textarea>
-            <button id="run">Run!</button>
-            <button id="reset">Reset!</button>
+            <button class = "btn" id="run">Run!</button>
+            <button class = "btn" id="reset">Reset!</button>
         </div>
     </div>
 
-    <div class="interactions">
+    <div class="interactions" id = "interactions">
         <h2>REPLs/Outputs</h2>
         <hr>
-        <button class="clear" id="clear">Clear!</button>
+        <button class="btn" id="clear">Clear!</button>
         <div class="clearfix"></div>
         <div class="output" id="output"></div>
         <div id="repl-entry">
