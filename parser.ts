@@ -19,7 +19,7 @@ import {
   Location,
 } from "./ast";
 
-import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST, stringify } from "./utils";
+import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
 import * as BaseException from "./error";
 
 export function getSourcePos(c: TreeCursor, s: string): Location {
