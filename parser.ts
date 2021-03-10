@@ -698,14 +698,15 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       return { tag: "break", a: location };
     case "ForStatement":
       c.firstChild(); // Focus on for
-      c.nextSibling(); // Focus on variable name
-      let name = s.substring(c.from, c.to);
-      c.nextSibling(); // Focus on in / ','
-      var index = null;
+      var targets:AssignTarget<Location>[] = []
       if (s.substring(c.from, c.to) == ",") {
-        index = name;
         c.nextSibling(); // Focus on var name
-        name = s.substring(c.from, c.to);
+        let name = s.substring(c.from, c.to);
+        targets.push({
+          target: { tag: "id", name: name },
+          starred: false,
+          ignore: false
+        })
         c.nextSibling(); // Focus on in
       }
       c.nextSibling(); // Focus on iterable expression
@@ -719,10 +720,12 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       c.parent();
       c.parent();
       forCount += 1;
-      if (index != null) {
-        return { tag: "for", id: forCount, name: name, index: index, iterable: iter, body: body, a: location };
+      var dest:Destructure<Location> = {
+        // Info about the value that is being destructured
+        isDestructured: false,
+        targets: targets
       }
-      return { tag: "for", id: forCount, name: name, iterable: iter, body: body, a: location };
+      return { tag: "for", id: forCount, name: dest, iterable: iter, body: body, a: location };
     default:
       throw new BaseException.CompileError(
         location,
