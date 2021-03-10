@@ -699,25 +699,25 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       return { tag: "break", a: location };
     case "ForStatement":
       c.firstChild(); // Focus on for
-      var targets:AssignTarget<Location>[] = [];
+      var targets: AssignTarget<Location>[] = [];
       c.nextSibling(); // Focus on variable name
       let name = s.substring(c.from, c.to);
-      let ass:Assignable<Location> =  { tag: "id", name: name }
+      let ass: Assignable<Location> =  { tag: "id", name: name }
       targets.push({
         target: ass,
         starred: false,
-        ignore: false
-      })
+        ignore: false,
+      });
       c.nextSibling(); // Focus on in / ','
       if (s.substring(c.from, c.to) == ",") {
         c.nextSibling(); // Focus on var name
         name = s.substring(c.from, c.to);
-        ass = { tag: "id", name: name }
+        ass = { tag: "id", name: name };
         targets.push({
           target: ass,
           starred: false,
-          ignore: false
-        })
+          ignore: false,
+        });
         c.nextSibling(); // Focus on in
       }
       c.nextSibling(); // Focus on iterable expression
@@ -731,11 +731,11 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       c.parent();
       c.parent();
       forCount += 1;
-      var dest:Destructure<Location> = {
+      var dest: Destructure<Location> = {
         // Info about the value that is being destructured
         isDestructured: false,
-        targets: targets
-      }
+        targets: targets,
+      };
       return { tag: "for", id: forCount, name: dest, iterable: iter, body: body, a: location };
     default:
       throw new BaseException.CompileError(
