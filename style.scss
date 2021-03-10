@@ -83,7 +83,50 @@
   overflow-y: scroll;
   scrollbar-color: rebeccapurple green;
   scrollbar-width: thin;
+
+    .arrow {
+      border: solid black;
+      border-width: 0 3px 3px 0;
+      display: inline-block;
+      padding: 3px;
+      transform: rotate(-45deg);
+    }
+    .accordion {
+      background-color:white;
+      color:darkcyan;
+      cursor: pointer;
+      padding: 10px;
+      width: 100%;
+      border: none;
+      text-align: left;
+      outline: none;
+      // font-size: 15px;
+      transition: 0.4s;
+      font-family: monospace;
+    }
+
+    .active, .accordion:hover {
+      background-color: #ccc; 
+      color:rebeccapurple;
+    }
+
+    .panel {
+      padding: 0 18px;
+      display: none;
+      background-color: white;
+      overflow: hidden;
+      font-family: monospace;
+      
+      .tag{
+        color:rebeccapurple;
+      }
+      .val{
+        display: inline;
+        color:darkcyan;
+      }
+    }
 }
+
 .repl-code {
   height: 2em;
   width: 90%;
@@ -119,4 +162,3 @@
     width: 100%;
   }
 }
- 
