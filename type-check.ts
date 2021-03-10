@@ -430,15 +430,22 @@ export function tcStmt(
     case "for":
       // check the type of iterator items, then add the item name into local variables with its type
       const fIter = tcExpr(env, locals, stmt.iterable);
-      switch (fIter.a[0].tag) {
+      const iterable_type = fIter.a[0]
+      switch (iterable_type.tag) {
         case "class":
-          if (fIter.a[0].name === "Range") {
-            locals.vars.set(stmt.name, NUM);
+          if (iterable_type.name === "Range") {
+            stmt.name.targets.forEach(target => {
+              if(target.target.tag === "id"){
+                locals.vars.set(target.target.name, NUM);
+              }else{
+                throw new BaseException.CompileError(stmt.a, "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang")
+              }
+            });
             break;
           } else {
-            throw new BaseException.CompileError(
+            throw new BaseException.SyntaxError(
               stmt.a,
-              "for-loop cannot take " + fIter.a[0].name + " class as iterator."
+              "for-loop cannot take " + iterable_type.name + " class as iterator."
             );
           }
         case "string":
@@ -446,10 +453,16 @@ export function tcStmt(
           // locals.vars.set(stmt.name, {tag: 'char'});
           throw new BaseException.CompileError(stmt.a, "for-loop with strings are not implmented.");
         case "list":
-          locals.vars.set(stmt.name, fIter.a[0].content_type);
+          stmt.name.targets.forEach(target => {
+            if(target.target.tag === "id"){
+              locals.vars.set(target.target.name, iterable_type.content_type);
+            }else{
+              throw new BaseException.CompileError(stmt.a, "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang")
+            }
+          });
           break;
         default:
-          throw new BaseException.CompileError(stmt.a, "Illegal iterating item in for-loop.");
+          throw new BaseException.SyntaxError(stmt.a, "Illegal iterating item in for-loop.");
       }
       // record the history depth
       const last_depth = locals.loop_depth;
@@ -466,8 +479,7 @@ export function tcStmt(
         a: [NONE, stmt.a],
         id: stmt.id,
         tag: "for",
-        name: stmt.name,
-        index: stmt.index,
+        name: tcDestructure( env, locals, stmt.name, fIter.a[0], stmt.iterable),
         iterable: fIter,
         body: fBody,
       };
