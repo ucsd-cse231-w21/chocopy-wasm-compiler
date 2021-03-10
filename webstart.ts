@@ -26,6 +26,8 @@ function stringify(result: Value): string {
       return "None";
     case "object":
       return `<${result.name} object at ${result.address}`;
+    case "list":
+      return `<${result.name} at ${result.address}>`;
     default:
       throw new Error(`Could not render value: ${result}`);
   }
