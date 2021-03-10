@@ -1378,7 +1378,7 @@ function dictUtilFuns(): Array<string> {
       "(func $ha$htable$CreateEntry (param $key i32) (param $val i32) (result i32)",
       "(local $$allocPointer i32)",
       `(i32.const ${TAG_DICT_ENTRY})    ;; heap-tag: opaque`,
-      "(i32.const 96)   ;; size in bytes",
+      "(i32.const 12)   ;; size in bytes",
       "(call $$gcalloc)",
       "(local.tee $$allocPointer)",
       "(local.get $key)",

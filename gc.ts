@@ -392,7 +392,7 @@ export class MnS<A extends MarkableAllocator> {
 
           // Note(sagar): Memory layout is abstracted by allocator
           // childPtr always points to start of data, not header
-          for(let dataPtr = childPtr; dataPtr !== childPtr + listLength * 4n; dataPtr = dataPtr + 4n) {
+          for(let dataPtr = childPtr; dataPtr !== childPtr + listLength * 4n; dataPtr += 4n) {
             const elementValue = this.getField(dataPtr);
 
             if(isPointer(elementValue)) {
@@ -414,9 +414,28 @@ export class MnS<A extends MarkableAllocator> {
         }
         break;
 
+
         case TAG_DICT: {
-          throw new Error("TODO: trace dict");
+          
+          for(let listIndex = childPtr; listIndex < childSize; listIndex += 4n ) {
+            // Trace each linked-list
+            // NOTE(sagar): always assumed to be an address. Unnecessary to check
+            let currListAddr = this.getField(listIndex);
+            while(currListAddr !== 0n) { // Not none
+
+              const key = this.getField(currListAddr);
+              const value = this.getField(currListAddr + 4n);
+              if(isPointer(key)) {
+                worklist.push(key);
+              }
+              if(isPointer(value)) {
+                worklist.push(value);
+              }
+              currListAddr = this.getField(currListAddr + 8n);
+            }
+          }
         }
+        break;
 
         // NOTE(alex:mm): Used to represent a boxed value
         // No metadata
