@@ -30,6 +30,8 @@ function stringify(result: Value): string {
       return `<${result.name} object at ${result.address}`;
     case "list":
       return `<${result.name} at ${result.address}>`;
+    case "dict":
+      return `<${result.tag}<${result.key_type.tag}:${result.value_type.tag}> at ${result.address}>`;
     default:
       throw new Error(`Could not render value: ${result}`);
   }
