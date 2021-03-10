@@ -446,91 +446,75 @@ while False:
   );
 
   assert(
-    "function-with-default-param",
+    "class-method-with-multiple-default",
     `
-  def add_default_10(x : int, y : int = 10) -> int:
-    return x + y`,
-    PyNone()
-  );
-});
+  class C(object):
+    def func(self : C, x : int = 3, y : int = 10)->int:
+      return x + y
 
-describe("defaults", () => {
-  assert(
-    "params default",
-    `
-  def foo(x : int = 3) -> int:
-    return x
-
-  foo()`,
-    PyInt(3)
+  c1 : C = None
+  c1 = C()
+  c1.func(5)
+  `,
+    PyInt(15)
   );
 
   assert(
-    "params default",
+    "class-methods-with-multiple-default",
     `
-  def foo(x : int = 3) -> int:
-    return x
+  class C(object):
 
-  foo(5)`,
-    PyInt(5)
-  );
+    def oneDefault(self : C, input : int = 3)->int:
+      return input
+    
+    def twoDefaults(self : C, input : int = 4, input2 : int = 5)->int:
+      return input + input2
 
-  assert(
-    "params default more params",
-    `
-  def foo(x : int = 3, y : int = 4) -> int:
-    return x + y
-
-  foo(5)`,
+  c1 : C = None
+  c1 = C()
+  c1.oneDefault() + c1.twoDefaults(1)
+  `,
     PyInt(9)
   );
 
-  assertPrint(
-    "project-proposal program 1",
+  assert(
+    "mult-class-methods-with-default",
     `
-  def add_default_10(x : int, y : int = 10) -> int:
-	  return x + y
+  class C(object):
+    def func(self : C, input : int = 11)->int:
+      return input
+    
+  class D(object):
+    def func(self : D, input : int = 12)->int:
+      return input
 
-  print(add_default_10(20))
-  print(add_default_10(20, 5))`,
-    ["30", "25"]
-  );
-
-  assertPrint(
-    "project-proposal program 2",
-    `
-  def add_defaults(x : int = 10, y : int = 20, z : int = 30) -> int:
-	  return x + y + z
-
-  print(add_defaults())
-  print(add_defaults(40))`,
-    ["60", "90"]
-  );
-
-  assertFail(
-    "params default more params",
-    `
-  def foo(x : int, y : int = 4) -> int:
-    return x + y
-
-  foo()`
+  c1 : C = None
+  d1 : D = None
+  c1 = C()
+  d1 = D()
+  c1.func() + d1.func()
+  `,
+    PyInt(23)
   );
 
   assert(
-    "function-with-multiple-default-params",
+    "class-method-with-multiple-default1",
     `
-  def foo(x : int = 3, y : int = 4, z : int = 5) -> int:
-    return x + y + z
-  `,
-    PyNone()
-  );
+  class C(object):
 
-  assertFail(
-    "function-with-incorrect-default-param",
-    `
-  def foo(x : int = 3, y : int = 4, z : int) -> int:
-    return x + y + z
-  `
+    def oneDefault(self : C, input : int = 3)->int:
+      return input
+    
+    def twoDefaults(self : C, input : int = 4, input2 : int = 5)->int:
+      return input + input2
+
+  c1 : C = None
+  x : int = 0
+  c1 = C()
+  x = c1.oneDefault()
+  x
+  `,
+    PyInt(3)
   );
 
   assertPrint(
