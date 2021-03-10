@@ -328,16 +328,19 @@ describe("parse(source) function", () => {
           col: 0,
           length: 1,
           line: 1,
+          fileId: 1
         },
         {
           col: 0,
           length: 1,
           line: 1,
+          fileId: 1
         },
         {
           col: 0,
           length: 6,
           line: 1,
+          fileId: 1
         }
       ),
     ]);
@@ -382,16 +385,19 @@ describe("parse(source) function", () => {
           col: 0,
           length: 1,
           line: 1,
+          fileId: 1
         },
         {
           col: 0,
           length: 1,
           line: 1,
+          fileId: 1
         },
         {
           col: 0,
           length: 12,
           line: 1,
+          fileId: 1
         }
       ),
     ]);
@@ -457,16 +463,19 @@ describe("parse(source) function", () => {
           col: 0,
           length: 1,
           line: 1,
+          fileId: 1
         },
         {
           col: 0,
           length: 1,
           line: 1,
+          fileId: 1
         },
         {
           col: 0,
           length: 16,
           line: 1,
+          fileId: 1
         }
       ),
     ]);

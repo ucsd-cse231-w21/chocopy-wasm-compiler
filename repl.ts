@@ -5,6 +5,8 @@ import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
 import { NUM, STRING, BOOL, NONE, PyValue } from "./utils";
 import { bignumfunctions } from "./bignumfunctions";
+import { AttributeError } from "./error"
+import { ErrorManager, importStackManager } from "./errorManager";
 
 interface REPL {
   run(source: string): Promise<any>;
@@ -16,8 +18,10 @@ export class BasicREPL {
   functions: string;
   importObject: any;
   memory: any;
+  errorManager: ErrorManager;
   constructor(importObject: any) {
     this.importObject = importObject;
+    this.errorManager = new ErrorManager();
     if (!importObject.js) {
       const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
       const view = new Int32Array(memory.buffer);
@@ -63,6 +67,8 @@ export class BasicREPL {
       return arg;
     };
 
+    importStackManager(this.importObject, this.errorManager);
+    
     // initialization for range() calss and its constructor.
     const classFields: Map<string, [number, Literal]> = new Map();
     classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);
@@ -79,11 +85,13 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      errorManager: this.errorManager,
     };
-    const [result, newEnv, newTypeEnv, newFunctions] = await run(source, config);
+    const [result, newEnv, newTypeEnv, newFunctions, newErrorManager] = await run(source, config);
     this.currentEnv = newEnv;
     this.currentTypeEnv = newTypeEnv;
     this.functions += newFunctions;
+    this.errorManager = newErrorManager;
     return result;
   }
   async tc(source: string): Promise<Type> {
@@ -92,8 +100,9 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      errorManager: this.errorManager,
     };
-    const parsed = parse(source);
+    const parsed = parse(source, config);
     const [result, _] = await tc(this.currentTypeEnv, parsed);
     return result.a[0];
   }

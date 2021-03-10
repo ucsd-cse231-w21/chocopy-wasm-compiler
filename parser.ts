@@ -21,6 +21,9 @@ import {
 
 import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
 import * as BaseException from "./error";
+import { Config } from "./runner";
+
+var id: number;
 
 export function getSourcePos(c: TreeCursor, s: string): Location {
   const substring = s.substring(0, c.node.from);
@@ -34,6 +37,7 @@ export function getSourcePos(c: TreeCursor, s: string): Location {
     line: line,
     col: col,
     length: c.node.to - c.node.from,
+    fileId: id
   };
 }
 
@@ -1091,7 +1095,8 @@ export function traverse(c: TreeCursor, s: string): Program<Location> {
       );
   }
 }
-export function parse(source: string): Program<Location> {
+export function parse(source: string, config?: Config): Program<Location> {
   const t = parser.parse(source);
+  id = config.errorManager.sources.length;
   return traverse(t.cursor(), source);
 }

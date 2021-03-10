@@ -12,12 +12,14 @@ import { GlobalTypeEnv, tc } from "./type-check";
 import { Value, Type, Location } from "./ast";
 import { PyValue, NONE } from "./utils";
 import { ea } from "./ea";
+import { ErrorManager } from "./errorManager";
 
 export type Config = {
   importObject: any;
   env: compiler.GlobalEnv;
   typeEnv: GlobalTypeEnv;
   functions: string; // prelude functions
+  errorManager: ErrorManager;
 };
 
 // NOTE(joe): This is a hack to get the CLI Repl to run. WABT registers a global
@@ -49,8 +51,9 @@ export async function runWat(source: string, importObject: any): Promise<any> {
 export async function run(
   source: string,
   config: Config
-): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
-  const parsed = parse(source);
+): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string, ErrorManager]> {
+  config.errorManager.sources.push(source);
+  const parsed = parse(source, config);
   console.log(parsed);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   console.log(tprogram);
@@ -117,6 +120,9 @@ export async function run(
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    (func $$pushStack (import "imports" "__pushStack") (param i32) (param i32) (param i32) (param i32))
+    (func $$popStack (import "imports" "__popStack"))
+    (func $$check_none (import "imports" "__checkNonPointer") (param i32) (result i32))
     (func $range (param $start i32) (param $end i32) (param $sp i32) (result i32)
       (local $self i32)
       (local $$last i32)
@@ -182,5 +188,5 @@ export async function run(
   compiled.newEnv.offset = view[0] / 4;
 
   console.log("About to return", progTyp, result);
-  return [PyValue(progTyp, result, view), compiled.newEnv, tenv, compiled.functions];
+  return [PyValue(progTyp, result, view), compiled.newEnv, tenv, compiled.functions, config.errorManager];
 }

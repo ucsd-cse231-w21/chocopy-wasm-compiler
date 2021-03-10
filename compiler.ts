@@ -493,7 +493,7 @@ function codeGenAssignable(
         return [...locationToStore, ...value, "(i32.store)"];
       }
     case "lookup": // Field lookup
-      const objStmts = codeGenExpr(target.obj, env);
+      var objStmts = codeGenExpr(target.obj, env);
       const objTyp = target.obj.a[0];
       if (objTyp.tag !== "class") {
         // I don't think this error can happen
@@ -501,6 +501,7 @@ function codeGenAssignable(
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
+      objStmts = objStmts.concat(codeGenRuntimeCheck(target.obj.a[1], "check_none"));
       const className = objTyp.name;
       const [offset, _] = env.classes.get(className).get(target.field);
       if (target.field == "$deref") {
@@ -511,7 +512,10 @@ function codeGenAssignable(
     case "bracket-lookup":
       switch (target.obj.a[0].tag) {
         case "dict":
-          return codeGenExpr(target.obj, env).concat(codeGenDictKeyVal(target.key, value, 10, env));
+          var objStmts = codeGenExpr(target.obj, env);
+          // Should be typeError
+          objStmts = objStmts.concat(codeGenRuntimeCheck(target.obj.a[1], "check_none"));
+          return objStmts.concat(codeGenDictKeyVal(target.key, value, 10, env));
         case "list":
         default:
           throw new BaseException.InternalException(
@@ -814,7 +818,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       } else if (expr.name === "print" && argTyp === NONE) {
         return argStmts.concat([`(call $print_none)`]);
       }
-      return argStmts.concat([`(call $${callName})`]);
+      return argStmts.concat(codeGenCall(expr.a[1], `(call $${callName})`));
     case "builtin2":
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
@@ -824,7 +828,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         ...decodeLiteral,
         ...rightStmts,
         ...decodeLiteral,
-        `(call $${expr.name})`,
+        ...codeGenCall(expr.a[1], `(call $${expr.name})`),
         ...encodeLiteral,
       ];
     case "literal":
@@ -856,7 +860,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       const exprStmts = codeGenExpr(expr.expr, env);
       switch (expr.op) {
         case UniOp.Neg:
-          return [...exprStmts, "(call $$bignum_neg)"];
+          return [...exprStmts, ...codeGenCall(expr.a[1], "(call $$bignum_neg)")];
         case UniOp.Not:
           return [`(i32.const 0)`, ...exprStmts, ...decodeLiteral, `(i32.eq)`, ...encodeLiteral];
         default:
@@ -864,6 +868,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
     case "call":
       if (expr.name === "range") {
+        // TODO - error-reporting: stacktrace for range
         switch (expr.arguments.length) {
           case 1:
             var valStmts = [`(i32.const 1)`];
@@ -885,7 +890,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         }
       }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      valStmts.push(`(call $${expr.name})`);
+      valStmts = valStmts.concat(codeGenCall(expr.a[1], `(call $${expr.name})`));
       return valStmts;
     case "call_expr":
       const callExpr: Array<string> = [];
@@ -899,6 +904,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
+        callExpr.push(...codeGenPushStack(expr.a[1]));
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
@@ -910,6 +916,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
+        callExpr.push(...codeGenPushStack(expr.a[1]));
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
@@ -922,6 +929,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(codeGenExpr(arg, env).join("\n"));
         });
+        callExpr.push(...codeGenPushStack(expr.a[1]));
         callExpr.push(
           `(call_indirect (type $callType${
             expr.arguments.length + 1
@@ -932,6 +940,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           `Compile Error. Invalid name of tag ${nameExpr.tag}`
         );
       }
+      callExpr.push(...codeGenPopStack());
       return callExpr;
     case "construct":
       var stmts: Array<string> = [];
@@ -958,7 +967,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       stmts.push(
         ...[
           "(local.get $$string_class)",
-          `(call $${expr.name}$__init__)`, // call __init__
+          ...codeGenCall(expr.a[1], `(call $${expr.name}$__init__)`), // call __init__
           "(drop)",
           "(local.get $$string_class) ;; return the address of the constructed object",
         ]
@@ -977,7 +986,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
         callExpr.push(`(i32.load) ;; load the function pointer`);
         callExpr.push(`(i32.load) ;; load the function index`);
-        callExpr.push(`(call_indirect (type $callType${expr.arguments.length + 1}))`);
+        callExpr.push(...codeGenCall(expr.a[1], (`(call_indirect (type $callType${expr.arguments.length + 1}))`)));
         return callExpr;
       } else {
         var objStmts = codeGenExpr(expr.obj, env);
@@ -990,7 +999,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         }
         var className = objTyp.name;
         var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-        return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
+        return [...objStmts, ...argsStmts, ...codeGenCall(expr.a[1], `(call $${className}$${expr.method})`)];
       }
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
@@ -1001,6 +1010,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
         );
       }
+      objStmts = objStmts.concat(codeGenRuntimeCheck(expr.a[1], "check_none"));
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
       if (expr.field == "$deref") {
@@ -1069,6 +1079,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
         case "dict":
+          // Should be TypeError for all bracket-lookup
           return codeGenDictBracketLookup(expr.obj, expr.key, 10, env);
         case "string":
           var brObjStmts = codeGenExpr(expr.obj, env);
@@ -1114,6 +1125,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           return brStmts;
         case "list":
           var objStmts = codeGenExpr(expr.obj, env);
+          objStmts = objStmts.concat(codeGenRuntimeCheck(expr.a[1], "check_none"));
           //This should eval to a number
           //Multiply it by 4 to use as offset in memory
           var keyStmts = codeGenExpr(expr.key, env);
@@ -1220,11 +1232,13 @@ function codeGenDictBracketLookup(
   env: GlobalEnv
 ): Array<string> {
   let dictKeyValStmts: Array<string> = [];
-  dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(obj, env));
+  var objStmts = codeGenExpr(obj, env);
+  objStmts = objStmts.concat(codeGenRuntimeCheck(obj.a[1], "check_none"));
+  dictKeyValStmts = dictKeyValStmts.concat(objStmts);
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
   dictKeyValStmts = dictKeyValStmts.concat([
     `(i32.const ${hashtableSize})`,
-    "(call $ha$htable$Lookup)",
+    ...codeGenCall(obj.a[1], "(call $ha$htable$Lookup)"),
   ]);
   return dictKeyValStmts.concat(["i32.load"]);
 }
@@ -1241,7 +1255,7 @@ function codeGenDictKeyVal(
   dictKeyValStmts = dictKeyValStmts.concat(val);
   dictKeyValStmts = dictKeyValStmts.concat([
     `(i32.const ${hashtableSize})`,
-    "(call $ha$htable$Update)",
+    ...codeGenCall(key.a[1], "(call $ha$htable$Update)"),
   ]);
   return dictKeyValStmts;
 }
@@ -1584,4 +1598,37 @@ function codeGenBinOp(op: BinOp): string {
     case BinOp.Or:
       return "(i32.or)";
   }
+}
+
+
+function codeGenRuntimeCheck(loc: Location, funcName: string) : Array<string> {
+  return [
+    ...codeGenPushStack(loc),
+    `call $$${funcName}`,
+    ...codeGenPopStack()
+  ]
+}
+
+function codeGenPushStack(loc: Location) : Array<string> {
+  return [
+    `i32.const ${loc.line}`,
+    `i32.const ${loc.col}`,
+    `i32.const ${loc.length}`,
+    `i32.const ${loc.fileId}`,
+    "call $$pushStack",
+  ];
+}
+
+function codeGenPopStack() : Array<string> {
+  return [
+    "call $$popStack",
+  ];
+}
+
+function codeGenCall(loc: Location, code: string): Array<string> {
+  return [
+    ...codeGenPushStack(loc),
+    code,
+    ...codeGenPopStack()
+  ]
 }

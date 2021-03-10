@@ -577,7 +577,7 @@ function tcDestructure(
     let starOffset = 0;
     let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map((target, i, targets) => {
       if (i >= types.length)
-        throw new BaseException.ValueError(
+        throw new BaseException.TypeError( expr.a,
           `Not enough values to unpack (expected at least ${i}, got ${types.length})`
         );
       if (target.starred) {
@@ -589,7 +589,7 @@ function tcDestructure(
     });
 
     if (types.length > destruct.targets.length + starOffset)
-      throw new BaseException.ValueError(
+      throw new BaseException.TypeError( expr.a, 
         `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
       );
 
@@ -613,7 +613,7 @@ function tcAssignable(
 ): Assignable<[Type, Location]> {
   const expr = tcExpr(env, locals, target);
   if (!isTagged(expr, ASSIGNABLE_TAGS)) {
-    throw new BaseException.CompileError(target.a, `Cannot assing to target type ${expr.tag}`);
+    throw new BaseException.CompileError(target.a, `Cannot assign to target type ${expr.tag}`);
   }
   return expr;
 }
@@ -871,13 +871,13 @@ export function tcExpr(
           if (fields.has(expr.field)) {
             return { ...expr, a: [fields.get(expr.field), expr.a], obj: tObj };
           } else {
-            throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.field);
+            throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.field);
           }
         } else {
           throw new BaseException.NameError(expr.a, tObj.a[0].name);
         }
       } else {
-        throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.field);
+        throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.field);
       }
     case "method-call":
       var tObj = tcExpr(env, locals, expr.obj);
@@ -919,13 +919,13 @@ export function tcExpr(
               );
             }
           } else {
-            throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
+            throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.method);
           }
         } else {
           throw new BaseException.NameError(expr.a, tObj.a[0].name);
         }
       } else {
-        throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
+        throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.method);
       }
     case "list-expr":
       var commonType = null;

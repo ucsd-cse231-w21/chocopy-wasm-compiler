@@ -182,4 +182,4 @@ export type Value =
   | { tag: "object"; name: string; address: number }
   | { tag: "callable"; name: string; address: number };
 
-export type Location = { line: number; col: number; length: number };
+export type Location = { line: number; col: number; length: number; fileId: number };
