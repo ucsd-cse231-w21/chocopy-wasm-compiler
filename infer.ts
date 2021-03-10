@@ -111,7 +111,6 @@ function isSubtypeMethods(t1methods: Map<string, [Type[], Type]>,
       return false
     }
   }
-
   return true
 }
 
@@ -1049,10 +1048,35 @@ export function annotateStmt(
       return [s, { tag: "expr", a, expr }];
     }
     // TODO: the tricky part. will do later
-    // case "if": {
-    // }
-    // case "while": {
-    // }
+    case "if": {    
+      let s = Action.None;
+      let thn_ = []
+      for (const st of stmt.thn) {
+        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, true);
+        s = joinAction(s, s_);
+        thn_.push(stmt_);
+      };
+
+      let els_ = []
+      for (const st of stmt.els) {
+        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, true);
+        s = joinAction(s, s_);
+        els_.push(stmt_);
+      };;
+      return [s, { ...stmt, a: NONE, thn: thn_, els: els_ }];
+    }
+    
+    case "while": {
+      let s = Action.None;
+      let body_ = []
+      for (const st of stmt.body) {
+        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, true);
+        s = joinAction(s, s_);
+        body_.push(stmt_);
+      };
+      return [s, { ...stmt, a: NONE, body: body_ }];
+    }
+
     // FIXME: how about the case where multiple classes have fields that share
       // the same name with different types?
     case "field-assign": {
@@ -1156,14 +1180,3 @@ function closeOpenTypes(globEnv: GlobalTypeEnv, st: Stmt<Type>) {
   }
 }
 
-// class A(object):
-//     pass
-//
-// def f(x, b):
-//     return x.m()
-//
-
-// Program 7
-// def g(z: int):
-//   z = z + 1
-//   return z
