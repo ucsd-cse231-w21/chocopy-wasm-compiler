@@ -77,12 +77,12 @@ export function augmentEnv(env: GlobalEnv, prog: Program<[Type, Location]>): Glo
     newOffset += 1;
   });
   // encoding for var rngi
-  for (let index = lastCount+1; index <= forCount; index++) {
+  for (let index = lastCount + 1; index <= forCount; index++) {
     newGlobals.set("rng" + index, newOffset);
     newOffset += 1;
   }
   // set bars for indexing in for loops
-  for (let index = lastCount+1; index <= forCount; index++) {
+  for (let index = lastCount + 1; index <= forCount; index++) {
     newGlobals.set("idx" + index, newOffset);
     newOffset += 1;
   }
@@ -298,16 +298,23 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       ];
     case "for":
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      switch(stmt.iterable.tag) {
+      switch (stmt.iterable.tag) {
         case "id":
           // not handled yet
-          return []
+          return [];
         case "list-expr":
           var iass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
             tag: "assignment",
             destruct: makeId([NUM, stmt.a[1]], "idx" + stmt.id),
-            value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(-1) } },
+            value: {
+              a: [NUM, stmt.a[1]],
+              tag: "literal",
+              value: {
+                tag: "num",
+                value: BigInt(-1)
+              }
+            },
           };
           var Code_iass = codeGenStmt(iass, env);
 
@@ -315,8 +322,19 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             a: [NUM, stmt.a[1]],
             tag: "binop",
             op: BinOp.Plus,
-            left: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id },
-            right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
+            left: {
+              a: [NUM, stmt.a[1]],
+              tag: "id",
+              name: "idx" + stmt.id
+            },
+            right: {
+              a: [NUM, stmt.a[1]],
+              tag: "literal",
+              value: {
+                tag: "num",
+                value: BigInt(1)
+              },
+            },
           };
           var niass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
@@ -330,7 +348,11 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             a: [NUM, stmt.a[1]],
             tag: "bracket-lookup",
             obj: stmt.iterable,
-            key: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id }
+            key: {
+              a: [NUM, stmt.a[1]],
+              tag: "id",
+              name: "idx" + stmt.id
+            },
           };
 
           var tarname = "";
@@ -352,8 +374,19 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             a: [BOOL, stmt.a[1]],
             tag: "binop",
             op: BinOp.Gte,
-            left: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id },
-            right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(stmt.iterable.contents.length) } },
+            left: {
+              a: [NUM, stmt.a[1]],
+              tag: "id",
+              name: "idx" + stmt.id
+            },
+            right: {
+              a: [NUM, stmt.a[1]],
+              tag: "literal",
+              value: {
+                tag: "num",
+                value: BigInt(stmt.iterable.contents.length)
+              },
+            },
           };
           var Code_cond = codeGenExpr(Expr_cond, env);
 
@@ -530,7 +563,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           //     ))`,
           //   ];
           // }
-
           // iterable should be a Range object
           // test
           // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
@@ -556,8 +588,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             ))`,
           ];
       }
-
-
 
     case "pass":
       return [];
