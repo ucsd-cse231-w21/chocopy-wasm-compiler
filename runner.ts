@@ -11,6 +11,7 @@ import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
 import { Value } from "./ast";
 import { PyValue, NONE } from "./utils";
+import { annotateAST } from "./infer";
 
 export type Config = {
   importObject: any;
@@ -51,7 +52,8 @@ export async function run(
 ): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
   // INFER THE TYPES HERE, PASS PARTIALLY TYPED PROGRAM TO TC
-  const [tprogram, tenv] = tc(config.typeEnv, parsed);
+  const [env, annotatedAST] = annotateAST(config.typeEnv, parsed);
+  const [tprogram, tenv] = tc(env, annotatedAST);
   const progTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";

@@ -1,6 +1,6 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
-import { inferExprType, inferTypeLit } from "./infer";
+import { inferExprType, inferTypeLit, isSubtype } from "./infer";
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -71,10 +71,6 @@ export function isNoneOrClass(t: Type) {
   return t.tag === "none" || t.tag === "class";
 }
 
-export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && t2.tag === "class");
-}
-
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
   return isSubtype(env, t1, t2);
 }
@@ -109,9 +105,10 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
     }
     newGlobs.set(init.name, init.declaredType);
   });
-  program.funs.forEach((fun) =>
-    newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret])
-  );
+  program.funs.forEach((fun) => {
+    newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret]);
+    env.functions = newFuns;
+  });
 
   return { globals: newGlobs, functions: newFuns, inferred_functions: new Map, classes: newClasses };
 }
@@ -454,7 +451,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           throw new TypeCheckError("method call on an unknown class");
         }
       } else {
-        throw new TypeCheckError("method calls require an object");
+        throw new TypeCheckError(`method calls require an object, got '${tObj.a.tag}'`);
       }
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);

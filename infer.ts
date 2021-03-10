@@ -14,10 +14,10 @@ import {
 import { emptyEnv } from "./compiler";
 import * as BaseException from "./error";
 
-/*  
+/*
   Design choice: infer.ts will take an AST without type information, and add annotations where appropriate.
   Then the annotated AST will be returned.
-  Then the type-checker will be used to *verify* that the typed-AST is actually consistent. 
+  Then the type-checker will be used to *verify* that the typed-AST is actually consistent.
   Going to leave room for constraint generation/solving to happen in here.
 */
 
@@ -69,11 +69,20 @@ function isSubtypeFields(t1fields: Map<string, Type>,
     const right = t2fields.get(field);
     // Afterward, we check that the type of each corresponding field in t1 is
     // of a subtype of its t2 counterpart.
-    if (!isSubtype(left, right, globEnv)) {
+    if (!isSubtype(globEnv, left, right)) {
       return false
     }
   }
+
+  return true
 };
+
+
+// t : Counter = Counter()
+// class A(object):
+//     def m(self: A) -> A:
+// class B(object):
+//     def m(self:B ) -> B:
 
 function isSubtypeMethods(t1methods: Map<string, [Type[], Type]>,
                           t2methods: Map<string, [Type[], Type]>,
@@ -88,20 +97,26 @@ function isSubtypeMethods(t1methods: Map<string, [Type[], Type]>,
     // Afterward, we check that the arguement types of each corresponding
     // method in t1 is of a subtype of that of its t2 counterpart.
     const [argTypes2, retType2] = t2methods.get(method);
-    for (const [left, right] of argTypes1.map((t, i) => [t, argTypes2[i]])) {
-      if (!isSubtype(left, right, globEnv)) {
-        return false
+    for (const [i, [left, right]] of argTypes1.map((t, i) => [t, argTypes2[i]]).entries()) {
+      if (i == 0) {
+        continue
+      } else {
+        if (!isSubtype(globEnv, left, right)) {
+          return false
+        }
       }
     }
     // We also check that the return type of t1 is a subtype of that of t2.
-    if (!isSubtype(retType1, retType2, globEnv)) {
+    if (!isSubtype(globEnv, retType1, retType2)) {
       return false
     }
   }
+
+  return true
 }
 
 // check if t1 is a subtype of t2
-export function isSubtype(t1: Type, t2: Type, globEnv: GlobalTypeEnv): boolean {
+export function isSubtype(globEnv: GlobalTypeEnv, t1: Type, t2: Type): boolean {
   if (t1.tag == "none") {
     return t2.tag == "class";
   } else if (t1.tag == "open-object" && t2.tag == "open-object") {
@@ -116,7 +131,9 @@ export function isSubtype(t1: Type, t2: Type, globEnv: GlobalTypeEnv): boolean {
     return isSubtypeFields(t1fields, t2.fields, globEnv)
         && isSubtypeMethods(t1methods, t2.methods, globEnv);
   } else if (t1.tag == "class" && t2.tag == "class") {
-    if (!globEnv.classes.has(t1.name)) {
+    if (t1.name == t2.name) {
+      return true
+    } else if (!globEnv.classes.has(t1.name)) {
       throw new Error(`Unknown class: ${t1.name}`);
     } else if (!globEnv.classes.has(t2.name)) {
       throw new Error(`Unknown class: ${t2.name}`);
@@ -153,11 +170,11 @@ function joinFields(leftFields: Map<string, Type>,
     } else {
       const leftType = fields.get(field);
       // intersection = 0
-      if (!isSubtype(leftType, type_, globEnv) && !isSubtype(type_, leftType, globEnv)) {
+      if (!isSubtype(globEnv, leftType, type_) && !isSubtype(globEnv, type_, leftType)) {
         return [joinStatus.Failure, new Map];
       // if leftType is a subtype of type_, upcast the type, do nothing
       // otherwise
-      } else if (isSubtype(leftType, type_, globEnv)) {
+      } else if (isSubtype(globEnv, leftType, type_)) {
         fields.set(field, type_);
       }
     }
@@ -179,8 +196,8 @@ function joinMethods(leftMethods: Map<string, [Type[], Type]>,
       // intersection = 0
       if (leftArgTypes.length != rightArgTypes.length) {
         return [joinStatus.Failure, new Map];
-      } else if (!isSubtype(leftRetType, rightRetType, globEnv)
-              && !isSubtype(rightRetType, leftRetType, globEnv)) {
+      } else if (!isSubtype(globEnv, leftRetType, rightRetType)
+              && !isSubtype(globEnv, rightRetType, leftRetType)) {
         return [joinStatus.Failure, new Map];
       } else {
         let joinedArgTypes = [];
@@ -288,11 +305,11 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
         return FAILEDINFER;
       }
       switch (expr.name) {
-        case "print": 
+        case "print":
           return NONE;
         case "abs":
           return NUM;
-        default: 
+        default:
           throw new Error(`Inference not supported for unknown builtin '${expr.name}'`)
       }
     case "builtin2":
@@ -307,7 +324,7 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
       switch (expr.name) {
         case "min": case "max": case "pow":
           return NUM;
-        default: 
+        default:
         throw new Error(`Inference not supported for unknown builtin '${expr.name}'`)
       }
     case "call":
@@ -321,14 +338,15 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
       } else {
         return FAILEDINFER;
       }
-    case "method-call": 
+
+    case "method-call":
       let objType = inferExprType(expr.obj, globEnv, locEnv);
       if (objType === UNSAT) {
         return UNSAT;
       }
       if (objType === FAILEDINFER || objType.tag !== "class") {
         return FAILEDINFER;
-      }      
+      }
       // we have been able to infer the type of the class before the dot
       if (!globEnv.classes.has(objType.name)) {
         return FAILEDINFER;
@@ -339,8 +357,28 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
         return FAILEDINFER;
       } else {
         let [_, returnType] = methods.get(expr.method)
-        return returnType; 
+        return returnType;
       }
+
+    case "lookup":
+      let oType = inferExprType(expr.obj, globEnv, locEnv);
+      if (oType === UNSAT) {
+        return UNSAT;
+      }
+      if (oType === FAILEDINFER || oType.tag !== "class") {
+        return FAILEDINFER;
+      }
+      if (!globEnv.classes.has(oType.name)) {
+        return FAILEDINFER;
+      }
+      let [fields, ms] = globEnv.classes.get(oType.name);
+      if (!fields.has(expr.field)) {
+        return FAILEDINFER;
+      } else {
+        let returnType = fields.get(expr.field)
+        return returnType;
+      }
+
     case "list-expr":
       throw new Error("Inference not implemented for lists yet");
 
@@ -454,6 +492,21 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
   }
 }
 
+
+// First pass inference to reach into function body and infer return types
+// it will add constraints to the function type signature, if possible
+// The function type signature should start in the most general form and
+// constrain until either everything is properly typed, or something becomes
+// unsat.
+//export function constrainFunType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: LocalTypeEnv) :  {
+
+
+//}
+
+
+
+
+
 // This function must not return FAILEDINFER
 export function constrainExprType(
   expr: Expr<any>,
@@ -462,7 +515,7 @@ export function constrainExprType(
   locEnv: LocalTypeEnv
 ): [Action, Expr<Type>] {
   if (expr.a !== FAILEDINFER) {
-    const a = isSubtype(expr.a, type_, globEnv) ? expr.a : UNSAT;
+    const a = isSubtype(globEnv, expr.a, type_) ? expr.a : UNSAT;
     return [Action.None, { ...expr, a }];
   }
 
@@ -479,7 +532,7 @@ export function constrainExprType(
             return [Action.None, { ...expr, a: UNSAT }];
           }
         case UniOp.Not:
-          if (type_ !== NUM) {
+          if (type_ !== BOOL) {
             return [Action.None, { ...expr, a: UNSAT }];
           }
       }
@@ -553,7 +606,7 @@ export function constrainExprType(
         throw new Error(`Not a known built-in function: ${expr.name}`);
       }
       const retType = globEnv.functions.get(expr.name)[1];
-      if (isSubtype(retType, type_, globEnv)) {
+      if (isSubtype(globEnv, retType, type_)) {
         return [Action.None, { ...expr }];
       } else {
         return [Action.Repeat, { ...expr, a: UNSAT }];
@@ -572,7 +625,7 @@ export function constrainExprType(
       // types
       } else if (globEnv.inferred_functions.has(expr.name)) {
         retType = globEnv.inferred_functions.get(expr.name)[1];
-        if (isSubtype(retType, type_, globEnv)) {
+        if (isSubtype(globEnv, retType, type_)) {
           return [Action.None, { ...expr }];
         } else {
           const [argTypes, retType_] = globEnv.inferred_functions.get(expr.name);
@@ -597,7 +650,7 @@ export function constrainExprType(
         }
         // If a function has a user specified return type that is not NONE, the
         // type constraint should be a hard constraint.
-        if (isSubtype(retType, type_, globEnv)) {
+        if (isSubtype(globEnv, retType, type_)) {
           return [Action.None, { ...expr }];
         } else {
           return [Action.None, { ...expr, a: UNSAT }];
@@ -611,7 +664,7 @@ export function constrainExprType(
     case "id": {
       if (locEnv.vars.has(expr.name)) {
         const a = locEnv.vars.get(expr.name);
-        if (!isSubtype(a, type_, globEnv)) {
+        if (!isSubtype(globEnv, a, type_)) {
           const a_ = joinType(a, type_, globEnv);
           if (a_ === UNSAT) {
             return [Action.None, { ...expr, a: UNSAT }];
@@ -653,10 +706,11 @@ export function annotateExpr(
   locEnv: LocalTypeEnv,
   topLevel: boolean
 ): [Action, Expr<Type>] {
-  const a = inferExprType(expr, globEnv, locEnv);
   switch (expr.tag) {
-    case "literal":
+    case "literal": {
+      const a = inferExprType(expr, globEnv, locEnv);
       return [Action.None, { ...expr, a }];
+    }
     case "binop": {
       let [s1, left] = annotateExpr(expr.left, globEnv, locEnv, topLevel);
       let [s2, right] = annotateExpr(expr.right, globEnv, locEnv, topLevel);
@@ -717,18 +771,22 @@ export function annotateExpr(
       // unary operator being used
       const expr__: Expr<Type> = { tag: "uniop", op: expr.op, expr: expr_ };
       const a = inferExprType(expr__, globEnv, locEnv);
-      return [s, { ...expr_, a }];
+      return [s, { ...expr__, a }];
     }
     // TODO: think this over
     case "builtin1": {
       const [s, arg] = annotateExpr(expr.arg, globEnv, locEnv, topLevel);
-      return [s, { ...expr, arg , a }];
+      const expr_: Expr<Type> = { tag: "builtin1", name: expr.name, arg };
+      const a = inferExprType(expr_, globEnv, locEnv);
+      return [s, { ...expr_, arg , a }];
     }
     // TODO: think this over
     case "builtin2": {
       const [s1, left] = annotateExpr(expr.left, globEnv, locEnv, topLevel);
       const [s2, right] = annotateExpr(expr.right, globEnv, locEnv, topLevel);
-      return [joinAction(s1, s2), { ...expr, left, right , a }];
+      const expr_: Expr<Type> = { tag: "builtin2", name: expr.name, left, right };
+      const a = inferExprType(expr_, globEnv, locEnv);
+      return [joinAction(s1, s2), { ...expr_, left, right , a }];
     }
     case "call": {
       let s = Action.None;
@@ -759,9 +817,9 @@ export function annotateExpr(
           if (arg.a === FAILEDINFER) {
             const t_ = inferredArgTypes[i];
             // argument index out of bounds
-            if (t_ === undefined) {
+            if (i > inferredArgTypes.length - 1) {
               return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
-            } else if (t_ === FAILEDINFER) {
+            } else if (t_ === undefined || t_ === FAILEDINFER) {
               return [Action.None, { ...expr, arguments: arguments_, a: FAILEDINFER }];
             } else {
               const [s_, arg_] = constrainExprType(arg, t_, globEnv, locEnv);
@@ -787,7 +845,7 @@ export function annotateExpr(
         // arguments aren't UNSAT
         if (argTypes.some(arg => arg === UNSAT)) {
           return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
-        } else if (argTypes.some(arg => arg === FAILEDINFER)) {
+        } else if (argTypes.some(arg => arg === undefined)) {
           // If there are missing type annotations in the function parameter
           // list, we move the function signature from the function map to the
           // inferred_functions map and repeat. NOTE: this only takes care of
@@ -798,20 +856,18 @@ export function annotateExpr(
           return annotateExpr(expr, globEnv, locEnv, topLevel);
         } else {
           for (const [i, arg] of arguments_.entries()) {
-            // At this stage, we know that the parameter list is complete with
-            // user supplied type annotations. We use the type hints to fill in
-            // FAILEDINFER's in our arguments
-            if (arg.a === FAILEDINFER) {
+            // Argument index out of bounds
+            if (i > argTypes.length - 1) {
+              return [Action.None, { ...expr, arguments: arguments_, a: UNSAT}]
+            } else if (arg.a === FAILEDINFER) {
+              // At this stage, we know that the parameter list is complete with
+              // user supplied type annotations. We use the type hints to fill in
+              // FAILEDINFER's in our arguments
               const t_ = argTypes[i];
-              // argument index out of bounds
-              if (t_ === undefined) {
-                return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
-              } else {
-                const [s_, arg_] = constrainExprType(arg, t_, globEnv, locEnv);
-                s = joinAction(s, s_);
-                arguments__.push(arg_);
-              }
-            } else if (!isSubtype(arg.a, argTypes[i], globEnv)) {
+              const [s_, arg_] = constrainExprType(arg, t_, globEnv, locEnv);
+              s = joinAction(s, s_);
+              arguments__.push(arg_);
+            } else if (!isSubtype(globEnv, arg.a, argTypes[i])) {
               // If we have a known type for the argument and that type isn't
               // compatible with the user supplied type hint, it is UNSAT
               return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
@@ -825,12 +881,18 @@ export function annotateExpr(
         return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
       }
 
+      const expr_: Expr<Type> = { ...expr, arguments: arguments_, a: undefined };
+      const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr, arguments: arguments_, a }];
     }
-    case "id":
+    case "id": {
+      const a = inferExprType(expr, globEnv, locEnv);
       return [Action.None, { ...expr, a }];
+    }
     case "lookup": {
       const [s, obj] = annotateExpr(expr.obj, globEnv, locEnv, topLevel);
+      const expr_: Expr<Type> = { ...expr, obj, a: undefined };
+      const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr, a, obj }];
     }
     // FIXME: need to port the logic from "call" over
@@ -842,13 +904,19 @@ export function annotateExpr(
         s = joinAction(s, s_);
         arguments_.push(arg_);
       }
+      const expr_: Expr<Type> = { ...expr, obj, arguments: arguments_, a: undefined };
+      const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr, obj, arguments: arguments_, a }];
     }
-    case "construct":
+    case "construct": {
+      const a = inferExprType(expr, globEnv, locEnv);
       return [Action.None, { ...expr, a }];
+    }
     // FIXME: need to port the logic from "call" over
     case "lambda": {
       const [s, ret] = annotateExpr(expr.ret, globEnv, locEnv, topLevel);
+      const expr_: Expr<Type> = { ...expr, ret, a: undefined };
+      const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr, a, ret }];
     }
     case "comprehension": {
@@ -861,7 +929,9 @@ export function annotateExpr(
         [s_, cond] = annotateExpr(expr.cond, globEnv, locEnv, topLevel);
         s = joinAction(s, s_);
       }
-      return [s, { ...expr, a, expr: expr_, iter, cond }]
+      const expr__: Expr<Type> = { ...expr, expr: expr_, iter, cond, a: undefined };
+      const a = inferExprType(expr__, globEnv, locEnv);
+      return [s, { ...expr, a, expr: expr__, iter, cond }]
     }
     case "block": {
       let s = Action.None;
@@ -873,6 +943,8 @@ export function annotateExpr(
       }
       // const block = expr.block.map(s => annotateStmt(s, globEnv, locEnv, topLevel));
       const [s_, expr_] = annotateExpr(expr.expr, globEnv, locEnv, topLevel);
+      const expr__: Expr<Type> = { ...expr, expr: expr_, block, a: undefined };
+      const a = inferExprType(expr__, globEnv, locEnv);
       return [joinAction(s, s_), { ...expr, a, block, expr: expr_ }];
     }
     case "list-expr": {
@@ -883,6 +955,8 @@ export function annotateExpr(
         s = joinAction(s_, s);
         contents.push(e_);
       }
+      const expr_: Expr<Type> = { ...expr, contents, a: undefined };
+      const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr, a, contents }];
     }
     case "string_slicing": {
@@ -891,6 +965,8 @@ export function annotateExpr(
       const [s3, end] = annotateExpr(expr.end, globEnv, locEnv, topLevel);
       const [s4, stride] = annotateExpr(expr.stride, globEnv, locEnv, topLevel);
       const s = [s1, s2, s3, s4].reduce(joinAction, Action.None);
+      const expr_: Expr<Type> = { ...expr, name, start, end, stride, a: undefined };
+      const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr, a, name, start, end, stride }];
     }
     case "dict": {
@@ -903,12 +979,16 @@ export function annotateExpr(
         entries.push(entry);
         s = joinAction(s2, joinAction(s1, s));
       }
+      const expr_: Expr<Type> = { ...expr, entries, a: undefined };
+      const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr, a, entries }];
     }
     case "bracket-lookup": {
       const [s1, obj] = annotateExpr(expr.obj, globEnv, locEnv, topLevel);
       const [s2, key] = annotateExpr(expr.key, globEnv, locEnv, topLevel);
       const s = joinAction(s1, s2);
+      const expr_: Expr<Type> = { ...expr, obj, key, a: undefined };
+      const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr, a, obj, key }];
     }
   }
@@ -925,7 +1005,8 @@ export function annotateStmt(
   switch (stmt.tag) {
     case "assign": {
       const [s, value] = annotateExpr(stmt.value, globEnv, locEnv, topLevel);
-      let a = value.a;
+      //let a = value.a; // Shouldn't this always be type None? The type of `x = 0`?
+      let a = NONE  // TODO: make sure algorithm doesn't expect anything other than this.
       if (locEnv.vars.has(stmt.name)) {
         let type_ = locEnv.vars.get(stmt.name);
         // FIXME: make isSubtype work with LocalTypeEnv since this is a local
@@ -933,7 +1014,7 @@ export function annotateStmt(
         if (type_ === FAILEDINFER) {
           locEnv.vars.set(stmt.name, a);
         } else {
-          if (!isSubtype(a, type_, globEnv)) {
+          if (!isSubtype(globEnv, a, type_)) {
             a = UNSAT;
           }
         }
@@ -978,7 +1059,7 @@ export function annotateStmt(
                || obj.a.tag != "class"
                || !globEnv.classes.has(obj.a.name)  // if class map contains the class
                || !globEnv.classes.get(obj.a.name)[0].has(stmt.field) // if the class contains the field
-               || !isSubtype(value.a, globEnv.classes.get(obj.a.name)[0].get(stmt.field), globEnv)) {
+               || !isSubtype(globEnv, value.a, globEnv.classes.get(obj.a.name)[0].get(stmt.field))) {
         a = UNSAT;
       } else {
         a = globEnv.classes.get(obj.a.name)[0].get(stmt.field);
@@ -1014,14 +1095,16 @@ export function annotateStmt(
     case "break":
       return [Action.None, stmt]
     default:
-      throw new Error(`Type annotation is not implemented for the following statement: ${stmt}`);
+      throw new Error(`Type annotation is not implemented for the following statement: ${stmt.tag}`);
   }
 }
 
-export function annotateAST(program: Program<null>): Program<Type> {
+export function annotateAST(globEnv: GlobalTypeEnv, program: Program<null>): [GlobalTypeEnv, Program<Type>] {
+
   // gather any type information that the user provided
-  const globEnv = augmentTEnv(defaultTypeEnv, program);
   const locEnv = emptyLocalTypeEnv();
+  const newEnv = augmentTEnv(globEnv, program)
+
   // we now infer types of the program statement by statement
   let s = Action.None;
   let stmts = []
@@ -1029,14 +1112,46 @@ export function annotateAST(program: Program<null>): Program<Type> {
   do {
     let stmts_ = [];
     for (const stmt of program.stmts) {
-      const [s_, stmt_] = annotateStmt(stmt, globEnv, locEnv, true);
+      const [s_, stmt_] = annotateStmt(stmt, newEnv, locEnv, true);
       s = joinAction(s, s_);
       stmts_.push(stmt_);
     }
     stmts = [...stmts_];
   } while (s == Action.Repeat);
 
-  // TODO: propagate changes by the inference algorithm to globEnv and locEnv to
-  // program.funs and programs.classes
-  throw new Error("Type annotation is not implemented for full programs yet");
+  stmts.forEach(st => {
+    if (st.a.tag === "open-object") {
+      closeOpenTypes(newEnv, st);
+    }
+  })
+
+  return [newEnv, { ...program, stmts }]
 }
+
+function closeOpenTypes(globEnv: GlobalTypeEnv, st: Stmt<Type>) {
+  for (const c of globEnv.classes.keys()) {
+    switch (st.tag) {
+      case "assign":
+        if (isSubtype(globEnv, st.value.a, CLASS(c))) {
+          st.value.a = CLASS(c);
+          return;
+        }
+        break;
+      default:
+        throw new Error(`TODO implement closing types for '${st.tag}'`)
+    }
+    break;
+  }
+}
+
+// class A(object):
+//     pass
+//
+// def f(x, b):
+//     return x.m()
+//
+
+// Program 7
+// def g(z: int):
+//   z = z + 1
+//   return z

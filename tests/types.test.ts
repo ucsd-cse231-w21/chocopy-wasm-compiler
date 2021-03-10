@@ -187,4 +187,17 @@ describe("type inference", () => {
     NUM
   );
 
+  assertTC(
+    "infer return type of a function",
+    `
+    def f(): 
+      return 1
+
+    x: int = 1
+    x = f()
+    x
+    `,
+    NUM
+  );
+
 });
