@@ -197,7 +197,6 @@ describe("FOR LOOP TEST", () => {
     ["0", "1", "2", "3", "4"]
   );
 
-
   assertPrint(
     "loop in class",
     `
