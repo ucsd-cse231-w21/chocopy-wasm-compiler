@@ -385,7 +385,11 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
 
     case "id": // Does a type look up in an environment (created at an earlier stage)
       if (locEnv.vars.has(expr.name)) {
-        return locEnv.vars.get(expr.name);
+        if (locEnv.vars.get(expr.name) !== undefined) {
+          return locEnv.vars.get(expr.name);
+        } else {
+          return FAILEDINFER;
+        }
       } else if (globEnv.globals.has(expr.name)) {
         return globEnv.globals.get(expr.name);
       } else {
@@ -420,9 +424,12 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
     case "binop":
       var leftType = inferExprType(expr.left, globEnv, locEnv);
       var rightType = inferExprType(expr.right, globEnv, locEnv);
-      if (leftType === FAILEDINFER || rightType === FAILEDINFER) {
-        return FAILEDINFER;
+      if (rightType === FAILEDINFER) {
+        return leftType;
+      } else if (leftType === FAILEDINFER) {
+        return rightType;
       }
+
       if (leftType === UNSAT || rightType === UNSAT) {
         return UNSAT;
       }
@@ -690,7 +697,10 @@ export function constrainExprType(
     case "id": {
       if (locEnv.vars.has(expr.name)) {
         const a = locEnv.vars.get(expr.name);
-        if (!isSubtype(globEnv, a, type_)) {
+        if (a === FAILEDINFER) {
+          locEnv.vars.set(expr.name, type_);
+          return [Action.None, { ...expr, a: type_ }];
+        } else if (!isSubtype(globEnv, a, type_)) {
           const a_ = joinType(a, type_, globEnv);
           if (a_ === UNSAT) {
             return [Action.None, { ...expr, a: UNSAT }];
