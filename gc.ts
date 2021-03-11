@@ -23,8 +23,8 @@ export const TAG_OPAQUE = 0x8n;           // NOTE(alex:mm) needed to mark zero-s
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
-const HEADER_OFFSET_SIZE = 0x1;
-const HEADER_OFFSET_GC = HEADER_OFFSET_TAG + HEADER_OFFSET_SIZE;
+const HEADER_OFFSET_GC = 0x1;
+const HEADER_OFFSET_SIZE = 0x4;
 
 export const HEADER_SIZE_BYTES = 8;
 
@@ -32,7 +32,7 @@ export const HEADER_SIZE_BYTES = 8;
 // Proxy for constructed GC object headers
 //
 // Layout (byte addresses):
-//   0  [TSSSSGP...]                             END
+//   0  [TGPPSSSS...]                             END
 //      ^
 //      headerStart
 //
