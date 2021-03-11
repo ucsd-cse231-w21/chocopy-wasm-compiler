@@ -125,18 +125,46 @@ function transformComprehension(comprehension: Expr<[Type, Location]>,
 
   let block_stmts: Array<Stmt<[Type, Location]>> = [tmp_lst_set_empty_stmt, for_loop];
 
+  let tmp_lst_set_cleanup_stmt: Stmt<[Type, Location]> = {
+    a: [NONE, comprehension.a[1]],
+    tag: "assignment",
+    destruct: {
+      valueType: comprehension.a,
+      isDestructured: false,
+      targets: [
+        {
+          starred: false,
+          ignore: false,
+          target: { a: comprehension.a, tag: "id", name: tmp_lst_name }
+        }
+      ]
+    },
+    value: {
+      a: comprehension.a,
+      tag: "literal",
+      value: {
+        tag: "none"
+      }
+    }
+  };
+
+  // Note: "tmp_lst_name = None" at the end does NOT update the stack's topmost reference to the list in the heap,
+  // but will enable gc to garbage collect this tmp list name
+
   /*
   tmp_lst_name = []
   for (field) in (iterable):
     if (cond):
         tmp_lst_name = tmp_lst_name + [expr]
   tmp_lst_name
+  tmp_lst_name = None
  */
   let block : Expr<[Type, Location]> = {
-    tag: "block",
+    tag: "comprehension_block",
     a: comprehension.a,
     expr: tmp_lst_expr,
-    block: block_stmts
+    block: block_stmts,
+    cleanup_stmt: tmp_lst_set_cleanup_stmt
   };
   return [current_scope, block];
 }
@@ -248,11 +276,12 @@ function transformExpr(expr: Expr<[Type, Location]>,
       [current_scope, expr.expr] = transformExpr(expr.expr, current_scope, env);
       return [current_scope, expr];
 
-    case "block":
+    case "comprehension_block":
       for (let i in expr.block) {
         [current_scope, expr.block[i]] = transformStmt(expr.block[i], current_scope, env);
       }
       [current_scope, expr.expr] = transformExpr(expr.expr, current_scope, env);
+      [current_scope, expr.cleanup_stmt] = transformStmt(expr.cleanup_stmt, current_scope, env);
       return [current_scope, expr];
 
     case "bracket-lookup":
