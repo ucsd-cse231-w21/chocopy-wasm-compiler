@@ -499,11 +499,12 @@ export class BitMappedBlocks implements MarkableAllocator {
       if (!header.isMarked() && header.isAlloced()) {
         header.unalloc();
         // Get number of blocks
-        const mapIndex = this.indexToInfoMapIndex(index);
+        let mapIndex = this.indexToInfoMapIndex(index);
         let nBlocks = this.infomap[Number(mapIndex)];
 
         // console.log(`Unallocd: ${index} (ptr=${ptr}) \t { marked: ${header.isMarked()}, alloc: ${header.isAlloced()}}`);
         while (nBlocks > 0 && index < this.numBlocks) {
+          mapIndex = this.indexToInfoMapIndex(index)
           this.infomap[Number(mapIndex)] = 0; // Free it!
           ++index;
           --nBlocks;
