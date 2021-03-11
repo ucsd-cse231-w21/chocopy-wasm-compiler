@@ -254,6 +254,22 @@ describe("type inference", () => {
     NUM
   );
 
+  assertTC(
+    "function inference 4",
+    `
+    def g(y):
+      x = 0 
+      if y:
+        x = 1
+      else: 
+        x = 2
+      return x
+    g(True)
+    `,
+    NUM
+  );
+
+
   // Produces an expected typecheck error
   // assertTC(
   //   "infer return type of a function I",

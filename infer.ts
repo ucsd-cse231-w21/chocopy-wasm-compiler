@@ -1127,7 +1127,7 @@ export function annotateStmt(
     }
     // TODO: the tricky part. will do later
     case "if": {
-      let s = Action.None;
+      let [s, obj] = annotateExpr(stmt.cond, globEnv, locEnv, topLevel);
       let thn_ = []
       for (const st of stmt.thn) {
         const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, topLevel);
@@ -1141,7 +1141,7 @@ export function annotateStmt(
         s = joinAction(s, s_);
         els_.push(stmt_);
       };;
-      return [s, { ...stmt, a: NONE, thn: thn_, els: els_ }];
+      return [s, { ...stmt, cond: obj, a: NONE, thn: thn_, els: els_ }];
     }
 
     case "while": {
