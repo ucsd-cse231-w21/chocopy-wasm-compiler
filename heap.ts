@@ -325,8 +325,9 @@ export class FreeListAllocator implements MarkableAllocator {
     let acc = 0n;
 
     this.linkedList.traverse().forEach(d => {
-      if (!d.isFree) {
-        acc += d.size;
+      // size == 0 is the last node
+      if (!d.isFree && d.size > 0n) {
+        acc += d.size - BigInt(HEADER_SIZE_BYTES);
       }
     });
 
