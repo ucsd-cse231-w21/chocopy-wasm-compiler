@@ -1484,11 +1484,13 @@ function codeGenTupleAlloc(
       `(i32.const ${expr.contents.length * 4})   ;; size in bytes`,
       `(call $$gcalloc)`,
       `(local.set $$allocPointer)`,
-      `(local.get $$allocPointer)`, // return to parent expr (b/c nested expr could change this)
     ];
+    // Adopting the object hack of pushing one copy of $$allocPointer onto the stack for every item in the tuple.
+    // The best solution would be to reset allocPointer to its original value after creating the new stack
+    // object, but it's probably too late to institute a change like that.
+    stmts.push("(local.get $$allocPointer)\n".repeat(expr.contents.length + 1));
     expr.contents.forEach((content, offset) => {
       stmts.push(
-        "(local.get $$allocPointer)",
         ...codeGenExpr(content, env),
         `(i32.store offset=${offset * 4})`
       );
