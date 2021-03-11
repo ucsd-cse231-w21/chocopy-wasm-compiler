@@ -15,8 +15,8 @@ import "./style.scss";
 import { toEditorSettings } from "typescript";
 import { replace } from "cypress/types/lodash";
 import { ErrorManager } from "./errorManager";
-import { autocompleteHint, populateAutoCompleteSrc} from './autocomplete';
-import {default_keywords, default_functions } from './pydefaultwordlist';
+import { autocompleteHint, populateAutoCompleteSrc } from "./autocomplete";
+import { default_keywords, default_functions } from "./pydefaultwordlist";
 
 function print(val: Value) {
   const elt = document.createElement("pre");
@@ -76,7 +76,7 @@ function webStart() {
           const output = document.createElement("div");
           const prompt = document.createElement("span");
           prompt.innerText = "»";
-          prompt.setAttribute("class","prompt");
+          prompt.setAttribute("class", "prompt");
           output.appendChild(prompt);
           const elt = document.createElement("textarea");
           // elt.type = "text";
@@ -188,7 +188,7 @@ function webStart() {
       }
     });
     document.addEventListener("keypress", (e) => {
-      if (e.ctrlKey && e.key === 'r') {
+      if (e.ctrlKey && e.key === "r") {
         repl = new BasicREPL(importObject);
         const source = document.getElementById("user-code") as HTMLTextAreaElement;
         resetRepl();
@@ -200,8 +200,7 @@ function webStart() {
           })
           .catch((e) => {
             renderError(e, source.value);
-            if(e.loc != undefined)
-              highlightLine(e.loc.line - 1, e.message);
+            if (e.loc != undefined) highlightLine(e.loc.line - 1, e.message);
             console.log("run failed", e.stack);
           });
       }
@@ -212,17 +211,14 @@ function webStart() {
     var editor = document.getElementById("editor");
     var interactions = document.getElementById("interactions");
 
-    if (window.innerWidth<840) {
+    if (window.innerWidth < 840) {
       editor.style.width = "100%";
       interactions.style.width = "100%";
-    }
-    else{
-      if (hiderepl==false){
+    } else {
+      if (hiderepl == false) {
         editor.style.width = "50%";
-      }
-      else{
+      } else {
         editor.style.width = "100%";
-
       }
       interactions.style.width = "50%";
     }
@@ -244,8 +240,8 @@ function webStart() {
 
     //necessary variables for autocomplete logic
     var isClassMethod = false;
-    var classMethodList : string[] = [];
-    var defList : string[] = [];
+    var classMethodList: string[] = [];
+    var defList: string[] = [];
     const textarea = document.getElementById("user-code") as HTMLTextAreaElement;
     const editor = CodeMirror.fromTextArea(textarea, {
       mode: "python",
@@ -255,7 +251,7 @@ function webStart() {
       lint: true,
       gutters: ["error"],
       extraKeys: {
-        "Ctrl+Space": "autocomplete"
+        "Ctrl+Space": "autocomplete",
       },
       hintOptions: {
         alignWithWord: false,
@@ -271,24 +267,32 @@ function webStart() {
       if (input.text[0] === ";" || input.text[0] === " " || input.text[0] === ":") {
         isClassMethod = false;
         return;
-      }
-      else if(input.text[0] === "." || isClassMethod){
+      } else if (input.text[0] === "." || isClassMethod) {
         //autocomplete class methods
         isClassMethod = true;
         editor.showHint({
-          hint: () => autocompleteHint(editor, classMethodList, function (e : any, cur : any) { return e.getTokenAt(cur)})
-        })
-      }
-      else{
+          hint: () =>
+            autocompleteHint(editor, classMethodList, function (e: any, cur: any) {
+              return e.getTokenAt(cur);
+            }),
+        });
+      } else {
         //autocomplete variables, names, top-level functions
         editor.showHint({
-          hint: () => autocompleteHint(editor, default_keywords.concat(default_functions).concat(defList), function (e : any, cur : any) {return e.getTokenAt(cur);})
+          hint: () =>
+            autocompleteHint(
+              editor,
+              default_keywords.concat(default_functions).concat(defList),
+              function (e: any, cur: any) {
+                return e.getTokenAt(cur);
+              }
+            ),
         });
       }
     });
-    
-  editor.on("keydown", (cm,event) =>{
-      switch(event.code){
+
+    editor.on("keydown", (cm, event) => {
+      switch (event.code) {
         //reset isClassMethod variable based on enter or space or backspace
         case "Enter":
           isClassMethod = false;
@@ -304,10 +308,9 @@ function webStart() {
           };
           const repl = new BasicREPL(importObject);
           const source = document.getElementById("user-code") as HTMLTextAreaElement;
-          repl.run(source.value)
-            .then((r) => {
-              [defList, classMethodList] = populateAutoCompleteSrc(repl);
-            })
+          repl.run(source.value).then((r) => {
+            [defList, classMethodList] = populateAutoCompleteSrc(repl);
+          });
           return;
         case "Space":
           isClassMethod = false;
@@ -316,8 +319,7 @@ function webStart() {
           isClassMethod = false;
           return;
       }
-    })
-  
+    });
 
     var themeDropDown = document.getElementById("themes") as HTMLSelectElement;
     themeDropDown.addEventListener("change", (event) => {
@@ -326,7 +328,6 @@ function webStart() {
       editor.setOption("theme", themeDropDown.value);
     });
   });
-  
 }
 // Simple helper to highlight line given line number
 function highlightLine(actualLineNumber: number, msg: string): void {
