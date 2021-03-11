@@ -1,7 +1,7 @@
 import "mocha";
 import { expect } from "chai";
 import { BitMappedBlocks } from "../heap";
-import {TAG_CLASS, TAG_REF, HEADER_SIZE_BYTES} from "../gc";
+import {TAG_CLASS, TAG_REF, HEADER_SIZE_BYTES, TAG_LIST} from "../gc";
 
 describe("Heap", () => {
 
@@ -130,7 +130,62 @@ describe("Heap", () => {
         bmb = new BitMappedBlocks(100n, 1000n, 10n, 8n);
       });
 
+      it("returns the right index for the first free available block", () => {
+        console.log(bmb.getBlockIndex(10n))
+        expect(Number(bmb.getBlockIndex(10n))).to.eq(0);
+      });
+
+      it("return the right index for the first free available block 2", () => {
+        const ptr = bmb.gcalloc(TAG_CLASS, 10n);
+        const ptr2 = bmb.gcalloc(TAG_CLASS, 20n);
+        const ptr3 = bmb.gcalloc(TAG_CLASS, 10n);
+
+        bmb.free2(ptr2);
+
+        // Anything smaller than 10 => 1
+        expect(Number(bmb.getBlockIndex(8n))).to.eq(1);
+      });
       
-    })
+    });
+
+    describe("misc", () => {
+      let bmb: BitMappedBlocks;
+
+      beforeEach(() => {
+        // 90 blocks of size 10 each
+        bmb = new BitMappedBlocks(100n, 1000n, 10n, 8n);
+      });
+
+      it("should return true for any pointer value between 100 and 1000", () => {
+        expect(bmb.owns(833n)).to.eq(true);
+      });
+
+      it("should return false for values outside", () => {
+        expect(bmb.owns(1021n)).to.eq(false);
+      });
+
+      it("should return appropriate header", () => {
+        const size = 100n;
+        const tag = TAG_LIST;
+        
+        const ptr = bmb.gcalloc(tag, size);
+
+        const header = bmb.getHeader(ptr);
+
+        expect(header.getTag()).to.eq(tag);
+        expect(header.getSize()).to.eq(size);
+      });
+
+      it("should return the appropriate description", () => {
+        const expectedStr = `BitMapped { Max blocks: ${90}, block size: ${10}, free blocks: ${90}, start: ${100}, end: ${1000}, metadataSize: ${9} } `
+        expect(bmb.description()).to.eq(expectedStr);
+      });
+
+      it("should store number of blocks used instead of 0/1", () => {
+        // 55 => 6 blocks
+        const ptr = bmb.gcalloc(TAG_CLASS, 55n);
+        expect(bmb.infomap[0]).to.eq(6);
+      });
+    });
   });
 });
