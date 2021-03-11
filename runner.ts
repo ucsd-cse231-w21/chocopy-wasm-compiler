@@ -77,11 +77,11 @@ export async function run(
     importObject.js = { memory: memory };
   }
   if (!importObject.memoryManager) {
-    const memory = importObject.js.memory;
-    const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
-      staticStorage: 512n,
-      total: 2000n,
-    });
+    // NOTE(alex:mm): DO NOT INSTANTIATE A NEW MEMORY MANAGER
+    // MemoryManager potentially carries its own metadata CRUCIAL to GC
+    // If you allocate a new MemoryManager and call GC methods on an old MemoryManager,
+    //   expect massive breakage
+    const memoryManager = config.memoryManager;
     importObject.memoryManager = memoryManager;
     importMemoryManager(importObject, memoryManager);
   }
