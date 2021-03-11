@@ -16,7 +16,7 @@ import {
   AssignTarget,
   Parameter,
 } from "./ast";
-import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
+import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged, LIST } from "./utils";
 import * as BaseException from "./error";
 import { at } from "cypress/types/lodash";
 
@@ -231,12 +231,12 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<Location>): FunDef<[Type, 
   });
   fun.decls.forEach((decl) => {
     if (decl.tag == "nonlocal") {
-      throw new BaseException.CompileError([fun.a], `Invalid Nonlocal Variable ${decl.name}`);
+      throw new BaseException.CompileError([decl.a], `Invalid Nonlocal Variable ${decl.name}`);
     }
     if (!env.globals.has(decl.name)) {
-      throw new BaseException.CompileError([fun.a], `Invalid global Variable ${decl.name}`);
+      throw new BaseException.CompileError([decl.a], `Invalid global Variable ${decl.name}`);
     }
-    throw new Error(`Invalid global Variable ${decl.name}`);
+    throw new BaseException.CompileError([decl.a], `Invalid global Variable ${decl.name}2`);
   });
   fun.funs.forEach((func) => {
     locals.functions.set(func.name, [func.parameters, func.ret]);
@@ -337,9 +337,10 @@ export function tcDefault(paramType: Type, paramLiteral: Literal) {
   } else if (paramLiteral.tag === "num" && paramType.tag === "number") {
     return;
   } else if (paramLiteral.tag !== paramType.tag) {
-    throw new BaseException.CompileError(
+    throw new BaseException.TypeMismatchError(
       undefined, // TODO
-      "Default value type " + paramLiteral.tag + " does not match param type " + paramType.tag
+      paramType,
+      tcLiteral(paramLiteral)
     );
   }
 }
@@ -366,7 +367,10 @@ export function tcLambda(locals: LocalTypeEnv, expr: Expr<Location>, expected: T
         locals.vars.set(args[i], expected.args[i].type);
       }
     } else {
-      throw new TypeError("Function call type mismatch: Lambda");
+      throw new BaseException.TypeError(
+        [expr.a],
+        `lambda function takes ${expected.args.length} positional arguments but ${args.length} were given`
+      );
     }
   }
 }
@@ -404,7 +408,7 @@ export function tcStmt(
       return { a: [thnTyp, stmt.a], tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
     case "return":
       if (locals.topLevel)
-        throw new BaseException.SyntaxError([stmt.a], "‘return’ outside of functions");
+        throw new BaseException.SyntaxError([stmt.a], "'return' outside of functions");
 
       if (stmt.value.tag === "lambda" && locals.expectedRet.tag === "callable") {
         tcLambda(locals, stmt.value, locals.expectedRet);
@@ -444,10 +448,7 @@ export function tcStmt(
         case "string":
           // Character not implemented
           // locals.vars.set(stmt.name, {tag: 'char'});
-          throw new BaseException.CompileError(
-            [stmt.a],
-            "for-loop with strings are not implmented."
-          );
+          throw new BaseException.InternalException("for-loop with strings are not implmented.");
         case "list":
           locals.vars.set(stmt.name, fIter.a[0].content_type);
           break;
@@ -475,16 +476,16 @@ export function tcStmt(
       };
     case "break":
       if (locals.loop_depth < 1) {
-        throw new BaseException.SyntaxError([stmt.a], "Break outside a loop.");
+        throw new BaseException.SyntaxError([stmt.a], "'Break' outside a loop.");
       }
       return { a: [NONE, stmt.a], tag: "break", depth: locals.loop_depth };
     case "continue":
       if (locals.loop_depth < 1) {
-        throw new BaseException.SyntaxError([stmt.a], "Continue outside a loop.");
+        throw new BaseException.SyntaxError([stmt.a], "'Continue' outside a loop.");
       }
       const depth = locals.loop_depth - 1;
       return { a: [NONE, stmt.a], tag: "continue", depth: depth };
-    case "field-assign":
+    case "field-assign": // unreachable code ???
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
       console.log("field a" + tObj.a);
@@ -586,7 +587,7 @@ function tcDestructure(
         );
       if (target.starred) {
         starOffset = types.length - targets.length; // How many values will be assigned to the starred target
-        throw new BaseException.CompileError([destruct.valueType], "Starred values not supported");
+        throw new BaseException.InternalException("Starred values not supported");
       }
       let valueType = types[i + starOffset];
       return tcTarget(target, valueType);
@@ -604,7 +605,7 @@ function tcDestructure(
       valueType: [value, destruct.valueType],
     };
   } else {
-    throw new BaseException.CompileError(
+    throw new BaseException.TypeError(
       [destruct.valueType],
       `Type ${value.tag} cannot be destructured`
     );
@@ -762,7 +763,7 @@ export function tcExpr(
         throw new BaseException.NameError([expr.a], expr.name);
       }
     case "lambda":
-      throw new BaseException.TypeError([expr.a], "Lambda is not supported");
+      throw new BaseException.InternalException("Lambda is not supported");
     /*
       var args: Type[] = [];
       expr.args.forEach((arg) => args.push(locals.vars.get(arg)));
@@ -828,7 +829,7 @@ export function tcExpr(
           var argNums = tArgs.length;
           while (argNums < argTypes.length) {
             if (params[argNums].value === undefined) {
-              throw new BaseException.CompileError([expr.a], "Missing argument from call");
+              throw new BaseException.TypeError([expr.a], "Missing argument from call");
             } else {
               // add default values into arguments as an Expr
               augArgs = augArgs.concat([
@@ -847,10 +848,8 @@ export function tcExpr(
             })
           );
         }
-      } else {
-        // TODO incorrect parameter for call_expression
-        throw new BaseException.NameError([expr.a], expr.name.tag);
       }
+      throw new BaseException.TypeError([expr.a], "Not callable");
     case "call":
       if (expr.name == "range") {
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
@@ -867,7 +866,9 @@ export function tcExpr(
           arguments: tArgs,
         };
       }
-      throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
+      throw new BaseException.InternalException(
+        "Parser should use call_expr instead whose callee is an expression."
+      );
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
       if (tObj.a[0].tag === "class") {
@@ -982,13 +983,10 @@ export function tcExpr(
           valueTypes.add(JSON.stringify(valueType.a[0]));
         }
         if (keyTypes.size > 1) {
-          throw new BaseException.CompileError(
-            [expr.a],
-            "Heterogenous `Key` types aren't supported"
-          );
+          throw new BaseException.TypeError([expr.a], "Heterogenous `Key` types aren't supported");
         }
         if (valueTypes.size > 1) {
-          throw new BaseException.CompileError(
+          throw new BaseException.TypeError(
             [expr.a],
             "Heterogenous `Value` types aren't supported"
           );
@@ -1010,32 +1008,23 @@ export function tcExpr(
         return { ...expr, a: [valueType, expr.a], obj: obj_t, key: key_t };
       } else if (obj_t.a[0].tag == "string") {
         if (!equalType(key_t.a[0], NUM)) {
-          throw new BaseException.CompileError(
-            [expr.a],
-            "String lookup supports only integer indices"
-          );
+          throw new BaseException.TypeMismatchError([expr.a], NUM, key_t.a[0]);
         }
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
       } else if (obj_t.a[0].tag === "list") {
         if (!equalType(key_t.a[0], NUM)) {
-          throw new BaseException.CompileError(
-            [expr.a],
-            "List lookup supports only integer indices"
-          );
+          throw new BaseException.TypeMismatchError([expr.a], NUM, key_t.a[0]);
         }
         return { ...expr, obj: obj_t, key: key_t, a: [obj_t.a[0].content_type, expr.a] };
       } else {
-        throw new BaseException.CompileError(
+        throw new BaseException.TypeError(
           [expr.a],
           "Bracket lookup on " + obj_t.a[0].tag + " type not possible"
         );
       }
 
     default:
-      throw new BaseException.CompileError(
-        [expr.a],
-        `unimplemented type checking for expr: ${expr}`
-      );
+      throw new BaseException.InternalException(`unimplemented type checking for expr: ${expr}`);
   }
 }
 

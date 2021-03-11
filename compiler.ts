@@ -964,7 +964,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             valStmts.push(`(call $${expr.name})`);
             return valStmts;
           default:
-            throw new Error("Unsupported range() call!");
+            throw new BaseException.InternalException("Unsupported range() call!");
         }
       }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
@@ -1026,9 +1026,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           )
         );
       } else {
-        throw new BaseException.InternalException(
-          `Compile Error. Invalid name of tag ${nameExpr.tag}`
-        );
+        throw new BaseException.InternalException(`Invalid name of tag ${nameExpr.tag}`);
       }
       callExpr.push(...codeGenPopStack());
       return callExpr;
