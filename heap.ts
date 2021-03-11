@@ -156,7 +156,6 @@ class LinkedList {
 
       curr.data.size = curr.data.size - node.data.size;
       node.data.addr = curr.data.addr + curr.data.size;
-      curr.data.size = curr.data.size - node.data.size;
 
     return node;
   }
