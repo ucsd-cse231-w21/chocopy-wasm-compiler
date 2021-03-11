@@ -89,6 +89,8 @@ export function PyNone(): Value {
   return { tag: "none" };
 }
 
+export type WithTag<O, T> = O extends { tag: T } ? O : never;
+
 export function isTagged<
   A extends string[],
   V extends { tag: string },

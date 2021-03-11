@@ -9,6 +9,7 @@ export {
   TAG_DICT_ENTRY,
   TAG_BIGINT,
   TAG_REF,
+  TAG_TUPLE,
 } from "./gc";
 
 // Untagged pointer (32-bits)
@@ -23,7 +24,8 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
     tag === GC.TAG_DICT ||
     tag === GC.TAG_DICT_ENTRY ||
     tag === GC.TAG_BIGINT ||
-    tag === GC.TAG_REF
+    tag === GC.TAG_REF ||
+    tag === GC.TAG_TUPLE
   ) {
     return tag;
   }
