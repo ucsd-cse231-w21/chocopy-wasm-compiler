@@ -728,6 +728,19 @@ describe("Destructure tuples", () => {
     LIST(NUM)
   );
 
+  assertTC(
+    "TC destructure tuples with starred at head",
+    `
+    t : (int, int, int) = None
+    a : int = 0
+    b : [int] = None
+    t = (1,2,3)
+    *b, a = t
+    b
+  `,
+    LIST(NUM)
+  );
+
   assertTCFail(
     "TC destructure tuples with starred assignment, incorrect typed list",
     `

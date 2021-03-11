@@ -638,42 +638,88 @@ function tcDestructure(
 
     case "tuple": {
       let types = value.contentTypes;
-      let starOffset = 0;
-      let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map(
-        (target, i, targets) => {
-          if (i >= types.length)
-            throw new Error(
-              `Not enough values to unpack (expected at least ${i}, got ${types.length})`
-            );
-          if (target.starred) {
-            let tTarget = tcAssignable(env, locals, target.target);
-            if (tTarget.a[0].tag !== "list")
-              throw new BaseException.CompileError(
-                tTarget.a[1],
-                `Starred assignment target must have type list, found type ${tTarget.a[0].tag}`
-              );
-            starOffset = types.length - targets.length; // How many values to offset index to account for starred target
-            for (let j = i; j <= i + starOffset; j++)
-              if (!isAssignable(env, types[j], tTarget.a[0]))
-                throw new BaseException.CompileError(
-                  tTarget.a[1],
-                  `Cannot assign type ${types[j].tag} to list of type ${tTarget.a[0].content_type.tag}`
-                );
-            return {
-              target: tTarget,
-              starred: target.starred,
-              ignore: target.ignore,
-            };
-          }
-          let valueType = types[i + starOffset];
-          return tcTarget(target, valueType);
+      const starredIndex = destruct.targets.findIndex(({ starred }) => starred);
+      const tcTuples = (targets: AssignTarget<Location>[], types: Type[]) => {
+        if (targets.length !== types.length) {
+          throw new Error(
+            `Too many values to unpack (expected ${targets.length}, got ${types.length})`
+          );
         }
-      );
+        return targets.map((target, i) => tcTarget(target, types[i]));
+      };
 
-      if (types.length > destruct.targets.length + starOffset)
-        throw new Error(
-          `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
-        );
+      let tTargets: AssignTarget<[Type, Location]>[];
+
+      if (starredIndex >= 0) {
+        // subtract 1 from targets since starred can == []
+        if (types.length < destruct.targets.length - 1) {
+          throw new BaseException.CompileError(destruct.valueType, `Not enough values on RHS`);
+        }
+        const head = destruct.targets.slice(0, starredIndex);
+        const starred = destruct.targets[starredIndex];
+        const tail = destruct.targets.slice(starredIndex + 1, destruct.targets.length);
+
+        const tHead = tcTuples(head, types.slice(0, head.length));
+        const starredTypes = types.slice(starredIndex, -tail.length);
+        const tStarred = tcAssignable(env, locals, starred.target);
+        const starredType = tStarred.a[0];
+        if (starredType.tag !== "list") {
+          throw new BaseException.CompileError(
+            tStarred.a[1],
+            `Starred assignment target must have type list, found type ${starredType.tag}`
+          );
+        }
+        starredTypes.forEach((type) => {
+          if (!isAssignable(env, starredType.content_type, type)) {
+            throw new BaseException.TypeMismatchError(
+              tStarred.a[1],
+              starredType.content_type,
+              type
+            );
+          }
+        });
+        const tTail =
+          tail.length === 0 ? [] : tcTuples(tail, types.slice(-tail.length, types.length));
+        tTargets = [...tHead, { ...starred, target: tStarred }, ...tTail];
+      } else {
+        tTargets = tcTuples(destruct.targets, types);
+      }
+
+      // let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map(
+      //   (target, i, targets) => {
+      //     if (i >= types.length)
+      //       throw new Error(
+      //         `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+      //       );
+      //     if (target.starred) {
+      //       let tTarget = tcAssignable(env, locals, target.target);
+      //       if (tTarget.a[0].tag !== "list")
+      //         throw new BaseException.CompileError(
+      //           tTarget.a[1],
+      //           `Starred assignment target must have type list, found type ${tTarget.a[0].tag}`
+      //         );
+      //       starOffset = types.length - targets.length; // How many values to offset index to account for starred target
+      //       for (let j = i; j <= i + starOffset; j++)
+      //         if (!isAssignable(env, types[j], tTarget.a[0]))
+      //           throw new BaseException.CompileError(
+      //             tTarget.a[1],
+      //             `Cannot assign type ${types[j].tag} to list of type ${tTarget.a[0].content_type.tag}`
+      //           );
+      //       return {
+      //         target: tTarget,
+      //         starred: target.starred,
+      //         ignore: target.ignore,
+      //       };
+      //     }
+      //     let valueType = types[i + starOffset];
+      //     return tcTarget(target, valueType);
+      //   }
+      // );
+
+      // if (types.length > destruct.targets.length + starOffset)
+      //   throw new Error(
+      //     `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      //   );
 
       return {
         isDestructured: destruct.isDestructured,
