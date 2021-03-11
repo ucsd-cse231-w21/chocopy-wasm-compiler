@@ -1212,12 +1212,11 @@ export function annotateAST(globEnv: GlobalTypeEnv, program: Program<null>): [Gl
     stmts = [...stmts_];
   } while (s == Action.Repeat);
 
-  stmts.forEach(st => {
+  for (const st of stmts) {
     if (st.a.tag === "open-object") {
       closeOpenTypes(newEnv, st);
     }
-  })
-
+  }
   return [newEnv, { ...program, stmts }]
 }
 
@@ -1225,7 +1224,7 @@ function closeOpenTypes(globEnv: GlobalTypeEnv, st: Stmt<Type>) {
   for (const c of globEnv.classes.keys()) {
     switch (st.tag) {
       case "assign":
-        if (isSubtype(globEnv, st.value.a, CLASS(c))) {
+        if (isSubtype(globEnv, CLASS(c), st.value.a)) {
           st.value.a = CLASS(c);
           return;
         }
@@ -1233,7 +1232,6 @@ function closeOpenTypes(globEnv: GlobalTypeEnv, st: Stmt<Type>) {
       default:
         throw new Error(`TODO implement closing types for '${st.tag}'`)
     }
-    break;
   }
 }
 
