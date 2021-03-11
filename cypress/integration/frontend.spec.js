@@ -9,7 +9,7 @@ describe("Frontend Tests", () => {
   });
 
   it("Simple Test Code Mirror", () => {
-    cy.get('div[class="CodeMirror cm-s-neo"]')
+    cy.get('div[class="CodeMirror cm-s-neo CodeMirror-simplescroll"]')
       .click()
       .find("textarea", { force: true })
       .type("x:int = 0\nx\n", { force: true });
