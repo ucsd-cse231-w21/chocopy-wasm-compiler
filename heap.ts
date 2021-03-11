@@ -2,6 +2,9 @@ import { Pointer } from "./alloc";
 import { Header, HeapTag, HEADER_SIZE_BYTES, MarkableAllocator } from "./gc";
 import { NONE } from "./utils";
 
+// Allocator design inpsired by Andrei Alexandrescu's presentation at CppCon 2015:
+//   "std::allocator Is to Allocation what std::vector Is to Vexation"
+//
 // NOTE(alex:mm): allocators should consider 0x0 as an invalid pointer
 //   * WASM initializes local variables to 0
 export interface Allocator {
