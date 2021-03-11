@@ -638,17 +638,12 @@ export function tcExpr(
         case BinOp.Mod:
           if (
             expr.op == BinOp.Plus &&
-            (tLeft.a[0].tag === "list" ||
-            tLeft.a[0].tag === "string") &&
+            (tLeft.a[0].tag === "list" || tLeft.a[0].tag === "string") &&
             equalType(tLeft.a[0], tRight.a[0])
           ) {
             return { ...tBin, a: [tLeft.a[0], expr.a] };
           }
-          if (
-            expr.op == BinOp.Mul &&
-            tLeft.a[0].tag === "string" &&
-            equalType(tRight.a[0], NUM)
-          ) {
+          if (expr.op == BinOp.Mul && tLeft.a[0].tag === "string" && equalType(tRight.a[0], NUM)) {
             return { ...tBin, a: [tLeft.a[0], expr.a] };
           }
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
@@ -1026,10 +1021,7 @@ export function tcExpr(
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
       } else if (obj_t.a[0].tag === "list") {
         if (!equalType(key_t.a[0], NUM)) {
-          throw new BaseException.CompileError(
-            expr.a,
-            "List lookup supports only integer indices"
-          );
+          throw new BaseException.CompileError(expr.a, "List lookup supports only integer indices");
         }
         return { ...expr, obj: obj_t, key: key_t, a: [obj_t.a[0].content_type, expr.a] };
       } else {
@@ -1044,18 +1036,25 @@ export function tcExpr(
       // var end = tcExpr(env, locals, expr.end);
       var start = null;
       var end = null;
-      if(expr.end!==null){
+      if (expr.end !== null) {
         end = tcExpr(env, locals, expr.end);
       }
-      if(expr.start!==null){
+      if (expr.start !== null) {
         start = tcExpr(env, locals, expr.start);
       }
       var stride = tcExpr(env, locals, expr.stride);
       //Lists group just need to add an || condition below to check if the "obj_name" type is also a list
       if (!equalType(obj_name.a[0], STRING)) {
-        throw new BaseException.CompileError(expr.a, "Slicing operation cannot be done on " + obj_name.a + " type");
+        throw new BaseException.CompileError(
+          expr.a,
+          "Slicing operation cannot be done on " + obj_name.a + " type"
+        );
       }
-      if ((start!==null && !equalType(start.a[0], NUM)) || (end!==null && !equalType(end.a[0], NUM)) || !equalType(stride.a[0], NUM)) {
+      if (
+        (start !== null && !equalType(start.a[0], NUM)) ||
+        (end !== null && !equalType(end.a[0], NUM)) ||
+        !equalType(stride.a[0], NUM)
+      ) {
         throw new BaseException.CompileError(expr.a, "Slicing parameters must be of num type");
       }
       return { ...expr, name: obj_name, a: obj_name.a, start: start, end: end, stride: stride };
