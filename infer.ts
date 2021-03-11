@@ -1094,7 +1094,7 @@ export function annotateStmt(
       } else {
         const [s, value] = annotateExpr(stmt.value, globEnv, locEnv, topLevel);
         //let a = value.a; // Shouldn't this always be type None? The type of `x = 0`?
-        let a = NONE  // TODO: make sure algorithm doesn't expect anything other than this.
+        let a = value.a  // TODO: make sure algorithm doesn't expect anything other than this.
         if (locEnv.vars.has(stmt.name)) {
           let type_ = locEnv.vars.get(stmt.name);
           // FIXME: make isSubtype work with LocalTypeEnv since this is a local
@@ -1109,7 +1109,7 @@ export function annotateStmt(
         } else {
           locEnv.vars.set(stmt.name, a);
         }
-        return [s, { ...stmt, a, value }];
+        return [s, { ...stmt, a: NONE, value }];
       }
     }
     // TODO: For now we only infer the type of the return value by the RHS.
