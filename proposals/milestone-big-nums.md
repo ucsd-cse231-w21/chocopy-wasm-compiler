@@ -84,8 +84,7 @@
     
    6. BigNum in list or tuple
    
-     ```
-     list_num = [1,2,3,4294967296]
+     ```list_num = [1,2,3,4294967296]
      print(list_num)
      ```
      We haven't checked with the list and tuple team with their implementation. It can be possible that in order for our bigNum to work in list, we need some extra  modification on the program.
