@@ -99,6 +99,7 @@ export function augmentEnv(
   // for rg
   const rgAddr = mm.staticAlloc(4n);
   newGlobals.set("rg", Number(rgAddr));
+  mm.addGlobal(rgAddr);
 
   prog.classes.forEach((cls) => {
     const classFields = new Map();
