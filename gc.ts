@@ -392,10 +392,11 @@ export class MnS<A extends MarkableAllocator> {
 
         // Sanity check, just-in-case
         // NOTE(sagar): probably not necessary
-        // NOTE(alex): list length is an UNTAGGED value
-        if(isPointer(listLength)) {
-          throw new Error("Pointer value stored in the place of list length");
-        }
+        // NOTE(alex:MM): list length is PROBABLY an UNTAGGED value
+        // TODO(alex:mm): verify that this is the case
+        // if(isPointer(listLength)) {
+        //   throw new Error("Pointer value stored in the place of list length");
+        // }
 
         // Note(sagar): Memory layout is abstracted by allocator
         // childPtr always points to start of data, not header
