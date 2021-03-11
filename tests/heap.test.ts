@@ -200,7 +200,7 @@ describe("Heap", () => {
         const ptr1 = bmb.gcalloc(TAG_CLASS, 55n);
         const ptr2 = bmb.gcalloc(TAG_CLASS, 55n);
         const ptr3 = bmb.gcalloc(TAG_CLASS, 55n);
-        const ptr4 = bmb.gcalloc(TAG_CLASS, 60n);
+        const ptr4 = bmb.gcalloc(TAG_CLASS, 63n);
         const ptr5 = bmb.gcalloc(TAG_CLASS, 55n);
 
         [ptr1, ptr2, ptr3, ptr4, ptr5].forEach((ptr) => bmb.getHeader(ptr).mark());
