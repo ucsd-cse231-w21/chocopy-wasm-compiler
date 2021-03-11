@@ -300,8 +300,25 @@ describe("type inference", () => {
     "function inference 7",
     `
     def bAnd(x, y):
-      if x == y: 
-        return x == True
+      if x == True: 
+        return x == y
+      else:
+        return False
+      
+    bAnd(True, False)
+    `,
+    BOOL
+  );
+
+  assertTC(
+    "function inference 8",
+    `
+    def bAnd(x, y):
+      if x : 
+        if y :
+          return True
+        else: 
+          return False
       else:
         return False
       

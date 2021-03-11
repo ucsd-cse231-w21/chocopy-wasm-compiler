@@ -572,6 +572,8 @@ export function annotateExpr(
       if ((left.a === FAILEDINFER || right.a === FAILEDINFER)
       && !(left.a === FAILEDINFER && right.a === FAILEDINFER)) {
         switch (expr.op) {
+          case BinOp.Eq:
+          case BinOp.Neq:
           case BinOp.Plus: {
             let s_;
             if (left.a === FAILEDINFER) {
