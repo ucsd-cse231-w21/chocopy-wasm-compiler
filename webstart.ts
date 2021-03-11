@@ -13,96 +13,12 @@ import "codemirror/addon/lint/lint";
 import "codemirror/addon/scroll/simplescrollbars";
 import "./style.scss";
 import { toEditorSettings } from "typescript";
-<<<<<<< HEAD
-import { keyBy, replace } from "cypress/types/lodash";
-import {autocompleteHint, populateAutoCompleteSrc} from "./autocomplete";
-import {default_keywords, default_functions} from './pydefaultwordlist';
-
-var mem_js: { memory: any };
-var defList : string[] = [];
-var classMethodList:  string[] = [];
-var isClassMethod = false; //used to determine if still typing class method for potential autocomplete
-function stringify(result: Value): string {
-  switch (result.tag) {
-    case "num":
-      return result.value.toString();
-    case "bool":
-      return result.value ? "True" : "False";
-    case "string":
-      return result.value;
-    case "none":
-      return "None";
-    case "object":
-      return `<${result.name} object at ${result.address}`;
-    default:
-      throw new Error(`Could not render value: ${result}`);
-  }
-}
-
-function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
-  if(result.tag == "object"){
-    const exp  = document.createElement("button") as HTMLButtonElement;
-    exp.setAttribute("class","accordion");
-    const div = document.createElement("div");
-    div.setAttribute("class","panel");
-    const addr = document.createElement("p");
-    addr.innerHTML = "<b class='tag'>address: </b><p class='val'>" + result.address + "</p>";
-  
-    exp.innerHTML = "<i class='arrow right' id='arrow'></i> " + result.name + " object";
-    div.appendChild(addr);
-  
-    const view = new Int32Array(repl.importObject.js.memory.buffer);
-  
-    const cls = repl.currentEnv.classes.get(result.name);
-    const typedCls = repl.currentTypeEnv.classes.get(result.name)[0];
-
-    cls.forEach((value, key) =>{
-      var offset = value[0];
-      var type = typedCls.get(key)
-
-      const ele = document.createElement("pre");
-      const val = PyValue(type, view[result.address/4 + offset],view) as any; 
-      // PyValue implementation seems incomplete, casting to any for now
-
-      // pretty printing object fields
-      switch(type.tag){
-        case "class":
-          if(val.tag !== "none"){
-            ele.innerHTML = "<b class='tag'>" + key + ":</b>";
-            const new_div = document.createElement("div");
-            ele.appendChild(new_div)
-            prettyPrintObject({ 
-                                tag: "object", 
-                                name: type.name, 
-                                address: view[result.address/4 + offset] 
-                              }, 
-                              repl, 
-                              new_div) 
-          }
-          else{
-            ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
-          }
-          break;
-        default:
-          ele.innerHTML = "<b class='tag'>" + key + ": </b><p class='val'>" + val.value + "</p>";
-          break;
-      }
-      div.appendChild(ele);
-    });
-  
-    currentEle.appendChild(exp);
-    currentEle.appendChild(div);
-  }
-}
-
-function print(typ: Type, arg: number, mem: any): any {
-  console.log("Logging from WASM: ", arg);
-=======
 import { replace } from "cypress/types/lodash";
 import { ErrorManager } from "./errorManager";
+import { autocompleteHint, populateAutoCompleteSrc} from './autocomplete';
+import {default_keywords, default_functions } from './pydefaultwordlist';
 
 function print(val: Value) {
->>>>>>> front-end
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
   elt.innerText = stringify(val); // stringify(typ, arg, mem);
@@ -302,6 +218,10 @@ function webStart() {
       dropdown.appendChild(option);
     }
 
+    //necessary variables for autocomplete logic
+    var isClassMethod = false;
+    var classMethodList : string[] = [];
+    var defList : string[] = [];
     const textarea = document.getElementById("user-code") as HTMLTextAreaElement;
     const editor = CodeMirror.fromTextArea(textarea, {
       mode: "python",
@@ -349,30 +269,15 @@ function webStart() {
         case "Enter":
           isClassMethod = false;
           //compile code in background to get populate environment for autocomplete
-          const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
-          const view = new Int32Array(memory.buffer);
-          view[0] = 4;
-          var memory_js = { memory: memory };
           var importObject = {
             imports: {
-              print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-              print_str: (arg: number) =>
-                print(STRING, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-              print_num: (arg: number) =>
-                print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-              print_bool: (arg: number) =>
-                print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-              print_none: (arg: number) =>
-                print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+              print: print,
               abs: Math.abs,
               min: Math.min,
               max: Math.max,
               pow: Math.pow,
             },
-            js: memory_js,
           };
-      
-          mem_js = importObject.js;
           const repl = new BasicREPL(importObject);
           const source = document.getElementById("user-code") as HTMLTextAreaElement;
           repl.run(source.value)
@@ -396,11 +301,6 @@ function webStart() {
       var editor = ele.CodeMirror;
       editor.setOption("theme", themeDropDown.value);
     });
-<<<<<<< HEAD
-
-
-=======
->>>>>>> front-end
   });
 }
 // Simple helper to highlight line given line number
