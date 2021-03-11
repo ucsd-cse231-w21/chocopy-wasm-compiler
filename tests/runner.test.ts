@@ -412,10 +412,30 @@ while False:
   assert(
     "dict-get-method-default",
     `d:[int, int] = None
-          d = {1:2,2:10}
+          d = {1:2,2:10,15:25}
           d.get(5,100)
           `,
     PyInt(100)
+  );
+
+  assert(
+    "dict-update-method",
+    `d:[int, int] = None
+     d = {1:2,2:10,15:25}
+     d.update({5:100})
+     d[5]
+          `,
+    PyInt(100)
+  );
+
+  assert(
+    "dict-update-method-2",
+    `d:[int, int] = None
+     d = {1:2,5:10,15:25}
+     d.update({5:100, 11: 22})
+     d[5] + d.get(1,99) + d.get(12,99)
+          `,
+    PyInt(201)
   );
 
   assert(

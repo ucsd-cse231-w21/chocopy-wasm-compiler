@@ -515,7 +515,6 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
     case "method-call":
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
-      var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       if (objTyp.tag !== "class" && objTyp.tag !== "dict") {
         // I don't think this error can happen
         throw new Error(
@@ -524,16 +523,45 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       }
       if (objTyp.tag === "class") {
         var className = objTyp.name;
+        let argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
         return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
       } else {
         var className = "dict";
         if (expr.method === "get") {
+          let argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
           return [
             ...objStmts,
             ...argsStmts,
             `(call $${className}$${expr.method})`
           ];
         }
+
+        else if (expr.method === "update"){
+          console.log("inside codgen - method call - dict$update; args are:");
+          console.log(expr.arguments);
+
+          if(expr.arguments[0].tag === "dict"){
+            let dictStmts: Array<string> = [];
+            let dictAddress: Array<string> = [];
+            //dictAddress = dictAddress.concat(...objStmts);       
+
+            console.log("inside dict...")
+            expr.arguments[0].entries.forEach((keyval) => {
+              console.log("objStmts:");
+              console.log(objStmts);
+              dictAddress = dictAddress.concat(...objStmts);  
+              const value = codeGenExpr(keyval[1], env);
+              dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], value, 10, env));
+            });
+            
+            return [...dictAddress, ...dictStmts, '(i32.const 0)'];
+          }  
+
+          else{
+            throw new Error("This case shouldn't occur. Talk to the compiler architect.");
+          }
+        }
+        let argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
         return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
       }
 
