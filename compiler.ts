@@ -287,6 +287,7 @@ export function compile(progam: Program<Type>,
         break;
       }
     }
+    allInstrs.push("(drop)"); //modstore returns a number. Drop it!
   }
 
   if(progam.stmts.length >= 1){
@@ -603,6 +604,8 @@ function codeGenBinOp(left: Expr<Type>,
       break;
     }
   }
+
+  
 
   if(boolResultOps.has(op)){
     return `(call $${ALLC_BOOL} ${instr})`;

@@ -297,6 +297,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
           switch(lvarTypeName){
             case "int" : {localVarType = {tag: "number"}; break;}
             case "bool" : {localVarType = {tag: "bool"}; break;}
+            case "string": {localVarType = {tag: "string"}; break;}
             default: {localVarType = {tag: "class", name: lvarTypeName}};
           }
 
@@ -362,6 +363,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
             switch(tempParamType){
               case "int" : {params.set(tempParamName, {tag: "number"}); break;}
               case "bool" : {params.set(tempParamName, {tag: "bool"}); break;}
+              case "string": {params.set(tempParamName, {tag: "string"}); break;}
               default: {params.set(tempParamName, {tag: "class", name: tempParamType});};
             }
 
@@ -382,6 +384,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
         switch(rawReturnType){
           case "int" : {returnType = {tag: "number"}; break;}
           case "bool" : {returnType = {tag: "bool"}; break;}
+          case "string" : {returnType = {tag: "string"}; break;}
           default: {returnType = {tag: "class", name: rawReturnType}}
         }
         c.parent();

@@ -21,3 +21,6 @@ otherModule.someFunc()
 otherModule.otherFunc()
 
 func()
+
+x: string = "string in x"
+print(x)

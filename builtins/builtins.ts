@@ -28,15 +28,21 @@ export abstract class BuiltInModule {
     }
 };
 
-export interface BuiltInClass {
-    readonly name: string,
-    readonly variables: Map<string, BuiltVariable>,
-    readonly methods: Map<string, BuiltInFunction>
+export abstract class BuiltInClass {
+    readonly name: string;
+    readonly variables: Map<string, BuiltVariable>;
+    readonly methods: Map<string, BuiltInFunction>;
 
     /**
      * Can be used to attach a ClassPresenter for subsequent typechecks
      */
-    presenter: ClassPresenter
+    presenter: ClassPresenter;
+
+    readonly allocator: MainAllocator;
+
+    constructor(allocator: MainAllocator){
+        this.allocator = allocator;
+    }
 };
 
 export type BuiltInFunction = {
@@ -124,6 +130,38 @@ export function gatherPresenters(modules: Map<string, BuiltInModule>) {
 }
 
 //-----------ACTUAL MODULES--------------
+export class BString extends BuiltInClass{
+    readonly name: string;
+    readonly variables: Map<string, BuiltVariable>;
+    readonly methods: Map<string, BuiltInFunction>;
+
+    /**
+     * Can be used to attach a ClassPresenter for subsequent typechecks
+     */
+    presenter: ClassPresenter;
+
+    constructor(allocator: MainAllocator){
+        super(allocator);
+        this.name = "string";
+        this.variables = new Map();
+        this.methods = new Map([
+            ["length()", 
+                {
+                    isConstructor: false,
+                    identity: {signature: {name: "length", parameters: [CLASS("string")]}, 
+                            returnType: NONE},
+                    func: this.length
+                }
+            ]
+        ]);
+    }
+
+    length(... args:  number[]) : number{
+        const stringIns = this.allocator.getStr(args[0]);
+        return this.allocator.allocInt(stringIns.length);
+    }
+}
+
 export class NativeTypes extends BuiltInModule{
     readonly name: string;
     readonly classes : Map<string, BuiltInClass>;
@@ -135,10 +173,12 @@ export class NativeTypes extends BuiltInModule{
     constructor(allocator: MainAllocator){
         super(allocator);
         this.name = "natives";
-        this.classes = new Map();
+        this.classes = new Map([
+
+        ]);
         this.variables = new Map();
         this.functions = new Map([
-            ["print()", 
+            ["print(object)", 
               {   
                 isConstructor: false, 
                 identity: {signature: {name: "print", parameters: [CLASS("object")]}, 
@@ -193,7 +233,7 @@ export class NativeTypes extends BuiltInModule{
     }
 
     print(... args:  number[]) : number{
-        console.log("hello world! from builtin "+this.stringtify(args[0]));
+        console.log(this.stringtify(args[0]));
         return args[0];
     }
 

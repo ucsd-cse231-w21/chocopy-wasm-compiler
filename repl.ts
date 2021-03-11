@@ -15,13 +15,16 @@ import { compile, LabeledClass, LabeledModule } from "./compiler";
 class Labeler {
 
   labeledBuiltIns: Map<string, LabeledModule>;
+
   curGVarIndex: number;
+  curTypeCode: number;
 
   takenLabels: Map<string, number>;
 
   constructor(){
     this.labeledBuiltIns = new Map();
     this.curGVarIndex = 0;
+    this.curTypeCode = 0;
     this.takenLabels = new Map();
   }
 
@@ -67,6 +70,9 @@ class Labeler {
       vIndex++;
     }
 
+    //update global var index if source module
+    this.curGVarIndex = isSource ? vIndex : this.curGVarIndex;
+
     const funcs = new Map<string, {identity: FuncIdentity, label: string}>();
     for(let f of module.functions.values()){
       const fName = f.signature.name;
@@ -76,12 +82,14 @@ class Labeler {
     }
 
     const classes = new Map<string, LabeledClass>();
-    let typeCode = 0;
+    let typeCode = isSource ? this.curTypeCode : 0;
     for(let c of module.classes.values()){
       const lclass = this.labelClass(typeCode, c, module.name === undefined ? "" : module.name);
       classes.set(c.name, lclass);
       typeCode++;
     }
+
+    this.curTypeCode = isSource ? typeCode : this.curTypeCode;
 
     
     return {moduleCode: modCode, classes: classes, funcs: funcs, globalVars: vars};
@@ -133,11 +141,46 @@ export class BasicREPL {
     const compiled = compile(typed.typed, labeled, this.labeler.labeledBuiltIns, this.config.allocator);
     console.log("---------INSTRS--------\n"+compiled.join("\n"));
 
-    
-    run(compiled.join("\n"), this.config.funcs);
+    this.initGVars(typed.typed, labeled);
+
+    console.log("-----executing!!!!");
+
+    try {
+      const v = await run(compiled.join("\n"), this.config.funcs);
+    } catch (error) {
+      console.log("error caught! ");
+      console.log(error.stack);
+    }
     
 
     return undefined;
+  }
+
+  initGVars(program: Program<Type>, labeled: LabeledModule){
+    for(let [name, def] of program.inits.entries()){
+      this.config.allocator.addNewGVar(0, name, def.type);
+
+      let initValue = 0;
+      switch(def.value.tag){
+        case "bool": {
+          initValue = this.config.allocator.allocBool(def.value.value ? 1 : 0);
+          break;
+        }
+        case "string": {
+          initValue = this.config.allocator.allocStr(def.value.value);
+          break;
+        }
+        case "num": {
+          initValue = this.config.allocator.allocInt(Number(def.value.value));
+          break;
+        }
+        case "none": {
+          break;
+        }
+      }
+
+      this.config.allocator.modVarMute(0, labeled.globalVars.get(name), initValue);
+    }
   }
 
   async tc(source: string): Promise<Type> {
@@ -161,7 +204,7 @@ export class BasicREPL {
 
 async function main(){
   const allocator = new MainAllocator();
-  allocator.init(new Map());
+  allocator.initGlobalVars(3); //natives, otherModule, and source
 
   const builtins = new Map<string, BuiltInModule>();
 
@@ -205,7 +248,9 @@ async function main(){
                               funcs: testFuncs});
 
   const input = fs.readFileSync("./sampleprogs/sample7.txt","ascii");
+
   let v = await repl.run(input);
+ 
   
   //console.log("last type: "+typeToString(v));
 

@@ -741,7 +741,7 @@ export function tc(existingEnv: GlobalTable,
     else{
       const unfoundType = doesTypeExist(def.type, curGlobalTable);
       if(unfoundType !== undefined){
-        throw new TypeCheckError(`The type ${unfoundType} cannot be found!`);
+        throw new TypeCheckError(`The type ${unfoundType} cannot be found! ${def.type.tag}`);
       }
       else if(!isAssignable(def.type, literalToType(def.value))){
         throw new TypeCheckError(`For the variable ${name}: cannot assign ${literalToType(def.value)} to ${typeToString(def.type)}`);

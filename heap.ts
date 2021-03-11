@@ -1,12 +1,12 @@
 import { ClassPresenter, ModulePresenter } from "./types";
-import { Value, Type } from "./ast";
+import { Value, Type, Literal } from "./ast";
 import {BuiltInModule, BuiltVariable} from "./builtins/builtins";
-import { add, values } from "cypress/types/lodash";
 
 export type RuntimeModule = {
   presenter: ModulePresenter,
-  builtInVariable: Array<BuiltVariable>,
-  classes: Map<number, ClassPresenter>
+  isBuiltin: boolean,
+  classes: Map<number, {vars: Array<Literal>}>,
+  varNames: Map<number, string>
 }
 
 /*
@@ -25,18 +25,27 @@ export class MainAllocator{
   private heap: Array<Instance>;
   private heapIndex: number;
 
-  private modules: Map<number, RuntimeModule>;
+  private typesByModule: Map<number, RuntimeModule>;
 
-  constructor(){}
-
-  init(modules: Map<number, RuntimeModule>){
-    this.modules = modules;
-
-    this.globalVars = new Array(modules.size).fill([]);
-
-    
+  constructor(){
     this.heap = [undefined]; //we start with an array of size 2. Index 0 is None
+    this.typesByModule = new Map();
     this.heapIndex = 1;
+  }
+
+  initGlobalVars(totalModules: number){
+    this.globalVars = new Array(totalModules);
+    for(let i = 0; i < totalModules; i++){
+      this.globalVars[i] = [];
+    }
+  }
+
+  addNewType(modCode: number, typeCode: number, initValues: Array<Literal>){
+    this.typesByModule.get(modCode).classes.set(typeCode, {vars: initValues});
+  }
+
+  addNewGVar(modCode: number, name: string, type: Type){
+    this.globalVars[modCode].push(new BuiltVariable(name, type));
   }
 
   getInstance(addr: number): Instance{
@@ -73,7 +82,9 @@ export class MainAllocator{
   }
 
   modVarRetr(modCode: number, vIndex: number): number{
+    //console.log(` =====> runtime: Retrieving gvar of mod ${modCode} at index ${vIndex}`);
     const module = this.globalVars[modCode];
+
     return module[vIndex].get();
   }
 
@@ -96,26 +107,25 @@ export class MainAllocator{
   }
 
   allocObj(modCode: number, typeCode: number): number{
-    const module = this.modules.get(modCode);
+    const module = this.typesByModule.get(modCode);
     const targetClass = module.classes.get(typeCode);
 
     const attrs = new Array<number>();
-
-    /*
-    for(let [_, info] of targetClass.instanceVars.entries()){
-      switch(info.initValue.tag){
+    
+    for(let initValue of targetClass.vars){
+      switch(initValue.tag){
         case "bool": {
-          const alloc = this.allocBool(info.initValue.value ? 1 : 0);
+          const alloc = this.allocBool(initValue.value ? 1 : 0);
           attrs.push(alloc);
           break;
         }
         case "string": {
-          const alloc = this.allocStr(info.initValue.value);
+          const alloc = this.allocStr(initValue.value);
           attrs.push(alloc);
           break;
         }
         case "num": {
-          const alloc = this.allocInt(Number(info.initValue.value));
+          const alloc = this.allocInt(Number(initValue.value));
           attrs.push(alloc);
           break;
         }
@@ -125,7 +135,7 @@ export class MainAllocator{
         }
       }
     }
-    */
+    
 
     const addr = this.heapIndex;
     this.heap.push({tag: "instance", moduleCode: modCode, typeCode: typeCode, attrs: attrs});
