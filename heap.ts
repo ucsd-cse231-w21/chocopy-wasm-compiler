@@ -214,6 +214,12 @@ export class FreeListAllocator implements MarkableAllocator {
     this.linkedList.insertInBegin({ addr: start, size: (end-start), isFree: true });
   }
 
+  dumpList() {
+    this.linkedList.traverse().forEach(f => {
+      console.log(`{ addr: ${f.addr}, size: ${f.size}, free: ${f.isFree} }`);
+    });
+  }
+
   alloc(s: bigint): Block {
 
     let curr = this.linkedList.getHead();
