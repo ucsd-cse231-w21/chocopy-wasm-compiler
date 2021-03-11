@@ -3,6 +3,7 @@ import * as GC from "./gc";
 export {
   HeapTag,
   TAG_CLASS,
+  TAG_CLOSURE,
   TAG_LIST,
   TAG_STRING,
   TAG_DICT,
@@ -19,6 +20,7 @@ export type StackIndex = bigint;
 export function toHeapTag(tag: bigint): GC.HeapTag {
   if (
     tag === GC.TAG_CLASS ||
+    tag === GC.TAG_CLOSURE ||
     tag === GC.TAG_LIST ||
     tag === GC.TAG_STRING ||
     tag === GC.TAG_DICT ||
@@ -86,7 +88,7 @@ export class MemoryManager {
   memory: Uint8Array;
   staticAllocator: H.BumpAllocator;
 
-  gc: GC.MnS<GC.MarkableAllocator>
+  gc: GC.MnS<GC.MarkableAllocator>;
 
   constructor(
     memory: Uint8Array,
@@ -99,7 +101,6 @@ export class MemoryManager {
     const staticStart = 4n;
     const staticEnd = staticStart + cfg.staticStorage;
     this.staticAllocator = new H.BumpAllocator(memory, staticStart, staticEnd);
-
 
     const gcStart = BigInt(staticEnd);
     const gcEnd = BigInt(cfg.total);
@@ -114,14 +115,21 @@ export class MemoryManager {
       throw new Error(`flEnd (${flEnd}) >= ${flStart}`);
     }
 
-    const bucketWord = new H.BitMappedBlocks(bucketWordStart, bucketWordEnd, 4n, BigInt(GC.HEADER_SIZE_BYTES));
+    const bucketWord = new H.BitMappedBlocks(
+      bucketWordStart,
+      bucketWordEnd,
+      4n,
+      BigInt(GC.HEADER_SIZE_BYTES)
+    );
 
     const fl = new H.FreeListAllocator(memory, flStart, flEnd);
 
-    const gcHeap = new GC.MarkableSegregator(4n,
+    const gcHeap = new GC.MarkableSegregator(
+      4n,
       bucketWord,
       // new GC.MarkableFallback(bucketWord, fl),
-      fl);
+      fl
+    );
 
     this.gc = new GC.MnS(memory, gcHeap);
   }
@@ -262,6 +270,10 @@ export class MemoryManager {
   getSize(ptr: Pointer): bigint {
     const header = this.gc.heap.getHeader(ptr);
     return header.getSize();
+  }
+
+  heapMemoryUsage(): bigint {
+    return this.gc.heap.memoryUsage();
   }
 }
 

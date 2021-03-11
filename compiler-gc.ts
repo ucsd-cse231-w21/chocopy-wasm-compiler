@@ -1,18 +1,20 @@
-export type AugmentConfig =  {
-  main: boolean,
+export type AugmentConfig = {
+  main: boolean;
   debug?: {
-    name: string,
-  }
+    name: string;
+  };
 };
 
 const DEBUG = true;
 
 function makeHash(s: string): number {
-  var hash = 0, i, chr;
+  var hash = 0,
+    i,
+    chr;
   if (s.length === 0) return hash;
   for (i = 0; i < s.length; i++) {
-    chr   = s.charCodeAt(i);
-    hash  = ((hash << 5) - hash) + chr;
+    chr = s.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
     hash |= 0; // Convert to 32bit integer
   }
   return hash;
@@ -21,7 +23,7 @@ function makeHash(s: string): number {
 export function augmentFnGc(
   fnInstrs: Array<string>,
   locals: Map<string, number>,
-  cfg: AugmentConfig,
+  cfg: AugmentConfig
 ): Array<string> {
   let results: Array<string> = [];
 

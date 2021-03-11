@@ -20,6 +20,7 @@ import {
   MemoryManager,
   TAG_BIGINT,
   TAG_CLASS,
+  TAG_CLOSURE,
   TAG_DICT,
   TAG_DICT_ENTRY,
   TAG_LIST,
@@ -84,7 +85,6 @@ export function augmentEnv(
     if (clo.isGlobal) {
       const globalAddr = mm.staticAlloc(4n);
       newGlobals.set(clo.name, Number(globalAddr));
-      mm.addGlobal(globalAddr);
     }
   });
 
@@ -231,7 +231,7 @@ export function compile(
     main: true,
     debug: {
       name: "entry",
-    }
+    },
   });
   withDefines.locals.clear();
 
@@ -249,7 +249,7 @@ function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
     let idx = fun_info[0];
     let length = fun_info[1].length;
     let loc = envLookup(env, fun);
-    inits.push(...myMemAlloc(`$$addr`, length + 1));
+    inits.push(...myMemAlloc(`$$addr`, length + 1, true));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function reference`);
   });
@@ -573,10 +573,15 @@ function codeGenInit(init: VarInit<[Type, Location]>, env: GlobalEnv): Array<str
 
 // NOTE(alex:mm): Assuming this is only called for closure allocation
 //   which uses a class-based layout
-function myMemAlloc(name: string, sizeInValueCount: number): Array<string> {
+function myMemAlloc(name: string, sizeInValueCount: number, closure?: boolean): Array<string> {
   const allocs: Array<string> = [];
   const sizeInBytes = sizeInValueCount * 4;
-  allocs.push(`(i32.const ${Number(TAG_REF)}) ;; heap-tag: ref`);
+  let tag = closure ? TAG_CLOSURE : TAG_REF;
+  allocs.push(
+    `(i32.const ${Number(closure ? TAG_CLOSURE : TAG_REF)}) ;; heap-tag: ${
+      closure ? "closure" : "ref"
+    }`
+  );
   allocs.push(`(i32.const ${sizeInBytes})`);
   allocs.push(`(call $$gcalloc)`);
   allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
@@ -594,7 +599,8 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
 
   nested.forEach((fun) => {
     let [idx, nonlocals] = env.funs.get(fun);
-    inits.push(...myMemAlloc(`$$addr`, nonlocals.length + 1));
+    // NOTE(alex:mm): Pass `true` to allocate with TAG_CLOSURE
+    inits.push(...myMemAlloc(`$$addr`, nonlocals.length + 1, true));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
       // the dependent variable 'v' exists in the parent scope
@@ -686,7 +692,7 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
     main: false,
     debug: {
       name: def.name,
-    }
+    },
   });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
@@ -739,7 +745,7 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
     main: false,
     debug: {
       name: def.name,
-    }
+    },
   });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
@@ -875,17 +881,7 @@ function codeGenListCopy(concat: number): Array<string> {
 
     //while loop structure
     stmts.push(
-      ...[
-        `(block`,
-        `(loop`,
-        `(br_if 1`,
-        ...condstmts,
-        `)`,
-        ...loopstmts,
-        `(br 0)`,
-        `)`,
-        `)`,
-      ]
+      ...[`(block`, `(loop`, `(br_if 1`, ...condstmts, `)`, ...loopstmts, `(br 0)`, `)`, `)`]
     );
   });
 
@@ -1142,10 +1138,21 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           stmts.push(...[...codeGenExpr(lexpr, env)]);
         });
 
+      // NOTE(alex:mm) $$allocPointer clobbered by recurse codegen
+      //   Should be fine in this context
+      stmts.push(
+        ...[
+          `(i32.const ${TAG_LIST}) ;; heap-tag: list`,
+          `(i32.const ${(listBound + 3) * 4})`,
+          `(call $$gcalloc)`,
+          `(local.set $$allocPointer)`,
+        ]
+      );
+
       listHeader.forEach((val) => {
         stmts.push(
           ...[
-            `(i32.load (i32.const 0))`,
+            `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             "(i32.const " + val + ")",
             "(i32.store)",
@@ -1158,7 +1165,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         stmts.push(
           ...[
             `(local.set $$list_temp)`,
-            `(i32.load (i32.const 0))`,
+            `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             `(local.get $$list_temp)`,
             "(i32.store)",
@@ -1168,13 +1175,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       });
 
       //Move heap head to the end of the list and return list address
-      return stmts.concat([
-        "(i32.load (i32.const 0))",
-        "(i32.const 0)",
-        "(i32.load (i32.const 0))",
-        `(i32.add (i32.const ${(listBound + 3) * 4}))`,
-        "(i32.store)",
-      ]);
+      return stmts.concat([`(local.get $$allocPointer)`]);
 
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
