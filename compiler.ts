@@ -20,6 +20,7 @@ import {
   MemoryManager,
   TAG_BIGINT,
   TAG_CLASS,
+  TAG_CLOSURE,
   TAG_DICT,
   TAG_DICT_ENTRY,
   TAG_LIST,
@@ -571,10 +572,11 @@ function codeGenInit(init: VarInit<[Type, Location]>, env: GlobalEnv): Array<str
 
 // NOTE(alex:mm): Assuming this is only called for closure allocation
 //   which uses a class-based layout
-function myMemAlloc(name: string, sizeInValueCount: number): Array<string> {
+function myMemAlloc(name: string, sizeInValueCount: number, closure?: boolean): Array<string> {
   const allocs: Array<string> = [];
   const sizeInBytes = sizeInValueCount * 4;
-  allocs.push(`(i32.const ${Number(TAG_REF)}) ;; heap-tag: ref`);
+  let tag = closure ? TAG_CLOSURE : TAG_REF;
+  allocs.push(`(i32.const ${Number(closure ? TAG_CLOSURE : TAG_REF)}) ;; heap-tag: ${closure ? "closure" : "ref"}`);
   allocs.push(`(i32.const ${sizeInBytes})`);
   allocs.push(`(call $$gcalloc)`);
   allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
@@ -592,7 +594,8 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
 
   nested.forEach((fun) => {
     let [idx, nonlocals] = env.funs.get(fun);
-    inits.push(...myMemAlloc(`$$addr`, nonlocals.length + 1));
+    // NOTE(alex:mm): Pass `true` to allocate with TAG_CLOSURE
+    inits.push(...myMemAlloc(`$$addr`, nonlocals.length + 1, true));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
       // the dependent variable 'v' exists in the parent scope

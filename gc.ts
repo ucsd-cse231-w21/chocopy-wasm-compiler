@@ -5,6 +5,7 @@ import { throws } from "assert";
 
 export type HeapTag =
   | typeof TAG_CLASS
+  | typeof TAG_CLOSURE
   | typeof TAG_LIST
   | typeof TAG_STRING
   | typeof TAG_DICT
@@ -21,6 +22,7 @@ export const TAG_BIGINT = 0x5n;
 export const TAG_REF = 0x6n;
 export const TAG_DICT_ENTRY = 0x7n;
 export const TAG_OPAQUE = 0x8n;           // NOTE(alex:mm) needed to mark zero-sized-types
+export const TAG_CLOSURE = 0x9n;
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
@@ -370,9 +372,11 @@ export class MnS<A extends MarkableAllocator> {
   trace(worklist: Array<Pointer>) {
     while (worklist.length > 0) {
       const childPtr = worklist.pop();
+      console.warn(`Attempting to trace ${childPtr}`);
       const headerRef = this.heap.getHeader(childPtr);
       const childSize = headerRef.getSize(); // in bytes
       const childTag = headerRef.getTag();
+      console.warn(`Tracing ${childPtr} (tag=${childTag}, size=${childSize})`);
 
       // NOTE(alex:mm): using a `switch` here breaks occasionally for whatever reason
       if (childTag === TAG_CLASS) {
@@ -443,7 +447,7 @@ export class MnS<A extends MarkableAllocator> {
             currListAddr = this.getField(currListAddr + 8n);
           }
         }
-      } else if (TAG_REF) {
+      } else if (childPtr === TAG_REF) {
         // NOTE(alex:mm): assume a single value
         // TODO(alex:mm): TAG_REF can be potentially be merged with TAG_CLASS
         this.setMarked(childPtr);
@@ -452,6 +456,24 @@ export class MnS<A extends MarkableAllocator> {
           const pointerValue = extractPointer(value);
           worklist.push(pointerValue);
         }
+      } else if (TAG_CLOSURE) {
+        // Layout [32-bit fn table-index, boxed-values...]
+        this.setMarked(childPtr);
+        const childSize = headerRef.getSize(); // in bytes
+        const boxedRefsSize = childSize - 4n;
+        console.warn(`TAG CLOSURE {size=${childSize}}`);
+
+
+        const dataBase = childPtr + 4n;
+        for (let dataPtr = dataBase; dataPtr < dataBase + boxedRefsSize; dataPtr += 4n) {
+          const value = readI32(this.memory, Number(dataPtr));
+          console.warn(`Value: ${value}`);
+          if (isPointer(value) && value !== 0n) {
+            const pointerValue = extractPointer(value);
+            worklist.push(pointerValue);
+          }
+        }
+
       } else {
         throw new Error(`Trying to trace unknown heap object: ${childTag.toString()}`);
       }
@@ -517,7 +539,7 @@ export class MnS<A extends MarkableAllocator> {
         this.roots.addTemp(result);
       }
     }
-    // console.warn(`Allocating ${size} at ${result} (tag=${tag})`);
+    console.warn(`Allocating ${size} at ${result} (tag=${tag})`);
 
     return result;
   }
