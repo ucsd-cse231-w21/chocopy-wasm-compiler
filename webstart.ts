@@ -12,10 +12,14 @@ import "codemirror/addon/lint/lint";
 import "codemirror/addon/scroll/simplescrollbars";
 import "./style.scss";
 import { toEditorSettings } from "typescript";
-import { replace } from "cypress/types/lodash";
+import { keyBy, replace } from "cypress/types/lodash";
+import {autocompleteHint, populateAutoCompleteSrc} from "./autocomplete";
+import {default_keywords, default_functions} from './pydefaultwordlist';
 
 var mem_js: { memory: any };
-
+var defList : string[] = [];
+var classMethodList:  string[] = [];
+var isClassMethod = false; //used to determine if still typing class method for potential autocomplete
 function stringify(result: Value): string {
   switch (result.tag) {
     case "num":
@@ -337,7 +341,7 @@ function webStart() {
       lint: true,
       gutters: ["error"],
       extraKeys: {
-        "Ctrl+Space": "autocomplete",
+        "Ctrl+Space": "autocomplete"
       },
       hintOptions: {
         alignWithWord: false,
@@ -351,12 +355,70 @@ function webStart() {
     });
     editor.on("inputRead", function onChange(editor, input) {
       if (input.text[0] === ";" || input.text[0] === " " || input.text[0] === ":") {
+        isClassMethod = false;
         return;
       }
-      editor.showHint({
-        // hint:
-      });
+      else if(input.text[0] === "." || isClassMethod){
+        //autocomplete class methods
+        isClassMethod = true;
+        editor.showHint({
+          hint: () => autocompleteHint(editor, classMethodList, function (e : any, cur : any) { return e.getTokenAt(cur)})
+        })
+      }
+      else{
+        //autocomplete variables, names, top-level functions
+        editor.showHint({
+          hint: () => autocompleteHint(editor, default_keywords.concat(default_functions).concat(defList), function (e : any, cur : any) {return e.getTokenAt(cur);})
+        });
+      }
     });
+    
+  editor.on("keydown", (cm,event) =>{
+      switch(event.code){
+        //reset isClassMethod variable based on enter or space or backspace
+        case "Enter":
+          isClassMethod = false;
+          //compile code in background to get populate environment for autocomplete
+          const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+          const view = new Int32Array(memory.buffer);
+          view[0] = 4;
+          var memory_js = { memory: memory };
+          var importObject = {
+            imports: {
+              print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+              print_str: (arg: number) =>
+                print(STRING, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+              print_num: (arg: number) =>
+                print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+              print_bool: (arg: number) =>
+                print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+              print_none: (arg: number) =>
+                print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+              abs: Math.abs,
+              min: Math.min,
+              max: Math.max,
+              pow: Math.pow,
+            },
+            js: memory_js,
+          };
+      
+          mem_js = importObject.js;
+          const repl = new BasicREPL(importObject);
+          const source = document.getElementById("user-code") as HTMLTextAreaElement;
+          repl.run(source.value)
+            .then((r) => {
+              [defList, classMethodList] = populateAutoCompleteSrc(repl);
+            })
+          return;
+        case "Space":
+          isClassMethod = false;
+          return;
+        case "Backspace":
+          isClassMethod = false;
+          return;
+      }
+    })
+  
 
     var themeDropDown = document.getElementById("themes") as HTMLSelectElement;
     themeDropDown.addEventListener("change", (event) => {
@@ -364,7 +426,6 @@ function webStart() {
       var editor = ele.CodeMirror;
       editor.setOption("theme", themeDropDown.value);
     });
-
 
 
   });
