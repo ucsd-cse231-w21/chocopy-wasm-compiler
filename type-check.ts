@@ -874,7 +874,10 @@ export function tcExpr(
           arguments: tArgs,
         };
       }
-      throw new BaseException.TypeError(expr.a, "Parser should use call_expr instead whose callee is an expression.");
+      throw new BaseException.TypeError(
+        expr.a,
+        "Parser should use call_expr instead whose callee is an expression."
+      );
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
       if (tObj.a[0].tag === "class") {
@@ -940,7 +943,6 @@ export function tcExpr(
         throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
       }
     case "comprehension":
-
       // iter
       const iter = tcExpr(env, locals, expr.iter);
       let expectedFieldType: Type;
@@ -968,11 +970,7 @@ export function tcExpr(
         const fieldType: Type = field.a[0];
         // We should use isAssignable here
         if (!isAssignable(env, expectedFieldType, fieldType)) {
-          throw new BaseException.TypeMismatchError(
-            expr.a,
-            expectedFieldType,
-            fieldType
-          );
+          throw new BaseException.TypeMismatchError(expr.a, expectedFieldType, fieldType);
         }
       } else {
         //* We don't know if we (or the for loop team) will support this special case.
@@ -989,11 +987,7 @@ export function tcExpr(
         const cond = tcExpr(env, locals, expr.cond);
 
         if (cond.a[0].tag !== "bool") {
-          throw new BaseException.TypeMismatchError(
-            cond.a[1],
-            { tag: "bool" },
-            cond.a[0]
-          );
+          throw new BaseException.TypeMismatchError(cond.a[1], { tag: "bool" }, cond.a[0]);
         }
 
         return {

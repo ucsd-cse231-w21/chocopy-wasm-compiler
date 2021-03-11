@@ -409,7 +409,6 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
         iter: iter,
       };
 
-
     case "ArrayExpression":
       let listExpr: Array<Expr<Location>> = [];
       c.firstChild();

@@ -139,8 +139,14 @@ export type Expr<A> =
       field: Assignable<A>;
       iter: Expr<A>;
       cond?: Expr<A>;
-    } // Need to change field to Assignable since lst = [t.n for t.n in range(10)] runs correctly, if the type of t has n.
-  | { a?: A; tag: "comprehension_block"; block: Array<Stmt<A>>; expr: Expr<A>, cleanup_stmt: Stmt<A> }
+    }
+  | {
+      a?: A;
+      tag: "comprehension_block";
+      block: Array<Stmt<A>>;
+      expr: Expr<A>;
+      cleanup_stmt: Stmt<A>;
+    }
   | { a?: A; tag: "call_expr"; name: Expr<A>; arguments: Array<Expr<A>> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
   | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }

@@ -15,11 +15,16 @@ import {
 import { NONE } from "./utils";
 import * as compiler from "./compiler";
 
-type CurrentScope = Program<[Type, Location]> | FunDef<[Type, Location]> | ClosureDef<[Type, Location]>;
+type CurrentScope =
+  | Program<[Type, Location]>
+  | FunDef<[Type, Location]>
+  | ClosureDef<[Type, Location]>;
 
-function transformComprehension(comprehension: Expr<[Type, Location]>,
-                                current_scope: CurrentScope,
-                                env: compiler.GlobalEnv): [CurrentScope, Expr<[Type, Location]>] {
+function transformComprehension(
+  comprehension: Expr<[Type, Location]>,
+  current_scope: CurrentScope,
+  env: compiler.GlobalEnv
+): [CurrentScope, Expr<[Type, Location]>] {
   if (comprehension.tag !== "comprehension") {
     throw new Error("Expected a comprehension expression");
   }
@@ -42,7 +47,7 @@ function transformComprehension(comprehension: Expr<[Type, Location]>,
     a: [NONE, comprehension.a[1]],
     name: tmp_lst_name,
     type: comprehension.a[0], // { tag: "list", content_type: comprehension.expr.a[0] },
-    value: { tag: "none" }
+    value: { tag: "none" },
   });
 
   // tmp_lst_name = []             # set tmp_lst_name to be [] right before this comprehension
@@ -56,19 +61,23 @@ function transformComprehension(comprehension: Expr<[Type, Location]>,
         {
           starred: false,
           ignore: false,
-          target: { a: comprehension.a, tag: "id", name: tmp_lst_name }
-        }
-      ]
+          target: { a: comprehension.a, tag: "id", name: tmp_lst_name },
+        },
+      ],
     },
     value: {
       a: comprehension.a,
       tag: "list-expr",
-      contents: []
-    }
+      contents: [],
+    },
   };
 
   // default if condition is always true
-  let if_cond: Expr<[Type, Location]> = { a: comprehension.a, tag: "literal", value: { tag: "bool", value: true } };
+  let if_cond: Expr<[Type, Location]> = {
+    a: comprehension.a,
+    tag: "literal",
+    value: { tag: "bool", value: true },
+  };
   // if user specified an if condition, then we use that
   if (comprehension.cond) {
     if_cond = comprehension.cond;
@@ -92,20 +101,20 @@ function transformComprehension(comprehension: Expr<[Type, Location]>,
             {
               starred: false,
               ignore: false,
-              target: { a: comprehension.a, tag: "id", name: tmp_lst_name }
-            }
-          ]
+              target: { a: comprehension.a, tag: "id", name: tmp_lst_name },
+            },
+          ],
         },
         value: {
           a: comprehension.a,
           tag: "binop",
           op: BinOp.Plus,
           left: { a: comprehension.a, tag: "id", name: tmp_lst_name },
-          right: { a: comprehension.a, tag: "list-expr", contents: [comprehension.expr] }
-        }
-      }
+          right: { a: comprehension.a, tag: "list-expr", contents: [comprehension.expr] },
+        },
+      },
     ],
-    els: []
+    els: [],
   };
 
   /*
@@ -118,7 +127,7 @@ function transformComprehension(comprehension: Expr<[Type, Location]>,
     a: comprehension.a,
     name: comprehension.field.name,
     iterable: comprehension.iter,
-    body: [if_stmt]
+    body: [if_stmt],
   };
 
   let tmp_lst_expr: Expr<[Type, Location]> = { a: comprehension.a, tag: "id", name: tmp_lst_name };
@@ -135,17 +144,17 @@ function transformComprehension(comprehension: Expr<[Type, Location]>,
         {
           starred: false,
           ignore: false,
-          target: { a: comprehension.a, tag: "id", name: tmp_lst_name }
-        }
-      ]
+          target: { a: comprehension.a, tag: "id", name: tmp_lst_name },
+        },
+      ],
     },
     value: {
       a: comprehension.a,
       tag: "literal",
       value: {
-        tag: "none"
-      }
-    }
+        tag: "none",
+      },
+    },
   };
 
   // Note: "tmp_lst_name = None" at the end does NOT update the stack's topmost reference to the list in the heap,
@@ -159,19 +168,21 @@ function transformComprehension(comprehension: Expr<[Type, Location]>,
   tmp_lst_name
   tmp_lst_name = None
  */
-  let block : Expr<[Type, Location]> = {
+  let block: Expr<[Type, Location]> = {
     tag: "comprehension_block",
     a: comprehension.a,
     expr: tmp_lst_expr,
     block: block_stmts,
-    cleanup_stmt: tmp_lst_set_cleanup_stmt
+    cleanup_stmt: tmp_lst_set_cleanup_stmt,
   };
   return [current_scope, block];
 }
 
-function transformAssignable(assignable: Assignable<[Type, Location]>,
-                             current_scope: CurrentScope,
-                             env: compiler.GlobalEnv): [CurrentScope, Assignable<[Type, Location]>] {
+function transformAssignable(
+  assignable: Assignable<[Type, Location]>,
+  current_scope: CurrentScope,
+  env: compiler.GlobalEnv
+): [CurrentScope, Assignable<[Type, Location]>] {
   switch (assignable.tag) {
     case "bracket-lookup":
       [current_scope, assignable.obj] = transformExpr(assignable.obj, current_scope, env);
@@ -187,28 +198,49 @@ function transformAssignable(assignable: Assignable<[Type, Location]>,
   }
 }
 
-function transformAssignTarget(assignTarget: AssignTarget<[Type, Location]>,
-                               current_scope: Program<[Type, Location]> | FunDef<[Type, Location]> | ClosureDef<[Type, Location]>,
-                               env: compiler.GlobalEnv): [CurrentScope, AssignTarget<[Type, Location]>] {
-  [current_scope, assignTarget.target] = transformAssignable(assignTarget.target, current_scope, env);
+function transformAssignTarget(
+  assignTarget: AssignTarget<[Type, Location]>,
+  current_scope:
+    | Program<[Type, Location]>
+    | FunDef<[Type, Location]>
+    | ClosureDef<[Type, Location]>,
+  env: compiler.GlobalEnv
+): [CurrentScope, AssignTarget<[Type, Location]>] {
+  [current_scope, assignTarget.target] = transformAssignable(
+    assignTarget.target,
+    current_scope,
+    env
+  );
   return [current_scope, assignTarget];
 }
 
-function transformDestructure(destructure: Destructure<[Type, Location]>,
-                              current_scope: Program<[Type, Location]> | FunDef<[Type, Location]> | ClosureDef<[Type, Location]>,
-                              env: compiler.GlobalEnv): [CurrentScope, Destructure<[Type, Location]>] {
+function transformDestructure(
+  destructure: Destructure<[Type, Location]>,
+  current_scope:
+    | Program<[Type, Location]>
+    | FunDef<[Type, Location]>
+    | ClosureDef<[Type, Location]>,
+  env: compiler.GlobalEnv
+): [CurrentScope, Destructure<[Type, Location]>] {
   for (let i = 0; i < destructure.targets.length; i++) {
-    [current_scope, destructure.targets[i]] = transformAssignTarget(destructure.targets[i], current_scope, env);
+    [current_scope, destructure.targets[i]] = transformAssignTarget(
+      destructure.targets[i],
+      current_scope,
+      env
+    );
   }
   return [current_scope, destructure];
 }
 
-function transformStmt(stmt: Stmt<[Type, Location]>,
-                       current_scope: Program<[Type, Location]> | FunDef<[Type, Location]> | ClosureDef<[Type, Location]>,
-                       env: compiler.GlobalEnv): [CurrentScope, Stmt<[Type, Location]>] {
-
+function transformStmt(
+  stmt: Stmt<[Type, Location]>,
+  current_scope:
+    | Program<[Type, Location]>
+    | FunDef<[Type, Location]>
+    | ClosureDef<[Type, Location]>,
+  env: compiler.GlobalEnv
+): [CurrentScope, Stmt<[Type, Location]>] {
   switch (stmt.tag) {
-
     case "assignment":
       [current_scope, stmt.destruct] = transformDestructure(stmt.destruct, current_scope, env);
       [current_scope, stmt.value] = transformExpr(stmt.value, current_scope, env);
@@ -262,9 +294,14 @@ function transformStmt(stmt: Stmt<[Type, Location]>,
   }
 }
 
-function transformExpr(expr: Expr<[Type, Location]>,
-                       current_scope: Program<[Type, Location]> | FunDef<[Type, Location]> | ClosureDef<[Type, Location]>,
-                       env: compiler.GlobalEnv): [CurrentScope, Expr<[Type, Location]>] {
+function transformExpr(
+  expr: Expr<[Type, Location]>,
+  current_scope:
+    | Program<[Type, Location]>
+    | FunDef<[Type, Location]>
+    | ClosureDef<[Type, Location]>,
+  env: compiler.GlobalEnv
+): [CurrentScope, Expr<[Type, Location]>] {
   switch (expr.tag) {
     case "binop":
     case "builtin2":
@@ -349,10 +386,14 @@ function transformExpr(expr: Expr<[Type, Location]>,
   }
 }
 
-function transformClass(c: Class<[Type, Location]>,
-                        current_scope: Program<[Type, Location]> | FunDef<[Type, Location]> | ClosureDef<[Type, Location]>,
-                        env: compiler.GlobalEnv): [CurrentScope, Class<[Type, Location]>] {
-
+function transformClass(
+  c: Class<[Type, Location]>,
+  current_scope:
+    | Program<[Type, Location]>
+    | FunDef<[Type, Location]>
+    | ClosureDef<[Type, Location]>,
+  env: compiler.GlobalEnv
+): [CurrentScope, Class<[Type, Location]>] {
   for (let i in c.methods) {
     [current_scope, c.methods[i]] = transformFunDef(c.methods[i], current_scope, env);
   }
@@ -360,10 +401,14 @@ function transformClass(c: Class<[Type, Location]>,
   return [current_scope, c];
 }
 
-function transformFunDef(funcDef: FunDef<[Type, Location]>,
-                         current_scope: Program<[Type, Location]> | FunDef<[Type, Location]> | ClosureDef<[Type, Location]>,
-                         env: compiler.GlobalEnv): [CurrentScope, FunDef<[Type, Location]>] {
-
+function transformFunDef(
+  funcDef: FunDef<[Type, Location]>,
+  current_scope:
+    | Program<[Type, Location]>
+    | FunDef<[Type, Location]>
+    | ClosureDef<[Type, Location]>,
+  env: compiler.GlobalEnv
+): [CurrentScope, FunDef<[Type, Location]>] {
   let original_scope = current_scope;
   current_scope = funcDef;
 
@@ -375,14 +420,18 @@ function transformFunDef(funcDef: FunDef<[Type, Location]>,
     [current_scope, funcDef.funs[i]] = transformFunDef(funcDef.funs[i], current_scope, env);
   }
 
-
   current_scope = original_scope;
   return [current_scope, funcDef];
 }
 
-function transformClosureDef(closureDef: ClosureDef<[Type, Location]>,
-                             current_scope: Program<[Type, Location]> | FunDef<[Type, Location]> | ClosureDef<[Type, Location]>,
-                             env: compiler.GlobalEnv): [CurrentScope, ClosureDef<[Type, Location]>] {
+function transformClosureDef(
+  closureDef: ClosureDef<[Type, Location]>,
+  current_scope:
+    | Program<[Type, Location]>
+    | FunDef<[Type, Location]>
+    | ClosureDef<[Type, Location]>,
+  env: compiler.GlobalEnv
+): [CurrentScope, ClosureDef<[Type, Location]>] {
   let original_scope = current_scope;
   current_scope = closureDef;
 
@@ -393,7 +442,6 @@ function transformClosureDef(closureDef: ClosureDef<[Type, Location]>,
   current_scope = original_scope;
   return [current_scope, closureDef];
 }
-
 
 /**
  * This function takes a typed Program AST and the compiler env (before the current repl entry is run),
@@ -409,8 +457,10 @@ function transformClosureDef(closureDef: ClosureDef<[Type, Location]>,
  * @param program   The type-checked program, Program<[Type, Location]>
  * @param env       The compiler env (before this current repl entry is run),   compiler.GlobalEnv
  */
-export function transform(program: Program<[Type, Location]>, env: compiler.GlobalEnv): Program<[Type, Location]> {
-
+export function transform(
+  program: Program<[Type, Location]>,
+  env: compiler.GlobalEnv
+): Program<[Type, Location]> {
   /*
    * Note on how this is used to support comprehensions:
 
@@ -435,7 +485,11 @@ export function transform(program: Program<[Type, Location]>, env: compiler.Glob
     [current_scope, program.stmts[i]] = transformStmt(program.stmts[i], current_scope, env);
   }
   for (let i in program.closures) {
-    [current_scope, program.closures[i]] = transformClosureDef(program.closures[i], current_scope, env);
+    [current_scope, program.closures[i]] = transformClosureDef(
+      program.closures[i],
+      current_scope,
+      env
+    );
   }
 
   return program;

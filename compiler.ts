@@ -1152,11 +1152,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
     case "comprehension_block":
       var stmts = expr.block.map((arg) => codeGenStmt(arg, env)).flat();
-      return [
-        ...stmts,
-        ...codeGenExpr(expr.expr, env),
-        ...codeGenStmt(expr.cleanup_stmt, env),
-      ];
+      return [...stmts, ...codeGenExpr(expr.expr, env), ...codeGenStmt(expr.cleanup_stmt, env)];
     default:
       unhandledTag(expr);
   }
