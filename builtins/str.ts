@@ -171,11 +171,14 @@ export function str_slice(importObject: any) {
       }
     }
 
+    var arg2WasMissing = false;
+
     if (arg2 == cmn.NONE_BI && explicitArgs > 1) {
       if (arg3Sign == 1) {
 	arg2 = BigInt(strLen);
       } else {
 	arg2 = BigInt(0);
+	arg2WasMissing = true;
       }
     } 
 
@@ -216,11 +219,11 @@ export function str_slice(importObject: any) {
       step = Number(arg3);
     }
     
-    const resultOff = Number(importObject.imports.malloc(end-siter+1));
+    const resultOff = Number(importObject.imports.malloc(Math.abs(end-siter)+2));
     var diter: number = resultOff;
 
     var result = "";
-    while ((step > 0 && siter < end) || (step < 0 && siter > end)) {
+    while ((step > 0 && siter < end) || (step < 0 && siter > end && !arg2WasMissing) || (step < 0 && siter >= end && arg2WasMissing)) {
       memUint8[diter] = memUint8[siter];
       result = result + String.fromCharCode(memUint8[diter]);
       siter += step;
