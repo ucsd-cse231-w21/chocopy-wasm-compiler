@@ -29,7 +29,9 @@ export const default_keywords = [
     "def",
     "for",
     "lambda",
-    "try"
+    "try",
+    "int",
+    "bool"
 ]
 
 export const default_functions = [ 
