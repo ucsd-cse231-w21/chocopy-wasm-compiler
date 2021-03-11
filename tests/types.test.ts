@@ -327,4 +327,22 @@ describe("type inference", () => {
     BOOL
   );
 
+
+  assertTC(
+    "function inference 9",
+    `
+    def bAnd(x, y):
+      if x == True: 
+        return x == y
+      else:
+        return False
+      
+    def test(x, y):
+      return bAnd(x > 0, y > 0)
+      
+    test(1, 1)
+    `,
+    BOOL
+  );
+
 });
