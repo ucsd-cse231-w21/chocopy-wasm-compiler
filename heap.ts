@@ -228,7 +228,6 @@ export class FreeListAllocator implements MarkableAllocator {
         s = s + (s%2n); // Aligning on an even boundary
         const dataN = {addr:0x0n, size:s, isFree:false}; // Address 0x0n - As a placeholder before updation
         const dataR =  this.linkedList.getData(this.linkedList.insert(dataN, curr));
-        this.dumpList();
         return {
           ptr: dataR.addr,
           size: dataR.size
@@ -284,10 +283,13 @@ export class FreeListAllocator implements MarkableAllocator {
   sweep() {
     let curr = this.linkedList.getHead();
     while(curr.next!=null){
+      // console.log(`Visiting: { addr: ${curr.data.addr}, prev: ${curr.prev}, next: ${curr.next.data.addr}, free: ${curr.data.isFree} } `);
       if(curr.data.isFree==false) {
         let header = new Header(this.memory, curr.data.addr);
-        if(!header.isMarked()) {
+        if(!header.isMarked() && header.isAlloced()) {
+          // console.log(`Freeing object starting at ${curr.data.addr}`);
           this.free2(curr.data.addr);
+          header.unalloc();
 
           //curr.prev --> curr --> curr.next
           //Coalesce
@@ -301,7 +303,9 @@ export class FreeListAllocator implements MarkableAllocator {
           if(curr.next.data.isFree) {
             curr.data.size = curr.next.data.size + curr.data.size;
             curr.next = curr.next.next;
-            curr.next.prev = curr;
+            if (curr !== this.linkedList.getHead()) {
+              curr.next.prev = curr;
+            }
           }
         }
         else {
