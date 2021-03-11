@@ -13,7 +13,7 @@ beforeEach(function () {
 
 // suppress console logging so output of mocha is clear
 before(function () {
-  console.log = function () {};
+  // console.log = function () {};
 });
 
 export function skipassert(name: string, source: string, expected: Value) {

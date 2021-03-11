@@ -229,6 +229,7 @@ export class FreeListAllocator implements MarkableAllocator {
         s = s + (s%2n); // Aligning on an even boundary
         const dataN = {addr:0x0n, size:s, isFree:false}; // Address 0x0n - As a placeholder before updation
         const dataR =  this.linkedList.getData(this.linkedList.insert(dataN, curr));
+        this.dumpList();
         return {
           ptr: dataR.addr,
           size: dataR.size
