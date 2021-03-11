@@ -596,7 +596,7 @@ export class MarkableSegregator<S extends MarkableAllocator, L extends MarkableA
 
   getHeader(ptr: Pointer): Header {
     if (!this.allocator.owns(ptr)) {
-      throw new Error(`${this.allocator.description()} does not own pointer: ${ptr.toString(16)}`);
+      throw new Error(`${this.allocator.description()} does not own pointer: ${ptr.toString()}`);
     }
     if (this.allocator.small.owns(ptr)) {
       return this.allocator.small.getHeader(ptr);
