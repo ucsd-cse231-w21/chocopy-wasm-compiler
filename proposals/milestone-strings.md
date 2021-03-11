@@ -251,3 +251,114 @@ class C(Object):
   t:int = 8
 
 In such a case, before we made changes, memory would have been allocated to the string "ABC" before allocating memory for the variable t. We made changes in "construct" case so that memory would be first allocated to the fields s and t before allocating memory to the string "ABC".
+
+## Final submission
+
+### Examples we were able to get to
+
+**We were able to implement all the examples which we proposed in our original proposal.**
+
+The major features that were proposed and have been implemented are:-
+
+1. Storing and printing string literals
+
+2. String indexing and substring slicing
+
+3. Binary operations on strings (+, *, ==, !=, >, >=, <, <=)
+
+4. Finding the length of a string using "len" function
+
+5. Implementing escape sequences in strings
+
+We had initially only proposed +, ==, != binary operations. But we extended our implementation to include additional binary operations: "*",  ">", ">=", "<", "<=".
+
+### Three example programs or scenarios that would require extensions to our design
+
+#### 1. Type conversion using "str()"
+
+
+   Example 1:-
+
+     a:int = 20
+     b:int = 30
+     print(str(a) + str(b))
+
+    Expected output 1:-
+
+     2030
+
+
+   Example 2:-
+
+     a:bool = True
+     b:int = 1
+     print(str(a) + str(b))
+
+    Expected output 2:-
+      True1
+
+  We could add this feature by writing a function "convert_to_str" in compiler.ts which would take a literal value and iterate over all the characters in literal. Then it would store the corresponding ascii value of each character as part of the new string. The function should return the starting address of the string which would contain the length of the string. The locations following it would be used to represent the content of the string.
+
+#### 2. Collection of string functions such as s.upper(), s.lower(), s.startsWith(), s.endsWith()
+
+
+  Example 1:-
+
+      a:str = "abcde"
+      print(a.upper())
+
+    Expected output 1:-
+     ABCDE
+
+
+  Example 2:-
+
+     a:str = "XYZ"
+     print(a.lower())
+
+    Expected output 2:-
+      xyz
+
+
+  Example 3:-
+
+     a:str = "CompilerDesign"
+     print(a.startsWith("Com"))
+
+    Expected output 3:-
+     True
+
+
+  Example 4:-
+
+     a:str = "CompilerDesign"
+     print(a.endsWith("Com"))
+
+    Expected output 1:-
+      False
+
+  These functions can be implemented as methods of a string class. The class would contain a member variable which would be the string itself and would contain a host of member methods for the examples provided above. These functions can be easily implemented given our current representation of strings.
+
+#### 3. Check if a certain phrase or character is present or not in a string using "in" and "not in"
+
+
+  Example 1:-
+
+     txt:str = "The best things in life are free!"
+     print("free" in txt)
+
+    Expected output 1:-
+
+     True
+
+
+  Example 2:-
+
+     a:str = "XYZ"
+     b:str = "A"
+     print(a not in b)
+
+    Expected output 2:-
+      True
+
+  We can implement this feature by iterating through all the characters of the substring to be searched in the main string. Although this would be an n! problem, we can use some clever algorithm techniques to come up with an efficient searching algorithm.

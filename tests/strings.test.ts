@@ -1,5 +1,5 @@
 import { PyInt, PyBool, PyNone, PyObj, LIST } from "../utils";
-import { assert, asserts, assertPrint, assertTC, assertTCFail } from "./utils.test";
+import { assert, asserts, assertPrint, assertTC, assertTCFail, assertFail } from "./utils.test";
 
 describe("STRINGS TEST", () => {
   assertPrint(
@@ -419,6 +419,15 @@ describe("STRINGS TEST", () => {
   );
 
   assertPrint(
+    "print-string-slice-concat-multiply",
+    `
+  a:str="Compiler"
+  b:str="Commuter"
+  print((a[0:4] + b[-4:])*3)`,
+    ["ComputerComputerComputer"]
+  );
+
+  assertPrint(
     "print-string-escape-seq-new-line",
     `
   print("Design\\nABC")`,
@@ -431,97 +440,97 @@ describe("STRINGS TEST", () => {
   print("Design\\tABC")`,
     ["Design\tABC"]
   );
-  // assertPrint(
-  //   "print-string-slice-concat-multiply",
-  //   `
-  // a:str="Compiler"
-  // b:str="Commuter"
-  // print((a[0:4] + b[-4:])*3)`,
-  //   ["ComputerComputerComputer"]
-  // );
 
   assertPrint(
+    "print-string-escape-quotes",
+    `
+  a:str="Apple\\"Ball"
+  print(a)`,
+    ['Apple"Ball']
+  );
+
+  assertPrint(
+    "print-string-escape-backslash",
+    `
+  a:str="Apple\\\\Ball"
+  print(a)`,
+    ["Apple\\Ball"]
+  );
+
+  assert(
     "print-string-equals",
     `
   a:str="Compiler"
   b:str="Algorithms"
   print(a == b)`,
-    ["False"]
+    PyBool(false)
   );
 
-  assertPrint(
+  assert(
     "print-string-greater-than",
     `
   a:str="Compiler"
   b:str="Algorithms"
   print(a > b)`,
-    ["True"]
+    PyBool(true)
   );
 
-  assertPrint(
+  assert(
     "print-string-greater-than-2",
     `
   a:str="Compiler"
   print(a > a)`,
-    ["False"]
+    PyBool(false)
   );
 
-  assertPrint(
+  assert(
     "print-string-greater-equals",
     `
   a:str="Compiler"
   print(a >= a)`,
-    ["True"]
+    PyBool(true)
   );
 
-  assertPrint(
+  assert(
     "print-string-less-than",
     `
   a:str="Compiler"
   b:str="Commuter"
   print(a < b)`,
-    ["False"]
+    PyBool(false)
   );
 
-  assertPrint(
+  assert(
     "print-string-less-than-2",
     `
   a:str="Compiler"
   print(a < a)`,
-    ["False"]
+    PyBool(false)
   );
 
-  assertPrint(
+  assert(
     "print-string-less-equals",
     `
   a:str="Compiler"
   print(a <= a)`,
-    ["True"]
+    PyBool(true)
   );
 
-  assertPrint(
+  assert(
     "print-string-not-equals",
     `
   a:str="Compiler"
   b:str="Commuter"
   print(a != b)`,
-    ["True"]
+    PyBool(true)
   );
 
-  assertPrint(
+  assert(
     "print-string-not-equals-2",
     `
   a:str="Compiler"
   b:str="Compiler"
   print(a != b)`,
-    ["False"]
-  );
-
-  assertPrint(
-    "print-string-escape-nextline",
-    `
-  a:str="Apple\\nBall"
-  print(a)`,
-    ["Apple", "Ball"]
+    PyBool(false)
   );
 });
