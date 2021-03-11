@@ -124,7 +124,7 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             left: args[0],
             right: args[1],
           };
-        } else if (callName === "range") {
+        } else if (callName === "range" || callName === "len") {
           expr = {
             tag: "call",
             name: callName,

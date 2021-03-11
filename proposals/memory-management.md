@@ -19,7 +19,7 @@ class Foo(object):
   b: int = 0
 
 x: Foo = None
-X = Foo()
+x = Foo()
 x.a = 1337
 
 x = Foo()
@@ -202,6 +202,22 @@ None to add.
 ## Codebase Changes
 
 New files:
+* `alloc.ts`: defines the main allocator interface for runtime/compiler code
+  * `ObjectTag`: defines possible heap object types
+  * `MemoryManager`: class that composes the GC and heap implementations into a coherent unit
+    * `gcalloc(tag: ObjectTag, size: BigInt32)`: allocates a new object in the GC heap of the specified size in bytes and returns a pointer to the start of the object (not the header); may invoke the GC (stop-the-world)
+    * `forceCollect()`: manually invoke the GC (stop-the-world)
+    * `getTag(ptr)`: get heap object tag
+    * `getSize(ptr)`: get heap object size (excluding header info)
+    * `addGlobal(globalAddr)`: add the global variable to the global root set
+    * `captureTemps()`: captures all allocations into a new temp set on the top of the temp stack
+    * `releaseTemps()`: pops the temp set frame off the temp stack
+    * `addTemp(value)`: attempt to add a 32-bit pointer to the temp set
+    * `pushFrame()`: push a new local set frame onto the local stack
+    * `addLocal(value)`: attempt to add a 32-bit pointer to the local set
+    * `removeLocal(value)`: remove a pointer from the local set
+    * `releaseTemps(value)`: pops the local set frame off the local stack
+    * `staticAlloc(size: BigInt32)`: allocates static memory (not expected to ever be freed for the duration of the program) and returns a pointer to the start of the object
 * `heap.ts`: defines all allocator implementations/interfaces
   * `Allocator`: common interface for heap allocators
   * `BumpAllocator`: bump allocator heap implementation
@@ -212,13 +228,12 @@ New files:
   * `Describer`: heap combinator that can give more debug info to allocators
   * `Fallback`: heap combinator uses a primary allocator and switches to a fallback allocator when the primary fails
 * `gc.ts`: defines all the GC implementations/interfaces
+  * `Header`: proxy object for an object header
   * `MSGc`: class that defines a mark-and-sweep GC
   * `CopyingGc`: class that defines a copying GC
   * `MarkableAllocator`: interface for heaps that can be used by `MSGc`
   * `MarkableBitMappedBlocks`: class that wraps a `BitMappedBlocks` heap to provide a `MarkableAllocator` implementation (used to allocate/access object headers)
   * `MarkableAllocList`: class that wraps an `AllocList` heap to provide a `MarkableAllocator` implementation (used to allocate/access object headers)
-* `alloc.ts`: defines the main allocator interface
-  * `MemoryManager`: class that composes the GC and heap implementations into a coherent unit
 * `tests/gc-unit-tests.test.ts`: defines the GC unit tests
 * `tests/gc-int-tests.test.ts`: defines the GC integration tests
 
@@ -227,6 +242,7 @@ Changed files:
   * Need to augment any heap allocation code to call the allocators/GC for memory
   * Need to track local variables and global variables for GC roots (and generate code to inform the GC) in `augmentEnv()` and `makeLocals()`
   * In `augmentEnv()`, we also need to generate code that sends type info to the GC for tracing
+  * ANY global/local variable updates need to be guarded with `removeRoot()` and `addRoot()` calls (remove potential old pointers from the root set and add potential new pointers)
 
 ## Value Representation/Layouts
 No new values are being added but value representations need to be modified to somehow track pointers.
@@ -235,8 +251,8 @@ Options:
 2. Box every object and place a special function in the vtable that tells the GC which fields are poiners.
 
 Decision as of 2/25/2021: option 1 with 32 bit values, using the least significant bit as the tag.
-* Primitives are tagged with `0`
-* Pointers are tagged with `1`
+* Primitives are tagged with `1`
+* Pointers are tagged with `0`
 
 ## March 4 Milestone Plan
 We plan to target programs 1 and 2 such that they execute properly.
