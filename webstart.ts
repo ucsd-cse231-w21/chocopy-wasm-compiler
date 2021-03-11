@@ -1,6 +1,7 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { themeList_export } from "./themelist";
+import { addAccordionEvent, prettyPrintObjects } from "./prettyprint";
 import { defaultTypeEnv } from "./type-check";
 import { NUM, BOOL, NONE, STRING, PyValue, unhandledTag } from "./utils";
 
@@ -28,64 +29,12 @@ function stringify(result: Value): string {
       return "None";
     case "object":
       return `<${result.name} object at ${result.address}`;
+    case "list":
+      return `<${result.name} at ${result.address}>`;
+    case "dict":
+      return `<${result.tag}<${result.key_type.tag}:${result.value_type.tag}> at ${result.address}>`;
     default:
       throw new Error(`Could not render value: ${result}`);
-  }
-}
-
-function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
-  if(result.tag == "object"){
-    const exp  = document.createElement("button") as HTMLButtonElement;
-    exp.setAttribute("class","accordion");
-    const div = document.createElement("div");
-    div.setAttribute("class","panel");
-    const addr = document.createElement("p");
-    addr.innerHTML = "<b class='tag'>address: </b><p class='val'>" + result.address + "</p>";
-  
-    exp.innerHTML = "<i class='arrow right' id='arrow'></i> " + result.name + " object";
-    div.appendChild(addr);
-  
-    const view = new Int32Array(repl.importObject.js.memory.buffer);
-  
-    const cls = repl.currentEnv.classes.get(result.name);
-    const typedCls = repl.currentTypeEnv.classes.get(result.name)[0];
-
-    cls.forEach((value, key) =>{
-      var offset = value[0];
-      var type = typedCls.get(key)
-
-      const ele = document.createElement("pre");
-      const val = PyValue(type, view[result.address/4 + offset],view) as any; 
-      // PyValue implementation seems incomplete, casting to any for now
-
-      // pretty printing object fields
-      switch(type.tag){
-        case "class":
-          if(val.tag !== "none"){
-            ele.innerHTML = "<b class='tag'>" + key + ":</b>";
-            const new_div = document.createElement("div");
-            ele.appendChild(new_div)
-            prettyPrintObject({ 
-                                tag: "object", 
-                                name: type.name, 
-                                address: view[result.address/4 + offset] 
-                              }, 
-                              repl, 
-                              new_div) 
-          }
-          else{
-            ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
-          }
-          break;
-        default:
-          ele.innerHTML = "<b class='tag'>" + key + ": </b><p class='val'>" + val.value + "</p>";
-          break;
-      }
-      div.appendChild(ele);
-    });
-  
-    currentEle.appendChild(exp);
-    currentEle.appendChild(div);
   }
 }
 
@@ -127,7 +76,7 @@ function webStart() {
     };
 
     mem_js = importObject.js;
-
+    (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -140,27 +89,8 @@ function webStart() {
       elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
       elt.innerText = stringify(result);
-      prettyPrintObject(result, repl, document.getElementById("output"));
-      
-      var acc = document.getElementsByClassName("accordion");
-      var i = 0;       
-      for (i; i < acc.length; i++) {
-        if(acc[i].getAttribute("listener") !== "true"){
-          acc[i].setAttribute("listener", "true")
-          acc[i].addEventListener("click", function() {
-            this.classList.toggle("active");
-            var panel = this.nextElementSibling;
-            var arrow = this.firstChild;
-            if (panel.style.display === "block") {
-              panel.style.display = "none";
-              arrow.style.transform = "rotate(-45deg)"
-            } else {
-              panel.style.display = "block";
-              arrow.style.transform = "rotate(45deg)"
-            }
-          });        
-        }
-      }
+      prettyPrintObjects(result, repl, document.getElementById("output"));
+      addAccordionEvent();
     }
 
     function renderError(result: any, source: string): void {
@@ -172,7 +102,6 @@ function webStart() {
         text = `line ${result.loc.line}: ${source
           .split(/\r?\n/)
           [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
-        highlightLine(result.loc.line - 1, result.message);
       }
       elt.innerText = text.concat("\n").concat(String(result));
     }
@@ -226,6 +155,8 @@ function webStart() {
         })
         .catch((e) => {
           renderError(e, source.value);
+          if(e.loc != undefined)
+            highlightLine(e.loc.line - 1, e.message);
           console.log("run failed", e.stack);
         });
     });
