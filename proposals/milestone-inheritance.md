@@ -79,7 +79,59 @@ The rearrangement of functions and objects took us a lot of time. And finally we
 
 
 
+## Final Stage
 
+Our compiler can support single inheritance and all the examples mentioned in the proposal. Below are the new features to be implemented in the future.
+
+### New Features for Future
+
+```python
+# multiple inheritance
+class A(object):
+    x:int = 1
+class B(object):
+    y:int = 2
+class C(A, B):
+    z:int = 3
+
+c:C = None
+c = C()
+print(c.x)
+```
+
+
+
+```python
+# basic MRO (method resolution order)
+class A(object):
+    def show():
+        print(1)
+class B(object):
+    def show():
+        print(2)
+class C(A, B):
+    pass
+
+C().show()  # expect 1
+```
+
+
+
+```python
+# C3 MRO
+class Base(object):
+    def show():
+        print(0)
+class A(Base):
+    pass
+class B(object):
+    def show():
+        print(2)
+class C(A, B):
+    pass
+
+C().show()  # expect 2
+```
 
 
 
