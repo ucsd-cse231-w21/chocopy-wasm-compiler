@@ -443,9 +443,14 @@ export class MnS<A extends MarkableAllocator> {
           }
         }
       } else if (TAG_REF) {
-        // NOTE(alex:mm): Used to represent a boxed value
-        // No metadata
-        throw new Error("TODO: trace ref");
+        // NOTE(alex:mm): assume a single value
+        // TODO(alex:mm): TAG_REF can be potentially be merged with TAG_CLASS
+        this.setMarked(childPtr);
+        const value = readI32(this.memory, Number(childPtr));
+        if (isPointer(value) && value !== 0n) {
+          const pointerValue = extractPointer(value);
+          worklist.push(pointerValue);
+        }
       } else {
         throw new Error(`Trying to trace unknown heap object: ${childTag.toString()}`);
       }
