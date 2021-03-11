@@ -176,6 +176,7 @@ export function compile(ast: Program<[Type, Location]>, env: GlobalEnv): Compile
   definedVars.add("$list_temp");
   definedVars.add("$list_cmp");
   definedVars.add("$destruct");
+  definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
@@ -461,7 +462,7 @@ function codeGenDestructure(
         assignStmts = destruct.targets.flatMap((target) => {
           const assignable = target.target;
           if (target.starred) {
-            throw new Error("Do not currently support starred assignment targets");
+            throw new Error("Do not currently support starred assignment targets for objects");
           } else {
             const [offset, _] = classFields.next().value;
             // The WASM code value that we extracted from the object at this current offset
@@ -478,7 +479,7 @@ function codeGenDestructure(
         assignStmts = destruct.targets.flatMap((target) => {
           const assignable = target.target;
           if (target.starred) {
-            throw new Error("Do not currently support starred assignment targets");
+            throw new Error("Do not currently support starred assignment targets for tuples");
           } else {
             const fieldValue = [value, `(i32.load offset=${offset})`];
             offset += 4;
@@ -504,7 +505,6 @@ function codeGenDestructure(
           targetListLength = destruct.targets.length;
           compareLengthOperator = `(i32.eq)`;
         }
-
         // TODO: Add nice runtime error instead of "RuntimeError: unreachable"
         const lengthCheck = [
           value,
@@ -516,14 +516,18 @@ function codeGenDestructure(
         ];
 
         // Skip past the three header values of lists and to the actual values
-        let offset = 12;
-
+        let initalizeOffset = [`(i32.const 12)`, `(local.set $$destructListOffset)`];
+        let offset = [`(local.get $$destructListOffset)`];
         const targetStmts = destruct.targets.flatMap((target) => {
           const assignable = target.target;
           if (target.starred) {
             throw new Error("Star operator not implemented yet.");
+
+            // The starting index of the star operator
+            // subtracting the 12 for the header values, dividing by 4 to convert from byte offset to index in list
+            const startStarIndex = [`(i32.div_s (i32.sub ${offset} (i32.const 12)) (i32.const 4))`];
+
             let nonStarredElements = destruct.targets.length - 1;
-            let stmts: string[] = [];
             // The WASM number of elements we need in our starred element list
             const numStarElements = [
               value,
@@ -531,31 +535,41 @@ function codeGenDestructure(
               `(i32.const ${nonStarredElements})`,
               `(i32.sub)`, // results in the number of elements needed in the starred list
             ];
+            // The ending index of the star operator (exclusive)
+            const endStarIndex = [
+              `(i32.add ${startStarIndex.join("\n")} ${numStarElements.join("\n")})`,
+            ];
 
-            const listType = [`(i32.const 10)`];
-            const listLengthPlus10 = `(i32.add (${numStarElements.join(`\n`)}) (i32.const 10))`;
-            const listBound = [`(i32.mul (${listLengthPlus10}) (i32.const 2))`];
-            const listHeader = [listType, numStarElements, listBound];
-
-            let listindex = 0;
-            listHeader.forEach((val) => {
-              stmts.concat([
-                `(i32.load (i32.const 0))`,
-                `(i32.add (i32.const ${listindex * 4}))`,
-                ...val,
-                `(i32.store)`,
-              ]);
-              listindex += 1;
-            });
-
+            // Should result in a list (i.e. a pointer to the beginning of the list)
+            const destinationList = codeGenExpr(target.target, env);
+            const sourceList = [value];
+            const incrementOffset = [
+              ...offset,
+              `(i32.mul ${numStarElements.join("n")} (i32.const 4))`,
+              `(i32.add)`,
+              `(local.set $$destructListOffset)`,
+            ];
+            let stmts: string[] = [
+              ...destinationList,
+              ...sourceList,
+              ...endStarIndex,
+              ...startStarIndex,
+              //...codeGenListCopy(pleaseCopyListSubset),
+              ...incrementOffset,
+            ];
             return stmts;
           } else {
-            const fieldValue = [value, `(i32.load offset=${offset})`];
-            offset += 4;
-            return codeGenAssignable(assignable, fieldValue, env);
+            const fieldValue = [`(i32.load (i32.add ${value} ${offset}))`];
+            const incrementOffset = [
+              ...offset,
+              `(i32.const 4)`,
+              `(i32.add)`,
+              `(local.set $$destructListOffset)`,
+            ];
+            return codeGenAssignable(assignable, fieldValue, env).concat(incrementOffset);
           }
         });
-        assignStmts = lengthCheck.concat(targetStmts);
+        assignStmts = [...lengthCheck, ...initalizeOffset, ...targetStmts];
         break;
       }
     }
