@@ -279,7 +279,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr0new)).to.equal(100);
     } else if (kind === "freelist") {
-      expect(Number(ptr0new)).to.equal(992);
+      expect(Number(ptr0new)).to.equal(996);
     }
 
     if (kind === "bitmap") {
@@ -302,21 +302,21 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr0)).to.equal(100);
     } else if (kind === "freelist") {
-      expect(Number(ptr0)).to.equal(992);
+      expect(Number(ptr0)).to.equal(996);
     }
 
     const ptr1 = mns.gcalloc(TAG_CLASS, 4n);
     if (kind === "bitmap") {
       expect(Number(ptr1)).to.equal(104);
     } else if (kind === "freelist") {
-      expect(Number(ptr1)).to.equal(104);
+      expect(Number(ptr1)).to.equal(984);
     }
 
     const ptr2 = mns.gcalloc(TAG_CLASS, 4n);
     if (kind === "bitmap") {
       expect(Number(ptr2)).to.equal(108);
     } else if (kind === "freelist") {
-      expect(Number(ptr2)).to.equal(108);
+      expect(Number(ptr2)).to.equal(972);
     }
 
     // Check that headers set correctly
@@ -363,7 +363,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr0new)).to.equal(100);
     } else if (kind === "freelist") {
-      expect(Number(ptr0new)).to.equal(100);
+      expect(Number(ptr0new)).to.equal(996);
     }
 
     if (kind === "bitmap") {
@@ -394,7 +394,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr0)).to.equal(100);
     } else if (kind === "freelist") {
-      expect(Number(ptr0)).to.equal(100);
+      expect(Number(ptr0)).to.equal(996);
     }
     writeI32(memory, Number(X_ADDR), ptr0);
 
@@ -402,7 +402,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr1)).to.equal(104);
     } else if (kind === "freelist") {
-      expect(Number(ptr1)).to.equal(104);
+      expect(Number(ptr1)).to.equal(984);
     }
     writeI32(memory, Number(Y_ADDR), ptr1);
 
@@ -410,7 +410,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr2)).to.equal(108);
     } else if (kind === "freelist") {
-      expect(Number(ptr2)).to.equal(108);
+      expect(Number(ptr2)).to.equal(972);
     }
 
     // Check that headers set correctly
@@ -445,7 +445,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr3)).to.equal(108);
     } else if (kind === "freelist") {
-      expect(Number(ptr3)).to.equal(108);
+      expect(Number(ptr3)).to.equal(972);
     }
     // Overwrite y
     writeI32(memory, Number(Y_ADDR), ptr3);
