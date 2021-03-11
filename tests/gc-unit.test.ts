@@ -206,15 +206,27 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
 
     mns.roots.pushFrame();
     const ptr0 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr0)).to.equal(100);
+    if (kind === "bitmap") {
+      expect(Number(ptr0)).to.equal(100);
+    } else if (kind === "freelist") {
+      expect(Number(ptr0)).to.equal(996);
+    }
     mns.roots.addLocal(0n, ptr0);
 
     const ptr1 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr1)).to.equal(104);
+    if (kind === "bitmap") {
+      expect(Number(ptr1)).to.equal(104);
+    } else if (kind === "freelist") {
+      expect(Number(ptr1)).to.equal(992);
+    }
     mns.roots.addLocal(0n, ptr1);
 
     const ptr2 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr2)).to.equal(108);
+    if (kind === "bitmap") {
+      expect(Number(ptr2)).to.equal(108);
+    } else if (kind === "freelist") {
+      expect(Number(ptr2)).to.equal(992);
+    }
     mns.roots.addLocal(1n, ptr2);
 
     // Check that headers set correctly
@@ -258,9 +270,15 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
       });
     }
     const ptr0new = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr0new)).to.equal(100);
+    if (kind === "bitmap") {
+      expect(Number(ptr0new)).to.equal(100);
+    } else if (kind === "freelist") {
+      expect(Number(ptr0new)).to.equal(992);
+    }
 
-    expectFreeHeader(heap.heap.getHeader(112n), 0x0n as HeapTag, 0n);
+    if (kind === "bitmap") {
+      expectFreeHeader(heap.heap.getHeader(112n), 0x0n as HeapTag, 0n);
+    }
   });
 
   // Simulates:
@@ -275,13 +293,25 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
 
     mns.roots.captureTemps();
     const ptr0 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr0)).to.equal(100);
+    if (kind === "bitmap") {
+      expect(Number(ptr0)).to.equal(100);
+    } else if (kind === "freelist") {
+      expect(Number(ptr0)).to.equal(992);
+    }
 
     const ptr1 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr1)).to.equal(104);
+    if (kind === "bitmap") {
+      expect(Number(ptr1)).to.equal(104);
+    } else if (kind === "freelist") {
+      expect(Number(ptr1)).to.equal(104);
+    }
 
     const ptr2 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr2)).to.equal(108);
+    if (kind === "bitmap") {
+      expect(Number(ptr2)).to.equal(108);
+    } else if (kind === "freelist") {
+      expect(Number(ptr2)).to.equal(108);
+    }
 
     // Check that headers set correctly
     {
@@ -324,9 +354,15 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
       });
     }
     const ptr0new = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr0new)).to.equal(100);
+    if (kind === "bitmap") {
+      expect(Number(ptr0new)).to.equal(100);
+    } else if (kind === "freelist") {
+      expect(Number(ptr0new)).to.equal(100);
+    }
 
-    expectFreeHeader(heap.heap.getHeader(112n), 0x0n as HeapTag, 0n);
+    if (kind === "bitmap") {
+      expectFreeHeader(heap.heap.getHeader(112n), 0x0n as HeapTag, 0n);
+    }
   });
 
   // Simulates:
@@ -349,15 +385,27 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
 
     mns.roots.captureTemps();
     const ptr0 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr0)).to.equal(100);
+    if (kind === "bitmap") {
+      expect(Number(ptr0)).to.equal(100);
+    } else if (kind === "freelist") {
+      expect(Number(ptr0)).to.equal(100);
+    }
     writeI32(memory, Number(X_ADDR), ptr0);
 
     const ptr1 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr1)).to.equal(104);
+    if (kind === "bitmap") {
+      expect(Number(ptr1)).to.equal(104);
+    } else if (kind === "freelist") {
+      expect(Number(ptr1)).to.equal(104);
+    }
     writeI32(memory, Number(Y_ADDR), ptr1);
 
     const ptr2 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr2)).to.equal(108);
+    if (kind === "bitmap") {
+      expect(Number(ptr2)).to.equal(108);
+    } else if (kind === "freelist") {
+      expect(Number(ptr2)).to.equal(108);
+    }
 
     // Check that headers set correctly
     {
@@ -388,7 +436,11 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     }
 
     const ptr3 = mns.gcalloc(TAG_CLASS, 4n);
-    expect(Number(ptr3)).to.equal(108);
+    if (kind === "bitmap") {
+      expect(Number(ptr3)).to.equal(108);
+    } else if (kind === "freelist") {
+      expect(Number(ptr3)).to.equal(108);
+    }
     // Overwrite y
     writeI32(memory, Number(Y_ADDR), ptr3);
     mns.collect();
