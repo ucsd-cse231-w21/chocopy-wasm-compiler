@@ -294,7 +294,10 @@ export class RootSet {
     this.globals.forEach((globalVarAddr) => {
       const globalVarValue = readI32(this.memory, Number(globalVarAddr));
       if (isPointer(globalVarValue)) {
-        callback(extractPointer(globalVarValue));
+        const ptr = extractPointer(globalVarValue);
+        if (ptr !== 0n) {
+          callback(ptr);
+        }
       }
     });
 
@@ -302,14 +305,18 @@ export class RootSet {
     this.localsStack.forEach((frame) => {
       // second value is the local index
       frame.forEach((localPtrValue, _) => {
-        callback(localPtrValue);
+        if (localPtrValue !== 0n) {
+          callback(localPtrValue);
+        }
       });
     });
 
     // Temp set is already a set of pointers to heap values
     this.tempsStack.forEach((frame) => {
       frame.forEach((localPtrValue) => {
-        callback(localPtrValue);
+        if (localPtrValue !== 0n) {
+          callback(localPtrValue);
+        }
       });
     });
   }
@@ -385,7 +392,7 @@ export class MnS<A extends MarkableAllocator> {
 
           // Extract value at childPtr + 4. Assumed to be a primitive value
           const listLength = childSize;
-          
+
           // Sanity check, just-in-case
           // NOTE(sagar): probably not necessary
           if(isPointer(listLength)) {
@@ -416,9 +423,7 @@ export class MnS<A extends MarkableAllocator> {
         }
         break;
 
-
         case TAG_DICT: {
-          
           for(let listIndex = childPtr; listIndex < childSize; listIndex += 4n ) {
             // Trace each linked-list
             // NOTE(sagar): always assumed to be an address. Unnecessary to check
