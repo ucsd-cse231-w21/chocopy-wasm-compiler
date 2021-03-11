@@ -293,7 +293,21 @@ describe("type inference", () => {
       return y
     g(True)
     `,
-    NUM
+    BOOL
+  );
+
+  assertTC(
+    "function inference 7",
+    `
+    def bAnd(x, y):
+      if x == y: 
+        return x == True
+      else:
+        return False
+      
+    bAnd(True, False)
+    `,
+    BOOL
   );
 
 });

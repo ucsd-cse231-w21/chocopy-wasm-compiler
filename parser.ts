@@ -416,7 +416,6 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
   while (c.type.name !== ")") {
-    console.log("Marker B")
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
@@ -427,8 +426,18 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
       c.nextSibling(); // Focuses on type itself
       typ = traverseType(c, s);
       c.parent();
+    } else if (nextTagName === ",") {
+      parameters.push({ name, type: typ });
+      c.nextSibling(); // Move on to comma or ")" or "="
+      continue;
     };
+
     c.nextSibling(); // Move on to comma or ")" or "="
+    
+    console.log("Marker B")
+    console.log(c.node.type.name)
+    console.log(s.substring(c.from, c.to))
+
     nextTagName = c.type.name; // NOTE(daniel): copying joe's hack for now
     if (nextTagName === "AssignOp") {
       c.nextSibling();
