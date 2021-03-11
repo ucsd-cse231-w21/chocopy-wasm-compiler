@@ -214,6 +214,11 @@ describe("parse(source) function", () => {
     const parsed = parse("d:[int, bool] = None");
     expect(parsed.inits).to.deep.equal([
       {
+        a: {
+          col: 0,
+          length: 20,
+          line: 1,
+        },
         name: "d",
         type: {
           tag: "dict",

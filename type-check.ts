@@ -847,8 +847,7 @@ export function tcExpr(
             })
           );
         }
-      }
-      else {
+      } else {
         // TODO incorrect parameter for call_expression
         throw new BaseException.NameError(expr.a, expr.name.tag);
       }
@@ -867,6 +866,24 @@ export function tcExpr(
           name: expr.name,
           arguments: tArgs,
         };
+      }
+      if (expr.name == "dict") {
+        if (expr.arguments.length !== 1) {
+          throw new TypeError(
+            "Expected only 1 argument in function call: " +
+              expr.name +
+              "; got " +
+              expr.arguments.length
+          );
+        }
+        let tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
+        let tRet = tArg[0].a; //dict constructor will take only 1 argument
+        if (tArg[0].a[0].tag !== "dict") {
+          throw new TypeError(
+            "Function call type mismatch: " + expr.name + ". Expected dict type as an argument."
+          );
+        }
+        return { ...expr, a: tRet, arguments: tArg };
       }
       throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
     case "lookup":
@@ -936,14 +953,16 @@ export function tcExpr(
           case "pop":
             let numArgsPop = expr.arguments.length;
             if (numArgsPop > 2) {
-              throw new BaseException.CompileError(expr.a,
+              throw new BaseException.CompileError(
+                expr.a,
                 `'dict' pop() expected at most 2 arguments, got ${numArgsPop}`
               );
             }
             let dictKeyTypePop = tObj.a[0].key;
             let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
             if (!isAssignable(env, dictKeyTypePop, tKeyPop.a[0])) {
-              throw new BaseException.CompileError(expr.a,
+              throw new BaseException.CompileError(
+                expr.a,
                 "Expected key type `" +
                   dictKeyTypePop.tag +
                   "`; got key lookup type `" +
@@ -956,12 +975,16 @@ export function tcExpr(
             console.log("TC: get function in dict");
             let numArgsGet = expr.arguments.length;
             if (numArgsGet !== 2) {
-              throw new BaseException.CompileError(expr.a,`'dict' get() expected 2 arguments, got ${numArgsGet}`);
+              throw new BaseException.CompileError(
+                expr.a,
+                `'dict' get() expected 2 arguments, got ${numArgsGet}`
+              );
             }
             let dictKeyTypeGet = tObj.a[0].key;
             let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
             if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a[0])) {
-              throw new BaseException.CompileError(expr.a,
+              throw new BaseException.CompileError(
+                expr.a,
                 "Expected key type `" +
                   dictKeyTypeGet.tag +
                   "`; got key lookup type `" +
@@ -972,7 +995,8 @@ export function tcExpr(
             let dictValueTypeGet = tObj.a[0].value;
             let tValueGet = tcExpr(env, locals, expr.arguments[1]);
             if (!isAssignable(env, dictValueTypeGet, tValueGet.a[0])) {
-              throw new BaseException.CompileError(expr.a,
+              throw new BaseException.CompileError(
+                expr.a,
                 "Expected value type `" +
                   dictValueTypeGet.tag +
                   "`; got value lookup type `" +
@@ -980,19 +1004,26 @@ export function tcExpr(
                   "`"
               );
             }
-            return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyGet, tValueGet] };
+            return {
+              ...expr,
+              a: [tObj.a[0].value, expr.a],
+              obj: tObj,
+              arguments: [tKeyGet, tValueGet],
+            };
 
           case "update":
             console.log("TC: To-Do update function in dict");
             let numArgsUpdate = expr.arguments.length;
             if (numArgsUpdate > 2) {
-              throw new BaseException.CompileError(expr.a,
+              throw new BaseException.CompileError(
+                expr.a,
                 `'dict' update() expected at most 1 argument, got ${numArgsUpdate}`
               );
             }
             let isArgDict = expr.arguments[0];
             if (isArgDict.tag === "literal") {
-              throw new BaseException.CompileError(expr.a,
+              throw new BaseException.CompileError(
+                expr.a,
                 `'dict' update() expected an iterable, got ${isArgDict.value.tag}`
               );
             }
@@ -1007,7 +1038,10 @@ export function tcExpr(
             // throw error if there are any arguments in clear()
             let numArgsClear = expr.arguments.length;
             if (numArgsClear != 0) {
-              throw new BaseException.CompileError(expr.a,`'dict' clear() takes no arguments (${numArgsClear} given)`);
+              throw new BaseException.CompileError(
+                expr.a,
+                `'dict' clear() takes no arguments (${numArgsClear} given)`
+              );
             }
             return {
               ...expr,
@@ -1016,7 +1050,10 @@ export function tcExpr(
               arguments: [{ tag: "literal", value: { tag: "none" } }],
             };
           default:
-            throw new BaseException.CompileError(expr.a,`'dict' object has no attribute '${expr.method}'`);
+            throw new BaseException.CompileError(
+              expr.a,
+              `'dict' object has no attribute '${expr.method}'`
+            );
         }
       } else {
         throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);

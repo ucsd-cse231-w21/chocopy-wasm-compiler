@@ -1051,61 +1051,62 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         // Pointer to return should be on the top of the stack already
       ]);
     case "method-call":
-      let clsName = (expr.obj.a[0] as any).name;
-      if (env.classes.get(clsName).has(expr.method)) {
-        let callExpr: Array<string> = [];
+      var objType = expr.obj.a[0];
+      if (objType.tag === "class") {
+        let clsName = objType.name;
         let argsExprs = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-        callExpr.push(...codeGenExpr(expr.obj, env));
-        callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
-        callExpr.push(`(i32.load) ;; load the function pointer for the extra argument`);
-        callExpr.push(...argsExprs);
-        callExpr.push(...codeGenExpr(expr.obj, env));
-        callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
-        callExpr.push(`(i32.load) ;; load the function pointer`);
-        callExpr.push(`(i32.load) ;; load the function index`);
-        callExpr.push(`(call_indirect (type $callType${expr.arguments.length + 1}))`);
-        return callExpr;
-      } else {
+        //Handle object indrect function calls
+        if (env.classes.get(clsName).has(expr.method)) {
+          let callExpr: Array<string> = [];
+          callExpr.push(...codeGenExpr(expr.obj, env));
+          callExpr.push(
+            `(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`
+          );
+          callExpr.push(`(i32.load) ;; load the function pointer for the extra argument`);
+          callExpr.push(...argsExprs);
+          callExpr.push(...codeGenExpr(expr.obj, env));
+          callExpr.push(
+            `(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`
+          );
+          callExpr.push(`(i32.load) ;; load the function pointer`);
+          callExpr.push(`(i32.load) ;; load the function index`);
+          callExpr.push(`(call_indirect (type $callType${expr.arguments.length + 1}))`);
+          return callExpr;
+        } else {
+          //Regular class object calls
+          return [...codeGenExpr(expr.obj, env), ...argsExprs, `(call $${clsName}$${expr.method})`];
+        }
+      } else if (objType.tag === "dict") {
+        //Handle method calls for dict objects
         var objStmts = codeGenExpr(expr.obj, env);
-        var objTyp = expr.obj.a[0];
-        if (objTyp.tag === "dict"){
-          var className = "dict";
-          if (expr.method === "get") {
-            let argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-            return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
-          } else if (expr.method === "update") {
-            if (expr.arguments[0].tag === "dict") {
-              let dictStmts: Array<string> = [];
-              let dictAddress: Array<string> = [];
-              expr.arguments[0].entries.forEach((keyval) => {
-                dictAddress = dictAddress.concat(...objStmts); //pushing the dict base address for each key-value pair update call
-                const value = codeGenExpr(keyval[1], env);
-                dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], value, 10, env));
-              });
-              return [...dictAddress, ...dictStmts, "(i32.const 0)"]; //last parameter to indicate none is being returned by this function
-            } else {
-              throw new BaseException.InternalException(
-                "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
-              );
-            }
+        if (expr.method === "get") {
+          let argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+          return [...objStmts, ...argsStmts, `(call $dict$get)`];
+        } else if (expr.method === "update") {
+          if (expr.arguments[0].tag === "dict") {
+            let dictStmts: Array<string> = [];
+            let dictAddress: Array<string> = [];
+            expr.arguments[0].entries.forEach((keyval) => {
+              dictAddress = dictAddress.concat(...objStmts); //pushing the dict base address for each key-value pair update call
+              const value = codeGenExpr(keyval[1], env);
+              dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], value, 10, env));
+            });
+            return [...dictAddress, ...dictStmts, "(i32.const 0)"]; //last parameter to indicate none is being returned by this function
+          } else {
+            throw new BaseException.InternalException(
+              "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
+            );
           }
-          else{
-              throw new BaseException.InternalException(
-                "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
-              );
-          }
-        }
-        else if (objTyp.tag === "class") {
-          var className = objTyp.name;
-          var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-          return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
-        }
-        else{
-          // I don't think this error can happen
+        } else {
           throw new BaseException.InternalException(
             "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
           );
         }
+      } else {
+        // I don't think this error can happen
+        throw new BaseException.InternalException(
+          "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
+        );
       }
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
