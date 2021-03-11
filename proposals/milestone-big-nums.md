@@ -9,13 +9,13 @@
     1. ✓ Bignum as expression
     2. ✓ Print
     3. ✓ 32 bit numbers and big numbers are the same to the programmer
-    4. Addition and subtraction
-    5. Division and multiplication
-    6. Mod 
-    7. Binary operators: == != > < >= <=
-    8. Operations with differently-sized operands
+    4. ✓ Addition and subtraction
+    5. ✓ Division and multiplication
+    6. ✓ Mod 
+    7. ✓ Binary operators: == != > < >= <=
+    8. ✓ Operations with differently-sized operands
     9. ✓ Typing: can't compare int and bool
-    10. Big nums in memory are immutable
+    10.✓ Big nums in memory are immutable
 
   We have completed 1, 2, 3, and 9. By March 11 we think we can complete all of the examples. If we have extra time, we can also re-write our builtin functions to work on big-nums. An example for this would be:
   
@@ -81,4 +81,12 @@
     print(x)
     ```
     Python provides several utility functions to convert between strings and ints, including `str`, `bin`, `hex`, `int`, etc. With strings and ints both implemented in our compiler, we could also implement functions that convert between the two. This would involve working with the builtin and strings team, and finding an efficient way to do the conversions.
+    
+   6. BigNum in list or tuple
+   
+     ```
+     list_num = [1,2,3,4294967296]
+     print(list_num)
+     ```
+     We haven't checked with the list and tuple team with their implementation. It can be possible that in order for our bigNum to work in list, we need some extra  modification on the program.
     
