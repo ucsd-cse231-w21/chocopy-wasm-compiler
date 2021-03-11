@@ -138,25 +138,27 @@ describe("GC-MnS Integration Tests", () => {
     ["x = None", PyNone(), 0n]
   ]);
 
-  // NOTE(alex:mm): disabled until list layout stabilized
-  //assertsUsage("Program 7", [
-  //  [ `
+  assertsUsage("Program 7", [
+    [ `
 
-  //    class Foo(object):
-  //      a: int = 0
-  //      f: Foo = None
+      class Foo(object):
+        a: int = 0
+        f: Foo = None
 
-  //    x: [Foo] = None
-  //    f: Foo = None
-  //    f = Foo()
-  //    f.f = Foo()
+      x: [Foo] = None
+      f: Foo = None
+      f = Foo()
+      f.f = Foo()
 
-  //    x = [None, None, f]`,
-  //    PyNone(),
-  //    32n
-  //  ],
-  //  ["x = None", PyNone(), 8n]
-  //]);
+      x = [None, None, f]`,
+      PyNone(),
+      // Taken from "list-expr" codegen in compiler.ts
+      //   alloc size: (listBound + 3) * 4
+      // +16 for the two Foo's
+      16n + ((3n + 10n) * 2n + 3n) * 4n
+    ],
+    ["x = None", PyNone(), 16n]
+  ]);
 
   assertsUsage("Program 8", [
     [`
