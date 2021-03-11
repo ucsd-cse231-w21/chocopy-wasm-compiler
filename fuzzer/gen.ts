@@ -379,7 +379,7 @@ function genClassSig(env: Env, varName: string, className: string) {
     }
 
     var fieldsList = fields.get(varTypeStr);
-    var fieldName = className + "_" + varTypeStr + "_" + fieldsList.length;
+    var fieldName = varTypeStr + "_" + fieldsList.length;
 
     fieldsList.push(fieldName);
     env.addVar(varName + "." + fieldName, varType);
@@ -391,7 +391,7 @@ function genClassSig(env: Env, varName: string, className: string) {
     var retType = selectRandomType(env, INNER_CLASS_LEVEL);
     var funcDef = genFuncSig(retType, env, INNER_CLASS_LEVEL, className);
 
-    funcDef.name = varName + "." + className + "_" + funcDef.name;
+    funcDef.name = varName + "." + funcDef.name;
 
     methods.push(funcDef);
     env.addFunc(funcDef);
