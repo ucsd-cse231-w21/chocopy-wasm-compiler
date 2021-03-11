@@ -1,6 +1,6 @@
 import "mocha";
 import { expect } from "chai";
-import { BitMappedBlocks } from "../heap";
+import { BitMappedBlocks, FreeListAllocator } from "../heap";
 import {
   MarkableSegregator,
   TAG_CLASS,
