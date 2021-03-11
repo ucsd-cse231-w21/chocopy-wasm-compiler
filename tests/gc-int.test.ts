@@ -121,4 +121,61 @@ describe("GC-MnS Integration Tests", () => {
     x.a`,
     PyInt(21),
     8n);
+
+  assertsUsage("Program 6", [
+    [ `
+      class Foo(object):
+        f: Foo = None
+
+      x: Foo = None
+      x = Foo()
+      x.f = Foo()`,
+      PyNone(),
+      8n
+    ],
+    ["x = None", PyNone(), 0n]
+  ]);
+
+  // NOTE(alex:mm): disabled until list layout stabilized
+  //assertsUsage("Program 7", [
+  //  [ `
+
+  //    class Foo(object):
+  //      a: int = 0
+  //      f: Foo = None
+
+  //    x: [Foo] = None
+  //    f: Foo = None
+  //    f = Foo()
+  //    f.f = Foo()
+
+  //    x = [None, None, f]`,
+  //    PyNone(),
+  //    32n
+  //  ],
+  //  ["x = None", PyNone(), 8n]
+  //]);
+
+
+  assertUsage("Program 10",
+    `
+    class Foo():
+      a: int = 0
+
+    def wasteTime():
+      x: int = 0
+      f: Foo = None
+
+      while x < 1000:
+        f = Foo()
+        f.a = x
+        x = x + 1
+
+    x: Foo = None
+    x = wasteTime()
+    x.a
+    `,
+    PyInt(4999),
+    4n);
+
 });
