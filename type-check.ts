@@ -553,9 +553,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             console.log("TC: get function in dict");
             let numArgsGet = expr.arguments.length;
             if (numArgsGet !== 2) {
-              throw new TypeCheckError(
-                `'dict' get() expected 2 arguments, got ${numArgsGet}`
-              );
+              throw new TypeCheckError(`'dict' get() expected 2 arguments, got ${numArgsGet}`);
             }
             let dictKeyTypeGet = tObj.a.key;
             let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
@@ -573,10 +571,10 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             if (!isAssignable(env, dictValueTypeGet, tValueGet.a)) {
               throw new TypeCheckError(
                 "Expected value type `" +
-                dictValueTypeGet.tag +
-                "`; got value lookup type `" +
-                tValueGet.a.tag +
-                "`"
+                  dictValueTypeGet.tag +
+                  "`; got value lookup type `" +
+                  tValueGet.a.tag +
+                  "`"
               );
             }
             return { ...expr, a: tObj.a.value, obj: tObj, arguments: [tKeyGet, tValueGet] };
@@ -612,7 +610,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               ...expr,
               a: NONE,
               obj: tObj,
-              arguments: [{ tag: "literal", value: { tag: "none" } }]
+              arguments: [{ tag: "literal", value: { tag: "none" } }],
             };
           default:
             throw new TypeCheckError(`'dict' object has no attribute '${expr.method}'`);

@@ -529,35 +529,18 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         var className = "dict";
         if (expr.method === "get") {
           let argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-          return [
-            ...objStmts,
-            ...argsStmts,
-            `(call $${className}$${expr.method})`
-          ];
-        }
-
-        else if (expr.method === "update"){
-          console.log("inside codgen - method call - dict$update; args are:");
-          console.log(expr.arguments);
-
-          if(expr.arguments[0].tag === "dict"){
+          return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
+        } else if (expr.method === "update") {
+          if (expr.arguments[0].tag === "dict") {
             let dictStmts: Array<string> = [];
             let dictAddress: Array<string> = [];
-            //dictAddress = dictAddress.concat(...objStmts);       
-
-            console.log("inside dict...")
             expr.arguments[0].entries.forEach((keyval) => {
-              console.log("objStmts:");
-              console.log(objStmts);
-              dictAddress = dictAddress.concat(...objStmts);  
+              dictAddress = dictAddress.concat(...objStmts); //pushing the dict base address for each key-value pair update call
               const value = codeGenExpr(keyval[1], env);
               dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], value, 10, env));
             });
-            
-            return [...dictAddress, ...dictStmts, '(i32.const 0)'];
-          }  
-
-          else{
+            return [...dictAddress, ...dictStmts, "(i32.const 0)"]; //last parameter to indicate none is being returned by this function
+          } else {
             throw new Error("This case shouldn't occur. Talk to the compiler architect.");
           }
         }
@@ -854,9 +837,9 @@ function dictUtilFuns(): Array<string> {
       "(local.get $nodePtr)",
       "(i32.const 4)",
       "(i32.add)", // Value
-      "(i32.load)",    //HT
+      "(i32.load)", //HT
       "(local.set $returnVal)",
-      "(i32.const 1)",           
+      "(i32.const 1)",
       "(local.set $tagHitFlag)", // Set tagHitFlag to True
       ")", // closing then
       ")", // closing if

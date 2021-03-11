@@ -429,7 +429,7 @@ while False:
   );
 
   assert(
-    "dict-update-method-2",
+    "dict-update-method-multiple-key-value-pairs",
     `d:[int, int] = None
      d = {1:2,5:10,15:25}
      d.update({5:100, 11: 22})
