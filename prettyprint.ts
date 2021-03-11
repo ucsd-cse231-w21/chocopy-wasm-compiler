@@ -33,9 +33,8 @@ export function prettyPrintObjects(result: Value, repl : BasicREPL, currentEle :
       prettyPrintList(result, repl, currentEle);
       break;
     case "dict":
-      console.log(result)
       prettyPrintDictionary(result, repl, currentEle);
-
+      break;
   }
 }
 
@@ -55,11 +54,6 @@ function prettyPrintDictionary(result: any, repl: BasicREPL, currentEle : any){
   for (i = 0; i < hashtableSize; i++){
     const hash_entry = view[result.address/4 + i]
     if (hash_entry != 0){
-
-
-      // const key = view[hash_entry/4 + 0];
-      // const value = view[hash_entry/4 + 1];
-      // const next_ptr = view[hash_entry/4 + 2];
       printDictionaryLLHelper(result, hash_entry/4, repl, view, div);
     }
   }
@@ -84,7 +78,6 @@ function printDictionaryLLHelper(result: any, baseIndex: number, repl: BasicREPL
           ele.appendChild(new_div);
           prettyPrintDictionary(val, repl, new_div);
       }
-
       break;
     // case "class":
     //   prettyPrintClassObject(result, repl, currentEle);
@@ -145,6 +138,42 @@ function prettyPrintClassObject(result: any, repl : BasicREPL, currentEle : any)
           ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
         }
         break;
+      case "list":
+        if(val.tag !== "none"){
+          ele.innerHTML = "<b class='tag'>" + key + ":</b>";
+          const new_div = document.createElement("div");
+          ele.appendChild(new_div)
+          prettyPrintList({ 
+                              tag: "list", 
+                              name: "list", 
+                              address: view[result.address/4 + offset],
+                              content_type: type.content_type
+                            }, 
+                            repl, 
+                            new_div) 
+        }
+        else{
+          ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
+        }
+        break;
+      case "dict":
+        if(val.tag !== "none"){
+          ele.innerHTML = "<b class='tag'>" + key + ":</b>";
+          const new_div = document.createElement("div");
+          ele.appendChild(new_div)
+          prettyPrintDictionary({ 
+                            tag: "dict", 
+                            key_type: type.key, 
+                            value_type: type.value,
+                            address: view[result.address/4 + offset],
+                          }, 
+                          repl, 
+                          new_div) 
+        }
+        else{
+          ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
+        }
+        break;
       default:
         ele.innerHTML = "<b class='tag'>" + key + ": </b><p class='val'>" + val.value + "</p>";
         break;
@@ -196,6 +225,9 @@ function prettyPrintList(result: any, repl: BasicREPL, currentEle: any){
           ele.innerHTML = "<b class='tag'>" + i + ": </b> <p class='val'>none</p>";
         }
         break;
+      // case "dict":
+
+      //   break;
       default:
         var ele_val = PyValue(type, view[result.address/4 + 3 + i], view) as any;
         ele.innerHTML = "<b class='tag'>" + i + ": </b><p class='val'>" + ele_val.value + "</p>";
