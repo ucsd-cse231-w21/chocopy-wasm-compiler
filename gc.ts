@@ -21,8 +21,8 @@ export const TAG_DICT = 0x4n;
 export const TAG_BIGINT = 0x5n;
 export const TAG_REF = 0x6n;
 export const TAG_DICT_ENTRY = 0x7n;
-export const TAG_OPAQUE = 0x8n;           // NOTE(alex:mm) needed to mark zero-sized-types
-export const TAG_CLOSURE = 0x9n;
+export const TAG_CLOSURE = 0x8n;
+export const TAG_OPAQUE = 0x12n;           // NOTE(alex:mm) needed to mark zero-sized-types
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
@@ -475,6 +475,8 @@ export class MnS<A extends MarkableAllocator> {
           }
         }
 
+      } else if (childTag === TAG_OPAQUE) {
+        // NOP
       } else {
         throw new Error(`Trying to trace unknown heap object: ${childTag.toString()}`);
       }
