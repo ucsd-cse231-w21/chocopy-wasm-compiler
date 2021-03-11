@@ -141,8 +141,9 @@ type Cfg = {
   kind: "freelist" | "bitmap"
 }
 
-describe("MnS", () => {
-  describe("MnS-BitMappedBlocks-1", () => {
+// GC mark-and-sweep unit tests under controlled conditions
+describe("GC-MnS", () => {
+  describe("GC-MnS-BitMappedBlocks-1", () => {
 
     function makeCfg(): Cfg {
       const memory = new Uint8Array(1000);
@@ -164,7 +165,7 @@ describe("MnS", () => {
 
   // NOTE(alex:mm): relies on HEADER_SIZE_BYTES === 8
   // FreeListAllocator puts headers in memory
-  describe("MnS-FreeList-1", () => {
+  describe("GC-MnS-FreeList-1", () => {
 
     function makeCfg(): Cfg {
       const memory = new Uint8Array(1000);
