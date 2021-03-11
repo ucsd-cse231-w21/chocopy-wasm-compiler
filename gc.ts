@@ -376,7 +376,8 @@ export class MnS<A extends MarkableAllocator> {
       const headerRef = this.heap.getHeader(childPtr);
       const childSize = headerRef.getSize(); // in bytes
       const childTag = headerRef.getTag();
-      console.warn(`Tracing ${childPtr} (tag=${childTag}, size=${childSize})`);
+      headerRef.mark();
+      console.warn(`Tracing ${childPtr} (tag=${childTag}, size=${childSize}, header=${headerRef.headerStart})`);
 
       // NOTE(alex:mm): using a `switch` here breaks occasionally for whatever reason
       if (childTag === TAG_CLASS) {
@@ -447,22 +448,20 @@ export class MnS<A extends MarkableAllocator> {
             currListAddr = this.getField(currListAddr + 8n);
           }
         }
-      } else if (childPtr === TAG_REF) {
+      } else if (childTag === TAG_REF) {
         // NOTE(alex:mm): assume a single value
         // TODO(alex:mm): TAG_REF can be potentially be merged with TAG_CLASS
-        this.setMarked(childPtr);
         const value = readI32(this.memory, Number(childPtr));
         if (isPointer(value) && value !== 0n) {
           const pointerValue = extractPointer(value);
           worklist.push(pointerValue);
         }
-      } else if (TAG_CLOSURE) {
+      } else if (childTag === TAG_CLOSURE) {
         // Layout [32-bit fn table-index, boxed-values...]
         this.setMarked(childPtr);
         const childSize = headerRef.getSize(); // in bytes
         const boxedRefsSize = childSize - 4n;
         console.warn(`TAG CLOSURE {size=${childSize}}`);
-
 
         const dataBase = childPtr + 4n;
         for (let dataPtr = dataBase; dataPtr < dataBase + boxedRefsSize; dataPtr += 4n) {
