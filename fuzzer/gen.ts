@@ -493,6 +493,8 @@ function genVarDef(name: string, type: Type): string {
 }
 
 function genFuncDef(level: number, env: Env, sig: FunDef, className?: string): Array<string> {
+  if (sig.name.includes(".")) return [];
+
   var currIndent = indent.repeat(level);
   var funcStrings = [];
   var paramList = sig.parameters;
