@@ -24,6 +24,11 @@ export const TAG_DICT_ENTRY = 0x7n;
 export const TAG_CLOSURE = 0x8n;
 export const TAG_OPAQUE = 0x12n;           // NOTE(alex:mm) needed to mark zero-sized-types
 
+// NOTE(alex:mm): controls whether any GC is ever run
+// Set to false to disable GC (meaning memory allocations will always accumulate)
+// Mainly for debugging purposes and as a fail-safe for unexpected bugs
+export const ENABLE_GC = true;
+
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
 const HEADER_OFFSET_GC = 0x1;
@@ -513,6 +518,10 @@ export class MnS<A extends MarkableAllocator> {
 
   // Try to make space in the heap
   collect() {
+    if (!ENABLE_GC) {
+      console.error(`Unable to run the GC. ENABLE_GC is not set to true`);
+      return;
+    }
     this.markFromRoots();
     this.sweep();
   }
