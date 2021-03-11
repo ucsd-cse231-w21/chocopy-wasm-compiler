@@ -982,7 +982,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(...codeGenExpr(arg, env));
         });
-        callExpr.push(...codeGenPushStack(expr.a[1]));
 
         // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
@@ -999,7 +998,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(...codeGenExpr(arg, env));
         });
-        callExpr.push(...codeGenPushStack(expr.a[1]));
         // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
           ...codeGenCall(
@@ -1016,7 +1014,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(...codeGenExpr(arg, env));
         });
-        callExpr.push(...codeGenPushStack(expr.a[1]));
         callExpr.push(
           ...codeGenCall(
             expr.a[1],
@@ -1028,7 +1025,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       } else {
         throw new BaseException.InternalException(`Invalid name of tag ${nameExpr.tag}`);
       }
-      callExpr.push(...codeGenPopStack());
       return callExpr;
     case "construct":
       var stmts: Array<string> = [

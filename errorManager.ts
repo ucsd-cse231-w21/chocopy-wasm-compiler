@@ -19,22 +19,28 @@ export class ErrorManager {
   }
 
   locToString(loc: Location): string {
-    console.log(this.sources[loc.fileId - 1].split(/\r?\n/)[loc.line - 1]);
     return this.sources[loc.fileId - 1]
       .split(/\r?\n/)
-      [loc.line - 1].substr(loc.col, loc.col + loc.length)
-      .split(".")[1];
+      [loc.line - 1].substr(loc.col - 1, loc.length);
   }
 
   stackToString(callStack: Array<Location>): string {
     var result = "";
+    let previousCall = "main"
     callStack.forEach((loc, i) => {
-      if (i <= 10)
-        result = `at line ${loc.line} of file ${loc.fileId}: ${
-          this.sources[loc.fileId - 1].split(/\r?\n/)[loc.line - 1]
-        }`
-          .concat("\n")
-          .concat(result);
+      if (i <= 10) {
+        result += `at line ${loc.line} of file ${loc.fileId} in ${previousCall} \n`;
+        let file : string[] = this.sources[loc.fileId - 1].split(/\r?\n/);
+        let fileLines = file.length;
+        let start = Math.max(loc.line - 1, 1);
+        let end = start == loc.line ? Math.min(loc.line + 2, fileLines) : Math.min(loc.line + 1, fileLines);
+        for (let line = start; line <= end; line++) {
+          result += (line === loc.line ? ` ----> ` : `       `) + `${line}\t`;
+          result += file[line - 1] + "\n";
+        }
+        result += "\n";
+        previousCall = this.locToString(loc);
+      }
     });
     return result;
   }
@@ -48,9 +54,8 @@ export class ErrorManager {
       throw new BaseException.AttributeError(
         this.callStack,
         { tag: "none" },
-        this.locToString(this.callStack[this.callStack.length - 1])
+        this.locToString(this.callStack[this.callStack.length - 1]).split(".")[1]
       );
-    console.log(arg);
   }
 
   __checkNoneLookup(arg: number) {
