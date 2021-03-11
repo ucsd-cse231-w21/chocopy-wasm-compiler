@@ -427,8 +427,8 @@ export function tcStmt(
     case "pass":
       return { a: [NONE, stmt.a], tag: stmt.tag };
     case "for":
-      if ( stmt.iterable.tag == "call" && stmt.iterable.name == "enumerate" ) {
-        if ( stmt.name.targets.length != 2 ) {
+      if (stmt.iterable.tag == "call" && stmt.iterable.name == "enumerate") {
+        if (stmt.name.targets.length != 2) {
           throw new BaseException.SyntaxError(stmt.a, "enumerate must have index variable!");
         } else {
           stmt.iterable.name = "range";
