@@ -208,29 +208,14 @@ describe("type inference", () => {
     NUM
   );
 
-  assertTC(
-    "infer return type of a function",
-    `
-    class A(object):
-      x: int = 8
-  
-    def g(a): 
-      return a.x + 1
-    
-    g(A())
-    `,
-    NUM
-  );
-
+  // Produces an expected typecheck error
   // assertTC(
-  //   "infer return type of a function",
+  //   "infer return type of a function I",
   //   `
-  //   def f():
-  //     return 1
-
-  //   x: int = 1
-  //   x = f()
-  //   x
+  //   y = False
+  //   def g(z): 
+  //     return y + 1
+  //   g(0)
   //   `,
   //   NUM
   // );
