@@ -528,16 +528,10 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       } else {
         var className = "dict";
         if (expr.method === "get") {
-          let defaultarg = "";
-          if (expr.arguments.length == 1) {
-            defaultarg = `(i32.const -999)`;
-          }
           return [
             ...objStmts,
             ...argsStmts,
-            defaultarg,
-            `(call $${className}$${expr.method})`,
-            `(i32.load)`,
+            `(call $${className}$${expr.method})`
           ];
         }
         return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
@@ -800,8 +794,8 @@ function dictUtilFuns(): Array<string> {
       "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
       "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
       "(local $returnVal i32)",
-      "(i32.const -1)",
-      "(local.set $returnVal)", // Initialize returnVal to -1
+      "(local.get $defaultValue)",
+      "(local.set $returnVal)", // Initialize returnVal to defaultValue argument
       "(i32.const 0)",
       "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
       "(local.get $baseAddr)",
@@ -817,7 +811,7 @@ function dictUtilFuns(): Array<string> {
       "(i32.eq)",
       "(if",
       "(then", // if the literal in bucketAddress is None
-      "(i32.const -1)",
+      "(local.get $defaultValue)",
       "(local.set $returnVal)", // Initialize returnVal to -1
       ")", //close then
       "(else",
@@ -832,8 +826,9 @@ function dictUtilFuns(): Array<string> {
       "(local.get $nodePtr)",
       "(i32.const 4)",
       "(i32.add)", // Value
+      "(i32.load)",    //HT
       "(local.set $returnVal)",
-      "(i32.const 1)",
+      "(i32.const 1)",           
       "(local.set $tagHitFlag)", // Set tagHitFlag to True
       ")", // closing then
       ")", // closing if

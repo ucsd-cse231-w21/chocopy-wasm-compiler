@@ -552,9 +552,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           case "get":
             console.log("TC: get function in dict");
             let numArgsGet = expr.arguments.length;
-            if (numArgsGet > 2) {
+            if (numArgsGet !== 2) {
               throw new TypeCheckError(
-                `'dict' get() expected at most 2 arguments, got ${numArgsGet}`
+                `'dict' get() expected 2 arguments, got ${numArgsGet}`
               );
             }
             let dictKeyTypeGet = tObj.a.key;
@@ -568,7 +568,19 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
                   "`"
               );
             }
-            return { ...expr, a: tObj.a.value, obj: tObj, arguments: [tKeyGet] };
+            let dictValueTypeGet = tObj.a.value;
+            let tValueGet = tcExpr(env, locals, expr.arguments[1]);
+            if (!isAssignable(env, dictValueTypeGet, tValueGet.a)) {
+              throw new TypeCheckError(
+                "Expected value type `" +
+                dictValueTypeGet.tag +
+                "`; got value lookup type `" +
+                tValueGet.a.tag +
+                "`"
+              );
+            }
+            return { ...expr, a: tObj.a.value, obj: tObj, arguments: [tKeyGet, tValueGet] };
+
           case "update":
             console.log("TC: To-Do update function in dict");
             let numArgsUpdate = expr.arguments.length;
