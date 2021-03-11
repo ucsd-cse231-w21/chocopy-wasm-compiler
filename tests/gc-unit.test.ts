@@ -1,7 +1,7 @@
 import "mocha";
 import { expect } from "chai";
 import { PyInt, PyBool, PyNone } from "../utils";
-import { Block, BitMappedBlocks } from "../heap";
+import { Block, BitMappedBlocks, FreeListAllocator } from "../heap";
 import {
   Header,
   HEADER_SIZE_BYTES,
@@ -138,6 +138,7 @@ type Cfg = {
   heap: PhantomAllocator,
   memory: Uint8Array,
   name: string,
+  kind: "freelist" | "bitmap"
 }
 
 describe("MnS", () => {
@@ -145,13 +146,34 @@ describe("MnS", () => {
 
     function makeCfg(): Cfg {
       const memory = new Uint8Array(512);
-      const bmb = new BitMappedBlocks(100n, 200n, 4n, BigInt(HEADER_SIZE_BYTES));
+      const bmb = new BitMappedBlocks(100n, 1000n, 4n, BigInt(HEADER_SIZE_BYTES));
       const heap = new PhantomAllocator(bmb);
 
       return {
         heap: heap,
         memory: memory,
         name: "BitMappedBlocks",
+        kind: "bitmap",
+      };
+    }
+
+    // Need to give each test a blank slate
+    const cfgs: [Cfg, Cfg, Cfg] = [makeCfg(), makeCfg(), makeCfg()];
+    basicTests(cfgs);
+  });
+
+  describe("MnS-FreeList-1", () => {
+
+    function makeCfg(): Cfg {
+      const memory = new Uint8Array(512);
+      const alloc = new FreeListAllocator(memory, 100n, 1000n);
+      const heap = new PhantomAllocator(alloc);
+
+      return {
+        heap: heap,
+        memory: memory,
+        name: "FreeList",
+        kind: "freelist",
       };
     }
 
@@ -161,6 +183,9 @@ describe("MnS", () => {
   });
 });
 
+// Assumes:
+//   * start: 100
+//   * end:   1000
 function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
 
   // Simulating:
@@ -177,6 +202,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     const heap = cfgs[0].heap;
     const memory = cfgs[0].memory;
     const mns = new MnS(memory, heap);
+    const kind = cfgs[0].kind;
 
     mns.roots.pushFrame();
     const ptr0 = mns.gcalloc(TAG_CLASS, 4n);
@@ -243,6 +269,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
   it(`[${cfgs[1].name}] temporary class allocate and sweep`, () => {
     const heap = cfgs[1].heap;
     const memory = cfgs[1].memory;
+    const kind = cfgs[1].kind;
 
     const mns = new MnS(memory, heap);
 
@@ -311,7 +338,9 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
   it(`[${cfgs[2].name}] global var class allocate and sweep`, () => {
     const heap = cfgs[2].heap;
     const memory = cfgs[2].memory;
+    const kind = cfgs[2].kind;
     const mns = new MnS(memory, heap);
+
     const X_ADDR = 0x4n;
     const Y_ADDR = 0x8n;
 
