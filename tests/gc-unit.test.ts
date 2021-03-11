@@ -223,7 +223,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr1)).to.equal(104);
     } else if (kind === "freelist") {
-      // expect(Number(ptr1)).to.equal(984);
+      expect(Number(ptr1)).to.equal(984);
     }
     mns.roots.addLocal(0n, ptr1);
 
@@ -231,7 +231,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     if (kind === "bitmap") {
       expect(Number(ptr2)).to.equal(108);
     } else if (kind === "freelist") {
-      expect(Number(ptr2)).to.equal(992);
+      expect(Number(ptr2)).to.equal(972);
     }
     mns.roots.addLocal(1n, ptr2);
 
