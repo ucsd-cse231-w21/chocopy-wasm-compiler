@@ -29,22 +29,21 @@ export class ErrorManager {
     let previousCall = "main";
     callStack.forEach((loc, i) => {
       if (i <= 10) {
-        var stackResult = "";
-        stackResult += `at line ${loc.line} of file ${loc.fileId} in ${previousCall} \n`;
+        result += `at line ${loc.line} of file ${loc.fileId} in ${previousCall} \n`;
         let file: string[] = this.sources[loc.fileId - 1].split(/\r?\n/);
         let fileLines = file.length;
         let start = Math.max(loc.line - 1, 1);
         let end =
           start == loc.line ? Math.min(loc.line + 2, fileLines) : Math.min(loc.line + 1, fileLines);
         for (let line = start; line <= end; line++) {
-          stackResult += (line === loc.line ? ` ----> ` : `       `) + `${line}\t`;
-          stackResult += file[line - 1] + "\n";
+          result += (line === loc.line ? ` ----> ` : `       `) + `${line}\t`;
+          result += file[line - 1] + "\n";
         }
-        stackResult += "\n";
-        result = stackResult + result;
+        result += "\n";
         previousCall = this.locToString(loc);
       }
     });
+    if (callStack.length > 10) result += "...";
     return result;
   }
 
