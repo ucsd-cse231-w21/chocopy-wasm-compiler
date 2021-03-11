@@ -195,7 +195,11 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
 
       const leftArg  = traverseExpr(c, s);
       c.nextSibling();
-      const op       = s.substring(c.from, c.to);
+      var op       = s.substring(c.from, c.to);
+      if (op == "not") {
+	c.nextSibling();
+	op = op + " " + s.substring(c.from, c.to);
+      }
       c.nextSibling();
       const rightArg = traverseExpr(c, s);
 

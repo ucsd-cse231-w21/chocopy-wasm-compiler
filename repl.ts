@@ -129,6 +129,8 @@ export class BasicREPL {
     this.importObject.imports.str_fromInt = builtins_str.str_fromInt(importObject);
     this.importObject.imports.str_upper = builtins_str.str_upper(importObject);
     this.importObject.imports.str_lower = builtins_str.str_lower(importObject);
+    this.importObject.imports.str_in = builtins_str.str_in(importObject);
+    this.importObject.imports.str_notin = builtins_str.str_in(importObject, true);
 
     // Returns the offset to the newly allocated memory region
     this.importObject.imports.malloc = extras.malloc(importObject);

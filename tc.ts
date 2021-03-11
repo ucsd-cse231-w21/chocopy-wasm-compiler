@@ -1,6 +1,6 @@
 // -*- mode: typescript; typescript-indent-level: 2; -*-
 
-import { internalError, typeError, symLookupError, argError, scopeError, parseError } from './error';
+import { internalError, typeError, symLookupError, argError, scopeError, parseError, syntaxError } from './error';
 import { GlobalEnv, ClassEnv, FuncEnv } from "./env";
 import { Type, Value, Expr, Stmt, Parameter, Pos, Branch, ClassT, BoolT, IntT, StrT, NoneT } from "./ast";
 import { tr, eqT, neqT, canAssignNone } from "./common"
@@ -71,8 +71,16 @@ tc_binExp(pos: Pos, op : string, leftType : Type, rightType : Type, source: stri
 		  source);
       }
       return BoolT;
+    case "not in":
+    case "in":
+      if (leftType != StrT || rightType != StrT) {
+	typeError(pos, `Operator ${op} used on non-str types, ${tr(leftType)} and ${tr(rightType)}`,
+		  source);
+      }
+      return BoolT;
+      
     default:
-      throw "Unknown operator " + op;
+      syntaxError(pos, "Unknown operator " + op, source);
   }
 }
 
@@ -319,6 +327,8 @@ tc_stmt(stmt: Stmt, source: string, gblEnv: GlobalEnv, funEnv: EnvType = <EnvTyp
 	    + `type (${tr(exprT)}).`, source);
 	}
 
+      } else {
+	typeError(stmt.lhs.pos, `Cannot use expression of type ${stmt.lhs.tag} in LHS of an assign statement.`, source);
       }
       return [stmt, NoneT];
     case "while":

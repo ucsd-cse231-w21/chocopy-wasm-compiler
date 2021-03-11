@@ -19,6 +19,39 @@ export function str_fromInt(importObject: any): any {
   };
 }
 
+export function str_in(importObject: any, not_in: boolean = false) {
+  return (offBigInt1: any, offBigInt2: any): any => {
+    const off1: number = Number(offBigInt1 - cmn.STR_BI);
+    const off2: number = Number(offBigInt2 - cmn.STR_BI);
+
+    const memUint8 = importObject.imports.get_uint8_repr();
+    
+    // Copy the first and second strings
+    var siter1: number = off2;
+    var siter2: number = off1;
+
+    var str1 = "";
+    var str2 = "";
+    
+    while (memUint8[siter1] != 0) {
+      str1 = str1 + String.fromCharCode(memUint8[siter1]);
+      siter1 += 1;
+    }
+    
+    while (memUint8[siter2] != 0) {
+      str2 = str2 + String.fromCharCode(memUint8[siter2]);
+      siter2 += 1;
+    }
+
+    // Return pointer to the new string
+    if (not_in) {
+      return !str1.includes(str2) ? cmn.TRUE_BI : cmn.FALSE_BI;
+    } else {
+      return str1.includes(str2) ? cmn.TRUE_BI : cmn.FALSE_BI;
+    }
+  };
+}
+
 export function str_concat(importObject: any) {
   return (offBigInt1: any, offBigInt2: any): any => {
     const off1: number = Number(offBigInt1 - cmn.STR_BI);

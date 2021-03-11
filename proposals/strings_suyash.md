@@ -88,11 +88,13 @@ Escape sequences `\n`, `\\`, `\t`:
 
 ```python
 test_string: str = "\tThis line is tabbed\nThis is not\nNew lines with: \\n, tabs with \\t"
+test_string = "\"This is a quoted string\""
 
 # All these string should be of length 1
 print(len("\n"))    # 1
 print(len("\t"))    # 1
 print(len("\\"))    # 1
+print(len("\""))    # 1
 ```
 
 ### #9
@@ -106,6 +108,9 @@ print("abc" <= "abc") # True
 print("abc" <  "bbc") # True
 print("abc" >  "bbc") # False
 print("abc" <  "bbc") # True
+
+print("abc" in "abcd")    # True
+print("abcd" not in "abc" # True
 ```
 
 

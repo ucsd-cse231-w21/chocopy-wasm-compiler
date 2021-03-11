@@ -131,5 +131,9 @@ export function codeGenOp(op: string, leftT: Type, rightT: Type) : Array<string>
 	      `(i64.shl)`,
 	      `(i64.add)`
 	     ];
+    case "in":
+      return [`(call $str$in)`];
+    case "not in":
+      return [`(call $str$notin)`];
   }
 }

@@ -42,6 +42,7 @@ export const argError = (pos: Pos, msg: string, source: string): never => generi
 export const scopeError = (pos: Pos, msg: string, source: string): never => genericError('ScopeError', pos, msg, source);
 export const valError = (pos: Pos, msg: string, source: string): never => genericError('ValueError', pos, msg, source);
 export const idxError = (pos: Pos, msg: string, source: string): never => genericError('IndexError', pos, msg, source);
+export const syntaxError = (pos: Pos, msg: string, source: string): never => genericError('SyntaxError', pos, msg, source);
 
 
 export const parseError = (pos: Pos, msg: string, source: string): never => genericError('ParseError', pos, msg, source);
