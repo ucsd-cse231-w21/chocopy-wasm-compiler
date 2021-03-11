@@ -565,7 +565,7 @@ function codeGenDestructure(
         const targetStmts = destruct.targets.flatMap((target) => {
           const assignable = target.target;
           if (target.starred) {
-            throw new Error("Star operator not implemented yet.");
+            //throw new Error("Star operator not implemented yet.");
 
             // The starting index of the star operator
             // subtracting the 12 for the header values, dividing by 4 to convert from byte offset to index in list
@@ -587,7 +587,7 @@ function codeGenDestructure(
             const sourceList = [value];
             const incrementOffset = [
               ...offset,
-              `(i32.mul ${numStarElements.join("n")} (i32.const 4))`,
+              `(i32.mul ${numStarElements.join("\n")} (i32.const 4))`,
               `(i32.add)`,
               `(local.set $$destructListOffset)`,
             ];
@@ -595,7 +595,7 @@ function codeGenDestructure(
               ...startStarIndex,
               ...endStarIndex,
               ...sourceList,
-              //...codeGenListCopy(ListCopyMode.Slice),
+              ...codeGenListCopy(ListCopyMode.Slice),
             ];
 
             return codeGenAssignable(assignable, copyListSlice, env).concat(incrementOffset);

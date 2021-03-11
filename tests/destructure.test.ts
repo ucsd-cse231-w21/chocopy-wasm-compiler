@@ -305,7 +305,166 @@ describe("Destructure lists", () => {
   `
   );
 
-  asserts("destructuring proposal test 12, Assignment happens in a left to right order.", [
+  asserts("destructuring list basic splat operator", [
+    [
+      `
+        a: int = 0
+        b: [int] = None
+        a, *b = [4, 5, 6]
+        a
+      `,
+      PyInt(4),
+    ],
+    [
+      `
+        b[0]
+      `,
+      PyInt(5),
+    ],
+    [
+      `
+        b[1]
+      `,
+      PyInt(6),
+    ],
+  ]);
+
+  asserts("destructuring list splat operator, overwrites old list reference", [
+    [
+      `
+        a: int = 0
+        b: [int] = None
+        b = [1,2]
+        a, *b = [4, 5, 6]
+        a
+      `,
+      PyInt(4),
+    ],
+    [
+      `
+        b[0]
+      `,
+      PyInt(5),
+    ],
+    [
+      `
+        b[1]
+      `,
+      PyInt(6),
+    ],
+  ]);
+
+  asserts("destructuring proposal test 4, Splat operator", [
+    [
+      `
+        a: int = 0
+        b: [int] = None
+        _: [int] = None
+        c: int = 0
+        a, *b = [1, 2]
+        c, *_ = [1, 2]
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        b[0]
+      `,
+      PyInt(2),
+    ],
+    [
+      `
+        c
+      `,
+      PyInt(1),
+    ],
+  ]);
+
+  asserts("destructuring proposal test 5, Empty splat operator", [
+    [
+      `
+        a: int = 0
+        b: int = 0
+        c: [int] = None
+        a, b, *c = [1, 2]
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        b
+      `,
+      PyInt(2),
+    ],
+    // no way to verify c's length is 0 at the moment
+  ]);
+
+  asserts("destructuring list empty splat operator, in middle of targets", [
+    [
+      `
+        a: int = 0
+        b: int = 0
+        c: [int] = None
+        a, *c, b = [1, 2]
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        b
+      `,
+      PyInt(2),
+    ],
+    // no way to verify c's length is 0 at the moment
+  ]);
+
+  asserts("destructuring proposal test 6, Single splat at any location", [
+    [
+      `
+        a: int = 0
+        c: [int] = None
+        b: int = 0
+        a, *c, b = [1, 2, 3]
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        c[0]
+      `,
+      PyInt(2),
+    ],
+    [
+      `
+        b
+      `,
+      PyInt(3),
+    ],
+  ]);
+
+  asserts("destructuring proposal test 7, Splat always creates a list", [
+    [
+      `
+        _: int = 0
+        b: [int] = None
+        _, *b = [1, 2, 3]
+        b[0]
+      `,
+      PyInt(2),
+    ],
+    [
+      `
+        b[1]
+      `,
+      PyInt(3),
+    ],
+  ]);
+
+  asserts("destructuring proposal test 8, Assignment happens in a left to right order.", [
     [
       `
         x: [int] = None
