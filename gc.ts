@@ -406,7 +406,8 @@ export class MnS<A extends MarkableAllocator> {
 
         // Note(sagar): Memory layout is abstracted by allocator
         // childPtr always points to start of data, not header
-        for(let dataPtr = childPtr + 12n; dataPtr < childPtr + listLength; dataPtr += 4n) {
+        const dataBase = childPtr + 12n;
+        for(let dataPtr = dataBase; dataPtr < dataBase + listLength; dataPtr += 4n) {
           const elementValue = this.getField(dataPtr);
 
           if(isPointer(elementValue)) {
