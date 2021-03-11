@@ -347,10 +347,14 @@ function inferRetTypeHepler(block: Array<Stmt<Type>>, globEnv: GlobalTypeEnv): T
       let thenRetType = inferRetTypeHepler(st.thn, globEnv)
       let elseRetType = inferRetTypeHepler(st.els, globEnv)
       retType = joinType(thenRetType, elseRetType, globEnv)
-      break;
+      if (retType.tag !== "none") {
+        break;
+      }
     } else if (st.tag === "while") {
       retType = inferRetTypeHepler(st.body, globEnv);
-      break
+      if (retType.tag !== "none") {
+        break;
+      }
     }
   }
   return retType;
