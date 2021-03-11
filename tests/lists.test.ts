@@ -47,7 +47,7 @@ describe("LIST TEST", () => {
         x : [A] = None
         x1 : A = None
         x2 : A = None
-        x3 : A = None  
+        x3 : A = None
         x = [A(),A(),A()]
         print(x[0].n)
         print(x[1].n)

@@ -1,8 +1,9 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { themeList_export } from "./themelist";
+import { addAccordionEvent, prettyPrintObjects } from "./prettyprint";
+import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
 import { defaultTypeEnv } from "./type-check";
-import { NUM, BOOL, NONE, STRING, PyValue, unhandledTag } from "./utils";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -12,6 +13,7 @@ import "codemirror/addon/lint/lint";
 import "codemirror/addon/scroll/simplescrollbars";
 import "./style.scss";
 import { toEditorSettings } from "typescript";
+<<<<<<< HEAD
 import { keyBy, replace } from "cypress/types/lodash";
 import {autocompleteHint, populateAutoCompleteSrc} from "./autocomplete";
 import {default_keywords, default_functions} from './pydefaultwordlist';
@@ -95,43 +97,32 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
 
 function print(typ: Type, arg: number, mem: any): any {
   console.log("Logging from WASM: ", arg);
+=======
+import { replace } from "cypress/types/lodash";
+import { ErrorManager } from "./errorManager";
+
+function print(val: Value) {
+>>>>>>> front-end
   const elt = document.createElement("pre");
   document.getElementById("output").appendChild(elt);
-  const val = PyValue(typ, arg, mem);
   elt.innerText = stringify(val); // stringify(typ, arg, mem);
-  return arg;
 }
 
 function webStart() {
   var hiderepl = false;
   document.addEventListener("DOMContentLoaded", function () {
     var filecontent: string | ArrayBuffer;
-    const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
-    const view = new Int32Array(memory.buffer);
-    view[0] = 4;
-    var memory_js = { memory: memory };
-   
     var importObject = {
       imports: {
-        print: (arg: any) => print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_str: (arg: number) =>
-          print(STRING, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_num: (arg: number) =>
-          print(NUM, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_bool: (arg: number) =>
-          print(BOOL, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
-        print_none: (arg: number) =>
-          print(NONE, arg, new Uint32Array(repl.importObject.js.memory.buffer)),
+        print: print,
         abs: Math.abs,
         min: Math.min,
         max: Math.max,
         pow: Math.pow,
       },
-      js: memory_js,
     };
 
-    mem_js = importObject.js;
-
+    (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -144,27 +135,8 @@ function webStart() {
       elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
       elt.innerText = stringify(result);
-      prettyPrintObject(result, repl, document.getElementById("output"));
-      
-      var acc = document.getElementsByClassName("accordion");
-      var i = 0;       
-      for (i; i < acc.length; i++) {
-        if(acc[i].getAttribute("listener") !== "true"){
-          acc[i].setAttribute("listener", "true")
-          acc[i].addEventListener("click", function() {
-            this.classList.toggle("active");
-            var panel = this.nextElementSibling;
-            var arrow = this.firstChild;
-            if (panel.style.display === "block") {
-              panel.style.display = "none";
-              arrow.style.transform = "rotate(-45deg)"
-            } else {
-              panel.style.display = "block";
-              arrow.style.transform = "rotate(45deg)"
-            }
-          });        
-        }
-      }
+      prettyPrintObjects(result, repl, document.getElementById("output"));
+      addAccordionEvent();
     }
 
     function renderError(result: any, source: string): void {
@@ -172,13 +144,11 @@ function webStart() {
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
       var text = "";
-      if (result.loc != undefined){
-        text = `line ${result.loc.line}: ${source
-          .split(/\r?\n/)
-          [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
-        highlightLine(result.loc.line - 1, result.message);
+      if (result.callStack != undefined) {
+        console.log(result.callStack);
+        text = repl.errorManager.stackToString(result.callStack);
       }
-      elt.innerText = text.concat("\n").concat(String(result));
+      elt.innerText = String(result).concat("\n").concat(text);
     }
 
     function setupRepl() {
@@ -200,6 +170,7 @@ function webStart() {
           const source = replCodeElement.value;
           elt.value = source;
           replCodeElement.value = "";
+          repl.errorManager.clearStack();
           repl
             .run(source)
             .then((r) => {
@@ -230,6 +201,8 @@ function webStart() {
         })
         .catch((e) => {
           renderError(e, source.value);
+          if (e.callStack != undefined)
+            highlightLine(e.callStack[e.callStack.length - 1].line - 1, e.message);
           console.log("run failed", e.stack);
         });
     });
@@ -285,14 +258,13 @@ function webStart() {
       var button = document.getElementById("hiderepls");
       var editor = document.getElementById("editor");
       var interactions = document.getElementById("interactions");
-      if (button.innerText == "Hide REPLs"){
-        if (window.innerWidth>=840) editor.style.width = "96%";
+      if (button.innerText == "Hide REPLs") {
+        if (window.innerWidth >= 840) editor.style.width = "96%";
         interactions.style.display = "none";
         button.innerText = "Display REPLs";
         hiderepl = true;
-      }
-      else{
-        if (window.innerWidth>=840) editor.style.width = "46%";
+      } else {
+        if (window.innerWidth >= 840) editor.style.width = "46%";
         interactions.style.display = "inline";
         button.innerText = "Hide REPLs";
         hiderepl = false;
@@ -303,23 +275,21 @@ function webStart() {
   window.addEventListener("resize", (event) => {
     var editor = document.getElementById("editor");
     var interactions = document.getElementById("interactions");
-    if (window.innerWidth<840) {
+    if (window.innerWidth < 840) {
       editor.style.width = "96%";
       interactions.style.width = "96%";
-    }
-    else{
-      if (hiderepl==false){
+    } else {
+      if (hiderepl == false) {
         editor.style.width = "46%";
-      }
-      else{
+      } else {
         editor.style.width = "96%";
       }
       interactions.style.width = "46%";
     }
-  })
+  });
   window.addEventListener("load", (event) => {
     var interactions = document.getElementById("interactions");
-    if (window.innerHeight>900){
+    if (window.innerHeight > 900) {
       interactions.style.height = "800px";
     }
 
@@ -426,8 +396,11 @@ function webStart() {
       var editor = ele.CodeMirror;
       editor.setOption("theme", themeDropDown.value);
     });
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> front-end
   });
 }
 // Simple helper to highlight line given line number
