@@ -22,6 +22,7 @@ import {
 import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
 import * as BaseException from "./error";
 import { Config } from "./runner";
+import { get } from "http";
 
 var id: number;
 
@@ -832,7 +833,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
 }
 
 export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
-  var location: Location;
+  var location: Location = getSourcePos(c,s);
   c.firstChild(); // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName

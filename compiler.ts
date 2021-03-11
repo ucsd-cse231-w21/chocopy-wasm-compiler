@@ -1340,8 +1340,11 @@ function codeGenDictBracketLookup(
   let dictKeyValStmts: Array<string> = [];
   var objStmts = codeGenExpr(obj, env);
   var checkNone = codeGenRuntimeCheck(obj.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP);
+  var checkKey = codeGenRuntimeCheck(obj.a[1], [...objStmts,...codeGenExpr(key, env), `(i32.const ${hashtableSize})`,
+  "(call $ha$htable$Lookup)",], RunTime.CHECK_KEY_ERROR)
   dictKeyValStmts = dictKeyValStmts.concat(objStmts);
   dictKeyValStmts = dictKeyValStmts.concat(checkNone);
+  dictKeyValStmts = dictKeyValStmts.concat(checkKey);
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
   dictKeyValStmts = dictKeyValStmts.concat([
     `(i32.const ${hashtableSize})`,
@@ -1709,7 +1712,6 @@ function codeGenBinOp(op: BinOp): string {
 function codeGenRuntimeCheck(loc: Location, code: Array<string>, func: RunTime): Array<string> {
   if (
     func == RunTime.CHECK_ZERO_DIVISION ||
-    func == RunTime.CHECK_KEY_ERROR ||
     func == RunTime.CHECK_VALUE_ERROR
   )
     return [];

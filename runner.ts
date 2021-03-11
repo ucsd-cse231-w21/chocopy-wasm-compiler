@@ -138,6 +138,7 @@ export async function run(
     (func $$popStack (import "imports" "__popStack"))
     (func $$check_none_class (import "imports" "__checkNoneClass") (param i32))
     (func $$check_index (import "imports" "__checkIndex") (param i32) (param i32))
+    (func $$check_key (import "imports" "__checkKey") (param i32))
     (func $$check_none_lookup (import "imports" "__checkNoneLookup") (param i32))
 
     (func $$gcalloc (import "imports" "gcalloc") (param i32) (param i32) (result i32))

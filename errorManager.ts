@@ -66,6 +66,11 @@ export class ErrorManager {
     console.log(key + " " + size);
     if (key < 0 || key >= size) throw new BaseException.IndexError(this.callStack);
   }
+
+  __checkKey(key:number){
+    console.log(key);
+    if (key === -1) throw new BaseException.KeyError(this.callStack);
+  }
 }
 
 export function importErrorManager(importObject: any, em: ErrorManager) {
@@ -88,6 +93,10 @@ export function importErrorManager(importObject: any, em: ErrorManager) {
   importObject.imports.__checkIndex = (size: number, id: number) => {
     em.__checkIndex(size, id);
   };
+
+  importObject.imports.__checkKey = (key:number) =>{
+    em.__checkKey(key)
+  }
 }
 
 export enum RunTime {

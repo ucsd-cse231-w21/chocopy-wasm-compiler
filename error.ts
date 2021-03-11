@@ -115,8 +115,8 @@ export class IndexError extends LookupError {
 }
 
 export class KeyError extends LookupError {
-  constructor(callStack: Array<Location>, keyName: string) {
-    super(callStack, `'${keyName}'`, "KeyError");
+  constructor(callStack: Array<Location>) {
+    super(callStack, ``, "KeyError");
   }
 }
 
