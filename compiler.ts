@@ -141,9 +141,9 @@ function createSystemFuncHeaders(): Array<string>{
   headers.push(
     `(func $${INTANCTIATE} (import "system" "instanciate") (param i32) (result i32))`,
     `(func $${OBJ_DEREF} (import "system" "objderef") (param i32) (param i32) (result i32))`,
-    `(func $${OBJ_MUTATE} (import "system" "objmute") (param i32) (param i32) (param i32) (result i32))`,
+    `(func $${OBJ_MUTATE} (import "system" "objmute") (param i32) (param i32) (param i32))`,
     `(func $${MOD_REF} (import "system" "modRef") (param i32) (param i32) (result i32))`,
-    `(func $${MOD_STORE} (import "system" "modMute") (param i32) (param i32) (param i32) (result i32))`,
+    `(func $${MOD_STORE} (import "system" "modMute") (param i32) (param i32) (param i32) )`,
 
     `(func $${GET_INT} (import "system" "getInt") (param i32) (result i32))`,
     `(func $${GET_BOOL} (import "system" "getBool") (param i32) (result i32))`,
@@ -257,7 +257,7 @@ export function compile(progam: Program<Type>,
         allInstrs.push(`(call $${MOD_STORE} 
                           (i32.const ${labeledSource.moduleCode}) 
                           (i32.const ${index}) 
-                          (call $${ALLC_INT} ${info.value.value})
+                          (call $${ALLC_INT} (i32.const ${info.value.value}))
                         )`);
         break;
       }
@@ -265,7 +265,7 @@ export function compile(progam: Program<Type>,
         allInstrs.push(`(call $${MOD_STORE} 
                           (i32.const ${labeledSource.moduleCode}) 
                           (i32.const ${index}) 
-                          (call $${ALLC_BOOL} ${info.value.value ? 1 : 0})
+                          (call $${ALLC_BOOL} (i32.const ${info.value.value ? 1 : 0}))
                         )`);
         break;
       }
@@ -287,7 +287,6 @@ export function compile(progam: Program<Type>,
         break;
       }
     }
-    allInstrs.push("(drop)"); //modstore returns a number. Drop it!
   }
 
   if(progam.stmts.length >= 1){
@@ -299,10 +298,29 @@ export function compile(progam: Program<Type>,
 
   //now compile top level stmts
   for(let tlStmt of progam.stmts){
+    console.log(` =====> COMP TPLVEL : ${tlStmt.tag}`);
     allInstrs.push(codeGenStmt(tlStmt, [imports.vars], labeledSource, builtins, allcator).join("\n"));
   }
+
   allInstrs.push(`(local.get $${TEMP_VAR})`);
   allInstrs.push(`)`);
+
+  //compile classes
+  Array.from(progam.classes.values()).forEach(
+    x => {
+      const LabeledClass = labeledSource.classes.get(x.name);
+
+      Array.from(x.methods.values()).forEach(
+        m => {
+          const funcIden = idenToStr(m.identity);
+          const label = LabeledClass.methods.get(funcIden).label;
+          const methInstrs = codeGenFunction(m, [imports.vars], label, labeledSource, builtins, allcator);
+
+          allInstrs.push(...methInstrs);
+        }
+      );
+    }
+  );
 
   //compile top level functions
   Array.from(progam.funcs.values()).forEach(
@@ -326,11 +344,16 @@ function codeGenFunction(func: FunDef<Type>,
                          builtins: Map<string, LabeledModule>,
                          allcator: MainAllocator): Array<string> {
   const instrs = new Array<string>();
+
+  const localVars = new Map<string, IdenType>();
   
   //translate parameters to WASM
   let params = "";
   Array.from(func.parameters.entries()).forEach(
-    x => {params += `(param $${x[0]} i32) `}
+    x => {
+          params += `(param $${x[0]} i32) `; 
+          localVars.set(x[0], {tag: "localvar"});
+        }
   );
 
   const header = `(func $${label} ${params} (result i32)`;
@@ -339,7 +362,10 @@ function codeGenFunction(func: FunDef<Type>,
 
   //add local variables
   Array.from(func.localVars.entries()).forEach(
-    x => instrs.push(`(local $${x[0]} i32)`)
+    x => {
+           instrs.push(`(local $${x[0]} i32)`);
+           localVars.set(x[0], {tag: "localvar"});
+         }
   );
 
   //set initial values for local variables
@@ -348,11 +374,12 @@ function codeGenFunction(func: FunDef<Type>,
   );
 
   //set initial value for TEMP_VAR
-  instrs.push(`(local.set $${TEMP_VAR} (i32.const 0))`);
+  //instrs.push(`(local.set $${TEMP_VAR} (i32.const 0))`);
 
-  func.body.forEach(x => instrs.push(...codeGenStmt(x, idens, sourceModule, builtins, allcator)));
+  const newIdens = [localVars].concat(idens);
+  func.body.forEach(x => instrs.push(...codeGenStmt(x, newIdens, sourceModule, builtins, allcator)));
 
-  instrs.push("(local.get $1emp)");
+  instrs.push(`(local.get $${TEMP_VAR})`);
   instrs.push(")");
   return instrs;
 }
@@ -477,7 +504,7 @@ function codeGenExpr(expr: Expr<Type>,
         else{
           const targetClass = sourceModule.classes.get(expr.obj.a.name);
           const varIndex = targetClass.varIndices.get(expr.field);
-          return `(call ${OBJ_DEREF} ${objInstrs} (i32.const ${varIndex}))`;
+          return `(call $${OBJ_DEREF} ${objInstrs} (i32.const ${varIndex}))`;
         }
       }
 
@@ -506,15 +533,17 @@ function codeGenExpr(expr: Expr<Type>,
     }
     case "method-call": {
       const targetClass = sourceModule.classes.get(typeToString(expr.obj.a));
-      const targetLabel = targetClass.methods.get(idenToStr(expr.callSite.iden));      
+      const targetLabel = targetClass.methods.get(idenToStr(expr.callSite.iden));   
+      
+      const targetInstr = codeGenExpr(expr.obj, idens, sourceModule, builtins, allcator);
       const argInstrs = expr.arguments.map(x => codeGenExpr(x, idens, sourceModule, builtins, allcator));
-      return `(call $${targetLabel.label} ${argInstrs.join(" ")})`;
+      return `(call $${targetLabel.label} ${targetInstr} ${argInstrs.join(" ")})`;
     }
     case "call": {
       if(sourceModule.classes.has(expr.name)){
         //this is object instantiation
         const typeInfo = sourceModule.classes.get(expr.name);
-        return `(call ${INTANCTIATE} (i32.const ${typeInfo.typeCode}))`;
+        return `(call $${INTANCTIATE} (i32.const ${typeInfo.typeCode}))`;
       }
 
       if(expr.callSite.module === undefined){
@@ -605,7 +634,7 @@ function codeGenBinOp(left: Expr<Type>,
     }
   }
 
-  
+
 
   if(boolResultOps.has(op)){
     return `(call $${ALLC_BOOL} ${instr})`;

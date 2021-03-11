@@ -1,16 +1,18 @@
 import { run } from "./runner";
 import { GlobalTable, tc } from "./type-check";
-import { Value, Type, typeToString, Program } from "./ast";
+import { Value, Type, typeToString, Program, Literal, litToStr } from "./ast";
 import { parse } from "./parser";
 import { builtinModules } from "module";
 import { attachPresenter, BuiltInModule, gatherPresenters, NativeTypes, OtherModule } from "./builtins/builtins";
 import { type } from "cypress/types/jquery";
-import { ModulePresenter, ClassPresenter, FuncIdentity, idenToStr } from "./types";
+import { ModulePresenter, ClassPresenter, FuncIdentity, idenToStr, literalToType } from "./types";
 import { last, thru, values } from "cypress/types/lodash";
 import { NONE } from "./utils";
 import fs from 'fs';
-import { MainAllocator } from "./heap";
+import { MainAllocator, RuntimeModule } from "./heap";
 import { compile, LabeledClass, LabeledModule } from "./compiler";
+import { config } from "chai";
+import { runtime } from "webpack";
 
 class Labeler {
 
@@ -141,6 +143,8 @@ export class BasicREPL {
     const compiled = compile(typed.typed, labeled, this.labeler.labeledBuiltIns, this.config.allocator);
     console.log("---------INSTRS--------\n"+compiled.join("\n"));
 
+    const runtimeVers = this.createRuntimeRep(typed.typed, labeled);
+    this.config.allocator.setModule(0, runtimeVers);
     this.initGVars(typed.typed, labeled);
 
     console.log("-----executing!!!!");
@@ -154,6 +158,37 @@ export class BasicREPL {
     
 
     return undefined;
+  }
+
+  createRuntimeRep(program: Program<Type>, labeled: LabeledModule): RuntimeModule{
+    const runtimeVers = {
+      presenter: program.presenter,
+      isBuiltin: false,
+      classes: new Map<number, {vars: Array<Literal>}>(),
+      varNames: new Map<number, string>()
+    };
+
+    //add global vars
+    for(let [name, index] of labeled.globalVars.entries()){
+      runtimeVers.varNames.set(index, name);
+    }
+
+    //add classes
+    for(let [name, labClass] of labeled.classes.entries()){
+      console.log(`  ---- SETTING RUNTIME, class: ${name} ${labClass.typeCode}`);
+
+      const classDef = program.classes.get(name);
+      const literals = new Array<Literal>();
+
+      for(let [vName, _] of labClass.varIndices.entries()){
+        console.log(`     -> for ${vName}, literal is ${litToStr(classDef.fields.get(vName).value)}`);
+        literals.push(classDef.fields.get(vName).value);
+      } 
+
+      runtimeVers.classes.set(labClass.typeCode, {vars: literals});
+    }
+
+    return runtimeVers;
   }
 
   initGVars(program: Program<Type>, labeled: LabeledModule){

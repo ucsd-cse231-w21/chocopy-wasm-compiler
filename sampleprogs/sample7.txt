@@ -1,9 +1,16 @@
 from otherModule import someFunc, otherFunc
 import otherModule
 
+class Test:
+    x: int = 0
 
-def func():
+    def meth(self: Test):
+        print(self.x + 220)
+
+def func(v: int):
     print("hello from func")
+    print(v)
+    print("----------------")
 
 print("hello")
 print(10 + 20)
@@ -20,7 +27,34 @@ otherFunc()
 otherModule.someFunc()
 otherModule.otherFunc()
 
-func()
-
 x: string = "string in x"
 print(x)
+
+y: int = 10
+print(y)
+
+func(y)
+
+z: Test = None
+z = Test()
+z.meth()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

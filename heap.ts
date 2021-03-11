@@ -40,6 +40,14 @@ export class MainAllocator{
     }
   }
 
+  doesTypeExists(modCode: number, typeCode: number): boolean {
+    return this.typesByModule.get(modCode).classes.has(typeCode);
+  }
+
+  setModule(modCode: number, module: RuntimeModule){
+    this.typesByModule.set(modCode, module);
+  }
+
   addNewType(modCode: number, typeCode: number, initValues: Array<Literal>){
     this.typesByModule.get(modCode).classes.set(typeCode, {vars: initValues});
   }
@@ -111,6 +119,7 @@ export class MainAllocator{
     const targetClass = module.classes.get(typeCode);
 
     const attrs = new Array<number>();
+    console.log(`------Runtime instanciating ${modCode} ${typeCode} , ${targetClass.vars.length}`);
     
     for(let initValue of targetClass.vars){
       switch(initValue.tag){

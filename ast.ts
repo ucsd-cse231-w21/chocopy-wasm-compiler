@@ -203,3 +203,12 @@ export type Literal =
   | { tag: "none" };
 
 export type Location = { line: number; col: number; length: number };
+
+export function litToStr(l: Literal): string{
+  switch(l.tag){
+    case "bool": return l.value.toString()
+    case "num": return l.value.toString()
+    case "string": return l.value
+    case "none" : return "none"
+  }
+}
