@@ -35,13 +35,6 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
         full_string += char;
         i += 1;
       }
-      //new
-      var i=0;
-      while(i<5){
-        console.log("View "+i+" Value "+view[i]);
-        i+=1;
-      }
-      //old
       console.log("Full string "+full_string);
       return PyString(full_string, result);
     case "number":
