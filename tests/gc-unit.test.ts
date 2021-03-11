@@ -96,6 +96,10 @@ class PhantomAllocator implements MarkableAllocator {
   description(): string {
     throw new Error("unreachable");
   }
+
+  memoryUsage(): bigint {
+    return this.heap.memoryUsage();
+  }
 }
 
 function readI32(memory: Uint8Array, start: number): bigint {

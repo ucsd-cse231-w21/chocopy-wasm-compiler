@@ -113,6 +113,10 @@ export class BumpAllocator implements MarkableAllocator {
   sweep() {
     // NOP
   }
+
+  memoryUsage(): bigint {
+    throw new Error(`BumpAllocator cannot calculate memory usage`);
+  }
 }
 
 //FREELIST IMPLEMENTATION
@@ -316,6 +320,19 @@ export class FreeListAllocator implements MarkableAllocator {
       curr = curr.next;
     }
   }
+
+  memoryUsage(): bigint {
+    let acc = 0n;
+
+    this.linkedList.traverse().forEach(d => {
+      // size == 0 is the last node
+      if (!d.isFree && d.size > 0n) {
+        acc += d.size - BigInt(HEADER_SIZE_BYTES);
+      }
+    });
+
+    return acc;
+  }
 }
 
 
@@ -517,6 +534,10 @@ export class BitMappedBlocks implements MarkableAllocator {
         ++index;
       }
     }
+  }
+
+  memoryUsage(): bigint {
+    return (this.numBlocks - BigInt(this.getNumFreeBlocks())) * this.blockSize;
   }
 }
 

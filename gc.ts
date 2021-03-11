@@ -154,6 +154,9 @@ export interface MarkableAllocator extends H.Allocator {
 
   // Scans the allocated objects for unmarked, allocated objects and frees them
   sweep: () => void;
+
+  // Allocated memory in bytes (not including any metadata)
+  memoryUsage: () => bigint;
 }
 
 export class RootSet {
@@ -618,6 +621,10 @@ export class MarkableSwitch<P extends MarkableAllocator, F extends MarkableAlloc
     this.allocator.primary.sweep();
     this.allocator.fallback.sweep();
   }
+
+  memoryUsage(): bigint {
+    return this.allocator.primary.memoryUsage() + this.allocator.fallback.memoryUsage();
+  }
 }
 
 export class MarkableSegregator<S extends MarkableAllocator, L extends MarkableAllocator>
@@ -667,6 +674,10 @@ export class MarkableSegregator<S extends MarkableAllocator, L extends MarkableA
     this.allocator.small.sweep();
     this.allocator.large.sweep();
   }
+
+  memoryUsage(): bigint{
+    return this.allocator.small.memoryUsage() + this.allocator.large.memoryUsage();
+  }
 }
 
 export class MarkableDescriber<A extends MarkableAllocator> implements MarkableAllocator {
@@ -705,6 +716,10 @@ export class MarkableDescriber<A extends MarkableAllocator> implements MarkableA
 
   sweep(): void {
     this.allocator.allocator.sweep();
+  }
+
+  memoryUsage(): bigint {
+    return this.allocator.allocator.memoryUsage();
   }
 }
 
@@ -755,6 +770,10 @@ export class MarkableFallback<P extends MarkableAllocator, F extends MarkableAll
   sweep(): void {
     this.allocator.primary.sweep();
     this.allocator.fallback.sweep();
+  }
+
+  memoryUsage(): bigint {
+    return this.allocator.primary.memoryUsage() + this.allocator.fallback.memoryUsage();
   }
 }
 

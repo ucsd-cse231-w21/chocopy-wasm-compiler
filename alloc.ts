@@ -265,6 +265,10 @@ export class MemoryManager {
     const header = this.gc.heap.getHeader(ptr);
     return header.getSize();
   }
+
+  heapMemoryUsage(): bigint {
+    return this.gc.heap.memoryUsage();
+  }
 }
 
 // value: 32-bit bigint
