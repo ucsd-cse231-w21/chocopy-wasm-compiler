@@ -1,7 +1,6 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { themeList_export } from "./themelist";
-import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
 import { addAccordionEvent, prettyPrintObjects } from "./prettyprint";
 import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
 import { defaultTypeEnv } from "./type-check";
