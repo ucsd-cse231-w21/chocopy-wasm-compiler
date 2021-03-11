@@ -316,3 +316,5 @@ contributors to extend program generation to more completely test other feature.
 ### Progress Update
 As of the project deadline (3/11), we have completed the generation of classes, as well as the setup of an 
 automatic fuzzing server. We consider the rest of the program generation features listed above to be future work.
+
+We also discovered a bug in python-shell, with issue [here](https://github.com/extrabacon/python-shell/issues/240). We have reported this as an issue in python-shell.
