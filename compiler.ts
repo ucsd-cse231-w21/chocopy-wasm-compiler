@@ -806,7 +806,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       } else if (expr.name === "print" && argTyp === NONE) {
         return argStmts.concat([`(call $print_none)`]);
       } else if (expr.name === "len") {
-        return [`${argStmts.join("\n")}(i32.load)(i32.add(i32.const 1))`, ...encodeLiteral];
+        return argStmts.concat([`(i32.load)(i32.add(i32.const 1))`, ...encodeLiteral]);
       }
       return argStmts.concat([`(call $${callName})`]);
     case "builtin2":

@@ -697,6 +697,42 @@ describe("defaults", () => {
   );
 
   assertPrint(
+    "print-string-index-nested-index-1",
+    `
+  a:str="ABC"
+  b:str="DEF"
+
+  def f(x:str)->int:
+    return 1
+
+  print(a[f(b[2])])`,
+    ["B"]
+  );
+
+  assertPrint(
+    "print-string-index-nested-index-2",
+    `
+  a:str="ABC"
+  b:str="DEF"
+
+  print(a[len(b[2])])`,
+    ["B"]
+  );
+
+  assert(
+    "print-string-index-nested-index-3",
+    `
+  a:str="ABC"
+  b:str="DEF"
+
+  def f(x:str)->int:
+    return len(x)
+
+  print(f(b))`,
+    PyInt(3)
+  );
+
+  assertPrint(
     "print-string-slicing-basic-one",
     `
   print("Design"[2:3])`,
@@ -900,13 +936,19 @@ describe("defaults", () => {
   );
 
   assertPrint(
-    "print-string-slice-concat-multiply",
+    "print-string-escape-seq-new-tab",
     `
-  a:str="Compiler"
-  b:str="Commuter"
-  print((a[0:4] + b[-4:])*3)`,
-    ["ComputerComputerComputer"]
+  print("Design\\tABC")`,
+    ["Design\tABC"]
   );
+  // assertPrint(
+  //   "print-string-slice-concat-multiply",
+  //   `
+  // a:str="Compiler"
+  // b:str="Commuter"
+  // print((a[0:4] + b[-4:])*3)`,
+  //   ["ComputerComputerComputer"]
+  // );
 
   assertPrint(
     "print-string-equals",
@@ -988,16 +1030,9 @@ describe("defaults", () => {
   assertPrint(
     "print-string-escape-nextline",
     `
-  a:str="Apple\nBall"
+  a:str="Apple\\nBall"
   print(a)`,
-    ["Algo\nBall"]
+    ["Apple","Ball"]
   );
 
-  assertPrint(
-    "print-string-escape-tab",
-    `
-  a:str="Apple\tBall"
-  print(a)`,
-    ["Algo    Ball"]
-  );
 });
