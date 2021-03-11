@@ -399,7 +399,8 @@ export class MnS<A extends MarkableAllocator> {
 
             if(isPointer(elementValue)) {
               const fieldPointerValue = extractPointer(elementValue);
-              if(!this.isMarked(fieldPointerValue)) {
+              // Check for None
+              if(fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
                 this.setMarked(fieldPointerValue);
                 worklist.push(fieldPointerValue);
               }
@@ -427,10 +428,13 @@ export class MnS<A extends MarkableAllocator> {
 
               const key = this.getField(currListAddr);
               const value = this.getField(currListAddr + 4n);
-              if(isPointer(key)) {
+              // NOTE(sagar): keys probably can't be None
+              if(key !== 0n && isPointer(key)) {
                 worklist.push(key);
               }
-              if(isPointer(value)) {
+
+              // Check for none
+              if(value !== 0n && isPointer(value)) {
                 worklist.push(value);
               }
               currListAddr = this.getField(currListAddr + 8n);
