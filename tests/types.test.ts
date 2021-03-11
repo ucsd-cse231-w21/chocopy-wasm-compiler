@@ -345,4 +345,23 @@ describe("type inference", () => {
     BOOL
   );
 
+  assertTCFail("TC fails wanting annotations 1", `
+    def ambiguous(a, b): 
+      return a + b
+  `);
+
+  assertTCFail("TC fails wanting annotations 2", `
+    def ambiguous(b): 
+      return b
+  `);
+
+  assertTC("Partially annotated function", `
+    def ambiguous(a: int, b): 
+      return a + b
+    
+    ambiguous(1, 2)
+  `,
+  NUM
+  );
+
 });

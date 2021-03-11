@@ -285,6 +285,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
     case "binop":
       const tLeft = tcExpr(env, locals, expr.left);
       const tRight = tcExpr(env, locals, expr.right);
+      if (tLeft.a.tag == "failedToInfer" && tRight.a.tag == "failedToInfer") {
+        throw new Error(`failed to infer a type for '${expr.tag}', please annotate at least one operand`)
+      }
       const tBin = { ...expr, left: tLeft, right: tRight };
       switch (expr.op) {
         case BinOp.Plus:
@@ -350,6 +353,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       }
     case "id":
       if (locals.vars.has(expr.name)) {
+        if (locals.vars.get(expr.name).tag == "failedToInfer") {
+          throw new Error(`failed to infer a type for '${expr.tag}', please annotate '${expr.name}'`)
+        }
         return { a: locals.vars.get(expr.name), ...expr };
       } else if (env.globals.has(expr.name)) {
         return { a: env.globals.get(expr.name), ...expr };
