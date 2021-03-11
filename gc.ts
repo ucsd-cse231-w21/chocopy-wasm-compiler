@@ -378,6 +378,8 @@ export class MnS<A extends MarkableAllocator> {
       const childTag = headerRef.getTag();
       headerRef.mark();
       console.warn(`Tracing ${childPtr} (tag=${childTag}, size=${childSize}, header=${headerRef.headerStart})`);
+      const childValue = readI32(this.memory, Number(childPtr));
+      console.warn(`\tValue=${childValue}`);
 
       // NOTE(alex:mm): using a `switch` here breaks occasionally for whatever reason
       if (childTag === TAG_CLASS) {
