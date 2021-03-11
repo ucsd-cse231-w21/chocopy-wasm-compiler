@@ -68,7 +68,7 @@ export function equalType(t1: Type, t2: Type) {
 }
 
 export function isNoneOrClass(t: Type) {
-  return t.tag === "none" || t.tag === "class" || t.tag === "open-object";
+  return t.tag === "none" || t.tag === "class" //|| t.tag === "open-object";
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
