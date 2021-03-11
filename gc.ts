@@ -379,6 +379,9 @@ export class MnS<A extends MarkableAllocator> {
             }
 
             const fieldPointerValue = extractPointer(fieldValue);
+            if (fieldPointerValue === 0n) {
+              continue;
+            }
             if (!this.isMarked(fieldPointerValue)) {
               this.setMarked(fieldPointerValue);
               worklist.push(fieldPointerValue);
