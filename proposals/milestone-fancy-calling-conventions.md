@@ -131,7 +131,7 @@ A common technique that was used for all implemented (and unimplemented) feature
 9. Default and arbitrary arguments
 10. Arbitrary arguments and keyword arguments passed as a dictionary
 
-## 3 example programs that requires us to extend our design
+## 3 example programs that require us to extend our design
 
 ### 1) Defaults as function calls
 ```
