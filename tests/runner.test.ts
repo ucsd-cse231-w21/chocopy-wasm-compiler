@@ -63,7 +63,13 @@ describe('run', () => {
   assert('pow', 'pow(2, 3)', PyInt(Math.pow(2, 3)));
 
   assert('pow-negative', 'pow(2, 0 - 1)', PyInt(0));
+  
+  assert('mod-args-different-signs', '-4 % 3', PyInt(2));
 
+  assert('mod-args-different-signs', '4 % -3', PyInt(-2));
+  
+  assert('div-args-different-signs', '-4 // 3', PyInt(-2));
+  
   assert('simple-def', 'def f(x: int) -> int: return x + 1\nf(5)', PyInt(6));
 
   assert('multi-arg', 'def f(x: int, y: int, z: int) -> int: return x - y - z\nf(9, 3, 1)', PyInt(5));
