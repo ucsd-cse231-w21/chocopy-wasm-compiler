@@ -46,6 +46,7 @@ export const STRING: Type = { tag: "string" };
 export const NUM: Type = { tag: "number" };
 export const BOOL: Type = { tag: "bool" };
 export const NONE: Type = { tag: "none" };
+export const NOTHING: Type = {tag: "nothing"}
 export function LIST(content: Type): Type {
   return { tag: "list", content_type: content };
 }

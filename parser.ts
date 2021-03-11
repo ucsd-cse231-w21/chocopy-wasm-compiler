@@ -17,7 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, isTagged } from "./utils";
+import { NUM, BOOL, NONE, CLASS, NOTHING, isTagged } from "./utils";
 
 export function traverseLiteral(c: TreeCursor, s: string): Literal {
   switch (c.type.name) {
@@ -420,6 +420,7 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter<nu
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let nextTagName = c.type.name; // NOTE(joe): a bit of a hack so the next line doesn't if-split
+    //let typ = NOTHING;  // Note(Nathan): This indicates a parameter was not given a tag.
     let typ;
     if (nextTagName === "TypeDef") {
       c.firstChild(); // Enter TypeDef

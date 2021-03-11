@@ -332,10 +332,10 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
     case "call":
       if (globEnv.classes.has(expr.name)) {
         return CLASS(expr.name);
-      } 
+      }
       // if (globEnv.inferred_functions.has(expr.name)) {
       //   return globEnv.inferred_functions.get(expr.name)[1];
-      // } 
+      // }
       else if (globEnv.functions.has(expr.name)) {
         let [_, retType] = globEnv.functions.get(expr.name);
         return retType;
@@ -508,7 +508,7 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
 export function inferReturnType(funDef: FunDef<any>, globEnv: GlobalTypeEnv, locEnv: LocalTypeEnv) : Type {
   let s = Action.None;
   let body_ = []
-  
+
   // Easy case where a type annotation was provided.
   // if (funDef.ret !== undefined) {
   //   return funDef.ret
@@ -523,7 +523,7 @@ export function inferReturnType(funDef: FunDef<any>, globEnv: GlobalTypeEnv, loc
   funDef.body = body_
   funDef.parameters.forEach((p) => {
     if (locEnv.vars.has(p.name)) {
-      p.type = locEnv.vars.get(p.name) 
+      p.type = locEnv.vars.get(p.name)
     }
   })
   return inferRetTypeHepler(funDef.body, globEnv)
@@ -914,14 +914,16 @@ export function annotateExpr(
       //   }
       //   globEnv.inferred_functions.set(expr.name, [inferredArgTypes, inferredRetType]);
       //   arguments_ = [...arguments__];
-      // } else 
+      // } else
       if (globEnv.functions.has(expr.name)) {
         const [argTypes, retType] = globEnv.functions.get(expr.name);
         let arguments__ = [];
         // If the function doesn't have inferred types, we first check that all
         // arguments aren't UNSAT
         if (argTypes.some(arg => arg === UNSAT)) {
+
           return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
+
         } else if (argTypes.some(arg => arg === undefined)) {
           // If there are missing type annotations in the function parameter
           // list, we move the function signature from the function map to the
@@ -930,9 +932,10 @@ export function annotateExpr(
           // return types.
 
 
-          // TODO: fill in the parameter types here  
+          // TODO: fill in the parameter types here
 
-          return annotateExpr(expr, globEnv, locEnv, topLevel);
+
+          //return annotateExpr(expr, globEnv, locEnv, topLevel);
         } else {
           for (const [i, arg] of arguments_.entries()) {
             // Argument index out of bounds
@@ -1123,7 +1126,7 @@ export function annotateStmt(
       return [s, { tag: "expr", a, expr }];
     }
     // TODO: the tricky part. will do later
-    case "if": {    
+    case "if": {
       let s = Action.None;
       let thn_ = []
       for (const st of stmt.thn) {
@@ -1140,7 +1143,7 @@ export function annotateStmt(
       };;
       return [s, { ...stmt, a: NONE, thn: thn_, els: els_ }];
     }
-    
+
     case "while": {
       let s = Action.None;
       let body_ = []
@@ -1226,6 +1229,11 @@ export function annotateStmt(
   }
 }
 
+
+
+
+// Invariant: When this algorithm terminates, there should be *no* undefined type tags *anywhere* in the
+// entire program tree.
 export function annotateAST(globEnv: GlobalTypeEnv, program: Program<null>): [GlobalTypeEnv, Program<Type>] {
 
   // gather any type information that the user provided
@@ -1269,18 +1277,18 @@ export function annotateAST(globEnv: GlobalTypeEnv, program: Program<null>): [Gl
   return [newEnv, { ...program, stmts }]
 }
 
-function closeOpenTypes(globEnv: GlobalTypeEnv, st: Stmt<Type>) {
-  for (const c of globEnv.classes.keys()) {
-    switch (st.tag) {
-      case "assign":
-        if (isSubtype(globEnv, CLASS(c), st.value.a)) {
-          st.value.a = CLASS(c);
-          return;
-        }
-        break;
-      default:
-        throw new Error(`TODO implement closing types for '${st.tag}'`)
-    }
-  }
-}
+// function closeOpenTypes(globEnv: GlobalTypeEnv, st: Stmt<Type>) {
+//   for (const c of globEnv.classes.keys()) {
+//     switch (st.tag) {
+//       case "assign":
+//         if (isSubtype(globEnv, CLASS(c), st.value.a)) {
+//           st.value.a = CLASS(c);
+//           return;
+//         }
+//         break;
+//       default:
+//         throw new Error(`TODO implement closing types for '${st.tag}'`)
+//     }
+//   }
+// }
 

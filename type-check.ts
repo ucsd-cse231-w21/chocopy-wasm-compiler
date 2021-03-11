@@ -1,5 +1,5 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
+import { NUM, BOOL, NONE, CLASS, NOTHING, unhandledTag, unreachable, FAILEDINFER } from "./utils";
 import { inferExprType, inferTypeLit, isSubtype, inferReturnType } from "./infer";
 import * as BaseException from "./error";
 
@@ -109,7 +109,12 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   program.funs.forEach((fun) => {
     if (fun.ret.tag === "none") {
       let locEnv = emptyLocalTypeEnv();
-      fun.parameters.forEach((param) => locEnv.vars.set(param.name, param.type))
+      fun.parameters.forEach((param) => {
+        if (param.type === undefined) { // (nathan): No type annotation was given here.
+          param.type = FAILEDINFER      // so we need to try to unify this later
+        }
+        locEnv.vars.set(param.name, param.type)
+      })
       fun.ret = inferReturnType(fun, env, locEnv);
     }
     newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret]);
@@ -313,7 +318,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           if (equalType(tLeft.a, BOOL) && equalType(tRight.a, BOOL)) {
             return { a: BOOL, ...tBin };
           } else {
-            throw new TypeCheckError("Type mismatch for boolean op" + expr.op);
+            throw new TypeCheckError("Type mismatch for boolean operator " + expr.op);
           }
         case BinOp.Is:
           if (!isNoneOrClass(tLeft.a) || !isNoneOrClass(tRight.a))
@@ -330,13 +335,15 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           if (equalType(tExpr.a, NUM)) {
             return tUni;
           } else {
-            throw new TypeCheckError("Type mismatch for op" + expr.op);
+            //throw new TypeCheckError("Type mismatch for op" + expr.op);
+            throw new TypeCheckError("Type mismatch for operator '-' and type " + tExpr.a.tag)
           }
         case UniOp.Not:
           if (equalType(tExpr.a, BOOL)) {
             return tUni;
           } else {
-            throw new TypeCheckError("Type mismatch for op" + expr.op);
+            //throw new TypeCheckError("Type mismatch for op" + expr.op);
+            throw new TypeCheckError("Type mismatch for operator 'not' and type " + tExpr.a.tag)
           }
         default:
           return unreachable(expr);
@@ -397,14 +404,21 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else if (env.functions.has(expr.name)) {
         const [argTypes, retType] = env.functions.get(expr.name);
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-
-        if (
-          argTypes.length === expr.arguments.length &&
-          tArgs.every((tArg, i) => tArg.a === argTypes[i])
-        ) {
+        var typechecks: boolean = true
+        var pos: number = 0
+        for (let i = 0; i < tArgs.length; i++) { // note(nathan): I think this is a more coherent error
+          if (tArgs[i].a !== argTypes[i]) {
+            typechecks = false
+            pos = i
+            break
+          }
+        }
+        if ( argTypes.length === expr.arguments.length && typechecks === true ) {
           return { ...expr, a: retType, arguments: expr.arguments };
         } else {
-          throw new TypeError("Function call type mismatch: " + expr.name);
+          var errorStr = "Function call parameter mismatch: " + expr.name
+          errorStr += " between type(" + tArgs[pos].tag  + ") = " + tArgs[pos].a.tag + " and " + argTypes[pos].tag
+          throw new TypeError(errorStr);
         }
       } else {
         throw new TypeError("Undefined function: " + expr.name);
