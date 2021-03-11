@@ -5,13 +5,15 @@ import { Value, Location } from "../ast";
 import { BasicREPL } from "../repl";
 import { MemoryManager } from "../alloc";
 
-export function assertUsage(name: string, source: string, expected: Value, postUsage: bigint) {
+export function assertUsage(name: string, source: string, expected: Value | undefined, postUsage: bigint) {
   it(name, async () => {
     const repl = new BasicREPL(importObject);
     const manager = repl.memoryManager;
     expect(Number(manager.heapMemoryUsage())).to.equal(0);
     const result = await repl.run(source);
-    expect(result).to.deep.eq(expected);
+    if (expected) {
+      expect(result).to.deep.eq(expected);
+    }
     manager.forceCollect();
     expect(Number(manager.heapMemoryUsage())).to.equal(Number(postUsage));
   });
@@ -156,26 +158,52 @@ describe("GC-MnS Integration Tests", () => {
   //  ["x = None", PyNone(), 8n]
   //]);
 
+  assertsUsage("Program 9", [
+    [`
+      class Foo(object):
+        a: int = 0
+
+      def f(x: int) -> Foo:
+        f: Foo = None
+        f = Foo()
+        f.a = x
+        return f
+
+      o: Foo = None
+      o = f(1337)`,
+      PyNone(),
+      4n,
+    ],
+    [`o = f(0)`, PyNone(), 4n],
+  ]);
 
   assertUsage("Program 10",
     `
     class Foo():
       a: int = 0
 
-    def wasteTime():
+    def wasteTime() -> Foo:
       x: int = 0
       f: Foo = None
+      r: Foo = None
 
       while x < 1000:
         f = Foo()
         f.a = x
+        if x < 100:
+          r = Foo()
+          r.a = x
+        else:
+          pass
         x = x + 1
 
-    x: Foo = None
-    x = wasteTime()
-    x.a
+      return r
+
+    y: Foo = None
+    y = wasteTime()
+    y.a
     `,
-    PyInt(4999),
+    PyInt(99),
     4n);
 
 });
