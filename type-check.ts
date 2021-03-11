@@ -636,6 +636,7 @@ function tcDestructure(
       valueType: [value, destruct.valueType],
     };
   } else {
+    console.log("des" + destruct.targets[0].target);
     throw new BaseException.CompileError(
       destruct.valueType,
       `Type ${value.tag} cannot be destructured`
@@ -884,7 +885,7 @@ export function tcExpr(
         throw new BaseException.NameError(expr.a, expr.name.tag);
       }
     case "call":
-      if (expr.name == "range") {
+      if (expr.name == "range" || expr.name == "enumerate") {
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
         return {
           a: [

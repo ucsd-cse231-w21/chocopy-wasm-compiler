@@ -724,7 +724,6 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       forCount += 1;
       
       var isDes = false;
-      if (targets.length>1) isDes = true;
 
       var dest: Destructure<Location> = {
         // Info about the value that is being destructured
