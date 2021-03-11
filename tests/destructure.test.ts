@@ -159,6 +159,7 @@ describe("traverseDestructure()", () => {
     const assign = parse("y = z").stmts[0];
     expect(assign).to.eql({
       a: {
+        fileId: 1,
         col: 0,
         length: 5,
         line: 1,
@@ -171,6 +172,7 @@ describe("traverseDestructure()", () => {
             starred: false,
             target: {
               a: {
+                fileId: 1,
                 col: 0,
                 length: 1,
                 line: 1,
@@ -181,6 +183,7 @@ describe("traverseDestructure()", () => {
           },
         ],
         valueType: {
+          fileId: 1,
           col: 0,
           length: 1,
           line: 1,
@@ -189,6 +192,7 @@ describe("traverseDestructure()", () => {
       tag: "assignment",
       value: {
         a: {
+          fileId: 1,
           col: 4,
           length: 1,
           line: 1,
@@ -203,6 +207,7 @@ describe("traverseDestructure()", () => {
     const assign = parse("*y, = z").stmts[0];
     expect(assign).to.eql({
       a: {
+        fileId: 1,
         col: 0,
         length: 7,
         line: 1,
@@ -215,6 +220,7 @@ describe("traverseDestructure()", () => {
             starred: true,
             target: {
               a: {
+                fileId: 1,
                 col: 1,
                 length: 1,
                 line: 1,
@@ -225,6 +231,7 @@ describe("traverseDestructure()", () => {
           },
         ],
         valueType: {
+          fileId: 1,
           col: 0,
           length: 1,
           line: 1,
@@ -233,6 +240,7 @@ describe("traverseDestructure()", () => {
       tag: "assignment",
       value: {
         a: {
+          fileId: 1,
           col: 6,
           length: 1,
           line: 1,
@@ -247,6 +255,7 @@ describe("traverseDestructure()", () => {
     const assign = parse("c.x, y = z").stmts[0];
     expect(assign).to.eql({
       a: {
+        fileId: 1,
         col: 0,
         length: 10,
         line: 1,
@@ -259,6 +268,7 @@ describe("traverseDestructure()", () => {
             starred: false,
             target: {
               a: {
+                fileId: 1,
                 col: 0,
                 length: 3,
                 line: 1,
@@ -267,6 +277,7 @@ describe("traverseDestructure()", () => {
               field: "x",
               obj: {
                 a: {
+                  fileId: 1,
                   col: 0,
                   length: 1,
                   line: 1,
@@ -281,6 +292,7 @@ describe("traverseDestructure()", () => {
             starred: false,
             target: {
               a: {
+                fileId: 1,
                 col: 5,
                 length: 1,
                 line: 1,
@@ -291,6 +303,7 @@ describe("traverseDestructure()", () => {
           },
         ],
         valueType: {
+          fileId: 1,
           col: 0,
           length: 3,
           line: 1,
@@ -299,6 +312,7 @@ describe("traverseDestructure()", () => {
       tag: "assignment",
       value: {
         a: {
+          fileId: 1,
           col: 9,
           length: 1,
           line: 1,
@@ -313,6 +327,7 @@ describe("traverseDestructure()", () => {
     const assign = parse("d[2], y = z").stmts[0];
     expect(assign).to.eql({
       a: {
+        fileId: 1,
         col: 0,
         length: 11,
         line: 1,
@@ -325,6 +340,7 @@ describe("traverseDestructure()", () => {
             starred: false,
             target: {
               a: {
+                fileId: 1,
                 col: 0,
                 length: 4,
                 line: 1,
@@ -332,6 +348,7 @@ describe("traverseDestructure()", () => {
               tag: "bracket-lookup",
               obj: {
                 a: {
+                  fileId: 1,
                   col: 0,
                   length: 1,
                   line: 1,
@@ -341,6 +358,7 @@ describe("traverseDestructure()", () => {
               },
               key: {
                 a: {
+                  fileId: 1,
                   col: 2,
                   length: 1,
                   line: 1,
@@ -355,6 +373,7 @@ describe("traverseDestructure()", () => {
             starred: false,
             target: {
               a: {
+                fileId: 1,
                 col: 6,
                 length: 1,
                 line: 1,
@@ -365,6 +384,7 @@ describe("traverseDestructure()", () => {
           },
         ],
         valueType: {
+          fileId: 1,
           col: 0,
           length: 4,
           line: 1,
@@ -373,6 +393,7 @@ describe("traverseDestructure()", () => {
       tag: "assignment",
       value: {
         a: {
+          fileId: 1,
           col: 10,
           length: 1,
           line: 1,
