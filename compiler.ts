@@ -1380,25 +1380,18 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         `(call $$gcalloc)`,
         `(local.set $$allocPointer)`,
       ];
-
-      /*
-      let stmts = [
-        "(i32.const 0)", // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-        "(local.set $$string_class)",
-        "(local.get $$string_class)",
-        `(i32.add (i32.const ${expr.contents.length * 4}))`, // Move heap head beyond the k words we just created for
-        // tuple items
-        "(i32.store)", // Save the new heap offset
-      ];*/
+      // Adopting the object hack of pushing one copy of $$allocPointer onto the stack for every item in the tuple.
+      // The best solution would be to reset allocPointer to its original value after creating the new stack
+      // object, but it's probably too late to institute a change like that.
+      stmts.push("(local.get $$allocPointer)\n".repeat(expr.contents.length + 1));
       expr.contents.forEach((content, offset) => {
         stmts.push(
-          "(local.get $$allocPointer)",
+          // "(local.get $$allocPointer)",
           ...codeGenExpr(content, env),
           `(i32.store offset=${offset * 4})`
         );
       });
-      stmts.push("(local.get $$allocPointer)");
+      // stmts.push("(local.get $$allocPointer)");
       return stmts;
     }
 

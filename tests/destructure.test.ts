@@ -488,6 +488,26 @@ describe("Destructure lists", () => {
       PyInt(2),
     ],
   ]);
+
+  assertPrint(
+    "assign to destructured variable as part of destructure",
+    `
+      tupel_lits: [(int, bool)] = None
+      head: (int, bool) = None
+      tail: (int, bool) = None
+      tupel_lits = [(1, True), (2, False), (3, True), (5, False)]
+      head, *tupel_lits, tail = tupel_lits
+      print(head[0])
+      print(head[1])
+      print(tail[0])
+      print(tail[1])
+      print(tupel_lits[0][0])
+      print(tupel_lits[0][1])
+      print(tupel_lits[1][0])
+      print(tupel_lits[1][1])
+    `,
+    ["1", "True", "5", "False", "2", "False", "3", "True"]
+  );
 });
 
 describe("General tuple tests", () => {
@@ -575,7 +595,7 @@ describe("General tuple tests", () => {
   );
 
   assertTC(
-    "allow nested tuples",
+    "allow type checking nested tuples",
     `
       tupel: ((bool, bool), (int, int)) = None
       tupel = ((True, False), (9, -91))
@@ -592,6 +612,75 @@ describe("General tuple tests", () => {
       tupel[0][1]
     `,
     BOOL
+  );
+
+  assertTC(
+    "type check tuples returned from functions",
+    `
+      def tuple_funcle(x: int, y: int) -> (int, int):
+        return (x * 2 - y, y * 2 - x)
+      tuple_funcle(7, 11)
+    `,
+    TUPLE(NUM, NUM)
+  );
+
+  assertTC(
+    "type check list of tuples",
+    `
+      tupel_lits: [(int, bool)] = None
+      tupel_lits = [(1, True), (2, False), (3, True), (5, False)]
+      tupel_lits
+    `,
+    LIST(TUPLE(NUM, BOOL))
+  );
+
+  assertTC(
+    "tuple as object attribute",
+    `
+      class LinxedList(object):
+        feline: bool = True
+        stats: (int, int, int) = None
+        next_linx: LinxedList = None
+        def __init__(self: LinxedList):
+          self.stats = (1, 2, 3)
+      linx: LinxedList = None
+      linx = LinxedList()
+      linx.stats
+    `,
+    TUPLE(NUM, NUM, NUM)
+  );
+
+  assertTCFail(
+    "assign to index of object tuple attribute",
+    `
+      class LinxedList(object):
+        feline: bool = True
+        stats: (int, int, int) = None
+        next_linx: LinxedList = None
+        def __init__(self: LinxedList):
+          self.stats = (1, 2, 3)
+      linx: LinxedList = None
+      linx = LinxedList()
+      linx.stats[2] = 5
+    `
+  );
+
+  assertTC(
+    "tuple as object method return type",
+    `
+      class LinxedList(object):
+        feline: bool = True
+        height: int = 1
+        weight: int = 2
+        age: int = 3
+        next_linx: LinxedList = None
+        def get_stats(self: LinxedList) -> (int, int, int):
+          return (self.height, self.weight, self.age)
+      linx: LinxedList = None
+      linx = LinxedList()
+      linx.get_stats()
+    `,
+    TUPLE(NUM, NUM, NUM)
   );
 
   assertPrint(
@@ -623,6 +712,162 @@ describe("General tuple tests", () => {
       print(ghostly[1] is ghost)
     `,
     ["boo", "True"]
+  );
+
+  assertPrint(
+    "support nested tuples",
+    `
+      tupel: ((bool, bool), (int, int)) = None
+      tupel = ((True, False), (9, -91))
+      print(tupel[0][0])
+      print(tupel[0][1])
+      print(tupel[1][0])
+      print(tupel[1][1])
+    `,
+    ["True", "False", "9", "-91"]
+  );
+
+  assertPrint(
+    "supports nested object tuples",
+    `
+      class Ghost(object):
+         boo: str = "boo"
+      class FakeGhost(object):
+         boo: str = "oob"
+      ghost: Ghost = None
+      fake_ghost: FakeGhost = None
+      ghostly: ((Ghost, FakeGhost, Ghost), Ghost, (FakeGhost, FakeGhost)) = None
+      ghost = Ghost()
+      ghost.boo = "boooooo"
+      fake_ghost = FakeGhost()
+      fake_ghost.boo = "ooooooob"
+      ghostly = ((Ghost(), FakeGhost(), ghost), None, (fake_ghost, FakeGhost()))
+      print(ghostly[0][0].boo)
+      print(ghostly[2][1].boo)
+      print(ghostly[0][2].boo)
+      print(ghostly[0][2] is ghost)
+      print(ghostly[2][0].boo)
+      print(ghostly[2][0] is fake_ghost)
+      print(ghostly[2][1] is fake_ghost)
+      print(ghostly[1] is None)
+    `,
+    ["boo", "oob", "boooooo", "True", "ooooooob", "True", "False", "True"]
+  );
+
+  assert(
+    "can return boolean tuple from a function",
+    `
+      def bool_toopl(x: bool, y: bool) -> (bool, bool):
+        return (not (not x) and (not y), not (not x) or (not y))
+      bool_toopl(True, False)[0]
+    `,
+    PyBool(true)
+  );
+
+  assertPrint(
+    "can return tuple from a function",
+    `
+      def tuple_funcle(x: int, y: int) -> (int, int):
+        return (x * 2 - y, y * 2 - x)
+      tupel: (int, int) = None
+      tupel = tuple_funcle(7, 11)
+      print(tupel[0])
+      print(tupel[1])
+    `,
+    ["3", "15"]
+  );
+
+  assertPrint(
+    "can pass tuples as arguments into functions",
+    `
+      def scrambled_tuples(t1: (int, bool), t2: (int, bool)) -> (int, int):
+        x_i: int = 0
+        x_b: bool = False
+        y_i: int = 0
+        y_b: bool = False
+        z_x: int = 0
+        z_y: int = 0
+        x_i, x_b = t1
+        y_i, y_b = t2
+        if x_b:
+          z_x = x_i
+        else:
+          z_x = -x_i
+        if y_b:
+          z_y = y_i
+        else:
+          z_y = -y_i
+        return (z_y, z_x)
+      res: (int, int) = None
+      res = scrambled_tuples((5, False), (10, True))
+      print(res[0])
+      print(res[1])
+    `,
+    ["10", "-5"]
+  );
+
+  assertPrint(
+    "access tuples in list",
+    `
+      tupel_lits: [(int, bool)] = None
+      tupel_lits = [(1, True), (2, False), (3, False), (5, True)]
+      print(tupel_lits[0][0])
+      print(tupel_lits[1][1])
+      print(tupel_lits[2][0])
+      print(tupel_lits[3][1])
+    `,
+    ["1", "False", "3", "True"]
+  );
+
+  assertPrint(
+    "tuple as object attribute",
+    `
+      class LinxedList(object):
+        feline: bool = True
+        stats: (int, int, int) = None
+        next_linx: LinxedList = None
+        def __init__(self: LinxedList):
+          self.stats = (1, 2, 3)
+      linx: LinxedList = None
+      linx = LinxedList()
+      print(linx.stats[0])
+      print(linx.stats[1])
+      print(linx.stats[2])
+      linx.stats = (10, 100, 1000)
+      print(linx.stats[2])
+      print(linx.stats[0])
+      print(linx.stats[1])
+    `,
+    ["1", "2", "3", "1000", "10", "100"]
+  );
+
+  assertPrint(
+    "tuple as object method return type",
+    `
+      class LinxedList(object):
+        feline: bool = True
+        height: int = 1
+        weight: int = 2
+        age: int = 3
+        next_linx: LinxedList = None
+        def get_stats(self: LinxedList) -> (int, int, int):
+          return (self.height, self.weight, self.age)
+      linx: LinxedList = None
+      stats: (int, int, int) = None
+      linx = LinxedList()
+      stats = linx.get_stats()
+      linx.height = 500
+      linx.weight = 5000
+      linx.age = 50000
+      print(stats[0])
+      print(stats[2])
+      print(stats[1])
+      stats = linx.get_stats()
+      print(stats[1])
+      print(stats[0])
+      print(stats[2])
+    `,
+    ["1", "3", "2", "5000", "500", "50000"]
   );
 });
 
