@@ -1,3 +1,4 @@
+import { type } from "cypress/types/jquery";
 import { Type } from "../ast";
 
 const indent = "  ";
@@ -8,6 +9,12 @@ type FunDef = {
   name: string;
   parameters: Array<Parameter>;
   ret: Type;
+};
+
+type Class = {
+  name: string;
+  fields: Map<string, Array<string>>;
+  methods: Array<FunDef>;
 };
 
 type ProbPair = {
@@ -23,7 +30,7 @@ type Program = {
 class Env {
   vars: Map<string, Array<string>>;
   funcs: Map<string, Array<FunDef>>;
-  classes: Map<string, Array<string>>;
+  classes: Map<string, Class>;
 
   constructor() {
     this.vars = new Map();
@@ -33,28 +40,15 @@ class Env {
 
   addVar(name: string, type: Type) {
     var typeString = typeToTypeString(type);
-    var vars = this.vars;
-    if (type.tag == "class") {
-      vars = this.classes;
+    if (!this.vars.has(typeString)) {
+      this.vars.set(typeString, []);
     }
-    if (!vars.has(typeString)) {
-      vars.set(typeString, []);
-    }
-    vars.get(typeString).push(name);
+    this.vars.get(typeString).push(name);
   }
 
   delVar(varName: string) {
     this.vars.forEach((names: Array<string>, type: string) => {
       this.vars.set(
-        type,
-        names.filter(function (name) {
-          return name !== varName;
-        })
-      );
-    });
-
-    this.classes.forEach((names: Array<string>, type: string) => {
-      this.classes.set(
         type,
         names.filter(function (name) {
           return name !== varName;
@@ -112,6 +106,9 @@ const BODY_STMT_CHANCE = 0.5;
 const IF_ELIF_CHANCE = 0.2;
 const IF_ELSE_CHANCE = 0.5;
 const PARAM_CHANCE = 0.5;
+const CLASS_FIELD_CHANCE = 0.25;
+const CLASS_METHOD_CHANCE = 0.25;
+const INNER_CLASS_LEVEL = 1;
 
 var StmtProbs: Array<ProbPair>;
 var ExprProbs: Array<ProbPair>;
@@ -219,6 +216,8 @@ function convertTypeFromKey(key: string, className?: string): Type {
       return { tag: "bool" };
     case "none":
       return { tag: "none" };
+    default:
+      return { tag: "class", name: className !== undefined ? className : key };
   }
 }
 
@@ -339,7 +338,7 @@ function selectRandomType(env: Env, level: number): Type {
   var typeStr = selectKey(TypeProbs);
   if (typeStr == "class") {
     if (level != undefined && level > 0 && Array.from(env.classes.keys()).length === 0) {
-      // reroll type if level > 0
+      // reroll class type if level > 0
       return selectRandomType(env, level);
     }
     return convertTypeFromKey(typeStr, selectClassName(env, level));
@@ -365,19 +364,72 @@ function selectRandomStmt(): string {
   return selectKey(StmtProbs);
 }
 
+function genClassSig(env: Env, varName: string, className: string) {
+  if (env.classes.has(className)) return;
+
+  // gen list of fields
+  var fields: Map<string, Array<string>> = new Map();
+  while (Math.random() < CLASS_FIELD_CHANCE || Array.from(fields.keys()).length == 0) {
+    var varType = selectRandomType(env, 0);
+    while (varType.tag == "none") varType = selectRandomType(env, 0);
+    var varTypeStr = typeToTypeString(varType);
+
+    if (!fields.has(varTypeStr)) {
+      fields.set(varTypeStr, []);
+    }
+
+    var fieldsList = fields.get(varTypeStr);
+    var fieldName = className + "_" + varTypeStr + "_" + fieldsList.length;
+
+    fieldsList.push(fieldName);
+    env.addVar(varName + "." + fieldName, varType);
+  }
+
+  // gen list of methods
+  var methods: Array<FunDef> = [];
+  while (Math.random() < CLASS_METHOD_CHANCE) {
+    var retType = selectRandomType(env, INNER_CLASS_LEVEL);
+    var funcDef = genFuncSig(retType, env, INNER_CLASS_LEVEL, className);
+
+    funcDef.name = varName + "." + className + "_" + funcDef.name;
+
+    methods.push(funcDef);
+    env.addFunc(funcDef);
+  }
+
+  var classDef: Class = {
+    name: className,
+    fields: fields,
+    methods: methods,
+  };
+  env.classes.set(className, classDef);
+}
+
 function genClassDef(level: number, env: Env, className: string): Array<string> {
   var currIndent = indent.repeat(level);
   var classStrings = [];
   var classHeader = currIndent + "class " + className + "(object):";
   classStrings.push(classHeader);
-  classStrings.push(currIndent + indent + "pass");
 
   var classEnv = env.copyEnv();
+  var decls: Array<string> = [];
+  var classDef: Class = env.classes.get(className);
+  if (classDef === undefined) {
+    throw new Error(`Class ${className} not found in the environment`);
+  }
 
-  // // var body = genBody(level + 1, classEnv);
-  var decls = genDecl(classEnv, env, level + 1, className);
+  classDef.fields.forEach((varNames: Array<string>, varType: string) => {
+    varNames.forEach((varName: string) => {
+      decls.push(currIndent + indent + genVarDef(varName, convertTypeFromKey(varType)));
+    });
+  });
+
+  classDef.methods.forEach((fun_def: FunDef) => {
+    decls = decls.concat(genFuncDef(level + 1, classEnv, fun_def, classDef.name));
+  });
+
   classStrings = classStrings.concat(decls);
-  // classStrings = classStrings.concat(body.program);
+
   return classStrings;
 }
 
@@ -397,16 +449,19 @@ function genParam(paramName: string, env: Env, level: number): Parameter {
   return { name: paramName, type: paramType }; //TODO generate unique parameter name
 }
 
-function genFuncSig(ty: Type, env: Env, level: number): FunDef {
+function genFuncSig(ty: Type, env: Env, level: number, className?: string): FunDef {
   var paramList = [];
   var retType = ty; //fixed function return type
   var funcName = genFuncName(env, retType);
-  var first = true;
   var paramIndex = 0;
+
+  if (className !== undefined) {
+    // add self as first variable
+    var classType: Type = { tag: "class", name: className };
+    paramList.push({ name: "self", type: classType });
+  }
+
   while (true) {
-    if (first) {
-      first = false;
-    }
     if (Math.random() > PARAM_CHANCE) {
       break;
     }
@@ -423,6 +478,8 @@ function genFuncSig(ty: Type, env: Env, level: number): FunDef {
 }
 
 function genVarDef(name: string, type: Type): string {
+  if (name.includes(".")) return "";
+
   switch (type.tag) {
     case "number":
       return `${name}:int = 1`;
@@ -546,23 +603,17 @@ function genDecl(env: Env, upperEnv: Env, level: number, className?: string): Ar
   });
 
   var classDecls: Array<string> = [];
-  env.classes.forEach((names: Array<string>, className: string) => {
+  env.classes.forEach((_: Class, className: string) => {
     if (!upperEnv.classes.has(className)) {
       classDecls = classDecls.concat(genClassDef(level, env, className));
     }
-
-    names.forEach((name: string) => {
-      if (!upperEnv.classes.has(className) || !upperEnv.classes.get(className).includes(name)) {
-        varDecls.push(currIndent + genVarDef(name, convertTypeFromKey(className)));
-      }
-    });
   });
 
   var funcDecls: Array<string> = [];
   env.funcs.forEach((funcDefs: Array<FunDef>, type: string) => {
     funcDefs.forEach((funcDef: FunDef) => {
       if (!upperEnv.funcs.has(type) || !upperEnv.funcs.get(type).includes(funcDef)) {
-        funcDecls = funcDecls.concat(genFuncDef(level, env, funcDef, className));
+        funcDecls = funcDecls.concat(genFuncDef(level, env, funcDef));
       }
     });
   });
@@ -604,11 +655,15 @@ function genExpr(type: Type, env: Env, level: number): string {
   const whichExpr: string = selectRandomExpr();
   switch (whichExpr) {
     case "literal":
+      if (type.tag == "class") {
+        return genExpr(type, env, level); //reroll the expr
+      }
       return genLiteral(type);
     case "id":
       if (type.tag == "none") return genExpr(type, env, level); // hacky
       return genId(type, env);
     case "binop":
+      if (!["number", "bool"].includes(type.tag)) return genExpr(type, env, level); //reroll the expr
       var op = selectRandomBinOp(type);
       var leftType: Type;
       var rightType: Type;
@@ -658,7 +713,7 @@ function genExpr(type: Type, env: Env, level: number): string {
         default:
           throw new Error(`Unknown uniop: ${op}`);
       }
-    case "call": //TODO: sometimes incorrect return types make it into the environment
+    case "call":
       //roll for existing or new function
       const funcSig = selectFuncSig(type, env, level);
       if (funcSig === undefined) {
@@ -675,10 +730,22 @@ function genExpr(type: Type, env: Env, level: number): string {
       callString += ")";
       return callString;
 
+    case "construct":
+      if (type.tag != "class") {
+        return genExpr(type, env, level); //reroll non-class types
+      }
+      return genConstruct(type);
     default:
       throw new Error(`Unknown expr in genExpr: ${whichExpr}`);
   }
   return "";
+}
+
+function genConstruct(type: Type): string {
+  if (type.tag != "class") {
+    throw new Error("Generating construct on non-class type");
+  }
+  return `${type.name}()`; //constructors always have no parameters
 }
 
 function genLiteral(type: Type): string {
@@ -687,24 +754,29 @@ function genLiteral(type: Type): string {
 
 function genId(type: Type, env: Env): string {
   var typeStr = typeToTypeString(type);
-  var vars = type.tag == "class" ? env.classes : env.vars;
+
+  var vars = env.vars;
 
   if (!vars.has(typeStr)) {
     vars.set(typeStr, []);
   }
 
-  var varList = type.tag == "class" ? env.classes.get(typeStr) : env.vars.get(typeStr);
-
+  var varList = env.vars.get(typeStr);
+  var varName: string;
   if (varList.length > 0 && Math.random() < 0.5) {
     // use existing variable
     var index = Math.floor(Math.random() * varList.length);
-    return varList[index];
+    varName = varList[index];
   } else {
     // gen new variable
-    var varName = `${typeStr}_${varList.length}`;
+    varName = `${typeStr}_${varList.length}`;
     varList.push(varName);
-    return varName;
   }
+
+  if (type.tag == "class") {
+    genClassSig(env, varName, type.name);
+  }
+  return varName;
 }
 
 function genBinOp(op: string): string {
