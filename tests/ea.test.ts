@@ -10,49 +10,88 @@ describe("ea(tAst) function", () => {
   // Use this function in debug prompt to get the result
   // JSON.stringify(fAst, (key, value) => (typeof value === "bigint" ? value.toString() : value));
 
-  it.skip("ea case 1", () => {
+  it("ea case 1", () => {
     const code = `
-def f(x: int) -> int:
-  def inc() -> int:
-    return x + 1
-  return inc()
-f(5)
-`;
+    def f(x: int) -> int:
+      def inc() -> int:
+        return x + 1
+      return inc()
+    f(5)
+    `;
     const parsed = parse(code);
     const [tAst, _] = tc(emptyGlobalTypeEnv(), parsed);
     const fAst = ea(tAst);
 
     expect(fAst).to.deep.equal({
-      a: { tag: "number" },
+      a: [
+        { tag: "number" },
+        {
+          col: 0,
+          length: 104,
+          line: 1,
+        },
+      ],
       funs: [],
       inits: [],
       classes: [],
       stmts: [
         {
-          a: { tag: "number" },
+          a: [
+            { tag: "number" },
+            {
+              col: 5,
+              length: 4,
+              line: 6,
+            },
+          ],
           tag: "expr",
           expr: {
-            a: { tag: "number" },
+            a: [
+              { tag: "number" },
+              {
+                col: 5,
+                length: 4,
+                line: 6,
+              },
+            ],
             tag: "call_expr",
             name: {
-              a: {
-                tag: "callable",
-                args: [{ tag: "number" }],
-                ret: { tag: "number" },
-                isVar: false,
-              },
+              a: [
+                {
+                  tag: "callable",
+                  args: [{ name: "x", type: { tag: "number" } }],
+                  ret: { tag: "number" },
+                  isVar: false,
+                },
+                {
+                  col: 5,
+                  length: 4,
+                  line: 6,
+                },
+              ],
               tag: "id",
               name: "f",
             },
             arguments: [
-              { a: { tag: "number" }, tag: "literal", value: { tag: "num", value: BigInt(5) } },
+              {
+                a: [{ tag: "number" }, { col: 7, length: 1, line: 6 }],
+                tag: "literal",
+                value: { tag: "num", value: BigInt(5) },
+              },
             ],
           },
         },
       ],
       closures: [
         {
-          a: { tag: "none" },
+          a: [
+            { tag: "none" },
+            {
+              col: 5,
+              length: 86,
+              line: 2,
+            },
+          ],
           name: "f",
           parameters: [{ name: "x", type: { tag: "number" } }],
           ret: { tag: "number" },
@@ -62,15 +101,40 @@ f(5)
           isGlobal: true,
           body: [
             {
-              a: { tag: "number" },
+              a: [{ tag: "number" }, { col: 14, length: 5, line: 5 }],
               tag: "return",
               value: {
-                a: { tag: "number" },
+                a: [
+                  { tag: "number" },
+                  {
+                    col: 14,
+                    length: 5,
+                    line: 5,
+                  },
+                ],
                 tag: "call_expr",
                 name: {
-                  a: { tag: "callable", args: [], ret: { tag: "number" }, isVar: false },
+                  a: [
+                    { tag: "callable", args: [], ret: { tag: "number" }, isVar: false },
+                    {
+                      col: 14,
+                      length: 5,
+                      line: 5,
+                    },
+                  ],
                   tag: "lookup",
-                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$inc_$ref" },
+                  obj: {
+                    a: [
+                      { tag: "class", name: "$ref" },
+                      {
+                        col: 14,
+                        length: 5,
+                        line: 5,
+                      },
+                    ],
+                    tag: "id",
+                    name: "f_$inc_$ref",
+                  },
                   field: "$deref",
                 },
                 arguments: [],
@@ -79,7 +143,14 @@ f(5)
           ],
         },
         {
-          a: { tag: "none" },
+          a: [
+            { tag: "none" },
+            {
+              col: 7,
+              length: 39,
+              line: 3,
+            },
+          ],
           name: "f_$inc",
           parameters: [],
           ret: { tag: "number" },
@@ -89,20 +160,55 @@ f(5)
           isGlobal: false,
           body: [
             {
-              a: { tag: "number" },
+              a: [
+                { tag: "number" },
+                {
+                  col: 16,
+                  length: 5,
+                  line: 4,
+                },
+              ],
               tag: "return",
               value: {
-                a: { tag: "number" },
+                a: [
+                  { tag: "number" },
+                  {
+                    col: 16,
+                    length: 5,
+                    line: 4,
+                  },
+                ],
                 tag: "binop",
                 op: BinOp.Plus,
                 left: {
-                  a: { tag: "number" },
+                  a: [
+                    { tag: "number" },
+                    {
+                      col: 16,
+                      length: 1,
+                      line: 4,
+                    },
+                  ],
                   tag: "lookup",
-                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
+                  obj: {
+                    a: [
+                      { tag: "class", name: "$ref" },
+                      { line: 4, col: 16, length: 1 },
+                    ],
+                    tag: "id",
+                    name: "x_$ref",
+                  },
                   field: "$deref",
                 },
                 right: {
-                  a: { tag: "number" },
+                  a: [
+                    { tag: "number" },
+                    {
+                      col: 20,
+                      length: 1,
+                      line: 4,
+                    },
+                  ],
                   tag: "literal",
                   value: { tag: "num", value: BigInt(1) },
                 },
@@ -114,53 +220,99 @@ f(5)
     });
   });
 
-  it.skip("ea case 2", () => {
+  it("ea case 2", () => {
     const code = `
-def f(x : int) -> int:
-  def g(y : int) -> int:
-    return x + h(y)
-  def h(z : int) -> int:
-    nonlocal x
-    x = z
-    return x + 1
-  return g(10) + g(7)
-f(6)
-`;
+    def f(x : int) -> int:
+      def g(y : int) -> int:
+        return x + h(y)
+      def h(z : int) -> int:
+        nonlocal x
+        x = z
+        return x + 1
+      return g(10) + g(7)
+    f(6)
+    `;
     const parsed = parse(code);
     const [tAst, _] = tc(emptyGlobalTypeEnv(), parsed);
     const fAst = ea(tAst);
 
     expect(fAst).to.deep.equal({
-      a: { tag: "number" },
+      a: [
+        { tag: "number" },
+        {
+          col: 0,
+          length: 203,
+          line: 1,
+        },
+      ],
       funs: [],
       inits: [],
       classes: [],
       stmts: [
         {
-          a: { tag: "number" },
+          a: [
+            { tag: "number" },
+            {
+              col: 5,
+              length: 4,
+              line: 10,
+            },
+          ],
           tag: "expr",
           expr: {
-            a: { tag: "number" },
+            a: [
+              { tag: "number" },
+              {
+                col: 5,
+                length: 4,
+                line: 10,
+              },
+            ],
             tag: "call_expr",
             name: {
-              a: {
-                tag: "callable",
-                args: [{ tag: "number" }],
-                ret: { tag: "number" },
-                isVar: false,
-              },
+              a: [
+                {
+                  tag: "callable",
+                  args: [{ name: "x", type: { tag: "number" } }],
+                  ret: { tag: "number" },
+                  isVar: false,
+                },
+                {
+                  col: 5,
+                  length: 4,
+                  line: 10,
+                },
+              ],
               tag: "id",
               name: "f",
             },
             arguments: [
-              { a: { tag: "number" }, tag: "literal", value: { tag: "num", value: BigInt(6) } },
+              {
+                a: [
+                  { tag: "number" },
+                  {
+                    col: 7,
+                    length: 1,
+                    line: 10,
+                  },
+                ],
+                tag: "literal",
+                value: { tag: "num", value: BigInt(6) },
+              },
             ],
           },
         },
       ],
       closures: [
         {
-          a: { tag: "none" },
+          a: [
+            { tag: "none" },
+            {
+              col: 5,
+              length: 185,
+              line: 2,
+            },
+          ],
           name: "f",
           parameters: [{ name: "x", type: { tag: "number" } }],
           ret: { tag: "number" },
@@ -170,51 +322,129 @@ f(6)
           isGlobal: true,
           body: [
             {
-              a: { tag: "number" },
+              a: [
+                { tag: "number" },
+                {
+                  col: 14,
+                  length: 12,
+                  line: 9,
+                },
+              ],
               tag: "return",
               value: {
-                a: { tag: "number" },
+                a: [
+                  { tag: "number" },
+                  {
+                    col: 14,
+                    length: 12,
+                    line: 9,
+                  },
+                ],
                 tag: "binop",
                 op: BinOp.Plus,
                 left: {
-                  a: { tag: "number" },
+                  a: [
+                    { tag: "number" },
+                    {
+                      col: 14,
+                      length: 5,
+                      line: 9,
+                    },
+                  ],
                   tag: "call_expr",
                   name: {
-                    a: {
-                      tag: "callable",
-                      args: [{ tag: "number" }],
-                      ret: { tag: "number" },
-                      isVar: false,
-                    },
+                    a: [
+                      {
+                        tag: "callable",
+                        args: [{ name: "y", type: { tag: "number" } }],
+                        ret: { tag: "number" },
+                        isVar: false,
+                      },
+                      {
+                        col: 14,
+                        length: 5,
+                        line: 9,
+                      },
+                    ],
                     tag: "lookup",
-                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$g_$ref" },
+                    obj: {
+                      a: [
+                        { tag: "class", name: "$ref" },
+                        {
+                          col: 14,
+                          length: 5,
+                          line: 9,
+                        },
+                      ],
+                      tag: "id",
+                      name: "f_$g_$ref",
+                    },
                     field: "$deref",
                   },
                   arguments: [
                     {
-                      a: { tag: "number" },
+                      a: [
+                        { tag: "number" },
+                        {
+                          col: 16,
+                          length: 2,
+                          line: 9,
+                        },
+                      ],
                       tag: "literal",
                       value: { tag: "num", value: BigInt(10) },
                     },
                   ],
                 },
                 right: {
-                  a: { tag: "number" },
+                  a: [
+                    { tag: "number" },
+                    {
+                      col: 22,
+                      length: 4,
+                      line: 9,
+                    },
+                  ],
                   tag: "call_expr",
                   name: {
-                    a: {
-                      tag: "callable",
-                      args: [{ tag: "number" }],
-                      ret: { tag: "number" },
-                      isVar: false,
-                    },
+                    a: [
+                      {
+                        tag: "callable",
+                        args: [{ name: "y", type: { tag: "number" } }],
+                        ret: { tag: "number" },
+                        isVar: false,
+                      },
+                      {
+                        col: 22,
+                        length: 4,
+                        line: 9,
+                      },
+                    ],
                     tag: "lookup",
-                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$g_$ref" },
+                    obj: {
+                      a: [
+                        { tag: "class", name: "$ref" },
+                        {
+                          col: 22,
+                          length: 4,
+                          line: 9,
+                        },
+                      ],
+                      tag: "id",
+                      name: "f_$g_$ref",
+                    },
                     field: "$deref",
                   },
                   arguments: [
                     {
-                      a: { tag: "number" },
+                      a: [
+                        { tag: "number" },
+                        {
+                          col: 24,
+                          length: 1,
+                          line: 9,
+                        },
+                      ],
                       tag: "literal",
                       value: { tag: "num", value: BigInt(7) },
                     },
@@ -225,7 +455,14 @@ f(6)
           ],
         },
         {
-          a: { tag: "none" },
+          a: [
+            { tag: "none" },
+            {
+              col: 7,
+              length: 47,
+              line: 3,
+            },
+          ],
           name: "f_$g",
           parameters: [{ name: "y", type: { tag: "number" } }],
           ret: { tag: "number" },
@@ -235,37 +472,112 @@ f(6)
           isGlobal: false,
           body: [
             {
-              a: { tag: "number" },
+              a: [
+                { tag: "number" },
+                {
+                  col: 16,
+                  length: 8,
+                  line: 4,
+                },
+              ],
               tag: "return",
               value: {
-                a: { tag: "number" },
+                a: [
+                  { tag: "number" },
+                  {
+                    col: 16,
+                    length: 8,
+                    line: 4,
+                  },
+                ],
                 tag: "binop",
                 op: BinOp.Plus,
                 left: {
-                  a: { tag: "number" },
+                  a: [
+                    { tag: "number" },
+                    {
+                      col: 16,
+                      length: 1,
+                      line: 4,
+                    },
+                  ],
                   tag: "lookup",
-                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
+                  obj: {
+                    a: [
+                      { tag: "class", name: "$ref" },
+                      {
+                        col: 16,
+                        length: 1,
+                        line: 4,
+                      },
+                    ],
+                    tag: "id",
+                    name: "x_$ref",
+                  },
                   field: "$deref",
                 },
                 right: {
-                  a: { tag: "number" },
+                  a: [
+                    { tag: "number" },
+                    {
+                      col: 20,
+                      length: 4,
+                      line: 4,
+                    },
+                  ],
                   tag: "call_expr",
                   name: {
-                    a: {
-                      tag: "callable",
-                      args: [{ tag: "number" }],
-                      ret: { tag: "number" },
-                      isVar: false,
-                    },
+                    a: [
+                      {
+                        tag: "callable",
+                        args: [{ name: "z", type: { tag: "number" } }],
+                        ret: { tag: "number" },
+                        isVar: false,
+                      },
+                      {
+                        col: 20,
+                        length: 4,
+                        line: 4,
+                      },
+                    ],
                     tag: "lookup",
-                    obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "f_$h_$ref" },
+                    obj: {
+                      a: [
+                        { tag: "class", name: "$ref" },
+                        {
+                          col: 20,
+                          length: 4,
+                          line: 4,
+                        },
+                      ],
+                      tag: "id",
+                      name: "f_$h_$ref",
+                    },
                     field: "$deref",
                   },
                   arguments: [
                     {
-                      a: { tag: "number" },
+                      a: [
+                        { tag: "number" },
+                        {
+                          col: 22,
+                          length: 1,
+                          line: 4,
+                        },
+                      ],
                       tag: "lookup",
-                      obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "y_$ref" },
+                      obj: {
+                        a: [
+                          { tag: "class", name: "$ref" },
+                          {
+                            col: 22,
+                            length: 1,
+                            line: 4,
+                          },
+                        ],
+                        tag: "id",
+                        name: "y_$ref",
+                      },
                       field: "$deref",
                     },
                   ],
@@ -275,7 +587,14 @@ f(6)
           ],
         },
         {
-          a: { tag: "none" },
+          a: [
+            { tag: "none" },
+            {
+              col: 7,
+              length: 77,
+              line: 5,
+            },
+          ],
           name: "f_$h",
           parameters: [{ name: "z", type: { tag: "number" } }],
           ret: { tag: "number" },
@@ -285,25 +604,75 @@ f(6)
           isGlobal: false,
           body: [
             {
-              a: { tag: "none" },
+              a: [
+                { tag: "none" },
+                {
+                  col: 9,
+                  length: 5,
+                  line: 7,
+                },
+              ],
               tag: "assignment",
               value: {
-                a: { tag: "number" },
+                a: [
+                  { tag: "number" },
+                  {
+                    col: 13,
+                    length: 1,
+                    line: 7,
+                  },
+                ],
                 tag: "lookup",
-                obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "z_$ref" },
+                obj: {
+                  a: [
+                    { tag: "class", name: "$ref" },
+                    {
+                      col: 13,
+                      length: 1,
+                      line: 7,
+                    },
+                  ],
+                  tag: "id",
+                  name: "z_$ref",
+                },
                 field: "$deref",
               },
               destruct: {
-                valueType: { tag: "number" },
+                valueType: [
+                  { tag: "number" },
+                  {
+                    col: 9,
+                    length: 1,
+                    line: 7,
+                  },
+                ],
                 isDestructured: false,
                 targets: [
                   {
                     starred: false,
                     ignore: false,
                     target: {
-                      a: { tag: "number" },
+                      a: [
+                        { tag: "number" },
+                        {
+                          col: 9,
+                          length: 1,
+                          line: 7,
+                        },
+                      ],
                       tag: "lookup",
-                      obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
+                      obj: {
+                        a: [
+                          { tag: "class", name: "$ref" },
+                          {
+                            col: 9,
+                            length: 1,
+                            line: 7,
+                          },
+                        ],
+                        tag: "id",
+                        name: "x_$ref",
+                      },
                       field: "$deref",
                     },
                   },
@@ -311,20 +680,59 @@ f(6)
               },
             },
             {
-              a: { tag: "number" },
+              a: [
+                { tag: "number" },
+                {
+                  col: 16,
+                  length: 5,
+                  line: 8,
+                },
+              ],
               tag: "return",
               value: {
-                a: { tag: "number" },
+                a: [
+                  { tag: "number" },
+                  {
+                    col: 16,
+                    length: 5,
+                    line: 8,
+                  },
+                ],
                 tag: "binop",
                 op: BinOp.Plus,
                 left: {
-                  a: { tag: "number" },
+                  a: [
+                    { tag: "number" },
+                    {
+                      col: 16,
+                      length: 1,
+                      line: 8,
+                    },
+                  ],
                   tag: "lookup",
-                  obj: { a: { tag: "class", name: "$ref" }, tag: "id", name: "x_$ref" },
+                  obj: {
+                    a: [
+                      { tag: "class", name: "$ref" },
+                      {
+                        col: 16,
+                        length: 1,
+                        line: 8,
+                      },
+                    ],
+                    tag: "id",
+                    name: "x_$ref",
+                  },
                   field: "$deref",
                 },
                 right: {
-                  a: { tag: "number" },
+                  a: [
+                    { tag: "number" },
+                    {
+                      col: 20,
+                      length: 1,
+                      line: 8,
+                    },
+                  ],
                   tag: "literal",
                   value: { tag: "num", value: BigInt(1) },
                 },
