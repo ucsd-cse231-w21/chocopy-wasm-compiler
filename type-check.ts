@@ -598,9 +598,9 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             }
             return {
               ...expr,
-              a: { tag: "none" },
+              a: NONE,
               obj: tObj,
-              arguments: [{ tag: "literal", value: { tag: "none" } }]
+              arguments: []
             };
           default:
             throw new TypeCheckError(`'dict' object has no attribute '${expr.method}'`);
@@ -608,7 +608,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeCheckError("method calls require an object");
       }
-      break;
     case "dict":
       let entries = expr.entries;
       let dictType: Type;
