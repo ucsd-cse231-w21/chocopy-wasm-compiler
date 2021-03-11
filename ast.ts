@@ -68,7 +68,7 @@ export type ClosureDef<A> = {
 };
 
 export type Stmt<A> =
-  | { a?: A; tag: "assignment"; destruct: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
+  | { a?: A; tag: "assignment"; destruct: Destructure<A>; value: Expr<A> }
   | { a?: A; tag: "return"; value: Expr<A> }
   | { a?: A; tag: "expr"; expr: Expr<A> }
   | { a?: A; tag: "if"; cond: Expr<A>; thn: Array<Stmt<A>>; els: Array<Stmt<A>> }
@@ -182,6 +182,7 @@ export type Value =
   | Literal
   | { tag: "string"; value: string; address: number }
   | { tag: "object"; name: string; address: number }
+  | { tag: "list"; name: string; address: number; content_type: Type }
   | { tag: "callable"; name: string; address: number };
 
 export type Location = { line: number; col: number; length: number };

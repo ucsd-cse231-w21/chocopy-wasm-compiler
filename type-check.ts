@@ -16,7 +16,7 @@ import {
   AssignTarget,
   Parameter,
 } from "./ast";
-import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
+import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged, LIST } from "./utils";
 import * as BaseException from "./error";
 import { at } from "cypress/types/lodash";
 
@@ -41,6 +41,7 @@ defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
 defaultGlobalFunctions.set("range", [[NUM], CLASS("Range")]);
+defaultGlobalFunctions.set("len", [[LIST(null)], NUM]);
 
 const defaultGlobalClasses = new Map();
 // Range initialization
@@ -108,8 +109,17 @@ const objtypes = ["class", "list", "dict", "callable", "tuple"];
 function isObjectTypeTag(t: string): boolean {
   return objtypes.indexOf(t) >= 0;
 }
+
+function isEmptyList(t: Type): boolean {
+  return JSON.stringify(t) === JSON.stringify(LIST(null));
+}
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && isObjectTypeTag(t2.tag));
+  return (
+    equalType(t1, t2) ||
+    (t1.tag === "none" && isObjectTypeTag(t2.tag)) ||
+    isEmptyList(t1) ||
+    isEmptyList(t2)
+  );
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
@@ -568,9 +578,10 @@ function tcDestructure(
   }
 
   let types: Type[] = [];
+  // Note:The parser guarantees at most 1 starred assignment target
   switch (value.tag) {
+    // TODO: Remove class-based destructuring in the long term, leave for now until it can be safely removed
     case "class": {
-      // This is a temporary hack to get destructuring working (reuse for tuples later?)
       let cls = env.classes.get(value.name);
       if (cls === undefined)
         throw new BaseException.InternalException(
@@ -627,42 +638,88 @@ function tcDestructure(
 
     case "tuple": {
       let types = value.contentTypes;
-      let starOffset = 0;
-      let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map(
-        (target, i, targets) => {
-          if (i >= types.length)
-            throw new Error(
-              `Not enough values to unpack (expected at least ${i}, got ${types.length})`
-            );
-          if (target.starred) {
-            let tTarget = tcAssignable(env, locals, target.target);
-            if (tTarget.a[0].tag !== "list")
-              throw new BaseException.CompileError(
-                tTarget.a[1],
-                `Starred assignment target must have type list, found type ${tTarget.a[0].tag}`
-              );
-            starOffset = types.length - targets.length; // How many values to offset index to account for starred target
-            for (let j = i; j <= i + starOffset; j++)
-              if (!isAssignable(env, types[j], tTarget.a[0]))
-                throw new BaseException.CompileError(
-                  tTarget.a[1],
-                  `Cannot assign type ${types[j].tag} to list of type ${tTarget.a[0].content_type.tag}`
-                );
-            return {
-              target: tTarget,
-              starred: target.starred,
-              ignore: target.ignore,
-            };
-          }
-          let valueType = types[i + starOffset];
-          return tcTarget(target, valueType);
+      const starredIndex = destruct.targets.findIndex(({ starred }) => starred);
+      const tcTuples = (targets: AssignTarget<Location>[], types: Type[]) => {
+        if (targets.length !== types.length) {
+          throw new Error(
+            `Too many values to unpack (expected ${targets.length}, got ${types.length})`
+          );
         }
-      );
+        return targets.map((target, i) => tcTarget(target, types[i]));
+      };
 
-      if (types.length > destruct.targets.length + starOffset)
-        throw new Error(
-          `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
-        );
+      let tTargets: AssignTarget<[Type, Location]>[];
+
+      if (starredIndex >= 0) {
+        // subtract 1 from targets since starred can == []
+        if (types.length < destruct.targets.length - 1) {
+          throw new BaseException.CompileError(destruct.valueType, `Not enough values on RHS`);
+        }
+        const head = destruct.targets.slice(0, starredIndex);
+        const starred = destruct.targets[starredIndex];
+        const tail = destruct.targets.slice(starredIndex + 1, destruct.targets.length);
+
+        const tHead = tcTuples(head, types.slice(0, head.length));
+        const starredTypes = types.slice(starredIndex, -tail.length);
+        const tStarred = tcAssignable(env, locals, starred.target);
+        const starredType = tStarred.a[0];
+        if (starredType.tag !== "list") {
+          throw new BaseException.CompileError(
+            tStarred.a[1],
+            `Starred assignment target must have type list, found type ${starredType.tag}`
+          );
+        }
+        starredTypes.forEach((type) => {
+          if (!isAssignable(env, starredType.content_type, type)) {
+            throw new BaseException.TypeMismatchError(
+              tStarred.a[1],
+              starredType.content_type,
+              type
+            );
+          }
+        });
+        const tTail =
+          tail.length === 0 ? [] : tcTuples(tail, types.slice(-tail.length, types.length));
+        tTargets = [...tHead, { ...starred, target: tStarred }, ...tTail];
+      } else {
+        tTargets = tcTuples(destruct.targets, types);
+      }
+
+      // let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map(
+      //   (target, i, targets) => {
+      //     if (i >= types.length)
+      //       throw new Error(
+      //         `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+      //       );
+      //     if (target.starred) {
+      //       let tTarget = tcAssignable(env, locals, target.target);
+      //       if (tTarget.a[0].tag !== "list")
+      //         throw new BaseException.CompileError(
+      //           tTarget.a[1],
+      //           `Starred assignment target must have type list, found type ${tTarget.a[0].tag}`
+      //         );
+      //       starOffset = types.length - targets.length; // How many values to offset index to account for starred target
+      //       for (let j = i; j <= i + starOffset; j++)
+      //         if (!isAssignable(env, types[j], tTarget.a[0]))
+      //           throw new BaseException.CompileError(
+      //             tTarget.a[1],
+      //             `Cannot assign type ${types[j].tag} to list of type ${tTarget.a[0].content_type.tag}`
+      //           );
+      //       return {
+      //         target: tTarget,
+      //         starred: target.starred,
+      //         ignore: target.ignore,
+      //       };
+      //     }
+      //     let valueType = types[i + starOffset];
+      //     return tcTarget(target, valueType);
+      //   }
+      // );
+
+      // if (types.length > destruct.targets.length + starOffset)
+      //   throw new Error(
+      //     `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      //   );
 
       return {
         isDestructured: destruct.isDestructured,
@@ -686,7 +743,7 @@ function tcAssignable(
 ): Assignable<[Type, Location]> {
   const expr = tcExpr(env, locals, target);
   if (!isTagged(expr, ASSIGNABLE_TAGS)) {
-    throw new BaseException.CompileError(target.a, `Cannot assing to target type ${expr.tag}`);
+    throw new BaseException.CompileError(target.a, `Cannot assign to target type ${expr.tag}`);
   } else if (
     (expr.a[0].tag === "string" || expr.a[0].tag === "tuple") &&
     expr.tag === "bracket-lookup"
@@ -720,7 +777,9 @@ export function tcExpr(
           if (
             expr.op == BinOp.Plus &&
             tLeft.a[0].tag === "list" &&
-            equalType(tLeft.a[0], tRight.a[0])
+            (equalType(tLeft.a[0], tRight.a[0]) ||
+              isEmptyList(tLeft.a[0]) ||
+              isEmptyList(tRight.a[0]))
           ) {
             return { ...tBin, a: [tLeft.a[0], expr.a] };
           }
@@ -942,6 +1001,21 @@ export function tcExpr(
           name: expr.name,
           arguments: tArgs,
         };
+      } else if (expr.name == "len") {
+        const tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
+
+        if (tArg.length == 1) {
+          if (tArg[0].a[0].tag === "list" || tArg[0].a[0].tag === "dict") {
+            return { ...expr, a: [NUM, expr.a], arguments: tArg };
+          } else {
+            throw new BaseException.TypeMismatchError(expr.a, LIST(null), tArg[0].a[0]);
+          }
+        } else {
+          throw new BaseException.TypeError(
+            expr.a,
+            `len takes 1 positional arguments but ${expr.arguments.length + 1} were given`
+          );
+        }
       }
       throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
     case "lookup":
@@ -963,26 +1037,65 @@ export function tcExpr(
     case "method-call":
       var tObj = tcExpr(env, locals, expr.obj);
       var tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-      if (tObj.a[0].tag === "class") {
-        if (env.classes.has(tObj.a[0].name)) {
-          const [fields, methods] = env.classes.get(tObj.a[0].name);
+      switch (tObj.a[0].tag) {
+        case "class":
+          if (env.classes.has(tObj.a[0].name)) {
+            const [fields, methods] = env.classes.get(tObj.a[0].name);
 
-          var methodArgs: Type[];
-          var methodRet: Type;
-          if (fields.has(expr.method)) {
-            var temp = fields.get(expr.method);
-            // should always be true
-            if (temp.tag === "callable") {
-              [methodArgs, methodRet] = [temp.args.map((p) => p.type), temp.ret];
-            }
+            var methodArgs: Type[];
+            var methodRet: Type;
+            if (fields.has(expr.method)) {
+              var temp = fields.get(expr.method);
+              // should always be true
+              if (temp.tag === "callable") {
+                [methodArgs, methodRet] = [temp.args.map((p) => p.type), temp.ret];
+              }
 
-            var realArgs: Expr<[Type, Location]>[] = tArgs;
-            if (methods.has(expr.method)) {
-              realArgs = [tObj].concat(tArgs);
+              var realArgs: Expr<[Type, Location]>[] = tArgs;
+              if (methods.has(expr.method)) {
+                realArgs = [tObj].concat(tArgs);
+              }
+              if (
+                methodArgs.length === realArgs.length &&
+                methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
+              ) {
+                return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs };
+              } else if (methodArgs.length != realArgs.length) {
+                throw new BaseException.TypeError(
+                  expr.a,
+                  `${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`
+                );
+              } else {
+                throw new BaseException.TypeMismatchError(
+                  expr.a,
+                  methodArgs,
+                  realArgs.map((s) => {
+                    return s.a[0];
+                  })
+                );
+              }
+            } else {
+              throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
             }
+          } else {
+            throw new BaseException.NameError(expr.a, tObj.a[0].name);
+          }
+        case "list":
+          if (tObj.a[0].content_type === null && tArgs.length > 0) {
+            tObj.a[0].content_type = tArgs[0].a[0];
+          }
+          const list_builtin = new Map<string, [Array<Type>, Type]>([
+            ["append", [[tObj.a[0].content_type], tObj.a[0]]],
+            ["clear", [[], tObj.a[0]]],
+            ["copy", [[], tObj.a[0]]],
+            ["count", [[tObj.a[0].content_type], NUM]],
+            ["index", [[tObj.a[0].content_type], NUM]],
+          ]);
+          [methodArgs, methodRet] = list_builtin.get(expr.method);
+          if (list_builtin.has(expr.method)) {
             if (
-              methodArgs.length === realArgs.length &&
-              methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
+              methodArgs.length === tArgs.length &&
+              methodArgs.every((argTyp, i) => isAssignable(env, tArgs[i].a[0], argTyp))
             ) {
               return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs };
             } else if (methodArgs.length != realArgs.length) {
@@ -1002,17 +1115,16 @@ export function tcExpr(
           } else {
             throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
           }
-        } else {
-          throw new BaseException.NameError(expr.a, tObj.a[0].name);
-        }
-      } else {
-        throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
+          break;
+        default:
+          throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
       }
+
     case "list-expr":
       var commonType = null;
       const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
       if (listExpr.length == 0) {
-        commonType = NONE;
+        commonType = null;
       } else {
         commonType = listExpr[0].a[0];
         for (var i = 1; i < listExpr.length; ++i) {

@@ -152,7 +152,7 @@ y, z, x = Tuple()
 
 describe("Destructure lists", () => {
   assertTC(
-    "destructure list to ids",
+    "TC destructure list to ids",
     `
       listy: [int] = None
       a: int = 0
@@ -167,7 +167,7 @@ describe("Destructure lists", () => {
   );
 
   assertTC(
-    "destructure list to lookups",
+    "TC destructure list to lookups",
     `
       class BoolContainer(object):
         a: bool = False
@@ -176,7 +176,7 @@ describe("Destructure lists", () => {
         d: bool = False
       listy: [bool] = None
       bc: BoolContainer = None
-          listy = [True, False, False, True]
+      listy = [True, False, False, True]
       bc = BoolContainer()
       bc.a, bc.b, bc.c, bc.d = listy
       bc.d
@@ -185,7 +185,7 @@ describe("Destructure lists", () => {
   );
 
   assertTC(
-    "destructure list to bracket-lookups",
+    "TC destructure list to bracket-lookups",
     `
       listy: [int] = None
       listy = [1, 4, 5, 9]
@@ -196,7 +196,7 @@ describe("Destructure lists", () => {
   );
 
   assertTC(
-    "destructure list with starred assignment",
+    "TC destructure list with starred assignment",
     `
       list_parent: [bool] = None
       list_child: [bool] = None
@@ -207,6 +207,287 @@ describe("Destructure lists", () => {
     `,
     LIST(BOOL)
   );
+
+  asserts("destructure list to ids", [
+    [
+      `
+        listy: [int] = None
+        a: int = 0
+        b: int = 0
+        c: int = 0
+        d: int = 0
+        listy = [1, 3, 4, 7]
+        a, b, c, d = listy
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+          b
+        `,
+      PyInt(3),
+    ],
+    [
+      `
+          c
+        `,
+      PyInt(4),
+    ],
+    [
+      `
+          d
+        `,
+      PyInt(7),
+    ],
+  ]);
+
+  asserts("destructure list to lookups", [
+    [
+      `
+        class BoolContainer(object):
+          a: bool = False
+          b: bool = True
+          c: bool = False
+          d: bool = False
+        listy: [bool] = None
+        bc: BoolContainer = None
+        listy = [True, False, False, True]
+        bc = BoolContainer()
+        bc.a, bc.b, bc.c, bc.d = listy
+        bc.a
+      `,
+      PyBool(true),
+    ],
+    [
+      `
+        bc.b
+      `,
+      PyBool(false),
+    ],
+    [
+      `
+        bc.c
+      `,
+      PyBool(false),
+    ],
+    [
+      `
+        bc.d
+      `,
+      PyBool(true),
+    ],
+  ]);
+
+  assertFail(
+    "destructure list incorrect number of targets",
+    `
+      x : [int] = None
+      a : int = 0
+      b : int = 0
+      c : int = 0
+
+      x = [1,2]
+      a,b,c = x
+    `
+  );
+
+  assertFail(
+    "destructure list incorrect list length",
+    `
+    x : [int] = None
+    a : int = 0
+    b : int = 0
+    c : int = 0
+
+    x = [1,2,3,4]
+    a,b,c = x
+  `
+  );
+
+  asserts("destructuring list basic splat operator", [
+    [
+      `
+        a: int = 0
+        b: [int] = None
+        a, *b = [4, 5, 6]
+        a
+      `,
+      PyInt(4),
+    ],
+    [
+      `
+        b[0]
+      `,
+      PyInt(5),
+    ],
+    [
+      `
+        b[1]
+      `,
+      PyInt(6),
+    ],
+  ]);
+
+  asserts("destructuring list splat operator, overwrites old list reference", [
+    [
+      `
+        a: int = 0
+        b: [int] = None
+        b = [1,2]
+        a, *b = [4, 5, 6]
+        a
+      `,
+      PyInt(4),
+    ],
+    [
+      `
+        b[0]
+      `,
+      PyInt(5),
+    ],
+    [
+      `
+        b[1]
+      `,
+      PyInt(6),
+    ],
+  ]);
+
+  asserts("destructuring proposal test 4, Splat operator", [
+    [
+      `
+        a: int = 0
+        b: [int] = None
+        _: [int] = None
+        c: int = 0
+        a, *b = [1, 2]
+        c, *_ = [1, 2]
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        b[0]
+      `,
+      PyInt(2),
+    ],
+    [
+      `
+        c
+      `,
+      PyInt(1),
+    ],
+  ]);
+
+  asserts("destructuring proposal test 5, Empty splat operator", [
+    [
+      `
+        a: int = 0
+        b: int = 0
+        c: [int] = None
+        a, b, *c = [1, 2]
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        b
+      `,
+      PyInt(2),
+    ],
+    // no way to verify c's length is 0 at the moment
+  ]);
+
+  asserts("destructuring list empty splat operator, in middle of targets", [
+    [
+      `
+        a: int = 0
+        b: int = 0
+        c: [int] = None
+        a, *c, b = [1, 2]
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        b
+      `,
+      PyInt(2),
+    ],
+    // no way to verify c's length is 0 at the moment
+  ]);
+
+  asserts("destructuring proposal test 6, Single splat at any location", [
+    [
+      `
+        a: int = 0
+        c: [int] = None
+        b: int = 0
+        a, *c, b = [1, 2, 3]
+        a
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        c[0]
+      `,
+      PyInt(2),
+    ],
+    [
+      `
+        b
+      `,
+      PyInt(3),
+    ],
+  ]);
+
+  asserts("destructuring proposal test 7, Splat always creates a list", [
+    [
+      `
+        _: int = 0
+        b: [int] = None
+        _, *b = [1, 2, 3]
+        b[0]
+      `,
+      PyInt(2),
+    ],
+    [
+      `
+        b[1]
+      `,
+      PyInt(3),
+    ],
+  ]);
+
+  asserts("destructuring proposal test 8, Assignment happens in a left to right order.", [
+    [
+      `
+        x: [int] = None
+        i: int = 0
+        x = [0, 1]
+        i, x[i] = (1, 2)
+        i
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        x[0]
+      `,
+      PyInt(0),
+    ],
+    [
+      `
+        x[1]
+      `,
+      PyInt(2),
+    ],
+  ]);
 });
 
 describe("General tuple tests", () => {
@@ -418,6 +699,57 @@ describe("Destructure tuples", () => {
       print(s2 is good_sky)
     `,
     ["True", "True", "True", "True"]
+  );
+
+  assertTC(
+    "TC destructure tuples with starred assignment, single length list",
+    `
+      t : (int, int, int) = None
+      a : int = 0
+      b : [int] = None
+      c : int = 0
+      t = (1,2,3)
+      a, *b, c = t
+      b
+    `,
+    LIST(NUM)
+  );
+
+  assertTC(
+    "TC destructure tuples with starred assignment, multiple length list",
+    `
+    t : (int, int, int) = None
+    a : int = 0
+    b : [int] = None
+    t = (1,2,3)
+    a, *b = t
+    b
+  `,
+    LIST(NUM)
+  );
+
+  assertTC(
+    "TC destructure tuples with starred at head",
+    `
+    t : (int, int, int) = None
+    a : int = 0
+    b : [int] = None
+    t = (1,2,3)
+    *b, a = t
+    b
+  `,
+    LIST(NUM)
+  );
+
+  assertTCFail(
+    "TC destructure tuples with starred assignment, incorrect typed list",
+    `
+    t : (int, int, bool) = None
+    a : int = 0
+    b : [int] = None
+    t = (1,2,True)
+    a, *b = t
+  `
   );
 });
 
