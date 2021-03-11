@@ -1,7 +1,8 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag } from "./utils";
-import { numpyArray } from "./numpy";
+import { ndarray_flatten } from "./numpy";
+import * as compiler from "./compiler";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -32,14 +33,30 @@ function print(typ: Type, arg: number): any {
   return arg;
 }
 
-function addImportObjects() {
-  // TODO: interface imported functions here
+function print_lists(lists: number) {
+  const listContent = compiler.tsHeap[lists];
+  // TODO: overwrite this by list team?
+  // assume lists are stored in TS heap; flattened already; number element
+  if (listContent instanceof Array){
+    listContent.forEach( (e: number) => {
+      print(NUM, e);
+    });
+  }else {
+    print(NUM, listContent);
+  }
+}
+
+// TODO: add more imported functions/methods
+export const importFuns = {
+  print_lists: print_lists,
+  numpy_ndarray_flatten: ndarray_flatten,
 }
 
 function webStart() {
   document.addEventListener("DOMContentLoaded", function () {
     var importObject = {
       imports: {
+        ...importFuns,
         print_num: (arg: number) => print(NUM, arg),
         print_bool: (arg: number) => print(BOOL, arg),
         print_none: (arg: number) => print(NONE, arg),
@@ -47,7 +64,6 @@ function webStart() {
         min: Math.min,
         max: Math.max,
         pow: Math.pow,
-        numpy$import$array: (arg: number) => numpyArray(arg) // TODO: move to addImportObjects()
       },
     };
 
