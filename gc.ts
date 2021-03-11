@@ -450,6 +450,10 @@ export class MnS<A extends MarkableAllocator> {
   // Returns an untagged pointer to the start of the object's memory (not the header)
   // Returns the null pointer (0x0) if memory allocation failed
   gcalloc(tag: HeapTag, size: bigint): Pointer {
+    if (size === 0n) {
+      throw new Error(`Cannot GC allocate size of 0`);
+    }
+
     let result = this.heap.gcalloc(tag, size);
     if (result === 0x0n) {
       this.collect();
