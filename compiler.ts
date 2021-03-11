@@ -1140,10 +1140,19 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           stmts.push(...[...codeGenExpr(lexpr, env)]);
         });
 
+      // NOTE(alex:mm) $$allocPointer clobbered by recurse codegen
+      //   Should be fine in this context
+      stmts.push(...[
+        `(i32.const ${TAG_LIST}) ;; heap-tag: list`,
+        `(i32.const ${(listBound + 3) * 4})`,
+        `(call $$gcalloc)`,
+        `(local.set $$allocPointer)`,
+      ]);
+
       listHeader.forEach((val) => {
         stmts.push(
           ...[
-            `(i32.load (i32.const 0))`,
+            `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             "(i32.const " + val + ")",
             "(i32.store)",
@@ -1156,7 +1165,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         stmts.push(
           ...[
             `(local.set $$list_temp)`,
-            `(i32.load (i32.const 0))`,
+            `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             `(local.get $$list_temp)`,
             "(i32.store)",
@@ -1167,11 +1176,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
 
       //Move heap head to the end of the list and return list address
       return stmts.concat([
-        "(i32.load (i32.const 0))",
-        "(i32.const 0)",
-        "(i32.load (i32.const 0))",
-        `(i32.add (i32.const ${(listBound + 3) * 4}))`,
-        "(i32.store)",
+        `(local.get $$allocPointer)`,
       ]);
 
     case "bracket-lookup":
