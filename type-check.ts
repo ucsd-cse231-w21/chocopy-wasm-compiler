@@ -568,8 +568,9 @@ function tcDestructure(
   }
 
   let types: Type[] = [];
+  // Note:The parser guarantees at most 1 starred assignment target
   switch (value.tag) {
-    // Remove class-based destructuring in the long term, leave for now until it can be safely removed
+    // TODO: Remove class-based destructuring in the long term, leave for now until it can be safely removed
     case "class": {
       let cls = env.classes.get(value.name);
       if (cls === undefined)

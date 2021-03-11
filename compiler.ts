@@ -452,7 +452,7 @@ function codeGenDestructure(
   if (destruct.isDestructured) {
     const objTyp = destruct.valueType[0];
     switch (objTyp.tag) {
-      // Remove class-based destructuring in the long term, leave for now until it can be safely removed
+      // TODO: Remove class-based destructuring in the long term, leave for now until it can be safely removed
       case "class": {
         const className = objTyp.name;
         const classFields = env.classes.get(className).values();
