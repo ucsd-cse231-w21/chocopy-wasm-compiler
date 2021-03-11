@@ -179,7 +179,7 @@ describe("MnS", () => {
           heap.mappedHeader(ptr2)
         ];
         headers.forEach((h, index) => {
-          console.warn(`Checking header: ${index}...`);
+          console.log(`Checking header: ${index}...`);
           expectAllocatedHeader(h, TAG_CLASS, 4n);
         });
       }
@@ -198,6 +198,7 @@ describe("MnS", () => {
       }
 
       mns.roots.releaseLocals();
+      mns.collect();
       // Check that ptr0, ptr1, ptr2 is freed
       {
         const headers = [
@@ -212,6 +213,8 @@ describe("MnS", () => {
       }
       const ptr0new = mns.gcalloc(TAG_CLASS, 4n);
       expect(Number(ptr0new)).to.equal(100);
+
+      expectFreeHeader(heap.heap.getHeader(112n), 0x0n as HeapTag, 0n);
     });
   });
 });
