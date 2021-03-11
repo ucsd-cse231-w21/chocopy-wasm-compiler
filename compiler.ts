@@ -863,7 +863,7 @@ function dictUtilFuns(): Array<string> {
   //This function clears dictionary.
   dictFunStmts.push(
     ...[
-      "(func $dict$clear (param $baseAddr i32)",
+      "(func $dict$clear (param $baseAddr i32) (result i32)",
       "(local.get $baseAddr)",
       "(i32.const 0)", //None
       "(i32.store)", // Clearing Bucket-1
@@ -922,6 +922,7 @@ function dictUtilFuns(): Array<string> {
       "(i32.const 0)", //None
       "(i32.store)", // Clearing Bucket-10
 
+      "(i32.const 0)",
       "(return))",
       "",
     ]
