@@ -10,6 +10,7 @@ import * as tc from './tc';
 import * as err from './error';
 
 import * as builtins_str from './builtins/str';
+import * as builtins_int from './builtins/int';
 import * as extras from './builtins/extras';
 
 interface REPL {
@@ -131,6 +132,8 @@ export class BasicREPL {
     this.importObject.imports.str_lower = builtins_str.str_lower(importObject);
     this.importObject.imports.str_in = builtins_str.str_in(importObject);
     this.importObject.imports.str_notin = builtins_str.str_in(importObject, true);
+    
+    this.importObject.imports.int_fromStr = builtins_int.int_fromStr(importObject);
 
     // Returns the offset to the newly allocated memory region
     this.importObject.imports.malloc = extras.malloc(importObject);
@@ -147,6 +150,7 @@ export class BasicREPL {
       funcs: new Map([['print', { name: "print", members: [NoneT], retType: IntT}],
 		      ['len', { name: "len", members: [StrT], retType: IntT}],
 		      ['str', { name: "str", members: [IntT], retType: StrT}],
+		      ['int', { name: "int", members: [StrT], retType: IntT}],
 		     ]),
       offset: 16,
       classOffset: 0
@@ -164,6 +168,7 @@ export class BasicREPL {
 
   destroy() {
     delete this.importObject.js.memory;
+    delete this.importObject.js;
     delete this.importObject.imports.str_eq;
     delete this.importObject.imports.str_neq;
     delete this.importObject.imports.str_le;

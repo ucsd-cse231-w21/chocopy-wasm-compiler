@@ -2,6 +2,12 @@
 
 import * as cmn from "../common";
 
+const lower32Mask = ((BigInt(1)<<BigInt(32)) - BigInt(1));
+
+export function isChar(ptr: bigint): boolean {
+  return (ptr >> BigInt(32)) == (cmn.CHAR_BI >> BigInt(32));
+}
+
 export function str_fromInt(importObject: any): any {
   return (num: any): any => {
     const jsStr = Number(num).toString();
@@ -21,8 +27,8 @@ export function str_fromInt(importObject: any): any {
 
 export function str_in(importObject: any, not_in: boolean = false) {
   return (offBigInt1: any, offBigInt2: any): any => {
-    const off1: number = Number(offBigInt1 - cmn.STR_BI);
-    const off2: number = Number(offBigInt2 - cmn.STR_BI);
+    const off1: number = Number(offBigInt1 & lower32Mask);
+    const off2: number = Number(offBigInt2 & lower32Mask);
 
     const memUint8 = importObject.imports.get_uint8_repr();
     
@@ -36,11 +42,15 @@ export function str_in(importObject: any, not_in: boolean = false) {
     while (memUint8[siter1] != 0) {
       str1 = str1 + String.fromCharCode(memUint8[siter1]);
       siter1 += 1;
+      if (isChar(offBigInt1))
+	break;
     }
     
     while (memUint8[siter2] != 0) {
       str2 = str2 + String.fromCharCode(memUint8[siter2]);
       siter2 += 1;
+      if (isChar(offBigInt2))
+	break;
     }
 
     // Return pointer to the new string
@@ -54,11 +64,13 @@ export function str_in(importObject: any, not_in: boolean = false) {
 
 export function str_concat(importObject: any) {
   return (offBigInt1: any, offBigInt2: any): any => {
-    const off1: number = Number(offBigInt1 - cmn.STR_BI);
-    const off2: number = Number(offBigInt2 - cmn.STR_BI);
+    const off1: number = Number(offBigInt1 & lower32Mask);
+    const off2: number = Number(offBigInt2 & lower32Mask);
 
     const len1: number = Number(importObject.imports.str_len(offBigInt1));
     const len2: number = Number(importObject.imports.str_len(offBigInt2));
+
+    // TODO: Set correct length here and in other places
     const newLen = len1 + len2 + 1;
 
     const heapPtr = Number(importObject.imports.malloc(newLen));
@@ -72,6 +84,8 @@ export function str_concat(importObject: any) {
       memUint8[diter] = memUint8[siter];
       siter += 1;
       diter += 1;
+      if (isChar(offBigInt1))
+	break;
     }
     
     siter = off2;
@@ -79,6 +93,8 @@ export function str_concat(importObject: any) {
       memUint8[diter] = memUint8[siter];
       siter += 1;
       diter += 1;
+      if (isChar(offBigInt2))
+	break;
     }
     memUint8[diter] = 0; // Add the final null char
 
@@ -89,7 +105,10 @@ export function str_concat(importObject: any) {
 
 export function str_len(importObject: any) {
   return (offBigInt: any): any => {
-    const off: number = Number(offBigInt - cmn.STR_BI);
+    const off: number = Number(offBigInt & lower32Mask);
+
+    if (isChar(offBigInt))
+      return BigInt(1);
     
     const memBuffer: ArrayBuffer = (importObject as any).js.memory.buffer;
     const memUint8 = new Uint8Array(memBuffer);
@@ -106,7 +125,7 @@ export function str_len(importObject: any) {
 export function str_mult(importObject: any) {
   return (str: any, times: any): any => {
     const strLen: number = Number(importObject.imports.str_len(str));
-    const strOff: number = Number(str - cmn.STR_BI);
+    const strOff: number = Number(str & lower32Mask);
     
     const newLen: number = strLen * Number(times) + 1;
 
@@ -121,6 +140,8 @@ export function str_mult(importObject: any) {
       while (strIter < strLen) {
 	memUint8[newStr + iter*strLen + strIter] = memUint8[strOff + strIter];
 	strIter += 1;
+	if (isChar(str))
+	  break;
       }
       iter += 1;
     }
@@ -131,7 +152,7 @@ export function str_mult(importObject: any) {
 
 export function str_slice(importObject: any) {
   return (str: any, arg1: any, arg2: any, arg3: any, explicitArgs: any): any => {
-    const strOff: number = Number(str - cmn.STR_BI);
+    const strOff: number = Number(str & lower32Mask);
     const strLen: number = Number(importObject.imports.str_len(str));
     const memUint8 = importObject.imports.get_uint8_repr();
 
@@ -227,7 +248,6 @@ function str_op(importObject: any, op: any, start: any) {
       singleChar2 = true;
     }
     
-    const lower32Mask = ((BigInt(1)<<BigInt(32)) - BigInt(1));
     const off1: number = Number(offBigInt1 & lower32Mask);
     const off2: number = Number(offBigInt2 & lower32Mask);
 
@@ -287,7 +307,7 @@ export function str_neq(importObject: any) {
 export function str_transform_op(importObject: any, charop: any) {
   return (str: any): any => {
     const strLen: number = Number(importObject.imports.str_len(str));
-    const strOff: number = Number(str - cmn.STR_BI);
+    const strOff: number = Number(str & lower32Mask);
     
     const newLen: number = strLen + 1;
 
@@ -301,6 +321,8 @@ export function str_transform_op(importObject: any, charop: any) {
       memUint8[diter] = charop(String.fromCharCode(memUint8[siter])).charCodeAt(0);
       siter += 1;
       diter += 1;
+      if (isChar(str))
+	break;
     }
 
     memUint8[siter] = 0;

@@ -629,7 +629,7 @@ tc_expr(expr : Expr, source: string, gblEnv: GlobalEnv, funEnv: EnvType = <EnvTy
 	  }
 	  retType = { tag: "class", name: callName }; // Call name is same as the class name
 	} else {
-	  scopeError(expr.pos, `Function not in scope: ${expr.name}`, source);
+	  scopeError(expr.pos, `Function not in scope: ${expr.name.name}`, source);
 	}
 	
       }

@@ -73,7 +73,9 @@ Builtin functions:
 test_str: str = "String of length 19"
 
 print(len(test_str) == 19)        # True
-print(int(-100) == "-100")        # True
+
+print(str(-100) == "-100")        # True
+print(int("999") == 999)          # True
 
 print("abc".upper() == "ABC")     # True
 print("ABC".lower() == "abc")     # True

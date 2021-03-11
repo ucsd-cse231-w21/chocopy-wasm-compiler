@@ -1,6 +1,6 @@
 // -*- mode: typescript; typescript-indent-level: 2; -*-
 
-import { Stmt, Expr, Parameter, Pos, Type, NoneT, BoolT, IntT } from "./ast";
+import { Stmt, Expr, Parameter, Pos, Type, NoneT, BoolT, IntT, StrT } from "./ast";
 import { parse } from "./parser";
 import * as err from "./error";
 import { typecheck, tc_expr, EnvType }  from "./tc";
@@ -602,6 +602,8 @@ function codeGenFuncCall(expr: Expr, env: envM.GlobalEnv, localParams: Array<Par
 	result = argStmts.concat([`(call $str$len)`, ``]);
       } else if (expr.name.name == "str" && expr.args[0].iType == IntT) {
 	result = argStmts.concat([`(call $str$fromInt)`, ``]);
+      } else if (expr.name.name == "int" && expr.args[0].iType == StrT) {
+	result = argStmts.concat([`(call $int$fromStr)`, ``]);
       } else {
 	result = argStmts.concat([`(call $${expr.name.name})`, ``]);
       }

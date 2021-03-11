@@ -64,11 +64,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr {
       }
     case "String":
       const origStr = s.substring(c.node.from+1, c.node.to-1);
-      const fixedStr = origStr
-	  .replace(/\\t/g, String.fromCharCode(9))  // Horizontal tab
-	  .replace(/\\n/g, String.fromCharCode(10)) // Line feed
-	  .replace(/\\"/g, `"`)
-	  .replace(/\\\\/g, `\\`);
+      const fixedStr = JSON.parse(`{"val": "${origStr}"}`)['val'];
       return {
 	tag: "string",
 	value: fixedStr,
