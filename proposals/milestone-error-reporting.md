@@ -25,3 +25,19 @@ We are also going to cooperate with the front-end team to see if we need to prov
 
 ### A description of the biggest challenge you faced in your week of implementation
 Right now, the stacktrace of errors only shows that the error is from webstart.js. We want the stacktrace to show the trace of the calling stack of the python code from the user, instead of the webstart.js. We are still figuring out how to implement this.  
+
+
+## March 11
+
+### In your milestone file, add a new section at the end indicating three example programs or scenarios that would require extensions to your design that you can imagine making, but didn't have the time for.
+
+
+1. Currently we label code in each repl with a file number of auto-increasing integer, i.e. the first repl’s code is file 1, the second repl’s code is file 2. Front end website has a button called `load`, it will load the file in the given directory and put it in repl. Currently, we just assign a number label for the loaded code but instead it would be more intuitive to assign that label with the file name so that we could handle more complicated code management later when there are many loaded files. 
+
+
+
+2. Now we only throw a Memory Error when the wasm code runs into a memory problem. The stack trace is not available for Memory Error, this is due to the implementation of memory management. We can modify the code/design to support the stack trace after the implementation of memory management is finished. 
+
+
+
+3. Right now __checkIndex(size: number, key: number) in errorManager.ts will only check and throw IndexError for the list team. They require the index to be in [0, size). This function is able to be used by the String team but I haven’t got a reply from them. I can see in their code that they use if-statement to check the index by themselves. I think if time allowed, we can extend our __checkIndex(size: number, key: number) for them to use. They may allow negative indexes. 
