@@ -582,7 +582,7 @@ function codeGenAssignable(
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
-      const err: never = <never>target;
+      const err: never = target;
       throw new BaseException.InternalException(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
