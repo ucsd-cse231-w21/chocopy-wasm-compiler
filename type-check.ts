@@ -569,6 +569,11 @@ function tcDestructure(
   }
 
   if (!destruct.isDestructured) {
+    if (destruct.targets.length !== 1) {
+      throw new BaseException.InternalException(
+        `Non-destructured assignment takes exactly 1 target. ${destruct.targets.length} provided.`
+      );
+    }
     let target = tcTarget(destruct.targets[0], value);
     return {
       valueType: [value, destruct.valueType],
