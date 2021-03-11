@@ -3,9 +3,14 @@
 @import "codemirror/addon/lint/lint.css";
 @import "sass/theme_import.scss";
 @import "codemirror/addon/scroll/simplescrollbars.css";
+
+* {
+  box-sizing: border-box;
+}
+
 .editor {
   float: left;
-  width: 46%;
+  width: 50%;
   margin: 0;
   padding: 2%;
   height: 100%;
@@ -78,7 +83,7 @@
 }
 .interactions {
   float: left;
-  width: 46%;
+  width: 50%;
   //margin-left: 1em;
   padding: 2%;
   height: 600px;
@@ -89,60 +94,65 @@
   border:lightblue;
   border-radius: 10px;
   
-    .arrow {
-      border: solid black;
-      border-width: 0 3px 3px 0;
-      display: inline-block;
-      padding: 3px;
-      transform: rotate(-45deg);
-    }
-    .accordion {
-      background-color:white;
-      color:darkcyan;
-      cursor: pointer;
-      padding: 10px;
-      width: 100%;
-      border: none;
-      text-align: left;
-      outline: none;
-      // font-size: 15px;
-      transition: 0.4s;
-      font-family: monospace;
-    }
+  .arrow {
+    border: solid black;
+    border-width: 0 3px 3px 0;
+    display: inline-block;
+    padding: 3px;
+    transform: rotate(-45deg);
+  }
+  .accordion {
+    background-color: transparent;
+    color:darkcyan;
+    cursor: pointer;
+    width: 100%;
+    border: none;
+    text-align: left;
+    outline: none;
+    font-size: 16px;
+    transition: 0.4s;
+    font-family: monospace;
+    height: 2em;
+  }
 
-    .active, .accordion:hover {
-      background-color: #ccc; 
+  .active, .accordion:hover {
+    background-color: #ccc; 
+    color:rebeccapurple;
+  }
+
+  .panel {
+    width: 100%;
+    padding: 0 0 0 5%;
+    display: none;
+    background-color: transparent;
+    overflow: hidden;
+    font-family: monospace;
+    
+    .tag{
       color:rebeccapurple;
     }
-
-    .panel {
-      padding: 0 18px;
-      display: none;
-      background-color: white;
-      overflow: hidden;
-      font-family: monospace;
-      
-      .tag{
-        color:rebeccapurple;
-      }
-      .val{
-        display: inline;
-        color:darkcyan;
-      }
+    .val{
+      display: inline;
+      color:darkcyan;
     }
-}
-
-.repl-code {
-  height: 2em;
-  width: 90%;
-  text-align: left;
-  font-family: monospace;
-}
-.prompt {
-  height: 2em;
-  width:5%;
-  vertical-align: middle;
-  text-align: center;
+  }
+  
+  .repl-code {
+    margin: 5px 0;
+    float:left;
+    height: 2em;
+    width: 95%;
+    text-align: left;
+    font-family: monospace;
+  }
+  .prompt {
+    margin: 5px 0;
+    float:left;
+    height: 2em;
+    width:5%;
+    vertical-align: middle;
+    text-align: center;
+  }
 }
 .output pre {
   max-width: 100%;
@@ -167,7 +177,7 @@
   border-width: 1px;
   font-size: 16px;
   font-family: monospace;
-  transition-duration: 1s;
+  transition-duration: 0.4s;
 }
 .btn:hover {
   background-color:white; 
@@ -184,6 +194,7 @@
   padding:5px;
   margin:10px;
   border-radius: 2%;
+  font-size: 16px;
 }
 
 .interactions::-webkit-scrollbar {
@@ -197,18 +208,15 @@
 .CodeMirror-simplescroll-vertical {
   width: 15px;
 }
-/*
-@media only screen and (max-width: 840px) {
-  .interactions{
-    width: 100%;
-    height: 100%;
-  }
-  .editor{
-    width: 100%;
-  }
-}*/
+.CodeMirror-simplescroll-horizontal {
+  height: 15px;
+}
 @media only screen and (min-height: 900px){
   .CodeMirror {
     height: 800px;
   }
+}
+.info{
+  display: inline;
+  height:2em;
 }

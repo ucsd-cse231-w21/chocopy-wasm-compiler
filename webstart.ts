@@ -39,11 +39,13 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
     exp.setAttribute("class","accordion");
     const div = document.createElement("div");
     div.setAttribute("class","panel");
-    const addr = document.createElement("p");
+    const addr = document.createElement("pre");
+    addr.setAttribute("class","info");
     addr.innerHTML = "<b class='tag'>address: </b><p class='val'>" + result.address + "</p>";
   
     exp.innerHTML = "<i class='arrow right' id='arrow'></i> " + result.name + " object";
     div.appendChild(addr);
+    div.appendChild(document.createElement("br"));
   
     const view = new Int32Array(repl.importObject.js.memory.buffer);
   
@@ -55,6 +57,7 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
       var type = typedCls.get(key)
 
       const ele = document.createElement("pre");
+      ele.setAttribute("class","info");
       const val = PyValue(type, view[result.address/4 + offset],view) as any; 
       // PyValue implementation seems incomplete, casting to any for now
 
@@ -82,6 +85,7 @@ function prettyPrintObject(result: Value, repl : BasicREPL, currentEle : any){
           break;
       }
       div.appendChild(ele);
+      div.appendChild(document.createElement("br"));
     });
   
     currentEle.appendChild(exp);
@@ -186,6 +190,7 @@ function webStart() {
           const output = document.createElement("div");
           const prompt = document.createElement("span");
           prompt.innerText = "»";
+          prompt.setAttribute("class","prompt");
           output.appendChild(prompt);
           const elt = document.createElement("textarea");
           // elt.type = "text";
