@@ -258,6 +258,19 @@ describe("type inference", () => {
     "function inference 4",
     `
     def g(y):
+      if y:
+        return 1
+      else: 
+        return 2
+    g(True)
+    `,
+    NUM
+  );
+
+  assertTC(
+    "function inference 5",
+    `
+    def g(y):
       x = 0 
       if y:
         x = 1
