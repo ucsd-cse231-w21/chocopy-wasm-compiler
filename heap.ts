@@ -209,7 +209,7 @@ export class FreeListAllocator implements MarkableAllocator {
     this.regEnd = end;
 
     this.linkedList = new LinkedList();
-    this.linkedList.insertInBegin({ addr: end, size: 0n, isFree: true});
+    this.linkedList.insertInBegin({ addr: end, size: 0n, isFree: false});
     this.linkedList.insertInBegin({ addr: start, size: (end-start), isFree: true });
   }
 
@@ -293,28 +293,25 @@ export class FreeListAllocator implements MarkableAllocator {
 
           //curr.prev --> curr --> curr.next
           //Coalesce
-          if(curr.prev?.data.isFree) {
-            curr.prev.data.size = curr.prev.data.size + curr.data.size;
-            curr.prev.next = curr.next;
-            curr.next.prev = curr.prev;
-            curr = curr.prev;
+          if (curr.prev && curr.prev.data.isFree) {
+            const prev = curr.prev;
+            prev.data.size = prev.data.size + curr.data.size;
+            prev.next = curr.next;
+            curr.next.prev = prev;
+            curr = prev;
           }
 
           if(curr.next.data.isFree) {
             curr.data.size = curr.next.data.size + curr.data.size;
             curr.next = curr.next.next;
-            if (curr !== this.linkedList.getHead()) {
-              curr.next.prev = curr;
-            }
+            curr.next.prev = curr;
           }
         }
         else {
           header.unmark();
         }
       }
-      else {
-        curr = curr.next;
-      }
+      curr = curr.next;
     }
   }
 }
