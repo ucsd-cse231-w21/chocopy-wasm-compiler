@@ -1490,10 +1490,7 @@ function codeGenTupleAlloc(
     // object, but it's probably too late to institute a change like that.
     stmts.push("(local.get $$allocPointer)\n".repeat(expr.contents.length + 1));
     expr.contents.forEach((content, offset) => {
-      stmts.push(
-        ...codeGenExpr(content, env),
-        `(i32.store offset=${offset * 4})`
-      );
+      stmts.push(...codeGenExpr(content, env), `(i32.store offset=${offset * 4})`);
     });
     return stmts;
   }
