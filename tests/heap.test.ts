@@ -187,5 +187,48 @@ describe("Heap", () => {
         expect(bmb.infomap[0]).to.eq(6);
       });
     });
+
+    describe("sweep", () => {
+      let bmb: BitMappedBlocks;
+
+      beforeEach(() => {
+        // 90 blocks of size 10 each
+        bmb = new BitMappedBlocks(100n, 1000n, 10n, 8n);
+      });
+
+      it("should have the same number of blocks when sweep is called if none are marked", () => {
+        const ptr1 = bmb.gcalloc(TAG_CLASS, 55n);
+        const ptr2 = bmb.gcalloc(TAG_CLASS, 55n);
+        const ptr3 = bmb.gcalloc(TAG_CLASS, 55n);
+        const ptr4 = bmb.gcalloc(TAG_CLASS, 60n);
+        const ptr5 = bmb.gcalloc(TAG_CLASS, 55n);
+
+        [ptr1, ptr2, ptr3, ptr4, ptr5].forEach((ptr) => bmb.getHeader(ptr).mark());
+
+        const numFreeBlocks = bmb.getNumFreeBlocks();
+        bmb.sweep();
+        // No change - No blocks un-marked
+        expect(bmb.getNumFreeBlocks()).to.eq(numFreeBlocks);
+      });
+
+      it("should return appropriate number of free blocks after sweep", () => {
+        const ptr1 = bmb.gcalloc(TAG_CLASS, 55n);
+        const ptr2 = bmb.gcalloc(TAG_CLASS, 55n); // 6 blocks
+        const ptr3 = bmb.gcalloc(TAG_CLASS, 55n);
+        const ptr4 = bmb.gcalloc(TAG_CLASS, 63n); // 7 blocks
+        const ptr5 = bmb.gcalloc(TAG_CLASS, 55n);
+
+        const numFreeBlocks = bmb.getNumFreeBlocks();
+
+        [ptr1, ptr3, ptr5].forEach((ptr) => bmb.getHeader(ptr).mark());
+
+        // 13 blocks(ptr2 and ptr4) not marked - will be freed by sweep
+        
+        bmb.sweep();
+
+        // freeBlocks = numFreeBlocks + 13
+        expect(bmb.getNumFreeBlocks()).to.eq(numFreeBlocks + 13);
+      });
+    });
   });
 });
