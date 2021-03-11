@@ -1,7 +1,7 @@
 import "mocha";
 import { expect } from "chai";
 import { BitMappedBlocks } from "../heap";
-import {TAG_CLASS, TAG_REF, HEADER_SIZE_BYTES, TAG_LIST} from "../gc";
+import { MarkableSegregator, TAG_CLASS, TAG_CLOSURE, TAG_REF, HEADER_SIZE_BYTES, TAG_LIST} from "../gc";
 
 describe("Heap", () => {
 
@@ -12,6 +12,28 @@ describe("Heap", () => {
     // Based on failing tests/programs
     describe("Problematic alloc pattern", () => {
 
+      it("Closure test 7 alloc pattern part2", () => {
+        const bmb = new BitMappedBlocks(516n, 772n, 4n, BigInt(HEADER_SIZE_BYTES));
+        const fl = new BitMappedBlocks(772n, 2000n, 4n, BigInt(HEADER_SIZE_BYTES));
+        const heap = new MarkableSegregator(4n, bmb, fl);
+
+        const ptr0 = heap.gcalloc(TAG_REF, 4n);
+        const ptr1 = heap.gcalloc(TAG_REF, 4n);
+        const ptr2 = heap.gcalloc(TAG_REF, 4n);
+        const ptr3 = heap.gcalloc(TAG_REF, 4n);
+        const ptr4 = heap.gcalloc(TAG_REF, 4n);
+
+        const ptr5 = heap.gcalloc(TAG_CLOSURE, 8n);
+        const ptr6 = heap.gcalloc(TAG_CLOSURE, 8n);
+        const ptr7 = heap.gcalloc(TAG_CLOSURE, 8n);
+        const ptr8 = heap.gcalloc(TAG_CLOSURE, 12n);
+
+        const header0 = heap.getHeader(ptr0);
+        expect(Number(ptr0)).to.eq(516);
+        expect(Number(header0.getSize())).to.eq(4);
+        expect(Number(header0.getTag())).to.eq(Number(TAG_REF));
+      });
+
       it("Closure test 7 alloc pattern", () => {
         const bmb = new BitMappedBlocks(516n, 2000n, 4n, BigInt(HEADER_SIZE_BYTES));
 
@@ -20,8 +42,10 @@ describe("Heap", () => {
         expect(Number(ptr0)).to.eq(516);
 
         const ptr1 = bmb.gcalloc(TAG_REF, 4n);
-        expect(bmb.infomap[0]).to.eq(1);
-        expect(bmb.infomap[9]).to.eq(1);
+        const header1 = bmb.getHeader(ptr1);
+        expect(header1.isAlloced()).to.eq(true);
+        expect(Number(header1.getSize())).to.eq(4);
+        expect(Number(header1.getTag())).to.eq(Number(TAG_REF));
         expect(Number(ptr1)).to.eq(520);
 
         const ptr2 = bmb.gcalloc(TAG_REF, 4n);
