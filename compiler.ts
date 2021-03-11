@@ -1129,55 +1129,53 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       });
       return dictStmts;
     case "list-expr":
-          var stmts: Array<string> = [];
-          var listType = 10;
-          var listSize = expr.contents.length;
-          var listBound = (expr.contents.length + 10) * 2;
-          let listHeader = [listType, listSize, listBound];
-          var listindex = 0;
-          expr.contents
-            .slice()
-            .reverse()
-            .forEach((lexpr) => {
-              stmts.push(...[...codeGenExpr(lexpr, env)]);
-            });
-          stmts.push(
-            ...[
-              `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
-              `(i32.const ${(listBound + 3) * 4})`, // load capacty
-              `(i32.mul (i32.const 4))`, // new_cap = cap * 4 + 12
-              `(i32.add (i32.const 12))`,
-              `(call $$gcalloc)`,
-              `(local.set $$list_base)`,
-            ]
-          );
-          listHeader.forEach((val) => {
-            stmts.push(
-              ...[
-                `(local.get $$list_base)`,
-                `(i32.add (i32.const ${listindex * 4}))`,
-                "(i32.const " + val + ")",
-                "(i32.store)",
-              ]
-            );
-            listindex += 1;
-          });
-          expr.contents.forEach((lexpr) => {
-            stmts.push(
-              ...[
-                `(local.set $$list_temp)`,
-                `(local.get $$list_base)`,
-                `(i32.add (i32.const ${listindex * 4}))`,
-                `(local.get $$list_temp)`,
-                "(i32.store)",
-              ]
-            );
-            listindex += 1;
-          });
-          //Move heap head to the end of the list and return list address
-          return stmts.concat([
+      var stmts: Array<string> = [];
+      var listType = 10;
+      var listSize = expr.contents.length;
+      var listBound = (expr.contents.length + 10) * 2;
+      let listHeader = [listType, listSize, listBound];
+      var listindex = 0;
+      expr.contents
+        .slice()
+        .reverse()
+        .forEach((lexpr) => {
+          stmts.push(...[...codeGenExpr(lexpr, env)]);
+        });
+      stmts.push(
+        ...[
+          `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
+          `(i32.const ${(listBound + 3) * 4})`, // load capacty
+          `(i32.mul (i32.const 4))`, // new_cap = cap * 4 + 12
+          `(i32.add (i32.const 12))`,
+          `(call $$gcalloc)`,
+          `(local.set $$list_base)`,
+        ]
+      );
+      listHeader.forEach((val) => {
+        stmts.push(
+          ...[
             `(local.get $$list_base)`,
-          ]);
+            `(i32.add (i32.const ${listindex * 4}))`,
+            "(i32.const " + val + ")",
+            "(i32.store)",
+          ]
+        );
+        listindex += 1;
+      });
+      expr.contents.forEach((lexpr) => {
+        stmts.push(
+          ...[
+            `(local.set $$list_temp)`,
+            `(local.get $$list_base)`,
+            `(i32.add (i32.const ${listindex * 4}))`,
+            `(local.get $$list_temp)`,
+            "(i32.store)",
+          ]
+        );
+        listindex += 1;
+      });
+      //Move heap head to the end of the list and return list address
+      return stmts.concat([`(local.get $$list_base)`]);
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
         case "dict":
