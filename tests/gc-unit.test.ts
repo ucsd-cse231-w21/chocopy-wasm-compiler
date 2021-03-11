@@ -145,7 +145,7 @@ describe("MnS", () => {
   describe("MnS-BitMappedBlocks-1", () => {
 
     function makeCfg(): Cfg {
-      const memory = new Uint8Array(512);
+      const memory = new Uint8Array(1000);
       const bmb = new BitMappedBlocks(100n, 1000n, 4n, BigInt(HEADER_SIZE_BYTES));
       const heap = new PhantomAllocator(bmb);
 
@@ -167,7 +167,7 @@ describe("MnS", () => {
   describe("MnS-FreeList-1", () => {
 
     function makeCfg(): Cfg {
-      const memory = new Uint8Array(512);
+      const memory = new Uint8Array(1000);
       const alloc = new FreeListAllocator(memory, 100n, 1000n);
       const heap = new PhantomAllocator(alloc);
 
