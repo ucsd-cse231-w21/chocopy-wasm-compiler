@@ -266,7 +266,8 @@ function envLookup(env: GlobalEnv, name: string): number {
       "Report this as a bug to the compiler developer, this shouldn't happen "
     );
   }
-  return env.globals.get(name) * 4; // 4-byte values
+  // NOTE(alex:mm): ADDRESS of the global variable is store in the environment
+  return env.globals.get(name);
 }
 
 function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string> {

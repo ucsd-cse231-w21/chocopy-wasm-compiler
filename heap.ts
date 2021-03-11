@@ -156,7 +156,6 @@ class LinkedList {
 
       curr.data.size = curr.data.size - node.data.size;
       node.data.addr = curr.data.addr + curr.data.size;
-      curr.data.size = curr.data.size - node.data.size;
 
     return node;
   }
@@ -210,8 +209,14 @@ export class FreeListAllocator implements MarkableAllocator {
     this.regEnd = end;
 
     this.linkedList = new LinkedList();
-    this.linkedList.insertInBegin({ addr: end, size: 0n, isFree: true});
+    this.linkedList.insertInBegin({ addr: end, size: 0n, isFree: false});
     this.linkedList.insertInBegin({ addr: start, size: (end-start), isFree: true });
+  }
+
+  dumpList() {
+    this.linkedList.traverse().forEach(f => {
+      console.log(`{ addr: ${f.addr}, size: ${f.size}, free: ${f.isFree} }`);
+    });
   }
 
   alloc(s: bigint): Block {
@@ -278,18 +283,22 @@ export class FreeListAllocator implements MarkableAllocator {
   sweep() {
     let curr = this.linkedList.getHead();
     while(curr.next!=null){
+      // console.log(`Visiting: { addr: ${curr.data.addr}, prev: ${curr.prev}, next: ${curr.next.data.addr}, free: ${curr.data.isFree} } `);
       if(curr.data.isFree==false) {
         let header = new Header(this.memory, curr.data.addr);
-        if(!header.isMarked()) {
+        if(!header.isMarked() && header.isAlloced()) {
+          // console.log(`Freeing object starting at ${curr.data.addr}`);
           this.free2(curr.data.addr);
+          header.unalloc();
 
           //curr.prev --> curr --> curr.next
           //Coalesce
-          if(curr.prev?.data.isFree) {
-            curr.prev.data.size = curr.prev.data.size + curr.data.size;
-            curr.prev.next = curr.next;
-            curr.next.prev = curr.prev;
-            curr = curr.prev;
+          if (curr.prev && curr.prev.data.isFree) {
+            const prev = curr.prev;
+            prev.data.size = prev.data.size + curr.data.size;
+            prev.next = curr.next;
+            curr.next.prev = prev;
+            curr = prev;
           }
 
           if(curr.next.data.isFree) {
@@ -302,9 +311,7 @@ export class FreeListAllocator implements MarkableAllocator {
           header.unmark();
         }
       }
-      else {
-        curr = curr.next;
-      }
+      curr = curr.next;
     }
   }
 }
@@ -475,21 +482,34 @@ export class BitMappedBlocks implements MarkableAllocator {
     return block.ptr;
   }
 
+  indexToPtr(index: bigint): Pointer {
+    return this.start + this.blockSize * index;
+  }
+
+  indexToInfoMapIndex(index: bigint): bigint {
+    return this.metadataSize * index;
+  }
+
   sweep() {
     let index = 0n;
     while (index < this.numBlocks) {
-      const header = new Header(this.infomap, BigInt(this.metadataSize * index + 1n));
-      if (!header.isMarked()) {
-        header.unmark();
+      const ptr = this.indexToPtr(index);
+      const header = this.getHeader(ptr);
+      // console.log(`Sweeping index: ${index} (ptr=${ptr}) \t { marked: ${header.isMarked()}, alloc: ${header.isAlloced()}}`);
+      if (!header.isMarked() && header.isAlloced()) {
+        header.unalloc();
         // Get number of blocks
-        let nBlocks = this.infomap[Number(this.metadataSize * index)];
+        const mapIndex = this.indexToInfoMapIndex(index);
+        let nBlocks = this.infomap[Number(mapIndex)];
 
+        // console.log(`Unallocd: ${index} (ptr=${ptr}) \t { marked: ${header.isMarked()}, alloc: ${header.isAlloced()}}`);
         while (nBlocks > 0 && index < this.numBlocks) {
-          this.infomap[Number(this.metadataSize * index)] = 0; // Free it!
+          this.infomap[Number(mapIndex)] = 0; // Free it!
           ++index;
           --nBlocks;
         }
       } else {
+        header.unmark();
         ++index;
       }
     }

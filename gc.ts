@@ -24,8 +24,8 @@ export const TAG_OPAQUE = 0x8n;           // NOTE(alex:mm) needed to mark zero-s
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
-const HEADER_OFFSET_SIZE = 0x1;
-const HEADER_OFFSET_GC = HEADER_OFFSET_TAG + HEADER_OFFSET_SIZE;
+const HEADER_OFFSET_GC = 0x1;
+const HEADER_OFFSET_SIZE = 0x4;
 
 export const HEADER_SIZE_BYTES = 8;
 
@@ -33,7 +33,7 @@ export const HEADER_SIZE_BYTES = 8;
 // Proxy for constructed GC object headers
 //
 // Layout (byte addresses):
-//   0  [TSSSSGP...]                             END
+//   0  [TGPPSSSS...]                             END
 //      ^
 //      headerStart
 //
@@ -294,7 +294,10 @@ export class RootSet {
     this.globals.forEach((globalVarAddr) => {
       const globalVarValue = readI32(this.memory, Number(globalVarAddr));
       if (isPointer(globalVarValue)) {
-        callback(extractPointer(globalVarValue));
+        const ptr = extractPointer(globalVarValue);
+        if (ptr !== 0n) {
+          callback(ptr);
+        }
       }
     });
 
@@ -302,14 +305,18 @@ export class RootSet {
     this.localsStack.forEach((frame) => {
       // second value is the local index
       frame.forEach((localPtrValue, _) => {
-        callback(localPtrValue);
+        if (localPtrValue !== 0n) {
+          callback(localPtrValue);
+        }
       });
     });
 
     // Temp set is already a set of pointers to heap values
     this.tempsStack.forEach((frame) => {
       frame.forEach((localPtrValue) => {
-        callback(localPtrValue);
+        if (localPtrValue !== 0n) {
+          callback(localPtrValue);
+        }
       });
     });
   }
@@ -362,95 +369,80 @@ export class MnS<A extends MarkableAllocator> {
       const childSize = headerRef.getSize(); // in bytes
       const childTag = headerRef.getTag();
 
-      switch (childTag) {
-        case TAG_CLASS: {
-          // NOTE(alex:mm): use field indices for debug info later
-          for (let fieldIndex = 0n; fieldIndex < childSize / 4n; fieldIndex++) {
-            const fieldValue = this.getField(childPtr + 4n * fieldIndex);
-            if (!isPointer(fieldValue)) {
-              continue;
-            }
+      // NOTE(alex:mm): using a `switch` here breaks occasionally for whatever reason
+      if (childTag === TAG_CLASS) {
+        // NOTE(alex:mm): use field indices for debug info later
+        for (let fieldIndex = 0n; fieldIndex < childSize / 4n; fieldIndex++) {
+          const fieldValue = this.getField(childPtr + 4n * fieldIndex);
+          if (!isPointer(fieldValue)) {
+            continue;
+          }
 
-            const fieldPointerValue = extractPointer(fieldValue);
-            if (fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
+          const fieldPointerValue = extractPointer(fieldValue);
+          if (fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
+            this.setMarked(fieldPointerValue);
+            worklist.push(fieldPointerValue);
+          }
+        }
+      } else if (childTag === TAG_LIST) {
+        // Layout: [32-bit TAG_LIST, 32-bit <length>, 32-bit <capacity>, data...]
+
+        // Extract value at childPtr + 4. Assumed to be a primitive value
+        const listLength = childSize;
+
+        // Sanity check, just-in-case
+        // NOTE(sagar): probably not necessary
+        // NOTE(alex:MM): list length is PROBABLY an UNTAGGED value
+        // TODO(alex:mm): verify that this is the case
+        // if(isPointer(listLength)) {
+        //   throw new Error("Pointer value stored in the place of list length");
+        // }
+
+        // Note(sagar): Memory layout is abstracted by allocator
+        // childPtr always points to start of data, not header
+        for(let dataPtr = childPtr; dataPtr !== childPtr + listLength * 4n; dataPtr += 4n) {
+          const elementValue = this.getField(dataPtr);
+
+          if(isPointer(elementValue)) {
+            const fieldPointerValue = extractPointer(elementValue);
+            // Check for None
+            if(fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
               this.setMarked(fieldPointerValue);
               worklist.push(fieldPointerValue);
             }
           }
-          break;
         }
+      } else if (childTag === TAG_STRING || childTag === TAG_BIGINT) {
+        // Just mark the pointer?
+        this.setMarked(childPtr);
+      } else if (childTag === TAG_DICT) {
+        for(let listIndex = childPtr; listIndex < childSize; listIndex += 4n ) {
+          // Trace each linked-list
+          // NOTE(sagar): always assumed to be an address. Unnecessary to check
+          let currListAddr = this.getField(listIndex);
+          while(currListAddr !== 0n) { // Not none
 
-        case TAG_LIST: {
-          // Layout: [32-bit TAG_LIST, 32-bit <length>, 32-bit <capacity>, data...]
-
-          // Extract value at childPtr + 4. Assumed to be a primitive value
-          const listLength = childSize;
-          
-          // Sanity check, just-in-case
-          // NOTE(sagar): probably not necessary
-          if(isPointer(listLength)) {
-            throw new Error("Pointer value stored in the place of list length");
-          }
-
-          // Note(sagar): Memory layout is abstracted by allocator
-          // childPtr always points to start of data, not header
-          for(let dataPtr = childPtr; dataPtr !== childPtr + listLength * 4n; dataPtr += 4n) {
-            const elementValue = this.getField(dataPtr);
-
-            if(isPointer(elementValue)) {
-              const fieldPointerValue = extractPointer(elementValue);
-              // Check for None
-              if(fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
-                this.setMarked(fieldPointerValue);
-                worklist.push(fieldPointerValue);
-              }
+            const key = this.getField(currListAddr);
+            const value = this.getField(currListAddr + 4n);
+            // NOTE(sagar): keys probably can't be None
+            if(key !== 0n && isPointer(key)) {
+              worklist.push(key);
             }
-          }
 
-          break;
-        }
-
-        case TAG_STRING:
-        case TAG_BIGINT: {
-          // Just mark the pointer?
-          this.setMarked(childPtr);
-        }
-        break;
-
-
-        case TAG_DICT: {
-          
-          for(let listIndex = childPtr; listIndex < childSize; listIndex += 4n ) {
-            // Trace each linked-list
-            // NOTE(sagar): always assumed to be an address. Unnecessary to check
-            let currListAddr = this.getField(listIndex);
-            while(currListAddr !== 0n) { // Not none
-
-              const key = this.getField(currListAddr);
-              const value = this.getField(currListAddr + 4n);
-              // NOTE(sagar): keys probably can't be None
-              if(key !== 0n && isPointer(key)) {
-                worklist.push(key);
-              }
-
-              // Check for none
-              if(value !== 0n && isPointer(value)) {
-                worklist.push(value);
-              }
-              currListAddr = this.getField(currListAddr + 8n);
+            // Check for none
+            if(value !== 0n && isPointer(value)) {
+              worklist.push(value);
             }
+            currListAddr = this.getField(currListAddr + 8n);
           }
         }
-        break;
-
+      } else if (TAG_REF) {
         // NOTE(alex:mm): Used to represent a boxed value
         // No metadata
-        case TAG_REF: {
-          throw new Error("TODO: trace ref");
-        }
+        throw new Error("TODO: trace ref");
+      } else {
+        throw new Error(`Trying to trace unknown heap object: ${childTag.toString()}`);
       }
-
-      throw new Error(`Trying to trace unknown heap object: ${childTag.toString(16)}`);
     }
   }
 
@@ -498,6 +490,10 @@ export class MnS<A extends MarkableAllocator> {
   // Returns an untagged pointer to the start of the object's memory (not the header)
   // Returns the null pointer (0x0) if memory allocation failed
   gcalloc(tag: HeapTag, size: bigint): Pointer {
+    if (size === 0n) {
+      throw new Error(`Cannot GC allocate size of 0`);
+    }
+
     let result = this.heap.gcalloc(tag, size);
     if (result === 0x0n) {
       this.collect();
@@ -603,7 +599,7 @@ export class MarkableSegregator<S extends MarkableAllocator, L extends MarkableA
 
   getHeader(ptr: Pointer): Header {
     if (!this.allocator.owns(ptr)) {
-      throw new Error(`${this.allocator.description()} does not own pointer: ${ptr.toString(16)}`);
+      throw new Error(`${this.allocator.description()} does not own pointer: ${ptr.toString()}`);
     }
     if (this.allocator.small.owns(ptr)) {
       return this.allocator.small.getHeader(ptr);
