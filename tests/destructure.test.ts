@@ -304,6 +304,31 @@ describe("Destructure lists", () => {
     a,b,c = x
   `
   );
+
+  asserts("destructuring proposal test 12, Assignment happens in a left to right order.", [
+    [
+      `
+        x: [int] = None
+        i: int = 0
+        x = [0, 1]
+        i, x[i] = (1, 2)
+        i
+      `,
+      PyInt(1),
+    ],
+    [
+      `
+        x[0]
+      `,
+      PyInt(0),
+    ],
+    [
+      `
+        x[1]
+      `,
+      PyInt(2),
+    ],
+  ]);
 });
 
 describe("General tuple tests", () => {

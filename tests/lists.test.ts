@@ -226,6 +226,4 @@ describe("LIST TEST", () => {
   len(a)
   `;
   assert("List len 0", source, PyInt(0));
-
-  
 });
