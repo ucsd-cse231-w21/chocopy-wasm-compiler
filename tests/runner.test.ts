@@ -532,5 +532,4 @@ describe("defaults", () => {
     return x + y + z
   `
   );
-
 });

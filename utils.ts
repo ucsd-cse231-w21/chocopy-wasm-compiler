@@ -30,12 +30,10 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
       var full_string = "";
       while (i < string_length) {
         let ascii_val = view[data / 4 + i];
-        console.log("ASCII value "+ascii_val);
         var char = String.fromCharCode(ascii_val);
         full_string += char;
         i += 1;
       }
-      console.log("Full string "+full_string);
       return PyString(full_string, result);
     case "number":
       // console.log("Actual length "+result);
