@@ -15,7 +15,7 @@ import {
   Location,
   Assignable,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
+import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable, WithTag } from "./utils";
 import * as BaseException from "./error";
 import {
   MemoryManager,
@@ -26,6 +26,7 @@ import {
   TAG_LIST,
   TAG_REF,
   TAG_STRING,
+  TAG_TUPLE,
 } from "./alloc";
 import { augmentFnGc } from "./compiler-gc";
 
@@ -681,7 +682,7 @@ function codeGenAssignable(
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
-      const err: never = <never>target;
+      const err: never = target;
       throw new BaseException.InternalException(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
@@ -1372,29 +1373,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
 
       //Move heap head to the end of the list and return list address
       return stmts.concat([`(local.get $$list_base)`]);
-    case "tuple-expr": {
-      // Much of this logic is copied from object construction. Is there a way to easily reuse that logic?
-      let stmts = [
-        `(i32.const ${TAG_CLASS})    ;; heap-tag: class`,
-        `(i32.const ${expr.contents.length * 4})`, // size in bytes
-        `(call $$gcalloc)`,
-        `(local.set $$allocPointer)`,
-      ];
-      // Adopting the object hack of pushing one copy of $$allocPointer onto the stack for every item in the tuple.
-      // The best solution would be to reset allocPointer to its original value after creating the new stack
-      // object, but it's probably too late to institute a change like that.
-      stmts.push("(local.get $$allocPointer)\n".repeat(expr.contents.length + 1));
-      expr.contents.forEach((content, offset) => {
-        stmts.push(
-          // "(local.get $$allocPointer)",
-          ...codeGenExpr(content, env),
-          `(i32.store offset=${offset * 4})`
-        );
-      });
-      // stmts.push("(local.get $$allocPointer)");
-      return stmts;
-    }
-
+    case "tuple-expr":
+      return codeGenTupleAlloc(expr, env);
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
         case "dict":
@@ -1491,6 +1471,31 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
     default:
       unhandledTag(expr);
+  }
+}
+
+function codeGenTupleAlloc(
+  expr: WithTag<Expr<[Type, Location]>, "tuple-expr">,
+  env: GlobalEnv
+): string[] {
+  {
+    let stmts = [
+      `(i32.const ${Number(TAG_TUPLE)})   ;; heap-tag: tuple`,
+      `(i32.const ${expr.contents.length * 4})   ;; size in bytes`,
+      `(call $$gcalloc)`,
+      `(local.set $$allocPointer)`,
+    ];
+    // Adopting the object hack of pushing one copy of $$allocPointer onto the stack for every item in the tuple.
+    // The best solution would be to reset allocPointer to its original value after creating the new stack
+    // object, but it's probably too late to institute a change like that.
+    stmts.push("(local.get $$allocPointer)\n".repeat(expr.contents.length + 1));
+    expr.contents.forEach((content, offset) => {
+      stmts.push(
+        ...codeGenExpr(content, env),
+        `(i32.store offset=${offset * 4})`
+      );
+    });
+    return stmts;
   }
 }
 
