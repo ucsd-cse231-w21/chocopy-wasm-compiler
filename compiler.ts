@@ -61,14 +61,14 @@ export enum ListContentTag {
   Class,
   List,
   Dict,
-  Callable
+  Callable,
 }
 
 enum ListCopyMode {
   Copy = 0,
   Slice,
   Double,
-  Concat
+  Concat,
 }
 
 export const encodeLiteral: Array<string> = [
@@ -787,61 +787,70 @@ function codeGenListCopy(mode: ListCopyMode): Array<string> {
   var header = [4, 8]; //size, bound relative position
   var cmp = [""];
 
-  stmts.push(...[
-    `(local.tee $$list_cmp)`, //store first address to local var
-    `(i32.add (i32.const 8))`,
-    `(i32.load)`,
-    `(local.set $$list_temp)`, //capacity
-    `(i32.const 0)`,
-    `(local.set $$list_index2)`, //second index
-  ]);
+  stmts.push(
+    ...[
+      `(local.tee $$list_cmp)`, //store first address to local var
+      `(i32.add (i32.const 8))`,
+      `(i32.load)`,
+      `(local.set $$list_temp)`, //capacity
+      `(i32.const 0)`,
+      `(local.set $$list_index2)`, //second index
+    ]
+  );
 
   if (mode === ListCopyMode.Slice) {
-    stmts.push(...[
-    `(local.set $$list_bound)`, // max index(not include)
-    `(local.set $$list_index)`, // current index
-    `(local.get $$list_bound)`,
-    `(local.get $$list_index)`, 
-    `(i32.sub)`,
-    `(local.set $$list_size)`] //size of list
+    stmts.push(
+      ...[
+        `(local.set $$list_bound)`, // max index(not include)
+        `(local.set $$list_index)`, // current index
+        `(local.get $$list_bound)`,
+        `(local.get $$list_index)`,
+        `(i32.sub)`,
+        `(local.set $$list_size)`,
+      ] //size of list
     );
   } else {
-    stmts.push(...[
-      `(local.get $$list_cmp)`,
-      `(i32.add (i32.const 4))`,
-      `(i32.load)`,
-      `(local.tee $$list_size)`, //capacity
-      `(local.set $$list_bound)`,
-      `(i32.const 0)`,
-      `(local.set $$list_index)`,
-    ]);
+    stmts.push(
+      ...[
+        `(local.get $$list_cmp)`,
+        `(i32.add (i32.const 4))`,
+        `(i32.load)`,
+        `(local.tee $$list_size)`, //capacity
+        `(local.set $$list_bound)`,
+        `(i32.const 0)`,
+        `(local.set $$list_index)`,
+      ]
+    );
   }
-  
+
   if (mode === ListCopyMode.Concat) {
     cmp = ["", "2"];
-    stmts.push(...[
-    `(local.tee $$list_cmp2)`,
-    `(i32.add (i32.const 8))`,
-    `(i32.load)`,
-    `(local.get $$list_temp)`,
-    `(i32.add)`,
-    `(local.set $$list_temp)`, //capacity
-    `(local.get $$list_cmp2)`,
-    `(i32.add (i32.const 4))`,
-    `(i32.load)`,
-    `(local.get $$list_size)`,
-    `(i32.add)`,
-    `(local.set $$list_size)`, //size
-  ]);
-    
+    stmts.push(
+      ...[
+        `(local.tee $$list_cmp2)`,
+        `(i32.add (i32.const 8))`,
+        `(i32.load)`,
+        `(local.get $$list_temp)`,
+        `(i32.add)`,
+        `(local.set $$list_temp)`, //capacity
+        `(local.get $$list_cmp2)`,
+        `(i32.add (i32.const 4))`,
+        `(i32.load)`,
+        `(local.get $$list_size)`,
+        `(i32.add)`,
+        `(local.set $$list_size)`, //size
+      ]
+    );
   }
 
   if (mode === ListCopyMode.Double) {
-    stmts.push(...[
-      `(local.get $$list_temp)`,
-      `(i32.mul (i32.const 2))`,
-      `(local.set $$list_temp)`, //capacity
-    ]);
+    stmts.push(
+      ...[
+        `(local.get $$list_temp)`,
+        `(i32.mul (i32.const 2))`,
+        `(local.set $$list_temp)`, //capacity
+      ]
+    );
   }
 
   stmts.push(
@@ -857,7 +866,7 @@ function codeGenListCopy(mode: ListCopyMode): Array<string> {
 
   //add/modify header info of the list
   header.forEach((addr) => {
-    var varname = `list_${ addr === 4 ? "size" : "temp"}`
+    var varname = `list_${addr === 4 ? "size" : "temp"}`;
     stmts.push(
       ...[
         `(local.get $$list_base)`,
@@ -899,17 +908,19 @@ function codeGenListCopy(mode: ListCopyMode): Array<string> {
 
   cmp.forEach((s) => {
     if (s !== ``) {
-      stmts.push(...[
-        `(local.get $$list_cmp2)`, 
-        `(local.set $$list_cmp)`, 
-        `(i32.const 0)`, 
-        `(local.set $$list_index)`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const 4))`,
-        `(i32.load)`,
-        `(i32.add (local.get $$list_bound))`,
-        `(local.set $$list_bound)`,
-      ]);
+      stmts.push(
+        ...[
+          `(local.get $$list_cmp2)`,
+          `(local.set $$list_cmp)`,
+          `(i32.const 0)`,
+          `(local.set $$list_index)`,
+          `(local.get $$list_cmp)`,
+          `(i32.add (i32.const 4))`,
+          `(i32.load)`,
+          `(i32.add (local.get $$list_bound))`,
+          `(local.set $$list_bound)`,
+        ]
+      );
     }
 
     //while loop structure
@@ -999,7 +1010,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           return unreachable(expr);
       }
     case "call":
-      var prefix = ""
+      var prefix = "";
       if (expr.name === "range") {
         switch (expr.arguments.length) {
           case 1:
@@ -1020,17 +1031,12 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           default:
             throw new Error("Unsupported range() call!");
         }
-      } else if(expr.name === "len" )
-      {
-        
-        if(expr.arguments[0].a[0].tag === "list")
-        {
-          prefix = "$$list"
-        }
-        else{
+      } else if (expr.name === "len") {
+        if (expr.arguments[0].a[0].tag === "list") {
+          prefix = "$$list";
+        } else {
           throw new Error("Unimplemented len() for " + expr.arguments[0].a[0].tag);
         }
-        
       }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
       valStmts.push(`(call ${prefix}$${expr.name})`);
@@ -1227,7 +1233,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           stmts.push(...[...codeGenExpr(lexpr, env)]);
         });
 
-
       stmts.push(
         ...[
           `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
@@ -1265,10 +1270,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       });
 
       //Move heap head to the end of the list and return list address
-      return stmts.concat([
-        `(local.get $$list_base)`,
-      ]);
-  
+      return stmts.concat([`(local.get $$list_base)`]);
 
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
@@ -2005,8 +2007,8 @@ function codeGenBinOp(op: BinOp): string {
   }
 }
 
-function codeGenListElemType(elemTyp : Type): string {
-  switch(elemTyp.tag) {
+function codeGenListElemType(elemTyp: Type): string {
+  switch (elemTyp.tag) {
     case "number":
       return `(i32.const ${ListContentTag.Num})`;
     case "bool":
