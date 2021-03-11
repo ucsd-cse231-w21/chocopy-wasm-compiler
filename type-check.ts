@@ -1047,7 +1047,7 @@ export function tcExpr(
               ...expr,
               a: [NONE, expr.a],
               obj: tObj,
-              arguments: [{ tag: "literal", value: { tag: "none" } }],
+              arguments: [],
             };
           default:
             throw new BaseException.CompileError(
