@@ -1,6 +1,7 @@
 import * as H from "./heap";
 import { Block, NULL_BLOCK } from "./heap";
 import { extractPointer, isPointer, Pointer, StackIndex } from "./alloc";
+import { throws } from "assert";
 
 export type HeapTag =
   | typeof TAG_CLASS
@@ -371,7 +372,7 @@ export class MnS<A extends MarkableAllocator> {
             }
 
             const fieldPointerValue = extractPointer(fieldValue);
-            if (!this.isMarked(fieldPointerValue)) {
+            if (fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
               this.setMarked(fieldPointerValue);
               worklist.push(fieldPointerValue);
             }
@@ -380,20 +381,67 @@ export class MnS<A extends MarkableAllocator> {
         }
 
         case TAG_LIST: {
-          throw new Error("TODO: trace list");
+          // Layout: [32-bit TAG_LIST, 32-bit <length>, 32-bit <capacity>, data...]
+
+          // Extract value at childPtr + 4. Assumed to be a primitive value
+          const listLength = childSize;
+          
+          // Sanity check, just-in-case
+          // NOTE(sagar): probably not necessary
+          if(isPointer(listLength)) {
+            throw new Error("Pointer value stored in the place of list length");
+          }
+
+          // Note(sagar): Memory layout is abstracted by allocator
+          // childPtr always points to start of data, not header
+          for(let dataPtr = childPtr; dataPtr !== childPtr + listLength * 4n; dataPtr += 4n) {
+            const elementValue = this.getField(dataPtr);
+
+            if(isPointer(elementValue)) {
+              const fieldPointerValue = extractPointer(elementValue);
+              // Check for None
+              if(fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
+                this.setMarked(fieldPointerValue);
+                worklist.push(fieldPointerValue);
+              }
+            }
+          }
+
+          break;
         }
 
-        case TAG_STRING: {
-          throw new Error("TODO: trace string");
+        case TAG_STRING:
+        case TAG_BIGINT: {
+          // Just mark the pointer?
+          this.setMarked(childPtr);
         }
+        break;
+
 
         case TAG_DICT: {
-          throw new Error("TODO: trace dict");
-        }
+          
+          for(let listIndex = childPtr; listIndex < childSize; listIndex += 4n ) {
+            // Trace each linked-list
+            // NOTE(sagar): always assumed to be an address. Unnecessary to check
+            let currListAddr = this.getField(listIndex);
+            while(currListAddr !== 0n) { // Not none
 
-        case TAG_BIGINT: {
-          throw new Error("TODO: trace bigint");
+              const key = this.getField(currListAddr);
+              const value = this.getField(currListAddr + 4n);
+              // NOTE(sagar): keys probably can't be None
+              if(key !== 0n && isPointer(key)) {
+                worklist.push(key);
+              }
+
+              // Check for none
+              if(value !== 0n && isPointer(value)) {
+                worklist.push(value);
+              }
+              currListAddr = this.getField(currListAddr + 8n);
+            }
+          }
         }
+        break;
 
         // NOTE(alex:mm): Used to represent a boxed value
         // No metadata
