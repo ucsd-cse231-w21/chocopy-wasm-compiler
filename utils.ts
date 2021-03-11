@@ -50,13 +50,8 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
 }
 
 export function PyDict(key_type : Type, value_type : Type, address: number, mem: any): Value {
-  let ret : Value = {tag: "dict", key_type, value_type, address}
-  let nest_dict;
-  if (value_type.tag === "dict"){
-    nest_dict = PyDict(value_type.key, value_type.value, mem[address], mem);
-    ret.nest_dict = nest_dict;
-  }
-  return ret
+  if (address === 0) return PyNone();
+  return {tag: "dict", key_type, value_type, address}
 }
 
 export function PyList(name: string, address: number, type: Type): Value{
