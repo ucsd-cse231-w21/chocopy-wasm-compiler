@@ -64,12 +64,6 @@ export function autocompleteHint(editor : any, keywords : String[], getToken : a
 function getCompletions(wordList: any, token : any, context : any) {
     var completions :any[] = [];
     var prefix = token.string;
-    function maybeAdd(str: string) {
-        //only add word if not already in array and prefix matches word
-        if (str.indexOf(prefix) == 0 && !strExists(completions, str)) {
-            completions.push(str)
-        }
-    }
   
     if (context) {
         // If this is a property, see if it belongs to some object we can
@@ -83,6 +77,12 @@ function getCompletions(wordList: any, token : any, context : any) {
             base = ":" + obj.string;
         }
         else if(obj.type == "property"){
+            base = obj.string;
+        }
+        else if(obj.type == "builtin"){
+            base = obj.string;
+        }
+        else if(obj.type == "keyword"){
             base = obj.string;
         }
   
