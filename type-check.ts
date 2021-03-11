@@ -600,7 +600,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
               ...expr,
               a: NONE,
               obj: tObj,
-              arguments: []
+              arguments: [{ tag: "literal", value: { tag: "none" } }]
             };
           default:
             throw new TypeCheckError(`'dict' object has no attribute '${expr.method}'`);
