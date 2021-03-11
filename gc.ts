@@ -296,6 +296,7 @@ export class RootSet {
       if (isPointer(globalVarValue)) {
         const ptr = extractPointer(globalVarValue);
         if (ptr !== 0n) {
+          // console.warn(`Global pointer at ${globalVarAddr}: ${ptr}`);
           callback(ptr);
         }
       }
@@ -306,6 +307,7 @@ export class RootSet {
       // second value is the local index
       frame.forEach((localPtrValue, _) => {
         if (localPtrValue !== 0n) {
+          // console.warn(`Local pointer: ${localPtrValue}`);
           callback(localPtrValue);
         }
       });
@@ -315,6 +317,7 @@ export class RootSet {
     this.tempsStack.forEach((frame) => {
       frame.forEach((localPtrValue) => {
         if (localPtrValue !== 0n) {
+          // console.warn(`Temp pointer: ${localPtrValue}`);
           callback(localPtrValue);
         }
       });
@@ -349,7 +352,9 @@ export class MnS<A extends MarkableAllocator> {
   markFromRoots() {
     let worklist: Array<Pointer> = [];
     this.roots.forEach((root) => {
+      // console.warn(`Checking root: ${root}`);
       if (!this.isMarked(root)) {
+        // console.warn(`Tracing root: ${root}`);
         this.setMarked(root);
         worklist.push(root);
 
@@ -388,7 +393,8 @@ export class MnS<A extends MarkableAllocator> {
         // Layout: [32-bit TAG_LIST, 32-bit <length>, 32-bit <capacity>, data...]
 
         // Extract value at childPtr + 4. Assumed to be a primitive value
-        const listLength = childSize;
+        const listLength = readI32(this.memory, Number(childPtr + 4n));
+        // console.warn(`Scanning list of length ${listLength}`);
 
         // Sanity check, just-in-case
         // NOTE(sagar): probably not necessary
@@ -400,7 +406,7 @@ export class MnS<A extends MarkableAllocator> {
 
         // Note(sagar): Memory layout is abstracted by allocator
         // childPtr always points to start of data, not header
-        for(let dataPtr = childPtr; dataPtr !== childPtr + listLength * 4n; dataPtr += 4n) {
+        for(let dataPtr = childPtr + 12n; dataPtr < childPtr + listLength; dataPtr += 4n) {
           const elementValue = this.getField(dataPtr);
 
           if(isPointer(elementValue)) {
@@ -505,6 +511,7 @@ export class MnS<A extends MarkableAllocator> {
         this.roots.addTemp(result);
       }
     }
+    // console.warn(`Allocating ${size} at ${result} (tag=${tag})`);
 
     return result;
   }
