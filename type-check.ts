@@ -687,7 +687,7 @@ function tcAssignable(
 ): Assignable<[Type, Location]> {
   const expr = tcExpr(env, locals, target);
   if (!isTagged(expr, ASSIGNABLE_TAGS)) {
-    throw new BaseException.CompileError(target.a, `Cannot assing to target type ${expr.tag}`);
+    throw new BaseException.CompileError(target.a, `Cannot assign to target type ${expr.tag}`);
   } else if (
     (expr.a[0].tag === "string" || expr.a[0].tag === "tuple") &&
     expr.tag === "bracket-lookup"

@@ -561,9 +561,7 @@ function codeGenDestructure(
     }
   } else {
     const target = destruct.targets[0];
-    if (!target.ignore) {
-      assignStmts = codeGenAssignable(target.target, [value], env);
-    }
+    assignStmts = codeGenAssignable(target.target, [value], env);
   }
 
   return assignStmts;
