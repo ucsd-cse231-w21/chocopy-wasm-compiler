@@ -107,7 +107,9 @@ export class AttributeError extends CompileError {
   obj: Type;
   attr: string;
   constructor(loc: Location, obj: Type, attr: string) {
-    var message = `'${obj.tag == "class" ? obj.name : obj.tag}' object has no attribute '${attr}'`;
+    var message = `'${
+      obj.tag == "class" ? obj.name : obj.tag
+    }' object has no attribute '${attr}'`;
     super(loc, message, "AttributeError");
     this.obj = obj;
     this.attr = attr;
@@ -150,7 +152,11 @@ export class NameError extends CompileError {
 export class UnboundLocalError extends NameError {
   varName: string;
   constructor(loc: Location, varName: string) {
-    super(loc, `local variable '${varName}' referenced before assignment`, "UnboundLocalError");
+    super(
+      loc,
+      `local variable '${varName}' referenced before assignment`,
+      "UnboundLocalError"
+    );
     this.varName = varName;
   }
 }
@@ -193,7 +199,9 @@ export class TypeMismatchError extends TypeError {
         loc,
         `Expected type '${expect
           .map((s) => typeToString(s))
-          .join(", ")}';  got type '${(got as Type[]).map((s) => typeToString(s)).join(", ")}'`,
+          .join(", ")}';  got type '${(got as Type[])
+          .map((s) => typeToString(s))
+          .join(", ")}'`,
         name
       );
       this.expect = expect;
@@ -201,7 +209,9 @@ export class TypeMismatchError extends TypeError {
     } else {
       super(
         loc,
-        `Expected type '${typeToString(expect)}'; got type '${typeToString(got as Type)}'`,
+        `Expected type '${typeToString(expect)}'; got type '${typeToString(
+          got as Type
+        )}'`,
         name
       );
       this.expect = [expect];
@@ -213,11 +223,18 @@ export class TypeMismatchError extends TypeError {
 export class UnsupportedOperandTypeError extends TypeError {
   op: BinOp | UniOp;
   oprand: Type[];
-  constructor(loc: Location, op: BinOp | UniOp, operand: Type[], name = "TypeError") {
+  constructor(
+    loc: Location,
+    op: BinOp | UniOp,
+    operand: Type[],
+    name = "TypeError"
+  ) {
     if (operand.length == 1)
       super(
         loc,
-        `unsupported operand type(s) for ${UniOp[op]}: '${typeToString(operand[0])}'`,
+        `unsupported operand type(s) for ${UniOp[op]}: '${typeToString(
+          operand[0]
+        )}'`,
         name
       );
     else

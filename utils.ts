@@ -1,67 +1,68 @@
 import { Value, Type } from "./ast";
 
 export const nTagBits = 1;
-export const INT_LITERAL_MAX = BigInt(2**(31 - nTagBits) - 1);
-export const INT_LITERAL_MIN = BigInt(-(2**(31 - nTagBits)));
+export const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
+export const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
 
 export function bigintToWords(num: bigint): [number, number, Array<bigint>] {
-    const WORD_SIZE = 4;
-    const mask = BigInt(0x7fffffff);
-    var sign = 1;
-    var size = 0;
-    // fields ? [(0, sign), (1, size)]
-    if (num < 0n) {
-        sign = 0
-        num *= -1n
-    }
-    var words : bigint[] = [];
-    do {
-        words.push(num & mask);
-        console.log("j");
-        num >>= 31n;
-        size += 1
-    } while (num > 0n)
-    // size MUST be > 0
-    return [sign, size, words];
+  const WORD_SIZE = 4;
+  const mask = BigInt(0x7fffffff);
+  var sign = 1;
+  var size = 0;
+  // fields ? [(0, sign), (1, size)]
+  if (num < 0n) {
+    sign = 0;
+    num *= -1n;
+  }
+  var words: bigint[] = [];
+  do {
+    words.push(num & mask);
+    console.log("j");
+    num >>= 31n;
+    size += 1;
+  } while (num > 0n);
+  // size MUST be > 0
+  return [sign, size, words];
 }
 
-export function stringify(result: Value) : string {
-    switch(result.tag) {
-        case "num":
-            return result.value.toString();
-        case "bool":
-            return (result.value) ? "True" : "False";
-        case "none":
-            return "None";
-        case "object":
-            return `<${result.name} object at ${result.address}>`;
-        default: throw new Error(`Could not render value: ${result}`);
-    }
+export function stringify(result: Value): string {
+  switch (result.tag) {
+    case "num":
+      return result.value.toString();
+    case "bool":
+      return result.value ? "True" : "False";
+    case "none":
+      return "None";
+    case "object":
+      return `<${result.name} object at ${result.address}>`;
+    default:
+      throw new Error(`Could not render value: ${result}`);
+  }
 }
 
 export function encodeValue(val: Value, mem: any): number {
-    switch (val.tag) {
-        case "num":
-            console.log(val.value);
-            if (val.value <= INT_LITERAL_MAX && val.value >= INT_LITERAL_MIN) {
-                return ((Number(val.value) << nTagBits) & 0xFFFFFFFF) | 1;
-            }
+  switch (val.tag) {
+    case "num":
+      console.log(val.value);
+      if (val.value <= INT_LITERAL_MAX && val.value >= INT_LITERAL_MIN) {
+        return ((Number(val.value) << nTagBits) & 0xffffffff) | 1;
+      }
 
-            var [sign, size, words] = bigintToWords(val.value);
-            var idx : number = Number(mem[0]) / 4;
-            mem[idx] = sign & 0xFFFFFFFF;
-            mem[idx+1] = size & 0xFFFFFFFF;
-            var i = 0;
-            while (i < size) {
-                mem[idx+2+i] = ((Number(words[i]) << nTagBits) & 0xFFFFFFFF) | 1;
-                i += 1;
-            }
-            mem[0] = 4 * (idx+2+i);
-            return idx*4;
+      var [sign, size, words] = bigintToWords(val.value);
+      var idx: number = Number(mem[0]) / 4;
+      mem[idx] = sign & 0xffffffff;
+      mem[idx + 1] = size & 0xffffffff;
+      var i = 0;
+      while (i < size) {
+        mem[idx + 2 + i] = ((Number(words[i]) << nTagBits) & 0xffffffff) | 1;
+        i += 1;
+      }
+      mem[0] = 4 * (idx + 2 + i);
+      return idx * 4;
 
-        default:
-            throw new Error(`Could not encode value`);
-    }
+    default:
+      throw new Error(`Could not encode value`);
+  }
 }
 
 export function PyValue(typ: Type, result: number, mem: any): Value {
@@ -70,17 +71,17 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
       if (result & 1) {
         return PyInt(result >> nTagBits);
       } else {
-        var idx : number = Number(result) / 4;
+        var idx: number = Number(result) / 4;
         var sign = mem[idx];
-        var size = mem[idx+1];
+        var size = mem[idx + 1];
         var i = 1;
         var num = 0n;
         while (i <= size) {
-          var dig = mem[idx+1+i];
+          var dig = mem[idx + 1 + i];
           num += BigInt(dig >>> nTagBits) << BigInt((i - 1) * (32 - nTagBits));
-          i += 1
+          i += 1;
         }
-        if (!sign) num = -num
+        if (!sign) num = -num;
         return PyBigInt(num);
       }
     case "bool":
@@ -113,11 +114,17 @@ export function PyNone(): Value {
   return { tag: "none" };
 }
 
-export function isTagged<A extends string[], V extends {tag: string}, T extends {tag: A[number]}>(val: V | T, set: readonly [...A]): val is T {
+export function isTagged<
+  A extends string[],
+  V extends { tag: string },
+  T extends { tag: A[number] }
+>(val: V | T, set: readonly [...A]): val is T {
   return set.includes(val.tag);
 }
 
-export const NUM : Type = {tag: "number"};
-export const BOOL : Type = {tag: "bool"};
-export const NONE : Type = {tag: "none"};
-export function CLASS(name : string) : Type {return {tag: "class", name}};
+export const NUM: Type = { tag: "number" };
+export const BOOL: Type = { tag: "bool" };
+export const NONE: Type = { tag: "none" };
+export function CLASS(name: string): Type {
+  return { tag: "class", name };
+}

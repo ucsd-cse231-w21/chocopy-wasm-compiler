@@ -5,8 +5,6 @@ import { Value } from "../ast";
 import { importObject } from "./import-object.test";
 import { fail } from "assert";
 
-
-
 // Clear the output before every test
 beforeEach(function () {
   importObject.output = "";
@@ -48,7 +46,11 @@ export function assertFail(name: string, source: string) {
   });
 }
 
-export function assertPrint(name: string, source: string, expected: Array<string>) {
+export function assertPrint(
+  name: string,
+  source: string,
+  expected: Array<string>
+) {
   it(name, async () => {
     const repl = new BasicREPL(importObject);
     const result = await repl.run(source);
@@ -65,21 +67,20 @@ export function assertPrint(name: string, source: string, expected: Array<string
 
 export function assertTC(name: string, source: string, result: any) {
   it(name, async () => {
-      const repl = new BasicREPL(importObject);
-      const typ = await repl.tc(source);
-      expect(typ).to.deep.eq(result);
+    const repl = new BasicREPL(importObject);
+    const typ = await repl.tc(source);
+    expect(typ).to.deep.eq(result);
   });
 }
 
 export function assertTCFail(name: string, source: string) {
   it(name, async () => {
-      const repl = new BasicREPL(importObject);
-      try {
+    const repl = new BasicREPL(importObject);
+    try {
       const typ = await repl.tc(source);
       fail("Expected an exception, got a type " + typ);
-      } catch (e) {
+    } catch (e) {
       expect(e).to.instanceof(Error);
-      }
+    }
   });
 }
-
