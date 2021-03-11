@@ -15,7 +15,7 @@
   padding: 2%;
   height: 100%;
   background-color: gainsboro;
-  border:gainsboro;
+  border: gainsboro;
   border-radius: 10px;
   .shortcut{
     color: gray ;
@@ -23,9 +23,8 @@
     display: inline;
     margin: 0 5px;
   }
-
   .line-error {
-    background: #FBC2C4 !important;
+    background: #fbc2c4 !important;
     color: #8a1f11 !important;
   }
   .error-marker {
@@ -33,8 +32,8 @@
     width: 10px !important;
     background-color: #ff0000;
   }
-  
-  .error-marker{
+
+  .error-marker {
     .error-message {
       display: none;
       position: absolute;
@@ -46,41 +45,42 @@
       top: -1em;
     }
   }
-  
-  .error-marker:hover{
+
+  .error-marker:hover {
     .error-message {
       display: block;
     }
   }
 }
-.save_load{
-  width:100%;
+.save_load {
+  width: 100%;
   height: 100%;
-  float:left;
-}
-#ls{
-  width:350px;
-  float:left;
-}
-#ls_btns{
-  width: 20px;
-  float:left;
-}
-#l_theme,#l_save{
-  width:150px;
   float: left;
 }
-.theme-dropdown{
-  width:100%;
-  float:left;
+#ls {
+  width: 350px;
+  float: left;
 }
-.code{
-  width:100%;
+#ls_btns {
+  width: 20px;
+  float: left;
+}
+#l_theme,
+#l_save {
+  width: 150px;
+  float: left;
+}
+.theme-dropdown {
+  width: 100%;
+  float: left;
+}
+.code {
+  width: 100%;
   height: 100%;
-  float:left;
+  float: left;
 }
 .user-code {
-  float:left;
+  float: left;
   width: 100%;
   resize: none;
   overflow: scroll;
@@ -96,9 +96,8 @@
   scrollbar-color: rebeccapurple green;
   scrollbar-width: thin;
   background-color: lightblue;
-  border:lightblue;
+  border: lightblue;
   border-radius: 10px;
-  
   .arrow {
     border: solid black;
     border-width: 0 3px 3px 0;
@@ -160,6 +159,7 @@
     vertical-align: middle;
     text-align: center;
   }
+
 }
 .output pre {
   max-width: 100%;
@@ -171,16 +171,15 @@
   float: left;
   display: block;
 }
-.clearfix{
+.clearfix {
   clear: both;
 }
 
- 
-.btn{
-  background-color: #008CBA;
-  color:white;
+.btn {
+  background-color: #008cba;
+  color: white;
   border-radius: 10%;
-  border-color:#008CBA;
+  border-color: #008cba;
   border-width: 1px;
   font-size: 16px;
   font-family: monospace;
@@ -188,9 +187,9 @@
   display: inline;
 }
 .btn:hover {
-  background-color:white; 
-  color: #008CBA;
-  border-color:#008CBA;
+  background-color: white;
+  color: #008cba;
+  border-color: #008cba;
 }
 
 /* override the CodeMirror default setting*/
@@ -199,19 +198,19 @@
   /* Set height, width, borders, and global font properties here */
   font-family: monospace;
   height: 400px;
-  padding:5px;
-  margin:10px;
+  padding: 5px;
+  margin: 10px;
   border-radius: 2%;
   font-size: 16px;
 }
 
 .interactions::-webkit-scrollbar {
-  width: 15px;               /* width of the entire scrollbar */
+  width: 15px; /* width of the entire scrollbar */
   height: 100%;
-  background-color:  lightblue;
+  background-color: lightblue;
 }
 .interactions::-webkit-scrollbar-thumb {
-  background-color:gray;
+  background-color: gray;
 }
 .CodeMirror-simplescroll-vertical {
   width: 15px;
@@ -220,6 +219,7 @@
   height: 15px;
 }
 @media only screen and (min-height: 900px){
+
   .CodeMirror {
     height: 800px;
   }

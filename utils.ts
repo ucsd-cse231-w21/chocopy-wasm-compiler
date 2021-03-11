@@ -70,13 +70,14 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
   }
 }
 
-export function PyDict(key_type : Type, value_type : Type, address: number, mem: any): Value {
+export function PyDict(key_type: Type, value_type: Type, address: number, mem: any): Value {
   if (address === 0) return PyNone();
-  return {tag: "dict", key_type, value_type, address}
+  return { tag: "dict", key_type, value_type, address };
 }
 
-export function PyList(name: string, address: number, type: Type): Value{
-  return { tag: "list", name, address, content_type: type}
+export function PyList(name: string, address: number, type: Type): Value {
+  if (address === 0) return PyNone();
+  return { tag: "list", name, address, content_type: type };
 }
 
 export function PyString(s: string, address: number): Value {
