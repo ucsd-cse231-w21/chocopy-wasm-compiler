@@ -158,6 +158,27 @@ describe("GC-MnS Integration Tests", () => {
   //  ["x = None", PyNone(), 8n]
   //]);
 
+  assertsUsage("Program 8", [
+    [`
+      def f(x: int) -> Callable[[],int]:
+        def inc() -> int:
+          nonlocal x
+          x = x + 1
+          return x
+
+        return inc
+
+      i: Callable[[], int] = None
+      i = f(0)
+      i()
+      i()`,
+      PyInt(2),
+      12n
+    ],
+    [`i = None`, PyNone(), 0n]
+
+  ]);
+
   assertsUsage("Program 9", [
     [`
       class Foo(object):
