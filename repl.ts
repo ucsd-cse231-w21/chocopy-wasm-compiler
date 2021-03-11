@@ -3,7 +3,8 @@ import { GlobalEnv, libraryFuns, ListContentTag } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
-import { NUM, STRING, BOOL, NONE, LIST, CLASS, CALLABLE, PyValue ,stringify, PyString} from "./utils";
+import { importMemoryManager, MemoryManager } from "./alloc";
+import { NUM, STRING, BOOL, NONE, LIST, CLASS, PyValue ,stringify, PyString} from "./utils";
 import { bignumfunctions } from "./bignumfunctions";
 
 interface REPL {
@@ -16,19 +17,28 @@ export class BasicREPL {
   functions: string;
   importObject: any;
   memory: any;
+  memoryManager: MemoryManager;
   constructor(importObject: any) {
     this.importObject = importObject;
     if (!importObject.js) {
       const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
-      const view = new Int32Array(memory.buffer);
-      view[0] = 4;
+
       this.importObject.js = { memory: memory };
+    }
+
+    if (!importObject.memoryManager) {
+      const memory = this.importObject.js.memory;
+      const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
+        staticStorage: 512n,
+        total: 2000n,
+      });
+      this.memoryManager = memoryManager;
+      importMemoryManager(this.importObject, memoryManager);
     }
     this.currentEnv = {
       globals: new Map(),
       classes: new Map(),
-      locals: new Set(),
-      offset: 1,
+      locals: new Map(),
       funs: new Map(),
     };
     this.importObject.imports.__internal_print = (arg: any) => {
@@ -143,6 +153,7 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      memoryManager: this.memoryManager,
     };
     const [result, newEnv, newTypeEnv, newFunctions] = await run(source, config);
     this.currentEnv = newEnv;
@@ -156,6 +167,7 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      memoryManager: this.memoryManager,
     };
     const parsed = parse(source);
     const [result, _] = await tc(this.currentTypeEnv, parsed);

@@ -1,9 +1,13 @@
 import { encodeLiteral, decodeLiteral } from "./compiler";
+import { TAG_BIGINT } from "./alloc";
+
+// NOTE(alex:mm): make sure to use `gcalloc`
 export const bignumfunctions = `
 (func $$bignum_neg
   (param $x i32)
-  (result i32) 
+  (result i32)
   (local $addr i32)
+  (local $allocPointer i32)
   (local $i i32)
   (local.get $x)
   (i32.const 1)
@@ -18,13 +22,22 @@ export const bignumfunctions = `
       (local.set $x)
     )
     (else
-      (i32.load (i32.const 0))
-      (local.set $addr)
-      (local.get $addr)
+      ;; allocate space for the new bigint
+      (i32.const ${Number(TAG_BIGINT)})  ;; heap-tag: bigint
+      (i32.add (local.get $x) (i32.const 4))    ;; get length of data
+      (i32.load)
+      (i32.mul (i32.const 4))
+      (i32.add (i32.const 8))
+      (call $$gcalloc)
+      (local.tee $addr)
+      (local.tee $allocPointer)
+
+      ;; flip the sign bit of the new bigint
       (i32.const 1)
       (i32.load (local.get $x))
       (i32.sub)
       (i32.store)
+
       (i32.add (local.get $addr) (i32.const 4))
       (i32.add (local.get $x) (i32.const 4))
       (i32.load)
@@ -47,12 +60,8 @@ export const bignumfunctions = `
           )
         )
       )
-      (i32.const 0)
-      (i32.const 0)
-      (i32.load)
+      (local.get $allocPointer)
       (local.set $x)
-      (local.get $addr)
-      (i32.store)
     )
   )
   (local.get $x)

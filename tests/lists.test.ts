@@ -4,6 +4,7 @@ import { assert, asserts, assertPrint, assertTC } from "./utils.test";
 describe("LIST TEST", () => {
   //Programs described in the writeup, with additional changes
   //as necessary to actually test functionality
+
   var source = `
     x : [int] = None
     y : [int] = None
@@ -38,7 +39,6 @@ describe("LIST TEST", () => {
   `;
 
   assert("Program 3: Concat Lists", source, PyInt(6));
-
   var source = `
     items : [int] = None
     n : int = 10
@@ -226,4 +226,6 @@ describe("LIST TEST", () => {
   len(a)
   `;
   assert("List len 0", source, PyInt(0));
+
+  
 });
