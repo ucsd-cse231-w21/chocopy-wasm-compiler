@@ -540,8 +540,6 @@ function codeGenDestructure(
               `(i32.add ${startStarIndex.join("\n")} ${numStarElements.join("\n")})`,
             ];
 
-            // Should result in a list (i.e. a pointer to the beginning of the list)
-            const destinationList = codeGenExpr(target.target, env);
             const sourceList = [value];
             const incrementOffset = [
               ...offset,
@@ -549,15 +547,14 @@ function codeGenDestructure(
               `(i32.add)`,
               `(local.set $$destructListOffset)`,
             ];
-            let stmts: string[] = [
-              ...destinationList,
-              ...sourceList,
-              ...endStarIndex,
+            let copyListSlice: string[] = [
               ...startStarIndex,
-              //...codeGenListCopy(pleaseCopyListSubset),
-              ...incrementOffset,
+              ...endStarIndex,
+              ...sourceList,
+              //...codeGenListCopy(ListCopyMode.Slice),
             ];
-            return stmts;
+
+            return codeGenAssignable(assignable, copyListSlice, env).concat(incrementOffset);
           } else {
             const fieldValue = [`(i32.load (i32.add ${value} ${offset}))`];
             const incrementOffset = [
