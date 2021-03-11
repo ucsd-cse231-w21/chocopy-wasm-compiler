@@ -267,9 +267,10 @@ describe("Heap", () => {
       let allocatedNode: any;
 
       beforeEach(() => {
-        //Total size of 1400 with start at 0n and end at 1200n
+        // NOTE(alex:mm): address 0 is reserved for `None` values
+        //Total size of 1400 with start at 4n and end at 1200n
         var arr = new Uint8Array(1400);
-        fl = new FreeListAllocator(arr, 0n, 1200n);
+        fl = new FreeListAllocator(arr, 4n, 1200n);
       });
 
       // Checking for gcalloc:
@@ -310,9 +311,10 @@ describe("Heap", () => {
       let allocatedAddr2: any;
 
       beforeEach(() => {
-        // Total size of 1400 with start at 0 and end at 1200
+        // NOTE(alex:mm): address 0 is reserved for `None` values
+        // Total size of 1400 with start at 4 and end at 1200
         var arr = new Uint8Array(1400);
-        fl = new FreeListAllocator(arr, 0n, 1200n);
+        fl = new FreeListAllocator(arr, 4n, 1200n);
       });
 
       it("Should return the correct number of Nodes in the LinkedList once sweep() is called", () => {
