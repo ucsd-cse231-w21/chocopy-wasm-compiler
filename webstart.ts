@@ -226,23 +226,42 @@ function webStart() {
         hiderepl = false;
       }
     });
+    document.addEventListener("keypress", (e) => {
+      if (e.ctrlKey && e.key === 'r') {
+        repl = new BasicREPL(importObject);
+        const source = document.getElementById("user-code") as HTMLTextAreaElement;
+        resetRepl();
+        repl
+          .run(source.value)
+          .then((r) => {
+            renderResult(r);
+            console.log("run finished");
+          })
+          .catch((e) => {
+            renderError(e, source.value);
+            if(e.loc != undefined)
+              highlightLine(e.loc.line - 1, e.message);
+            console.log("run failed", e.stack);
+          });
+      }
+    });
     setupRepl();
   });
   window.addEventListener("resize", (event) => {
     var editor = document.getElementById("editor");
     var interactions = document.getElementById("interactions");
     if (window.innerWidth<840) {
-      editor.style.width = "96%";
-      interactions.style.width = "96%";
+      editor.style.width = "100%";
+      interactions.style.width = "100%";
     }
     else{
       if (hiderepl==false){
-        editor.style.width = "46%";
+        editor.style.width = "50%";
       }
       else{
-        editor.style.width = "96%";
+        editor.style.width = "100%";
       }
-      interactions.style.width = "46%";
+      interactions.style.width = "50%";
     }
   })
   window.addEventListener("load", (event) => {
@@ -300,6 +319,7 @@ function webStart() {
 
 
   });
+  
 }
 // Simple helper to highlight line given line number
 function highlightLine(actualLineNumber: number, msg: string): void {
