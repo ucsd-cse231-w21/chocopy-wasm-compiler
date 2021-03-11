@@ -1,6 +1,27 @@
 import { Value, Type } from "./ast";
 import { nTagBits } from "./compiler";
 
+export function stringify(result: Value): string {
+  switch (result.tag) {
+    case "num":
+      return result.value.toString();
+    case "bool":
+      return result.value ? "True" : "False";
+    case "string":
+      return result.value;
+    case "none":
+      return "None";
+    case "object":
+      return `<${result.name} object at ${result.address}`;
+    case "list":
+      return `<${result.name} at ${result.address}>`;
+    case "dict":
+      return `<${result.tag}<${result.key_type.tag}:${result.value_type.tag}> at ${result.address}>`;
+    default:
+      throw new Error(`Could not render value: ${result}`);
+  }
+}
+
 export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "string":
