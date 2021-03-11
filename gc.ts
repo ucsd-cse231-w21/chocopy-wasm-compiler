@@ -22,7 +22,7 @@ export const TAG_BIGINT = 0x5n;
 export const TAG_REF = 0x6n;
 export const TAG_DICT_ENTRY = 0x7n;
 export const TAG_CLOSURE = 0x8n;
-export const TAG_OPAQUE = 0x12n;           // NOTE(alex:mm) needed to mark zero-sized-types
+export const TAG_OPAQUE = 0x12n; // NOTE(alex:mm) needed to mark zero-sized-types
 
 // NOTE(alex:mm): controls whether any GC is ever run
 // Set to false to disable GC (meaning memory allocations will always accumulate)
@@ -422,13 +422,13 @@ export class MnS<A extends MarkableAllocator> {
         // Note(sagar): Memory layout is abstracted by allocator
         // childPtr always points to start of data, not header
         const dataBase = childPtr + 12n;
-        for(let dataPtr = dataBase; dataPtr < dataBase + listLength; dataPtr += 4n) {
+        for (let dataPtr = dataBase; dataPtr < dataBase + listLength; dataPtr += 4n) {
           const elementValue = this.getField(dataPtr);
 
-          if(isPointer(elementValue)) {
+          if (isPointer(elementValue)) {
             const fieldPointerValue = extractPointer(elementValue);
             // Check for None
-            if(fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
+            if (fieldPointerValue !== 0n && !this.isMarked(fieldPointerValue)) {
               this.setMarked(fieldPointerValue);
               worklist.push(fieldPointerValue);
             }
@@ -438,21 +438,22 @@ export class MnS<A extends MarkableAllocator> {
         // Just mark the pointer?
         this.setMarked(childPtr);
       } else if (childTag === TAG_DICT) {
-        for(let listIndex = childPtr; listIndex < childSize; listIndex += 4n ) {
+        for (let listIndex = childPtr; listIndex < childSize; listIndex += 4n) {
           // Trace each linked-list
           // NOTE(sagar): always assumed to be an address. Unnecessary to check
           let currListAddr = this.getField(listIndex);
-          while(currListAddr !== 0n) { // Not none
+          while (currListAddr !== 0n) {
+            // Not none
 
             const key = this.getField(currListAddr);
             const value = this.getField(currListAddr + 4n);
             // NOTE(sagar): keys probably can't be None
-            if(key !== 0n && isPointer(key)) {
+            if (key !== 0n && isPointer(key)) {
               worklist.push(key);
             }
 
             // Check for none
-            if(value !== 0n && isPointer(value)) {
+            if (value !== 0n && isPointer(value)) {
               worklist.push(value);
             }
             currListAddr = this.getField(currListAddr + 8n);
@@ -482,11 +483,12 @@ export class MnS<A extends MarkableAllocator> {
             worklist.push(pointerValue);
           }
         }
-
       } else if (childTag === TAG_OPAQUE) {
         // NOP
       } else {
-        throw new Error(`Trying to trace unknown heap object: { addr=${childPtr}, tag=${childTag.toString()}, size=${childSize} }`);
+        throw new Error(
+          `Trying to trace unknown heap object: { addr=${childPtr}, tag=${childTag.toString()}, size=${childSize} }`
+        );
       }
     }
   }
@@ -675,7 +677,7 @@ export class MarkableSegregator<S extends MarkableAllocator, L extends MarkableA
     this.allocator.large.sweep();
   }
 
-  memoryUsage(): bigint{
+  memoryUsage(): bigint {
     return this.allocator.small.memoryUsage() + this.allocator.large.memoryUsage();
   }
 }

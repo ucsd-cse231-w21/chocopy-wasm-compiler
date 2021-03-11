@@ -5,7 +5,12 @@ import { Value, Location } from "../ast";
 import { BasicREPL } from "../repl";
 import { MemoryManager } from "../alloc";
 
-export function assertUsage(name: string, source: string, expected: Value | undefined, postUsage: bigint) {
+export function assertUsage(
+  name: string,
+  source: string,
+  expected: Value | undefined,
+  postUsage: bigint
+) {
   it(name, async () => {
     const repl = new BasicREPL(importObject);
     const manager = repl.memoryManager;
@@ -39,8 +44,9 @@ export function assertsUsage(name: string, pairs: Array<[string, Value, BigInt]>
 describe("GC-MnS Integration Tests", () => {
   assertUsage("Program 1", "2 + 3", PyInt(2 + 3), 0n);
 
-  assertUsage("Program 2",
-  `class Foo(object):
+  assertUsage(
+    "Program 2",
+    `class Foo(object):
      a: int = 0
      b: int = 0
 
@@ -52,10 +58,12 @@ describe("GC-MnS Integration Tests", () => {
    x.a = 21
    x.a`,
     PyInt(21),
-    8n);
+    8n
+  );
 
-  assertUsage("Program 3",
-  `class DList(object):
+  assertUsage(
+    "Program 3",
+    `class DList(object):
      prev: DList = None
      next: DList = None
      v: int = 0
@@ -77,10 +85,12 @@ describe("GC-MnS Integration Tests", () => {
    d2.prev = d1
    d2.next = d0`,
     PyNone(),
-    36n);
+    36n
+  );
 
-  assertUsage("Program 4",
-  `class DList(object):
+  assertUsage(
+    "Program 4",
+    `class DList(object):
      prev: DList = None
      next: DList = None
      v: int = 0
@@ -105,9 +115,11 @@ describe("GC-MnS Integration Tests", () => {
 
    test()`,
     PyNone(),
-    0n);
+    0n
+  );
 
-  assertUsage("Program 5",
+  assertUsage(
+    "Program 5",
     `
     class Foo(object):
       a: int = 0
@@ -122,10 +134,12 @@ describe("GC-MnS Integration Tests", () => {
     x.a = 21
     x.a`,
     PyInt(21),
-    8n);
+    8n
+  );
 
   assertsUsage("Program 6", [
-    [ `
+    [
+      `
       class Foo(object):
         f: Foo = None
 
@@ -133,13 +147,14 @@ describe("GC-MnS Integration Tests", () => {
       x = Foo()
       x.f = Foo()`,
       PyNone(),
-      8n
+      8n,
     ],
-    ["x = None", PyNone(), 0n]
+    ["x = None", PyNone(), 0n],
   ]);
 
   assertsUsage("Program 7", [
-    [ `
+    [
+      `
 
       class Foo(object):
         a: int = 0
@@ -155,13 +170,14 @@ describe("GC-MnS Integration Tests", () => {
       // Taken from "list-expr" codegen in compiler.ts
       //   alloc size: (listBound + 3) * 4
       // +16 for the two Foo's
-      16n + ((3n + 10n) * 2n + 3n) * 4n
+      16n + ((3n + 10n) * 2n + 3n) * 4n,
     ],
-    ["x = None", PyNone(), 16n]
+    ["x = None", PyNone(), 16n],
   ]);
 
   assertsUsage("Program 8", [
-    [`
+    [
+      `
       def f(x: int) -> Callable[[],int]:
         def inc() -> int:
           nonlocal x
@@ -175,14 +191,14 @@ describe("GC-MnS Integration Tests", () => {
       i()
       i()`,
       PyInt(2),
-      12n
+      12n,
     ],
-    [`i = None`, PyNone(), 0n]
-
+    [`i = None`, PyNone(), 0n],
   ]);
 
   assertsUsage("Program 9", [
-    [`
+    [
+      `
       class Foo(object):
         a: int = 0
 
@@ -200,7 +216,8 @@ describe("GC-MnS Integration Tests", () => {
     [`o = f(0)`, PyNone(), 4n],
   ]);
 
-  assertUsage("Program 10",
+  assertUsage(
+    "Program 10",
     `
     class Foo():
       a: int = 0
@@ -227,6 +244,6 @@ describe("GC-MnS Integration Tests", () => {
     y.a
     `,
     PyInt(99),
-    4n);
-
+    4n
+  );
 });

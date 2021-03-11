@@ -21,7 +21,6 @@ import {
 import { Pointer } from "../alloc";
 
 class PhantomAllocator implements MarkableAllocator {
-
   heap: MarkableAllocator;
   map: Map<BigInt, Header>;
 
@@ -81,7 +80,9 @@ class PhantomAllocator implements MarkableAllocator {
       throw new Error(`Missing header for ${ptr}`);
     }
     if (result.headerStart !== tracked.headerStart) {
-      throw new Error(`Header starts not equal: { result: ${result.headerStart}, tracked: ${tracked.headerStart}}`);
+      throw new Error(
+        `Header starts not equal: { result: ${result.headerStart}, tracked: ${tracked.headerStart}}`
+      );
     }
 
     return result;
@@ -139,16 +140,15 @@ function expectFreeHeader(header: Header, tag: HeapTag, size: bigint) {
 }
 
 type Cfg = {
-  heap: PhantomAllocator,
-  memory: Uint8Array,
-  name: string,
-  kind: "freelist" | "bitmap"
-}
+  heap: PhantomAllocator;
+  memory: Uint8Array;
+  name: string;
+  kind: "freelist" | "bitmap";
+};
 
 // GC mark-and-sweep unit tests under controlled conditions
 describe("GC-MnS", () => {
   describe("GC-MnS-BitMappedBlocks-1", () => {
-
     function makeCfg(): Cfg {
       const memory = new Uint8Array(1000);
       const bmb = new BitMappedBlocks(100n, 1000n, 4n, BigInt(HEADER_SIZE_BYTES));
@@ -170,7 +170,6 @@ describe("GC-MnS", () => {
   // NOTE(alex:mm): relies on HEADER_SIZE_BYTES === 8
   // FreeListAllocator puts headers in memory
   describe("GC-MnS-FreeList-1", () => {
-
     function makeCfg(): Cfg {
       const memory = new Uint8Array(1000);
       const alloc = new FreeListAllocator(memory, 100n, 1000n);
@@ -198,7 +197,6 @@ describe("GC-MnS", () => {
 //   * start: 100
 //   * end:   1000
 function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
-
   // Simulating:
   // class C:
   //   f: int
@@ -242,11 +240,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
 
     // Check that headers set correctly
     {
-      const headers = [
-        heap.mappedHeader(ptr0),
-        heap.mappedHeader(ptr1),
-        heap.mappedHeader(ptr2)
-      ];
+      const headers = [heap.mappedHeader(ptr0), heap.mappedHeader(ptr1), heap.mappedHeader(ptr2)];
       headers.forEach((h, index) => {
         console.log(`Checking header: ${index}...`);
         expectAllocatedHeader(h, TAG_CLASS, 4n);
@@ -270,11 +264,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     mns.collect();
     // Check that ptr0, ptr1, ptr2 is freed
     {
-      const headers = [
-        heap.mappedHeader(ptr0),
-        heap.mappedHeader(ptr1),
-        heap.mappedHeader(ptr2)
-      ];
+      const headers = [heap.mappedHeader(ptr0), heap.mappedHeader(ptr1), heap.mappedHeader(ptr2)];
       headers.forEach((h, index) => {
         // console.warn(`Checking header: ${index}...`);
         expectFreeHeader(h, TAG_CLASS, 4n);
@@ -326,11 +316,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
 
     // Check that headers set correctly
     {
-      const headers = [
-        heap.mappedHeader(ptr0),
-        heap.mappedHeader(ptr1),
-        heap.mappedHeader(ptr2)
-      ];
+      const headers = [heap.mappedHeader(ptr0), heap.mappedHeader(ptr1), heap.mappedHeader(ptr2)];
       headers.forEach((h, index) => {
         console.log(`Checking header: ${index}...`);
         expectAllocatedHeader(h, TAG_CLASS, 4n);
@@ -339,11 +325,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     mns.collect();
     // Check that all temps are still allocated
     {
-      const headers = [
-        heap.mappedHeader(ptr0),
-        heap.mappedHeader(ptr1),
-        heap.mappedHeader(ptr2)
-      ];
+      const headers = [heap.mappedHeader(ptr0), heap.mappedHeader(ptr1), heap.mappedHeader(ptr2)];
       headers.forEach((h, index) => {
         console.log(`Checking header: ${index}...`);
         expectAllocatedHeader(h, TAG_CLASS, 4n);
@@ -354,11 +336,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     mns.collect();
     // Check that ptr0, ptr1, ptr2 is freed
     {
-      const headers = [
-        heap.mappedHeader(ptr0),
-        heap.mappedHeader(ptr1),
-        heap.mappedHeader(ptr2)
-      ];
+      const headers = [heap.mappedHeader(ptr0), heap.mappedHeader(ptr1), heap.mappedHeader(ptr2)];
       headers.forEach((h, index) => {
         // console.warn(`Checking header: ${index}...`);
         expectFreeHeader(h, TAG_CLASS, 4n);
@@ -420,11 +398,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
 
     // Check that headers set correctly
     {
-      const headers = [
-        heap.mappedHeader(ptr0),
-        heap.mappedHeader(ptr1),
-        heap.mappedHeader(ptr2)
-      ];
+      const headers = [heap.mappedHeader(ptr0), heap.mappedHeader(ptr1), heap.mappedHeader(ptr2)];
       headers.forEach((h, index) => {
         console.log(`Checking header: ${index}...`);
         expectAllocatedHeader(h, TAG_CLASS, 4n);
@@ -435,10 +409,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
     mns.collect();
     // Check that global roots are not collected
     {
-      const headers = [
-        heap.mappedHeader(ptr0),
-        heap.mappedHeader(ptr1),
-      ];
+      const headers = [heap.mappedHeader(ptr0), heap.mappedHeader(ptr1)];
       headers.forEach((h, index) => {
         console.log(`Checking header: ${index}...`);
         expectAllocatedHeader(h, TAG_CLASS, 4n);
@@ -458,10 +429,7 @@ function basicTests(cfgs: [Cfg, Cfg, Cfg]) {
 
     // Check that global roots are not collected
     {
-      const headers = [
-        heap.mappedHeader(ptr0),
-        heap.mappedHeader(ptr3),
-      ];
+      const headers = [heap.mappedHeader(ptr0), heap.mappedHeader(ptr3)];
       headers.forEach((h, index) => {
         console.log(`Checking header: ${index}...`);
         expectAllocatedHeader(h, TAG_CLASS, 4n);

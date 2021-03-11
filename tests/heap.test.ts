@@ -1,17 +1,21 @@
 import "mocha";
 import { expect } from "chai";
 import { BitMappedBlocks } from "../heap";
-import { MarkableSegregator, TAG_CLASS, TAG_CLOSURE, TAG_REF, HEADER_SIZE_BYTES, TAG_LIST} from "../gc";
+import {
+  MarkableSegregator,
+  TAG_CLASS,
+  TAG_CLOSURE,
+  TAG_REF,
+  HEADER_SIZE_BYTES,
+  TAG_LIST,
+} from "../gc";
 
 describe("Heap", () => {
-
   // Unit tests for BitMappedBlock heap implementation
   describe("BitMappedBlock", () => {
-
     // Problematic allocation requests
     // Based on failing tests/programs
     describe("Problematic alloc pattern", () => {
-
       it("Closure test 7 alloc pattern part2", () => {
         const bmb = new BitMappedBlocks(516n, 772n, 4n, BigInt(HEADER_SIZE_BYTES));
         const fl = new BitMappedBlocks(772n, 2000n, 4n, BigInt(HEADER_SIZE_BYTES));
@@ -77,10 +81,8 @@ describe("Heap", () => {
       });
     });
 
-
     // Test for block allocation strategy
     describe("Number of blocks", () => {
-
       let bmb: BitMappedBlocks;
 
       beforeEach(() => {
@@ -90,7 +92,7 @@ describe("Heap", () => {
 
       it("Should initialize with correct number of blocks", () => {
         expect(bmb.getNumFreeBlocks()).to.eq(90);
-      })
+      });
 
       it("Should allocate appropriate number of blocks", () => {
         const ptr1 = bmb.gcalloc(TAG_CLASS, 25n);
@@ -156,7 +158,7 @@ describe("Heap", () => {
       });
 
       it("returns the right index for the first free available block", () => {
-        console.log(bmb.getBlockIndex(10n))
+        console.log(bmb.getBlockIndex(10n));
         expect(Number(bmb.getBlockIndex(10n))).to.eq(0);
       });
 
@@ -170,7 +172,6 @@ describe("Heap", () => {
         // Anything smaller than 10 => 1
         expect(Number(bmb.getBlockIndex(8n))).to.eq(1);
       });
-
     });
 
     describe("misc", () => {
@@ -202,7 +203,7 @@ describe("Heap", () => {
       });
 
       it("should return the appropriate description", () => {
-        const expectedStr = `BitMapped { Max blocks: ${90}, block size: ${10}, free blocks: ${90}, start: ${100}, end: ${1000}, metadataSize: ${9} } `
+        const expectedStr = `BitMapped { Max blocks: ${90}, block size: ${10}, free blocks: ${90}, start: ${100}, end: ${1000}, metadataSize: ${9} } `;
         expect(bmb.description()).to.eq(expectedStr);
       });
 

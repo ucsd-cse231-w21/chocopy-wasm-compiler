@@ -231,7 +231,7 @@ export function compile(
     main: true,
     debug: {
       name: "entry",
-    }
+    },
   });
   withDefines.locals.clear();
 
@@ -577,7 +577,11 @@ function myMemAlloc(name: string, sizeInValueCount: number, closure?: boolean): 
   const allocs: Array<string> = [];
   const sizeInBytes = sizeInValueCount * 4;
   let tag = closure ? TAG_CLOSURE : TAG_REF;
-  allocs.push(`(i32.const ${Number(closure ? TAG_CLOSURE : TAG_REF)}) ;; heap-tag: ${closure ? "closure" : "ref"}`);
+  allocs.push(
+    `(i32.const ${Number(closure ? TAG_CLOSURE : TAG_REF)}) ;; heap-tag: ${
+      closure ? "closure" : "ref"
+    }`
+  );
   allocs.push(`(i32.const ${sizeInBytes})`);
   allocs.push(`(call $$gcalloc)`);
   allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
@@ -688,7 +692,7 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
     main: false,
     debug: {
       name: def.name,
-    }
+    },
   });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
@@ -741,7 +745,7 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
     main: false,
     debug: {
       name: def.name,
-    }
+    },
   });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
@@ -877,17 +881,7 @@ function codeGenListCopy(concat: number): Array<string> {
 
     //while loop structure
     stmts.push(
-      ...[
-        `(block`,
-        `(loop`,
-        `(br_if 1`,
-        ...condstmts,
-        `)`,
-        ...loopstmts,
-        `(br 0)`,
-        `)`,
-        `)`,
-      ]
+      ...[`(block`, `(loop`, `(br_if 1`, ...condstmts, `)`, ...loopstmts, `(br 0)`, `)`, `)`]
     );
   });
 
@@ -1146,12 +1140,14 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
 
       // NOTE(alex:mm) $$allocPointer clobbered by recurse codegen
       //   Should be fine in this context
-      stmts.push(...[
-        `(i32.const ${TAG_LIST}) ;; heap-tag: list`,
-        `(i32.const ${(listBound + 3) * 4})`,
-        `(call $$gcalloc)`,
-        `(local.set $$allocPointer)`,
-      ]);
+      stmts.push(
+        ...[
+          `(i32.const ${TAG_LIST}) ;; heap-tag: list`,
+          `(i32.const ${(listBound + 3) * 4})`,
+          `(call $$gcalloc)`,
+          `(local.set $$allocPointer)`,
+        ]
+      );
 
       listHeader.forEach((val) => {
         stmts.push(
@@ -1179,9 +1175,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       });
 
       //Move heap head to the end of the list and return list address
-      return stmts.concat([
-        `(local.get $$allocPointer)`,
-      ]);
+      return stmts.concat([`(local.get $$allocPointer)`]);
 
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
