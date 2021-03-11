@@ -2,12 +2,23 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "noImplicitAny": true,
-    "sourceMap": true,
-    "target": "es2019",
+    "module": "es6",
+    "target": "es5",
     "allowJs": true,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "lib": ["es2019", "dom"],
+    "skipLibCheck": true,
+    "typeRoots": [
+	"node_modules/@types",
+	"custom_types/"
+    ],
+    "types": [
+      "node"
+    ]
+  },
+  "node": {
+    "fs": "empty"
   }
 }
+
