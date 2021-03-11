@@ -586,7 +586,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
             let tUpdate = tcExpr(env, locals, isArgDict);
             return {
               ...expr,
-              a: { tag: "none" },
+              a: NONE,
               obj: tObj,
               arguments: [tUpdate],
             };
@@ -613,7 +613,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       let dictType: Type;
       // check for the empty dict, example: d = {} -> returns `none`
       if (!entries?.length) {
-        dictType = { tag: "dict", key: { tag: "none" }, value: { tag: "none" } };
+        dictType = { tag: "dict", key: NONE, value: NONE };
         let dictAnnotated = { ...expr, a: dictType, entries: entries };
         return dictAnnotated;
       } else {
