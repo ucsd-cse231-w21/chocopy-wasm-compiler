@@ -27,6 +27,7 @@ import {
   TAG_STRING,
 } from "./alloc";
 import { augmentFnGc } from "./compiler-gc";
+import { defaultMaxListeners } from "stream";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -1052,6 +1053,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       ]);
     case "method-call":
       var objType = expr.obj.a[0];
+      //Object method calls
       if (objType.tag === "class") {
         let clsName = objType.name;
         let argsExprs = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
@@ -1076,32 +1078,9 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           //Regular class object calls
           return [...codeGenExpr(expr.obj, env), ...argsExprs, `(call $${clsName}$${expr.method})`];
         }
+        //Dict method calls
       } else if (objType.tag === "dict") {
-        //Handle method calls for dict objects
-        var objStmts = codeGenExpr(expr.obj, env);
-        if (expr.method === "get") {
-          let argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-          return [...objStmts, ...argsStmts, `(call $dict$get)`];
-        } else if (expr.method === "update") {
-          if (expr.arguments[0].tag === "dict") {
-            let dictStmts: Array<string> = [];
-            let dictAddress: Array<string> = [];
-            expr.arguments[0].entries.forEach((keyval) => {
-              dictAddress = dictAddress.concat(...objStmts); //pushing the dict base address for each key-value pair update call
-              const value = codeGenExpr(keyval[1], env);
-              dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], value, 10, env));
-            });
-            return [...dictAddress, ...dictStmts, "(i32.const 0)"]; //last parameter to indicate none is being returned by this function
-          } else {
-            throw new BaseException.InternalException(
-              "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
-            );
-          }
-        } else {
-          throw new BaseException.InternalException(
-            "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
-          );
-        }
+        return codeGenDictMethods(expr.obj, expr.method, expr.arguments, env);
       } else {
         // I don't think this error can happen
         throw new BaseException.InternalException(
@@ -1263,6 +1242,42 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
     default:
       unhandledTag(expr);
+  }
+}
+
+function codeGenDictMethods(
+  obj: Expr<[Type, Location]>,
+  method: string,
+  args: Array<Expr<[Type, Location]>>,
+  env: GlobalEnv
+): Array<string> {
+  let dictMethodStmts: Array<string> = [];
+  var objStmts = codeGenExpr(obj, env);
+  switch (method) {
+    case "get":
+      var argsStmts = args.map((arg) => codeGenExpr(arg, env)).flat();
+      return [...objStmts, ...argsStmts, `(call $dict$get)`];
+    case "update":
+      if (args[0].tag === "dict") {
+        let dictStmts: Array<string> = [];
+        let dictAddress: Array<string> = [];
+        args[0].entries.forEach((keyval) => {
+          dictAddress = dictAddress.concat(...objStmts); //pushing the dict base address for each key-value pair update call
+          const value = codeGenExpr(keyval[1], env);
+          dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], value, 10, env));
+        });
+        return [...dictAddress, ...dictStmts, "(i32.const 0)"]; //last parameter to indicate none is being returned by this function
+      } else {
+        throw new BaseException.InternalException(
+          "Update doesn't support any other type of arguments other than a dict"
+        );
+      }
+    case "pop":
+    case "clear":
+      var argsStmts = args.map((arg) => codeGenExpr(arg, env)).flat();
+      return [...objStmts, ...argsStmts, `(call $dict$${method})`];
+    default:
+      throw new BaseException.InternalException("Unsupported dict method call");
   }
 }
 
