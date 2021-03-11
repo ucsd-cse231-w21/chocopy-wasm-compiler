@@ -697,7 +697,8 @@ export function constrainExprType(
     case "id": {
       if (locEnv.vars.has(expr.name)) {
         const a = locEnv.vars.get(expr.name);
-        if (a === FAILEDINFER) {
+        // a === undefined == expr.a === FAILEDINFER
+        if (a === undefined) {
           locEnv.vars.set(expr.name, type_);
           return [Action.None, { ...expr, a: type_ }];
         } else if (!isSubtype(globEnv, a, type_)) {
@@ -751,36 +752,49 @@ export function annotateExpr(
       let [s1, left] = annotateExpr(expr.left, globEnv, locEnv, topLevel);
       let [s2, right] = annotateExpr(expr.right, globEnv, locEnv, topLevel);
       let s = joinAction(s1, s2);
-      const tryConstrainExprType = (x: Expr<Type>) => {
-        if (x.a === FAILEDINFER) {
-          switch (expr.op) {
-            case BinOp.Minus:
-            case BinOp.Mul:
-            case BinOp.IDiv:
-            case BinOp.Mod:
-            case BinOp.Gt:
-            case BinOp.Gte:
-            case BinOp.Lt:
-            case BinOp.Lte: {
-              let [s_, x_] = constrainExprType(x, NUM, globEnv, locEnv);
-              x = x_;
-              s = joinAction(s, s_);
-              break
+      if ((left.a === FAILEDINFER || right.a === FAILEDINFER)
+      && !(left.a === FAILEDINFER && right.a === FAILEDINFER)) {
+        switch (expr.op) {
+          case BinOp.Plus: {
+            let s_;
+            if (left.a === FAILEDINFER) {
+              [s_, left] = constrainExprType(left, right.a, globEnv, locEnv);
+            } else {
+              [s_, right] = constrainExprType(right, left.a, globEnv, locEnv);
             }
-            case BinOp.Or:
-            case BinOp.And: {
-              let [s_, x_] = constrainExprType(x, BOOL, globEnv, locEnv);
-              x = x_;
-              s = joinAction(s, s_);
-              break
+            s = joinAction(s, s_);
+            break
+          }
+          case BinOp.Minus:
+          case BinOp.Mul:
+          case BinOp.IDiv:
+          case BinOp.Mod:
+          case BinOp.Gt:
+          case BinOp.Gte:
+          case BinOp.Lt:
+          case BinOp.Lte: {
+            let s_;
+            if (left.a === FAILEDINFER) {
+              [s_, left] = constrainExprType(left, NUM, globEnv, locEnv);
+            } else {
+              [s_, right] = constrainExprType(right, NUM, globEnv, locEnv);
             }
+            s = joinAction(s, s_);
+            break
+          }
+          case BinOp.Or:
+          case BinOp.And: {
+            let s_;
+            if (left.a === FAILEDINFER) {
+              [s_, left] = constrainExprType(left, BOOL, globEnv, locEnv);
+            } else {
+              [s_, right] = constrainExprType(right, BOOL, globEnv, locEnv);
+            }
+            s = joinAction(s, s_);
+            break
           }
         }
-      };
-      // if left or right is FAILEDINFER, we constrain their types by the
-      // concrete binary operator being used
-      tryConstrainExprType(left);
-      tryConstrainExprType(right);
+      }
       const expr_: Expr<Type> = { tag: "binop", op: expr.op, left, right };
       const a = inferExprType(expr_, globEnv, locEnv);
       return [s, { ...expr_, a }];
