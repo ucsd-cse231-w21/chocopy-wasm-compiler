@@ -488,11 +488,12 @@ export function tcStmt(
       // locals.vars.delete(stmt.name);
       locals.loop_depth = last_depth;
       // return type checked stmt
+      console.log("here 1");
       return {
         a: [NONE, stmt.a],
         id: stmt.id,
         tag: "for",
-        name: tcDestructure(env, locals, stmt.name, iter_type, stmt.iterable), // change NUM to fix this issue
+        name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable), // change NUM to fix this issue
         iterable: fIter,
         body: fBody,
       };
@@ -586,7 +587,7 @@ function tcDestructure(
       targets: [target],
     };
   }
-
+  console.log("here2")
   let types: Type[] = [];
   if (value.tag === "class") {
     // This is a temporary hack to get destructuring working (reuse for tuples later?)
@@ -612,6 +613,7 @@ function tcDestructure(
         throw new BaseException.CompileError(destruct.valueType, "Starred values not supported");
       }
       let valueType = types[i + starOffset];
+      console.log(target.target.tag + valueType);
       return tcTarget(target, valueType);
     });
 
