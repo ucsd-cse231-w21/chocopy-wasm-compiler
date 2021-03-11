@@ -332,9 +332,11 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
     case "call":
       if (globEnv.classes.has(expr.name)) {
         return CLASS(expr.name);
-      } if (globEnv.inferred_functions.has(expr.name)) {
-        return globEnv.inferred_functions.get(expr.name)[1];
-      } else if (globEnv.functions.has(expr.name)) {
+      } 
+      // if (globEnv.inferred_functions.has(expr.name)) {
+      //   return globEnv.inferred_functions.get(expr.name)[1];
+      // } 
+      else if (globEnv.functions.has(expr.name)) {
         let [_, retType] = globEnv.functions.get(expr.name);
         return retType;
       } else {
@@ -657,24 +659,26 @@ export function constrainExprType(
     // original type
     case "call": {
       let retType;
-      if (!globEnv.functions.has(expr.name) && !globEnv.inferred_functions.has(expr.name)) {
+      if (!globEnv.functions.has(expr.name)
+      // && !globEnv.inferred_functions.has(expr.name)
+      ) {
         throw new Error(`Not a known function: ${expr.name}`);
       // inferred_functions contain functions that did not have fully specified
       // types
-      } else if (globEnv.inferred_functions.has(expr.name)) {
-        retType = globEnv.inferred_functions.get(expr.name)[1];
-        if (isSubtype(globEnv, retType, type_)) {
-          return [Action.None, { ...expr }];
-        } else {
-          const [argTypes, retType_] = globEnv.inferred_functions.get(expr.name);
-          const joinedRetType = joinType(retType, retType_, globEnv);
-          if (joinedRetType === UNSAT) {
-            return [Action.None, { ...expr, a: UNSAT }];
-          } else {
-            globEnv.inferred_functions.set(expr.name, [argTypes, joinedRetType]);
-            return [Action.Repeat, { ...expr, a: joinedRetType }];
-          }
-        }
+      // } else if (globEnv.inferred_functions.has(expr.name)) {
+      //   retType = globEnv.inferred_functions.get(expr.name)[1];
+      //   if (isSubtype(globEnv, retType, type_)) {
+      //     return [Action.None, { ...expr }];
+      //   } else {
+      //     const [argTypes, retType_] = globEnv.inferred_functions.get(expr.name);
+      //     const joinedRetType = joinType(retType, retType_, globEnv);
+      //     if (joinedRetType === UNSAT) {
+      //       return [Action.None, { ...expr, a: UNSAT }];
+      //     } else {
+      //       globEnv.inferred_functions.set(expr.name, [argTypes, joinedRetType]);
+      //       return [Action.Repeat, { ...expr, a: joinedRetType }];
+      //     }
+      //   }
       } else {
         retType = globEnv.functions.get(expr.name)[1];
         // If the return type is none, one possibility is that user chose to
@@ -682,8 +686,8 @@ export function constrainExprType(
         if (retType === NONE && type_ !== NONE) {
           const argTypes = globEnv.functions.get(expr.name)[0];
           const retType_ = type_;
-          globEnv.functions.delete(expr.name);
-          globEnv.inferred_functions.set(expr.name, [argTypes, retType_]);
+          // globEnv.functions.delete(expr.name);
+          //globEnv.inferred_functions.set(expr.name, [argTypes, retType_]);
           return [Action.Repeat, { ...expr, a: type_ }];
         }
         // If a function has a user specified return type that is not NONE, the
@@ -877,40 +881,41 @@ export function annotateExpr(
 
       // we check with the inferred function map first since all changes the
       // algorithem makes to the function sigs go there
-      if (globEnv.inferred_functions.has(expr.name)) {
-        let [inferredArgTypes, inferredRetType] = globEnv.inferred_functions.get(expr.name);
-        let arguments__ = [];
-        // we iterate through the annotated arguments. For any argument that the
-        // algorithm annotated with a concrete type, we check that the result is
-        // compatible with the correponding function argument type. If the
-        // argument is FAILEDINFER, we look at the known argument types from the
-        // function signature and impose that as a constraint on the argument.
-        for (const [i, arg] of arguments_.entries()) {
-          if (arg.a === FAILEDINFER) {
-            const t_ = inferredArgTypes[i];
-            // argument index out of bounds
-            if (i > inferredArgTypes.length - 1) {
-              return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
-            } else if (t_ === undefined || t_ === FAILEDINFER) {
-              return [Action.None, { ...expr, arguments: arguments_, a: FAILEDINFER }];
-            } else {
-              const [s_, arg_] = constrainExprType(arg, t_, globEnv, locEnv);
-              s = joinAction(s, s_);
-              arguments__.push(arg_);
-            }
-          } else if (inferredArgTypes[i] === FAILEDINFER) {
-            // If the argument is not FAILEDINFER, and if the function
-            // signature's corresponding argument is FAILEDINFER, we update the
-            // function signature with the inferred type
-            inferredArgTypes[i] = arg.a;
-            arguments__.push(arg);
-          } else {
-            arguments__.push(arg);
-          }
-        }
-        globEnv.inferred_functions.set(expr.name, [inferredArgTypes, inferredRetType]);
-        arguments_ = [...arguments__];
-      } else if (globEnv.functions.has(expr.name)) {
+      // if (globEnv.inferred_functions.has(expr.name)) {
+      //   let [inferredArgTypes, inferredRetType] = globEnv.inferred_functions.get(expr.name);
+      //   let arguments__ = [];
+      //   // we iterate through the annotated arguments. For any argument that the
+      //   // algorithm annotated with a concrete type, we check that the result is
+      //   // compatible with the correponding function argument type. If the
+      //   // argument is FAILEDINFER, we look at the known argument types from the
+      //   // function signature and impose that as a constraint on the argument.
+      //   for (const [i, arg] of arguments_.entries()) {
+      //     if (arg.a === FAILEDINFER) {
+      //       const t_ = inferredArgTypes[i];
+      //       // argument index out of bounds
+      //       if (i > inferredArgTypes.length - 1) {
+      //         return [Action.None, { ...expr, arguments: arguments_, a: UNSAT }];
+      //       } else if (t_ === undefined || t_ === FAILEDINFER) {
+      //         return [Action.None, { ...expr, arguments: arguments_, a: FAILEDINFER }];
+      //       } else {
+      //         const [s_, arg_] = constrainExprType(arg, t_, globEnv, locEnv);
+      //         s = joinAction(s, s_);
+      //         arguments__.push(arg_);
+      //       }
+      //     } else if (inferredArgTypes[i] === FAILEDINFER) {
+      //       // If the argument is not FAILEDINFER, and if the function
+      //       // signature's corresponding argument is FAILEDINFER, we update the
+      //       // function signature with the inferred type
+      //       inferredArgTypes[i] = arg.a;
+      //       arguments__.push(arg);
+      //     } else {
+      //       arguments__.push(arg);
+      //     }
+      //   }
+      //   globEnv.inferred_functions.set(expr.name, [inferredArgTypes, inferredRetType]);
+      //   arguments_ = [...arguments__];
+      // } else 
+      if (globEnv.functions.has(expr.name)) {
         const [argTypes, retType] = globEnv.functions.get(expr.name);
         let arguments__ = [];
         // If the function doesn't have inferred types, we first check that all
@@ -923,8 +928,10 @@ export function annotateExpr(
           // inferred_functions map and repeat. NOTE: this only takes care of
           // missing parameter types--constrainExprType takes care of missing
           // return types.
-          globEnv.functions.delete(expr.name);
-          globEnv.inferred_functions.set(expr.name, [argTypes, retType]);
+
+
+          // TODO: fill in the parameter types here  
+
           return annotateExpr(expr, globEnv, locEnv, topLevel);
         } else {
           for (const [i, arg] of arguments_.entries()) {
@@ -1244,6 +1251,21 @@ export function annotateAST(globEnv: GlobalTypeEnv, program: Program<null>): [Gl
   //     closeOpenTypes(newEnv, st);
   //   }
   // }
+
+  for (const [name, [argTypes, retType]] of newEnv.functions.entries()) {
+    for (var fundef of program.funs) {
+      if (fundef.name === name) {
+        for (const [i, argType] of argTypes.entries()) {
+          fundef.parameters[i].type = argType;
+        }
+        fundef.ret = retType;
+      }
+    }
+  }
+
+  // for (const [name, [fields, methods]] of newEnv.classes.entries()) {
+  // }
+
   return [newEnv, { ...program, stmts }]
 }
 
