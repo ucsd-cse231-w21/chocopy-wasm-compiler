@@ -49,6 +49,7 @@ function prettyPrintDictionary(result: any, repl: BasicREPL, currentEle: any) {
   const addr = document.createElement("p");
   addr.innerHTML = "<b class='tag'>address: </b><p class='val'>" + result.address + "</p>";
   div.appendChild(addr);
+  addr.setAttribute("class","info");
 
   var i = 0;
   for (i = 0; i < hashtableSize; i++) {
@@ -96,6 +97,7 @@ function printDictionaryLLHelper(
   }
 
   currentEle.appendChild(ele);
+  ele.setAttribute("class","info");
 
   console.log(key, value);
   if (next_ptr != 0) {
@@ -117,6 +119,8 @@ function prettyPrintClassObject(result: any, repl: BasicREPL, currentEle: any) {
 
   exp.innerHTML = "<i class='arrow' id='arrow'></i> " + result.name + " object";
   div.appendChild(addr);
+  addr.setAttribute("class","info");
+  //div.appendChild(document.createElement("br"));
 
   cls.forEach((value, key) => {
     var offset = value[0];
@@ -189,6 +193,8 @@ function prettyPrintClassObject(result: any, repl: BasicREPL, currentEle: any) {
         break;
     }
     div.appendChild(ele);
+    ele.setAttribute("class","info");
+    //div.appendChild(document.createElement("br"));
   });
 
   currentEle.appendChild(exp);
@@ -212,6 +218,7 @@ function prettyPrintList(result: any, repl: BasicREPL, currentEle: any) {
   const addr = document.createElement("p");
   addr.innerHTML = "<b class='tag'>address: </b><p class='val'>" + result.address + "</p>";
   div.appendChild(addr);
+  addr.setAttribute("class","info");
 
   var i = 0;
   for (i = 0; i < size; i++) {
@@ -246,6 +253,7 @@ function prettyPrintList(result: any, repl: BasicREPL, currentEle: any) {
         break;
     }
     div.appendChild(ele);
+    ele.setAttribute("class","info");
   }
   currentEle.appendChild(exp);
   currentEle.appendChild(div);

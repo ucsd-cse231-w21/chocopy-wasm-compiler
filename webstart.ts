@@ -74,6 +74,7 @@ function webStart() {
           const output = document.createElement("div");
           const prompt = document.createElement("span");
           prompt.innerText = "»";
+          prompt.setAttribute("class","prompt");
           output.appendChild(prompt);
           const elt = document.createElement("textarea");
           // elt.type = "text";
@@ -184,21 +185,44 @@ function webStart() {
         hiderepl = false;
       }
     });
+    document.addEventListener("keypress", (e) => {
+      if (e.ctrlKey && e.key === 'r') {
+        repl = new BasicREPL(importObject);
+        const source = document.getElementById("user-code") as HTMLTextAreaElement;
+        resetRepl();
+        repl
+          .run(source.value)
+          .then((r) => {
+            renderResult(r);
+            console.log("run finished");
+          })
+          .catch((e) => {
+            renderError(e, source.value);
+            if(e.loc != undefined)
+              highlightLine(e.loc.line - 1, e.message);
+            console.log("run failed", e.stack);
+          });
+      }
+    });
     setupRepl();
   });
   window.addEventListener("resize", (event) => {
     var editor = document.getElementById("editor");
     var interactions = document.getElementById("interactions");
-    if (window.innerWidth < 840) {
-      editor.style.width = "96%";
-      interactions.style.width = "96%";
-    } else {
-      if (hiderepl == false) {
-        editor.style.width = "46%";
-      } else {
-        editor.style.width = "96%";
+
+    if (window.innerWidth<840) {
+      editor.style.width = "100%";
+      interactions.style.width = "100%";
+    }
+    else{
+      if (hiderepl==false){
+        editor.style.width = "50%";
       }
-      interactions.style.width = "46%";
+      else{
+        editor.style.width = "100%";
+
+      }
+      interactions.style.width = "50%";
     }
   });
   window.addEventListener("load", (event) => {
@@ -253,6 +277,7 @@ function webStart() {
       editor.setOption("theme", themeDropDown.value);
     });
   });
+  
 }
 // Simple helper to highlight line given line number
 function highlightLine(actualLineNumber: number, msg: string): void {
