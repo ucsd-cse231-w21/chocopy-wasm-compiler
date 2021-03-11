@@ -124,6 +124,12 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             left: args[0],
             right: args[1],
           };
+        } else if (callName === "range") {
+          expr = {
+            tag: "call",
+            name: callName,
+            arguments: args,
+          };
         } else {
           expr = {
             a: location,
@@ -786,7 +792,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
     c.nextSibling(); // arg or ]
     var temp = c;
     while (temp.type.name !== "]") {
-      if (temp.type.name !== "VariableName") {
+      if (temp.type.name !== "VariableName" && temp.type.name !== "MemberExpression") {
         throw new BaseException.CompileError(location, "Invalid Callable arg type");
       }
       args.push(traverseType(c, s));

@@ -269,10 +269,15 @@ describe("parse(source) function", () => {
 });
 
 describe("parse(source) function", () => {
-  it.skip("parse a Callable[[], None] type initialization", () => {
+  it("parse a Callable[[], None] type initialization", () => {
     const parsed = parse("f:Callable[[], None] = None");
     expect(parsed.inits).to.deep.equal([
       {
+        a: {
+          col: 0,
+          length: 27,
+          line: 1,
+        },
         name: "f",
         type: {
           tag: "callable",
@@ -285,14 +290,19 @@ describe("parse(source) function", () => {
   });
 
   // TODO: add additional tests here to ensure parse works as expected
-  it.skip("parse a Callable[[int], bool] type initialization", () => {
+  it("parse a Callable[[int], bool] type initialization", () => {
     const parsed = parse("f:Callable[[int], bool] = None");
     expect(parsed.inits).to.deep.equal([
       {
+        a: {
+          col: 0,
+          length: 30,
+          line: 1,
+        },
         name: "f",
         type: {
           tag: "callable",
-          args: [{ tag: "number" }],
+          args: [{ name: "callable_0", type: { tag: "number" } }],
           ret: { tag: "bool" },
         }, //end of type
         value: { tag: "none" },
@@ -462,14 +472,52 @@ describe("parse(source) function", () => {
     ]);
   });
 
-  it.skip("parse a Callable[[int, bool], Foo] type initialization", () => {
-    const parsed = parse("f:Callable[[int, bool], Foo] = None");
+  it("parse a Callable[[int, Callable[[int], bool]], Foo] type initialization", () => {
+    const parsed = parse("f:Callable[[int, Callable[[int], bool]], Foo] = None");
     expect(parsed.inits).to.deep.equal([
       {
+        a: {
+          col: 0,
+          length: 52,
+          line: 1,
+        },
         name: "f",
         type: {
           tag: "callable",
-          args: [{ tag: "number" }, { tag: "bool" }],
+          args: [
+            { name: "callable_0", type: { tag: "number" } },
+            {
+              name: "callable_1",
+              type: {
+                tag: "callable",
+                args: [{ name: "callable_0", type: { tag: "number" } }],
+                ret: { tag: "bool" },
+              },
+            },
+          ],
+          ret: { tag: "class", name: "Foo" },
+        }, //end of type
+        value: { tag: "none" },
+      },
+    ]);
+  });
+
+  it("parse a Callable[[int, bool], Foo] type initialization", () => {
+    const parsed = parse("f:Callable[[int, bool], Foo] = None");
+    expect(parsed.inits).to.deep.equal([
+      {
+        a: {
+          col: 0,
+          length: 35,
+          line: 1,
+        },
+        name: "f",
+        type: {
+          tag: "callable",
+          args: [
+            { name: "callable_0", type: { tag: "number" } },
+            { name: "callable_1", type: { tag: "bool" } },
+          ],
           ret: { tag: "class", name: "Foo" },
         }, //end of type
         value: { tag: "none" },
