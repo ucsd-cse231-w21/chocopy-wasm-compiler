@@ -184,4 +184,4 @@ export type Value =
   | { tag: "list"; name: string, address: number, content_type: Type }
   | { tag: "dict"; key_type: Type; value_type: Type; address: number };
 
-export type Location = { line: number; col: number; length: number };
+export type Location = { line: number; col: number; length: number; fileId: number };

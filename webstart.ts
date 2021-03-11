@@ -1,9 +1,10 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
+import { themeList_export } from "./themelist";
 import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
 import { addAccordionEvent, prettyPrintObjects } from "./prettyprint";
+import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
 import { defaultTypeEnv } from "./type-check";
-import { themeList_export } from "./themelist";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -14,6 +15,7 @@ import "codemirror/addon/scroll/simplescrollbars";
 import "./style.scss";
 import { toEditorSettings } from "typescript";
 import { replace } from "cypress/types/lodash";
+import { ErrorManager } from "./errorManager";
 
 function print(val: Value) {
   const elt = document.createElement("pre");
@@ -25,7 +27,6 @@ function webStart() {
   var hiderepl = false;
   document.addEventListener("DOMContentLoaded", function () {
     var filecontent: string | ArrayBuffer;
-
     var importObject = {
       imports: {
         print: print,
@@ -36,6 +37,7 @@ function webStart() {
       },
     };
 
+    (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -57,12 +59,11 @@ function webStart() {
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
       var text = "";
-      if (result.loc != undefined){
-        text = `line ${result.loc.line}: ${source
-          .split(/\r?\n/)
-          [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
+      if (result.callStack != undefined) {
+        console.log(result.callStack);
+        text = repl.errorManager.stackToString(result.callStack);
       }
-      elt.innerText = text.concat("\n").concat(String(result));
+      elt.innerText = String(result).concat("\n").concat(text);
     }
 
     function setupRepl() {
@@ -84,6 +85,7 @@ function webStart() {
           const source = replCodeElement.value;
           elt.value = source;
           replCodeElement.value = "";
+          repl.errorManager.clearStack();
           repl
             .run(source)
             .then((r) => {
@@ -114,8 +116,8 @@ function webStart() {
         })
         .catch((e) => {
           renderError(e, source.value);
-          if(e.loc != undefined)
-            highlightLine(e.loc.line - 1, e.message);
+          if(e.callStack != undefined)
+            highlightLine(e.callStack[e.callStack.length-1].line - 1, e.message);
           console.log("run failed", e.stack);
         });
     });
