@@ -257,13 +257,11 @@ describe("Heap", () => {
       });
     });
   });
-  
+
   // Unit tests for FreeList heap implementation
   describe("FreeList", () => {
-
     // Test for node addition to the LinkedList (Allocation)
     describe("Allocation", () => {
-
       let fl: FreeListAllocator;
       let allocatedAddr: any;
       let allocatedNode: any;
@@ -285,27 +283,28 @@ describe("Heap", () => {
         expect(Number(fl.gcalloc(TAG_CLASS, 1000n))).to.eq(200);
       });
 
-      it("Should return an appropriate block that can accomodate the given size", () => { 
-        let allocatedAddr2 = fl.gcalloc(TAG_CLASS, 50n);       
+      it("Should return an appropriate block that can accomodate the given size", () => {
+        let allocatedAddr2 = fl.gcalloc(TAG_CLASS, 50n);
         var allocatedNode = fl.linkedList.getNode(allocatedAddr2);
-        expect(Number(allocatedAddr2 - BigInt(HEADER_SIZE_BYTES))).to.eql(Number(allocatedNode.data.addr));
-      })
+        expect(Number(allocatedAddr2 - BigInt(HEADER_SIZE_BYTES))).to.eql(
+          Number(allocatedNode.data.addr)
+        );
+      });
 
       // Checking for alloc:
       it("Should return appropriate address of block that has been allocated", () => {
         // Header takes up 8 bytes starting at 192n
-        let {ptr, size} = fl.alloc(1000n);
-        expect({ptr: Number(ptr), size: Number(size)}).to.eql({ptr: 200, size: 1000});
+        let { ptr, size } = fl.alloc(1000n);
+        expect({ ptr: Number(ptr), size: Number(size) }).to.eql({ ptr: 200, size: 1000 });
       });
 
       it("Should return NULL incase the requested size cannot be accomodated", () => {
-        const {ptr, size} = fl.alloc(1300n);
-        expect({ptr: Number(ptr), size: Number(size)}).to.eql({ptr: 0, size: 0});
+        const { ptr, size } = fl.alloc(1300n);
+        expect({ ptr: Number(ptr), size: Number(size) }).to.eql({ ptr: 0, size: 0 });
       });
     });
 
     describe("Sweep", () => {
-
       let fl: FreeListAllocator;
       let allocatedAddr1: any;
       let allocatedAddr2: any;
@@ -315,13 +314,13 @@ describe("Heap", () => {
         var arr = new Uint8Array(1400);
         fl = new FreeListAllocator(arr, 0n, 1200n);
       });
-      
+
       it("Should return the correct number of Nodes in the LinkedList once sweep() is called", () => {
         allocatedAddr1 = fl.gcalloc(TAG_CLASS, 100n);
         allocatedAddr2 = fl.gcalloc(TAG_CLASS, 100n);
         // There are 4 Nodes in the LinkedList at this point (start, allocatedNode1, allocatedNode2, end)
         expect(fl.linkedList.size()).to.eq(4);
-        
+
         // Only the first allocated Node is marked
         fl.getHeader(allocatedAddr1).mark();
         // Once sweep() is called, all unmarked objects are freed and those Nodes are coalesced with adjacent Free nodes
@@ -333,7 +332,6 @@ describe("Heap", () => {
     });
 
     describe("Miscellaneous", () => {
-
       let fl: FreeListAllocator;
 
       beforeEach(() => {
@@ -341,26 +339,26 @@ describe("Heap", () => {
         var arr = new Uint8Array(1400);
         fl = new FreeListAllocator(arr, 0n, 1200n);
       });
-      
+
       it("Should return the correct description of the current LinkedList", () => {
-        const expectedStr = `FreeList { start: ${0}, end: ${1200} }`
+        const expectedStr = `FreeList { start: ${0}, end: ${1200} }`;
         expect(fl.description()).to.eq(expectedStr);
       });
-      
+
       it("Should return FALSE if value requested exceeds available memory", () => {
         // 1300n > 1200n, the total available memory
-        expect(fl.owns(1300n)).to.eq(false); 
+        expect(fl.owns(1300n)).to.eq(false);
       });
-      
+
       it("Should return TRUE if value requested lies within the range of available memory", () => {
         // 700n < 1200n, the total available memory
-        expect(fl.owns(700n)).to.eq(true); 
+        expect(fl.owns(700n)).to.eq(true);
       });
 
       it("Should return the appropriate Header requested", () => {
         const size = 100n;
         const tag = TAG_LIST;
-        
+
         const ptr = fl.gcalloc(tag, size);
 
         const header = fl.getHeader(ptr);
@@ -369,7 +367,7 @@ describe("Heap", () => {
         expect(header.getSize()).to.eq(size);
       });
     });
-      
+
     describe("LinkedList", () => {
       let fl: FreeListAllocator;
       let allocatedAddr: any;
@@ -380,38 +378,44 @@ describe("Heap", () => {
         var arr = new Uint8Array(1400);
         fl = new FreeListAllocator(arr, 0n, 1200n);
       });
-      
+
       // it("Should return an array of data from all the Nodes in the LinkedList", () => {
       //   // Array of <flmd>s [{addr: {0n}, size: {192}, isFree: true}, {addr: {192n}, size: {1000}, isFree: false}, {addr: {1000n}, size: {1200}, isFree: true}]
       //   expect(fl.linkedList.traverse).to.eq("???"); // ??
       // });
 
       it("Should return the total size of the Initial Linkedlist", () => {
-        expect(fl.linkedList.size()).to.eq(2); 
+        expect(fl.linkedList.size()).to.eq(2);
       });
 
       it("Should return the total size of the Linkedlist after Allocation", () => {
-        let {ptr, size} = fl.alloc(1000n);
-        expect(fl.linkedList.size()).to.eq(3); 
+        let { ptr, size } = fl.alloc(1000n);
+        expect(fl.linkedList.size()).to.eq(3);
       });
-      
+
       it("Should return the Node to the left of a given ptr in the LinkedList", () => {
-        let allocatedAddr = fl.gcalloc(TAG_CLASS, 50n);       
+        let allocatedAddr = fl.gcalloc(TAG_CLASS, 50n);
         var allocatedNode = fl.linkedList.getNode(allocatedAddr);
         expect(fl.linkedList.getPrev(allocatedNode)).to.eql(fl.linkedList.getHead());
       });
 
       it("Should return the Node to the right of a given ptr in the LinkedList", () => {
-        let allocatedAddr = fl.gcalloc(TAG_CLASS, 50n);       
+        let allocatedAddr = fl.gcalloc(TAG_CLASS, 50n);
         var allocatedNode = fl.linkedList.getNode(allocatedAddr);
-        expect(fl.linkedList.getNext(allocatedNode)).to.eql(fl.linkedList.getNode(fl.regEnd+BigInt(HEADER_SIZE_BYTES))); //As End Node doesn't have header
-      });      
-      
+        expect(fl.linkedList.getNext(allocatedNode)).to.eql(
+          fl.linkedList.getNode(fl.regEnd + BigInt(HEADER_SIZE_BYTES))
+        ); //As End Node doesn't have header
+      });
+
       it("Should return the Data of a particular Node of type <flmd>", () => {
-        let allocatedAddr = fl.gcalloc(TAG_CLASS, 1000n);       
+        let allocatedAddr = fl.gcalloc(TAG_CLASS, 1000n);
         var allocatedNode = fl.linkedList.getNode(allocatedAddr);
-        expect(fl.linkedList.getData(allocatedNode)).to.eql({addr: 192n, size: 1008n, isFree: false});
-      });      
+        expect(fl.linkedList.getData(allocatedNode)).to.eql({
+          addr: 192n,
+          size: 1008n,
+          isFree: false,
+        });
+      });
     });
   });
 });

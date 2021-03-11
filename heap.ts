@@ -127,8 +127,8 @@ interface flmd {
 }
 
 export class Node {
-	public next: Node | null = null;
-	public prev: Node | null = null;
+  public next: Node | null = null;
+  public prev: Node | null = null;
   data: flmd;
   constructor(public data_: flmd) {
     this.data = data_;
@@ -196,15 +196,15 @@ export class LinkedList {
   public setData(n: Node, data: flmd) {
     n.data = data;
   }
-  
-  public getData(n: Node): flmd{
+
+  public getData(n: Node): flmd {
     return n.data;
   }
-  
+
   public getNode(ptr: Pointer) {
     let curr = this.head;
-    while(curr!=null) {
-      if(curr.data.addr==(ptr - BigInt(HEADER_SIZE_BYTES))) {
+    while (curr != null) {
+      if (curr.data.addr == ptr - BigInt(HEADER_SIZE_BYTES)) {
         return curr;
       }
       curr = curr.next;
