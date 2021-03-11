@@ -74,6 +74,18 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
   };
 }
 
+function copyEnv(env: GlobalTypeEnv): GlobalTypeEnv {
+  return {
+    globals: new Map(env.globals),
+    functions: new Map(env.functions),
+    classes: new Map(env.classes),
+  };
+}
+
+// export type TypeError = {
+//   message: string;
+// };
+
 export function equalType(t1: Type, t2: Type): boolean {
   return (
     // ensure deep match for nested types (example: [int,[int,int]])
@@ -862,7 +874,10 @@ export function tcExpr(
           arguments: tArgs,
         };
       }
-      throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
+      throw new BaseException.TypeError(
+        expr.a,
+        "Parser should use call_expr instead whose callee is an expression."
+      );
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
       if (tObj.a[0].tag === "class") {
@@ -927,6 +942,72 @@ export function tcExpr(
       } else {
         throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
       }
+    case "comprehension":
+      // iter
+      const iter = tcExpr(env, locals, expr.iter);
+      let expectedFieldType: Type;
+
+      // TODO: add "iter" class type when that's available
+      if (iter.a[0].tag === "class" && iter.a[0].name === "Range") {
+        expectedFieldType = NUM;
+      } else if (iter.a[0].tag === "list") {
+        expectedFieldType = iter.a[0].content_type;
+      } else {
+        throw new BaseException.TypeError(iter.a[1], `${iter.a[0].tag} object is not iterable`);
+      }
+
+      // field
+      /*
+       * Right now, users will have to define the field before using it in comprehensions.
+       * This will save us the trouble of defining temporary variables in the environment.
+       * However, this also means that the value will escape its scope.
+       *
+       * This also follows how the for loop works, since that also requires users to predefine the looper variable(s)
+       */
+      let field: Assignable<[Type, Location]> = null;
+      if (expr.field.tag === "id") {
+        field = tcAssignable(env, locals, expr.field);
+        const fieldType: Type = field.a[0];
+        // We should use isAssignable here
+        if (!isAssignable(env, expectedFieldType, fieldType)) {
+          throw new BaseException.TypeMismatchError(expr.a, expectedFieldType, fieldType);
+        }
+      } else {
+        //* We don't know if we (or the for loop team) will support this special case.
+        throw new BaseException.TypeError(expr.a, "Unsupported comphrehension");
+      }
+
+      // expr
+      const newExpr = tcExpr(env, locals, expr.expr);
+      const comprehensionType: Type = { tag: "list", content_type: newExpr.a[0] };
+
+      // cond
+      //*Notice that in regular Python, cond can be of any type. We make this restriction here to make life easier :)
+      if (expr.cond) {
+        const cond = tcExpr(env, locals, expr.cond);
+
+        if (cond.a[0].tag !== "bool") {
+          throw new BaseException.TypeMismatchError(cond.a[1], { tag: "bool" }, cond.a[0]);
+        }
+
+        return {
+          a: [comprehensionType, expr.a],
+          tag: "comprehension",
+          expr: newExpr,
+          field: field,
+          iter,
+          cond,
+        };
+      }
+
+      return {
+        a: [comprehensionType, expr.a],
+        tag: "comprehension",
+        expr: newExpr,
+        field: field,
+        iter,
+      };
+
     case "list-expr":
       var commonType = null;
       const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));

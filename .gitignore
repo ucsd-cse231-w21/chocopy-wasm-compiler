@@ -3,5 +3,6 @@ build
 cli
 *.sw*
 mochawesome-report
+.idea
 *.js
 **.DS_Store

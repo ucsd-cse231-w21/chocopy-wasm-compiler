@@ -136,11 +136,17 @@ export type Expr<A> =
       a?: A;
       tag: "comprehension";
       expr: Expr<A>;
-      field: string;
+      field: Assignable<A>;
       iter: Expr<A>;
       cond?: Expr<A>;
     }
-  | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
+  | {
+      a?: A;
+      tag: "comprehension_block";
+      block: Array<Stmt<A>>;
+      expr: Expr<A>;
+      cleanup_stmt: Stmt<A>;
+    }
   | { a?: A; tag: "call_expr"; name: Expr<A>; arguments: Array<Expr<A>> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
   | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }

@@ -1227,6 +1227,9 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             "Code gen for bracket-lookup for types other than dict not implemented"
           );
       }
+    case "comprehension_block":
+      var stmts = expr.block.map((arg) => codeGenStmt(arg, env)).flat();
+      return [...stmts, ...codeGenExpr(expr.expr, env), ...codeGenStmt(expr.cleanup_stmt, env)];
     default:
       unhandledTag(expr);
   }

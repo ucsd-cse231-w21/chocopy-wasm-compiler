@@ -289,7 +289,7 @@ function eaExpr(
     case "comprehension":
       throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
-    case "block":
+    case "comprehension_block":
       throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
     case "call_expr":
