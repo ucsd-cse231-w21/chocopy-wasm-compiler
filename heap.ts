@@ -537,7 +537,7 @@ export class BitMappedBlocks implements MarkableAllocator {
   }
 
   memoryUsage(): bigint {
-    return (BigInt(this.getNumFreeBlocks()) - this.numBlocks) * this.blockSize;
+    return (this.numBlocks - BigInt(this.getNumFreeBlocks())) * this.blockSize;
   }
 }
 
