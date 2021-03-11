@@ -248,7 +248,7 @@ function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
     let idx = fun_info[0];
     let length = fun_info[1].length;
     let loc = envLookup(env, fun);
-    inits.push(...myMemAlloc(`$$addr`, length + 1));
+    inits.push(...myMemAlloc(`$$addr`, length + 1, true));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function reference`);
   });
