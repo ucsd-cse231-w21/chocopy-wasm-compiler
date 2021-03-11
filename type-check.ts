@@ -1,6 +1,6 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
-import { inferExprType, inferTypeLit, isSubtype } from "./infer";
+import { inferExprType, inferTypeLit, isSubtype, inferReturnType } from "./infer";
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -105,7 +105,13 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
     }
     newGlobs.set(init.name, init.declaredType);
   });
+
   program.funs.forEach((fun) => {
+    if (fun.ret.tag === "none") {
+      let locEnv = emptyLocalTypeEnv();
+      fun.parameters.forEach((param) => locEnv.vars.set(param.name, param.type))
+      fun.ret = inferReturnType(fun, env, locEnv);
+    }
     newFuns.set(fun.name, [fun.parameters.map((p) => p.type), fun.ret]);
     env.functions = newFuns;
   });
@@ -192,9 +198,7 @@ export function tcBlock(
   stmts: Array<Stmt<null>>
 ): Array<Stmt<Type>> {
   return stmts.map((stmt) => {
-    console.log("Marker A");
     var st = tcStmt(env, locals, stmt);
-    console.log(st);
     return st;
   });
 }

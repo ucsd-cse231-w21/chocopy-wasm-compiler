@@ -11,7 +11,7 @@ import {
   GlobalTypeEnv,
   LocalTypeEnv
 } from "./type-check";
-import { emptyEnv } from "./compiler";
+import { emptyEnv, GlobalEnv } from "./compiler";
 import * as BaseException from "./error";
 
 /*
@@ -227,8 +227,10 @@ function joinMethods(leftMethods: Map<string, [Type[], Type]>,
 // types as long as they are compatible. This could be restricted later if it
 // causes problems.
 export function joinType(leftType: Type, rightType: Type, globEnv: GlobalTypeEnv): Type {
-  if (leftType.tag == "failedToInfer" || rightType.tag == "failedToInfer") {
-    return FAILEDINFER;
+  if (leftType.tag == "failedToInfer") {
+    return rightType
+  } else if (rightType.tag == "failedToInfer") {
+    return leftType;
   } else if (leftType.tag == "class"
           && rightType.tag == "class"
           && leftType.name == rightType.name) {
@@ -491,20 +493,45 @@ export function inferExprType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: L
   }
 }
 
-
 // First pass inference to reach into function body and infer return types
-// it will add constraints to the function type signature, if possible
-// The function type signature should start in the most general form and
-// constrain until either everything is properly typed, or something becomes
-// unsat.
-//export function constrainFunType(expr: Expr<any>, globEnv: GlobalTypeEnv, locEnv: LocalTypeEnv) :  {
+// This is to get easy constraints.
+export function inferReturnType(funDef: FunDef<any>, globEnv: GlobalTypeEnv, locEnv: LocalTypeEnv) : Type {
+  let s = Action.None;
+  let body_ = []
+  
+  // Easy case where a type annotation was provided.
+  // if (funDef.ret !== undefined) {
+  //   return funDef.ret
+  // }
 
+  for (const st of funDef.body) {
+    const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, false);
+    s = joinAction(s, s_);
+    body_.push(stmt_);
+  };
 
-//}
+  funDef.body = body_
+  return inferRetTypeHepler(funDef.body, globEnv)
+}
 
-
-
-
+function inferRetTypeHepler(block: Array<Stmt<Type>>, globEnv: GlobalTypeEnv): Type {
+  let retType : Type = NONE
+  for (const st of block) {
+    if (st.tag === "return") {
+      retType = st.a
+      break
+    } else if (st.tag === "if") {
+      let thenRetType = inferRetTypeHepler(st.thn, globEnv)
+      let elseRetType = inferRetTypeHepler(st.els, globEnv)
+      retType = joinType(thenRetType, elseRetType, globEnv)
+      break;
+    } else if (st.tag === "while") {
+      retType = inferRetTypeHepler(st.body, globEnv);
+      break
+    }
+  }
+  return retType;
+}
 
 // This function must not return FAILEDINFER
 export function constrainExprType(
@@ -1052,14 +1079,14 @@ export function annotateStmt(
       let s = Action.None;
       let thn_ = []
       for (const st of stmt.thn) {
-        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, true);
+        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, topLevel);
         s = joinAction(s, s_);
         thn_.push(stmt_);
       };
 
       let els_ = []
       for (const st of stmt.els) {
-        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, true);
+        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, topLevel);
         s = joinAction(s, s_);
         els_.push(stmt_);
       };;
@@ -1070,7 +1097,7 @@ export function annotateStmt(
       let s = Action.None;
       let body_ = []
       for (const st of stmt.body) {
-        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, true);
+        const [s_, stmt_] = annotateStmt(st, globEnv, locEnv, topLevel);
         s = joinAction(s, s_);
         body_.push(stmt_);
       };
@@ -1103,6 +1130,7 @@ export function annotateStmt(
       // TODO: not entirely sure if this is the way to determine a
       return [s, { ...stmt, a, obj, value }];
     }
+
     case "for": {
       let index;
       let s = Action.None;
