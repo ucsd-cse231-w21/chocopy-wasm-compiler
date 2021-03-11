@@ -106,6 +106,31 @@ describe("Heap", () => {
         // Number(0x0n) = 0
         expect(Number(ptr)).to.eq(0);
       });
+
+      it("Should fail if contiguous block of memory is unvailable", () => {
+        const ptr = bmb.gcalloc(TAG_CLASS, 500n);
+        const ptr2 = bmb.gcalloc(TAG_CLASS, 20n);
+        const ptr3 = bmb.gcalloc(TAG_CLASS, 370n);
+
+        // 20 bytes free in the middle, 10 at the end
+        bmb.free2(ptr2);
+
+        // No contiguous 25 bytes available
+        const reqPtr = bmb.gcalloc(TAG_CLASS, 25n);
+
+        expect(Number(reqPtr)).to.eq(0);
+      });
     });
+
+    describe("Freeing blocks", () => {
+      let bmb: BitMappedBlocks;
+
+      beforeEach(() => {
+        // 90 blocks of size 10 each
+        bmb = new BitMappedBlocks(100n, 1000n, 10n, 8n);
+      });
+
+      
+    })
   });
 });
