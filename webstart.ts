@@ -115,7 +115,7 @@ function webStart() {
 	print_none: (arg: number) => importObject.imports.print(NONE, arg),
 	print_obj : (arg : any, classId: any) => {
 	  const classObj: Value = {tag: "object", name: importObject.tableOffset.get(Number(classId)), address: arg};
-	  const str = valueToStr(classObj);
+	  const str = valueToStr(classObj, importObject);
 
 
           return this.print(str);
@@ -220,7 +220,7 @@ function webStart() {
           const source = replCodeElement.value;
           elt.value = source;
           replCodeElement.value = "";
-          repl.run(source).then((r) => { renderResult(valueToStr(r[0])); console.log ("run finished") })
+          repl.run(source).then((r) => { renderResult(valueToStr(r[0], importObject)); console.log ("run finished") })
               .catch((e) => { renderError(e); console.log("run failed", e) });;
         }
       });
@@ -239,7 +239,7 @@ function webStart() {
       repl.run(source).then((result) => {
 	const r = result[0];
 	const compiled = result[1];
-	renderResult(valueToStr(r)); console.log ("run finished")
+	renderResult(valueToStr(r, importObject)); console.log ("run finished")
 	showSource(compiled);
       }).catch((e) => { renderError(e); console.log("run failed", e) });;
     });

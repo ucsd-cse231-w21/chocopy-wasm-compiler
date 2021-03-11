@@ -19,13 +19,13 @@ const importObject = {
 	    console.log(arg);
 	},
 	print_other : (arg: any) => {
-	    const str = valueToStr(i64ToValue(arg, importObject.tableOffset));
+	    const str = valueToStr(i64ToValue(arg, importObject.tableOffset), importObject);
 	    
 	    return importObject.imports.print(str);
 	},
 	print_obj : (arg : any, classId: any) => {
 	    const classObj: Value = {tag: "object", name: importObject.tableOffset.get(Number(classId)), address: arg};
-	    const str = valueToStr(classObj);
+	    const str = valueToStr(classObj, importObject);
 	    
 	    
             return importObject.imports.print(str);

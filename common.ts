@@ -157,7 +157,7 @@ export function strToType(str: string): Type {
   }
 }
 
-export function valueToStr(arg: Value): string {
+export function valueToStr(arg: Value, importObject: any): string {
   if (arg == undefined)
     return undefined;
   
@@ -171,7 +171,17 @@ export function valueToStr(arg: Value): string {
     case "none":
       return `None`;
     case "str":
-      return `string`;
+      const memUint8 = importObject.imports.get_uint8_repr();
+      
+      var iter = arg.off;
+      var str = "";
+      
+      while (memUint8[iter] != 0) {
+	str = str + String.fromCharCode(memUint8[iter]);
+	iter += 1;
+      }
+      
+      return `'${str}'`;
     case "num":
       return `${arg.value}`;
     case "object":
