@@ -489,14 +489,27 @@ export function tcStmt(
       locals.loop_depth = last_depth;
       // return type checked stmt
       console.log("here 1");
-      return {
-        a: [NONE, stmt.a],
-        id: stmt.id,
-        tag: "for",
-        name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable), // change NUM to fix this issue
-        iterable: fIter,
-        body: fBody,
-      };
+      if (stmt.index){
+        return {
+          a: [NONE, stmt.a],
+          id: stmt.id,
+          tag: "for",
+          name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable), // change NUM to fix this issue
+          index: tcDestructure(env, locals, stmt.index, iter_type, stmt.iterable),
+          iterable: fIter,
+          body: fBody,
+        };
+      } else {
+        return {
+          a: [NONE, stmt.a],
+          id: stmt.id,
+          tag: "for",
+          name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable), // change NUM to fix this issue
+          iterable: fIter,
+          body: fBody,
+        };
+      }
+
     case "break":
       if (locals.loop_depth < 1) {
         throw new BaseException.SyntaxError(stmt.a, "Break outside a loop.");
@@ -587,7 +600,7 @@ function tcDestructure(
       targets: [target],
     };
   }
-  console.log("here2")
+  console.log("here2");
   let types: Type[] = [];
   if (value.tag === "class") {
     // This is a temporary hack to get destructuring working (reuse for tuples later?)
@@ -616,7 +629,6 @@ function tcDestructure(
       console.log(target.target.tag + valueType);
       return tcTarget(target, valueType);
     });
-
     if (types.length > destruct.targets.length + starOffset)
       throw new BaseException.ValueError(
         `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
