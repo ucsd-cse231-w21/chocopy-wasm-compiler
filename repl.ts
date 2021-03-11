@@ -65,7 +65,7 @@ export class BasicREPL {
         if (expVal < 1) {
           return 0n;
         } else {
-          return (baseVal ** expVal);
+          return baseVal ** expVal;
         }
       });
     this.importObject.imports.max = (x: number, y: number) =>
@@ -95,7 +95,7 @@ export class BasicREPL {
         if (y === 0n) {
           throw new ZeroDivisionError();
         }
-        return (x - ((x % y) + y) % y ) / y;
+        return (x - (((x % y) + y) % y)) / y;
       });
     this.importObject.imports.__big_num_mod = (x: number, y: number) =>
       this.binOpInterface(x, y, (x: bigint, y: bigint) => {
@@ -129,7 +129,11 @@ export class BasicREPL {
     this.currentTypeEnv = defaultTypeEnv;
     this.functions = bignumfunctions;
   }
-  binOpInterface(x: number, y: number, f: Function): number {
+  binOpInterface(
+    x: number,
+    y: number,
+    f: (x: bigint, y: bigint) => bigint
+  ): number {
     var mem = new Uint32Array(this.importObject.js.memory.buffer);
     var xval = PyValue(NUM, x, mem);
     var yval = PyValue(NUM, y, mem);
@@ -138,7 +142,7 @@ export class BasicREPL {
     }
     throw new InternalException("binary operation failed at runtime");
   }
-  uniOpInterface(x: number, f: Function): number {
+  uniOpInterface(x: number, f: (x: bigint) => bigint): number {
     var mem = new Uint32Array(this.importObject.js.memory.buffer);
     var xval = PyValue(NUM, x, mem);
     if (xval.tag == "num") {
