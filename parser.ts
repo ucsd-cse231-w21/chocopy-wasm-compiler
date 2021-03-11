@@ -722,7 +722,6 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       c.parent();
       c.parent();
       forCount += 1;
-      
       var isDes = false;
 
       var dest: Destructure<Location> = {
