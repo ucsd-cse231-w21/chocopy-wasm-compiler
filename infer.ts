@@ -518,6 +518,11 @@ export function inferReturnType(funDef: FunDef<any>, globEnv: GlobalTypeEnv, loc
   };
 
   funDef.body = body_
+  funDef.parameters.forEach((p) => {
+    if (locEnv.vars.has(p.name)) {
+      p.type = locEnv.vars.get(p.name) 
+    }
+  })
   return inferRetTypeHepler(funDef.body, globEnv)
 }
 
