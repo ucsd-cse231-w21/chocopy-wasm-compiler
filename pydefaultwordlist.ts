@@ -31,7 +31,8 @@ export const default_keywords = [
     "lambda",
     "try",
     "int",
-    "bool"
+    "bool",
+    "str"
 ]
 
 export const default_functions = [ 
