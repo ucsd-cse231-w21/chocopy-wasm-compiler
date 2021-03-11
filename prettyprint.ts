@@ -42,7 +42,10 @@ function prettyPrintDictionary(result: any, repl: BasicREPL, currentEle: any) {
   const view = new Int32Array(repl.importObject.js.memory.buffer);
   const hashtableSize = 10;
   const exp = document.createElement("button") as HTMLButtonElement;
-  exp.innerHTML = "<i class='arrow' id='arrow'></i> " + result.tag + `&lt${result.tag}&gt`;
+  exp.innerHTML =
+    "<i class='arrow' id='arrow'></i> " +
+    result.tag +
+    `&lt${result.key_type.tag}:${result.value_type.tag}&gt`;
   exp.setAttribute("class", "accordion");
   const div = document.createElement("div");
   div.setAttribute("class", "panel");
@@ -74,10 +77,10 @@ function printDictionaryLLHelper(
 
   const ele = document.createElement("pre");
   var ele_key = PyValue(result.key_type, key, view) as any;
+  const val = PyValue(result.value_type, value, view);
 
   switch (result.value_type.tag) {
     case "dict":
-      const val = PyValue(result.value_type, value, view);
       if (val.tag !== "none") {
         ele.innerHTML = "<b class='tag'>" + ele_key.value + ":</b>";
         const new_div = document.createElement("div");
@@ -85,10 +88,28 @@ function printDictionaryLLHelper(
         prettyPrintDictionary(val, repl, new_div);
       }
       break;
-    // case "class":
-    //   prettyPrintClassObject(result, repl, currentEle);
-    // case "list":
-    //   break;
+    case "class":
+      if (val.tag !== "none") {
+        ele.innerHTML = "<b class='tag'>" + ele_key.value + ":</b>";
+        var class_name = result.value_type.name;
+        const new_div = document.createElement("div");
+        ele.appendChild(new_div);
+        prettyPrintClassObject(val, repl, new_div);
+      } else {
+        ele.innerHTML = "<b class='tag'>" + ele_key.value + ": </b> <p class='val'>none</p>";
+      }
+      break;
+    case "list":
+      if (val.tag !== "none") {
+        ele.innerHTML = "<b class='tag'>" + ele_key.value + ":</b>";
+        const new_div = document.createElement("div");
+        ele.appendChild(new_div);
+        prettyPrintList(val, repl, new_div);
+      } else {
+        ele.innerHTML = "<b class='tag'>" + ele_key.value + ": </b> <p class='val'>none</p>";
+      }
+      break;
+      break;
     default:
       var ele_val = PyValue(result.value_type, value, view) as any;
       ele.innerHTML =
@@ -133,15 +154,7 @@ function prettyPrintClassObject(result: any, repl: BasicREPL, currentEle: any) {
           ele.innerHTML = "<b class='tag'>" + key + ":</b>";
           const new_div = document.createElement("div");
           ele.appendChild(new_div);
-          prettyPrintClassObject(
-            {
-              tag: "object",
-              name: type.name,
-              address: view[result.address / 4 + offset],
-            },
-            repl,
-            new_div
-          );
+          prettyPrintClassObject(val, repl, new_div);
         } else {
           ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
         }
@@ -151,16 +164,7 @@ function prettyPrintClassObject(result: any, repl: BasicREPL, currentEle: any) {
           ele.innerHTML = "<b class='tag'>" + key + ":</b>";
           const new_div = document.createElement("div");
           ele.appendChild(new_div);
-          prettyPrintList(
-            {
-              tag: "list",
-              name: "list",
-              address: view[result.address / 4 + offset],
-              content_type: type.content_type,
-            },
-            repl,
-            new_div
-          );
+          prettyPrintList(val, repl, new_div);
         } else {
           ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
         }
@@ -170,16 +174,7 @@ function prettyPrintClassObject(result: any, repl: BasicREPL, currentEle: any) {
           ele.innerHTML = "<b class='tag'>" + key + ":</b>";
           const new_div = document.createElement("div");
           ele.appendChild(new_div);
-          prettyPrintDictionary(
-            {
-              tag: "dict",
-              key_type: type.key,
-              value_type: type.value,
-              address: view[result.address / 4 + offset],
-            },
-            repl,
-            new_div
-          );
+          prettyPrintDictionary(val, repl, new_div);
         } else {
           ele.innerHTML = "<b class='tag'>" + key + ": </b> <p class='val'>none</p>";
         }
@@ -216,30 +211,40 @@ function prettyPrintList(result: any, repl: BasicREPL, currentEle: any) {
   var i = 0;
   for (i = 0; i < size; i++) {
     const ele = document.createElement("pre");
+    const val = PyValue(type, view[result.address / 4 + 3 + i], view);
+
     switch (type.tag) {
       case "class":
-        const val = PyValue(type, view[result.address / 4 + 3 + i], view);
         if (val.tag !== "none") {
           ele.innerHTML = "<b class='tag'>" + i + ":</b>";
           var class_name = type.name;
           const new_div = document.createElement("div");
           ele.appendChild(new_div);
-          prettyPrintClassObject(
-            {
-              tag: "object",
-              name: class_name,
-              address: view[result.address / 4 + 3 + i],
-            },
-            repl,
-            new_div
-          );
+          prettyPrintClassObject(val, repl, new_div);
         } else {
           ele.innerHTML = "<b class='tag'>" + i + ": </b> <p class='val'>none</p>";
         }
         break;
-      // case "dict":
-
-      //   break;
+      case "dict":
+        if (val.tag !== "none") {
+          ele.innerHTML = "<b class='tag'>" + i + ":</b>";
+          const new_div = document.createElement("div");
+          ele.appendChild(new_div);
+          prettyPrintDictionary(val, repl, new_div);
+        } else {
+          ele.innerHTML = "<b class='tag'>" + i + ": </b> <p class='val'>none</p>";
+        }
+        break;
+      case "list":
+        if (val.tag !== "none") {
+          ele.innerHTML = "<b class='tag'>" + i + ":</b>";
+          const new_div = document.createElement("div");
+          ele.appendChild(new_div);
+          prettyPrintList(val, repl, new_div);
+        } else {
+          ele.innerHTML = "<b class='tag'>" + i + ": </b> <p class='val'>none</p>";
+        }
+        break;
       default:
         var ele_val = PyValue(type, view[result.address / 4 + 3 + i], view) as any;
         ele.innerHTML = "<b class='tag'>" + i + ": </b><p class='val'>" + ele_val.value + "</p>";
