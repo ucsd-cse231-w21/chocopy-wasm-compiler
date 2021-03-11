@@ -115,7 +115,7 @@ export class BumpAllocator implements MarkableAllocator {
   }
 
   memoryUsage(): bigint {
-    return this.counter;
+    throw new Error(`BumpAllocator cannot calculate memory usage`);
   }
 }
 

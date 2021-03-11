@@ -155,7 +155,7 @@ export interface MarkableAllocator extends H.Allocator {
   // Scans the allocated objects for unmarked, allocated objects and frees them
   sweep: () => void;
 
-  // Allocated memory in bytes
+  // Allocated memory in bytes (not including any metadata)
   memoryUsage: () => bigint;
 }
 
