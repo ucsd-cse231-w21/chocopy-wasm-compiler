@@ -1025,6 +1025,18 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             }) (i32.load (local.get $$addr)))`
           )
         );
+      } else if (nameExpr.tag == "call_expr") {
+        callExpr.push(...codeGenExpr(nameExpr, env));
+        callExpr.push(`(local.set $$addr)`);
+        callExpr.push(`(local.get $$addr) ;; function ptr for the extra argument`);
+        expr.arguments.forEach((arg) => {
+          callExpr.push(...codeGenExpr(arg, env));
+        });
+        callExpr.push(
+          `(call_indirect (type $callType${
+            expr.arguments.length + 1
+          }) (i32.load (local.get $$addr)))`
+        );
       } else {
         throw new BaseException.InternalException(
           `Compile Error. Invalid name of tag ${nameExpr.tag}`
