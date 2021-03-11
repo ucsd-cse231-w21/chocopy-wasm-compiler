@@ -278,6 +278,80 @@ describe("MnS", () => {
 
       expectFreeHeader(heap.heap.getHeader(112n), 0x0n as HeapTag, 0n);
     });
+
+    // Simulates:
+    //
+    //   x = C()
+    //   y = C()
+    //
+    //   y = C()
+    it("global var class allocate and sweep", () => {
+      const mns = new MnS(memory, heap);
+      const X_ADDR = 0x4n;
+      const Y_ADDR = 0x8n;
+
+      mns.roots.addGlobal(X_ADDR);
+      mns.roots.addGlobal(Y_ADDR);
+
+      mns.roots.captureTemps();
+      const ptr0 = mns.gcalloc(TAG_CLASS, 4n);
+      expect(Number(ptr0)).to.equal(100);
+      writeI32(memory, Number(X_ADDR), ptr0);
+
+      const ptr1 = mns.gcalloc(TAG_CLASS, 4n);
+      expect(Number(ptr1)).to.equal(104);
+      writeI32(memory, Number(Y_ADDR), ptr1);
+
+      const ptr2 = mns.gcalloc(TAG_CLASS, 4n);
+      expect(Number(ptr2)).to.equal(108);
+
+      // Check that headers set correctly
+      {
+        const headers = [
+          heap.mappedHeader(ptr0),
+          heap.mappedHeader(ptr1),
+          heap.mappedHeader(ptr2)
+        ];
+        headers.forEach((h, index) => {
+          console.log(`Checking header: ${index}...`);
+          expectAllocatedHeader(h, TAG_CLASS, 4n);
+        });
+      }
+
+      mns.roots.releaseTemps();
+      mns.collect();
+      // Check that global roots are not collected
+      {
+        const headers = [
+          heap.mappedHeader(ptr0),
+          heap.mappedHeader(ptr1),
+        ];
+        headers.forEach((h, index) => {
+          console.log(`Checking header: ${index}...`);
+          expectAllocatedHeader(h, TAG_CLASS, 4n);
+        });
+        expectFreeHeader(heap.mappedHeader(ptr2), TAG_CLASS, 4n);
+      }
+
+      const ptr3 = mns.gcalloc(TAG_CLASS, 4n);
+      expect(Number(ptr3)).to.equal(108);
+      // Overwrite y
+      writeI32(memory, Number(Y_ADDR), ptr3);
+      mns.collect();
+
+      // Check that global roots are not collected
+      {
+        const headers = [
+          heap.mappedHeader(ptr0),
+          heap.mappedHeader(ptr3),
+        ];
+        headers.forEach((h, index) => {
+          console.log(`Checking header: ${index}...`);
+          expectAllocatedHeader(h, TAG_CLASS, 4n);
+        });
+        expectFreeHeader(heap.mappedHeader(ptr1), TAG_CLASS, 4n);
+      }
+    });
   });
 });
 
