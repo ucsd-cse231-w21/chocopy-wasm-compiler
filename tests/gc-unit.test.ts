@@ -216,6 +216,68 @@ describe("MnS", () => {
 
       expectFreeHeader(heap.heap.getHeader(112n), 0x0n as HeapTag, 0n);
     });
+
+    // Simulates:
+    //
+    //   call(C(), C(), C())
+    it("temporary class allocate and sweep", () => {
+      const mns = new MnS(memory, heap);
+
+      mns.roots.captureTemps();
+      const ptr0 = mns.gcalloc(TAG_CLASS, 4n);
+      expect(Number(ptr0)).to.equal(100);
+
+      const ptr1 = mns.gcalloc(TAG_CLASS, 4n);
+      expect(Number(ptr1)).to.equal(104);
+
+      const ptr2 = mns.gcalloc(TAG_CLASS, 4n);
+      expect(Number(ptr2)).to.equal(108);
+
+      // Check that headers set correctly
+      {
+        const headers = [
+          heap.mappedHeader(ptr0),
+          heap.mappedHeader(ptr1),
+          heap.mappedHeader(ptr2)
+        ];
+        headers.forEach((h, index) => {
+          console.log(`Checking header: ${index}...`);
+          expectAllocatedHeader(h, TAG_CLASS, 4n);
+        });
+      }
+      mns.collect();
+      // Check that all temps are still allocated
+      {
+        const headers = [
+          heap.mappedHeader(ptr0),
+          heap.mappedHeader(ptr1),
+          heap.mappedHeader(ptr2)
+        ];
+        headers.forEach((h, index) => {
+          console.log(`Checking header: ${index}...`);
+          expectAllocatedHeader(h, TAG_CLASS, 4n);
+        });
+      }
+
+      mns.roots.releaseTemps();
+      mns.collect();
+      // Check that ptr0, ptr1, ptr2 is freed
+      {
+        const headers = [
+          heap.mappedHeader(ptr0),
+          heap.mappedHeader(ptr1),
+          heap.mappedHeader(ptr2)
+        ];
+        headers.forEach((h, index) => {
+          // console.warn(`Checking header: ${index}...`);
+          expectFreeHeader(h, TAG_CLASS, 4n);
+        });
+      }
+      const ptr0new = mns.gcalloc(TAG_CLASS, 4n);
+      expect(Number(ptr0new)).to.equal(100);
+
+      expectFreeHeader(heap.heap.getHeader(112n), 0x0n as HeapTag, 0n);
+    });
   });
 });
 
