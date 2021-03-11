@@ -141,7 +141,7 @@ type Cfg = {
 }
 
 describe("MnS", () => {
-  describe("MnS-BumpAllocator-1", () => {
+  describe("MnS-BitMappedBlocks-1", () => {
 
     function makeCfg(): Cfg {
       const memory = new Uint8Array(512);
