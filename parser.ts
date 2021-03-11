@@ -833,7 +833,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
 }
 
 export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
-  var location: Location = getSourcePos(c,s);
+  var location: Location = getSourcePos(c, s);
   c.firstChild(); // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName

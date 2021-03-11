@@ -26,19 +26,22 @@ export class ErrorManager {
 
   stackToString(callStack: Array<Location>): string {
     var result = "";
-    let previousCall = "main"
+    let previousCall = "main";
     callStack.forEach((loc, i) => {
       if (i <= 10) {
-        result += `at line ${loc.line} of file ${loc.fileId} in ${previousCall} \n`;
-        let file : string[] = this.sources[loc.fileId - 1].split(/\r?\n/);
+        var stackResult = "";
+        stackResult += `at line ${loc.line} of file ${loc.fileId} in ${previousCall} \n`;
+        let file: string[] = this.sources[loc.fileId - 1].split(/\r?\n/);
         let fileLines = file.length;
         let start = Math.max(loc.line - 1, 1);
-        let end = start == loc.line ? Math.min(loc.line + 2, fileLines) : Math.min(loc.line + 1, fileLines);
+        let end =
+          start == loc.line ? Math.min(loc.line + 2, fileLines) : Math.min(loc.line + 1, fileLines);
         for (let line = start; line <= end; line++) {
-          result += (line === loc.line ? ` ----> ` : `       `) + `${line}\t`;
-          result += file[line - 1] + "\n";
+          stackResult += (line === loc.line ? ` ----> ` : `       `) + `${line}\t`;
+          stackResult += file[line - 1] + "\n";
         }
-        result += "\n";
+        stackResult += "\n";
+        result = stackResult + result;
         previousCall = this.locToString(loc);
       }
     });
@@ -72,7 +75,7 @@ export class ErrorManager {
     if (key < 0 || key >= size) throw new BaseException.IndexError(this.callStack);
   }
 
-  __checkKey(key:number){
+  __checkKey(key: number) {
     console.log(key);
     if (key === -1) throw new BaseException.KeyError(this.callStack);
   }
@@ -99,9 +102,9 @@ export function importErrorManager(importObject: any, em: ErrorManager) {
     em.__checkIndex(size, id);
   };
 
-  importObject.imports.__checkKey = (key:number) =>{
-    em.__checkKey(key)
-  }
+  importObject.imports.__checkKey = (key: number) => {
+    em.__checkKey(key);
+  };
 }
 
 export enum RunTime {

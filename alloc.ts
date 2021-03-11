@@ -30,7 +30,7 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
     return tag;
   }
 
-  throw new BaseException.MemoryError(undefined,`${tag.toString()} is not a valid heap tag`);
+  throw new BaseException.MemoryError(undefined, `${tag.toString()} is not a valid heap tag`);
 }
 
 export function importMemoryManager(importObject: any, mm: MemoryManager) {

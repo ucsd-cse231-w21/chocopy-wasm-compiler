@@ -1135,11 +1135,20 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         .forEach((lexpr) => {
           stmts.push(...[...codeGenExpr(lexpr, env)]);
         });
-
+      stmts.push(
+        ...[
+          `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
+          `(i32.const ${(listBound + 3) * 4})`, // load capacty
+          `(i32.mul (i32.const 4))`, // new_cap = cap * 4 + 12
+          `(i32.add (i32.const 12))`,
+          `(call $$gcalloc)`,
+          `(local.set $$list_base)`,
+        ]
+      );
       listHeader.forEach((val) => {
         stmts.push(
           ...[
-            `(i32.load (i32.const 0))`,
+            `(local.get $$list_base)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             "(i32.const " + val + ")",
             "(i32.store)",
@@ -1147,12 +1156,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         );
         listindex += 1;
       });
-
       expr.contents.forEach((lexpr) => {
         stmts.push(
           ...[
             `(local.set $$list_temp)`,
-            `(i32.load (i32.const 0))`,
+            `(local.get $$list_base)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             `(local.get $$list_temp)`,
             "(i32.store)",
@@ -1160,15 +1168,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         );
         listindex += 1;
       });
-
       //Move heap head to the end of the list and return list address
-      return stmts.concat([
-        "(i32.load (i32.const 0))",
-        "(i32.const 0)",
-        "(i32.load (i32.const 0))",
-        `(i32.add (i32.const ${(listBound + 3) * 4}))`,
-        "(i32.store)",
-      ]);
+      return stmts.concat([`(local.get $$list_base)`]);
 
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
@@ -1336,8 +1337,16 @@ function codeGenDictBracketLookup(
   let dictKeyValStmts: Array<string> = [];
   var objStmts = codeGenExpr(obj, env);
   var checkNone = codeGenRuntimeCheck(obj.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP);
-  var checkKey = codeGenRuntimeCheck(obj.a[1], [...objStmts,...codeGenExpr(key, env), `(i32.const ${hashtableSize})`,
-  "(call $ha$htable$Lookup)",], RunTime.CHECK_KEY_ERROR)
+  var checkKey = codeGenRuntimeCheck(
+    obj.a[1],
+    [
+      ...objStmts,
+      ...codeGenExpr(key, env),
+      `(i32.const ${hashtableSize})`,
+      "(call $ha$htable$Lookup)",
+    ],
+    RunTime.CHECK_KEY_ERROR
+  );
   dictKeyValStmts = dictKeyValStmts.concat(objStmts);
   dictKeyValStmts = dictKeyValStmts.concat(checkNone);
   dictKeyValStmts = dictKeyValStmts.concat(checkKey);
@@ -1706,11 +1715,7 @@ function codeGenBinOp(op: BinOp): string {
 //          code: codes for the parameters to pass in the check function
 //          func: ENUM to identify the checkFunction.
 function codeGenRuntimeCheck(loc: Location, code: Array<string>, func: RunTime): Array<string> {
-  if (
-    func == RunTime.CHECK_ZERO_DIVISION ||
-    func == RunTime.CHECK_VALUE_ERROR
-  )
-    return [];
+  if (func == RunTime.CHECK_ZERO_DIVISION || func == RunTime.CHECK_VALUE_ERROR) return [];
   return [...codeGenPushStack(loc), ...code, `(call $$${func.toString()})`, ...codeGenPopStack()];
 }
 
