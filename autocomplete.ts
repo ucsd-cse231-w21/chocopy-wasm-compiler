@@ -28,7 +28,7 @@ export function populateAutoCompleteSrc(repl: BasicREPL): Array<any> {
   return [defList, classMethodList];
 }
 
-export function autocompleteHint(editor: any, keywords: String[], getToken: any) {
+export function autocompleteHint(editor: any, keywords: string[], getToken: any) {
   // Find the token at the cursor
   var currPos = editor.getCursor();
   var token = getToken(editor, currPos),
@@ -117,7 +117,7 @@ function gatherCompletions(wordList: string[], prefix: string): string[] {
   return completions;
 }
 
-function strExists(arr: string[], item: String) {
+function strExists(arr: string[], item: string) {
   for (var i = 0; i < arr.length; i++) {
     if (arr[i] == item) {
       return true;
