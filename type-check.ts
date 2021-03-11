@@ -427,13 +427,6 @@ export function tcStmt(
     case "pass":
       return { a: [NONE, stmt.a], tag: stmt.tag };
     case "for":
-      if (stmt.iterable.tag == "call" && stmt.iterable.name == "enumerate") {
-        if (stmt.name.targets.length!=2) {
-          throw new Error("enumerate must have index variable!")
-        } else {
-          stmt.iterable.name = "range";
-        }
-      }
       // check the type of iterator items, then add the item name into local variables with its type
       const fIter = tcExpr(env, locals, stmt.iterable);
       const iterable_type = fIter.a[0];
@@ -452,6 +445,23 @@ export function tcStmt(
               }
             });
             break;
+          } else if (stmt.iterable.tag == "call") {
+            if ( stmt.iterable.name == "enumerate") {
+              if (stmt.name.targets.length!=2) {
+                throw new BaseException.SyntaxError(stmt.a, "enumerate must have index variable!");
+              }else{
+                stmt.name.targets.forEach((target) => {
+                  if (target.target.tag === "id") {
+                    locals.vars.set(target.target.name, iter_type);
+                  } else {
+                    throw new BaseException.CompileError(
+                      stmt.a,
+                      "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
+                    );
+                  }
+                });
+              }
+            }
           } else {
             throw new BaseException.SyntaxError(
               stmt.a,
