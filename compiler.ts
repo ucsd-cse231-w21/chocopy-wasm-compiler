@@ -84,7 +84,6 @@ export function augmentEnv(
     if (clo.isGlobal) {
       const globalAddr = mm.staticAlloc(4n);
       newGlobals.set(clo.name, Number(globalAddr));
-      mm.addGlobal(globalAddr);
     }
   });
 
@@ -99,7 +98,6 @@ export function augmentEnv(
   // for rg
   const rgAddr = mm.staticAlloc(4n);
   newGlobals.set("rg", Number(rgAddr));
-  mm.addGlobal(rgAddr);
 
   prog.classes.forEach((cls) => {
     const classFields = new Map();
