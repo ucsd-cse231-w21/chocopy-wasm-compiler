@@ -11,6 +11,7 @@ describe("Heap", () => {
     // Problematic allocation requests
     // Based on failing tests/programs
     describe("Problematic alloc pattern", () => {
+
       it("Closure test 7 alloc pattern", () => {
         const bmb = new BitMappedBlocks(516n, 2000n, 4n, BigInt(HEADER_SIZE_BYTES));
 
@@ -145,7 +146,7 @@ describe("Heap", () => {
         // Anything smaller than 10 => 1
         expect(Number(bmb.getBlockIndex(8n))).to.eq(1);
       });
-      
+
     });
 
     describe("misc", () => {
@@ -167,7 +168,7 @@ describe("Heap", () => {
       it("should return appropriate header", () => {
         const size = 100n;
         const tag = TAG_LIST;
-        
+
         const ptr = bmb.gcalloc(tag, size);
 
         const header = bmb.getHeader(ptr);
@@ -223,7 +224,7 @@ describe("Heap", () => {
         [ptr1, ptr3, ptr5].forEach((ptr) => bmb.getHeader(ptr).mark());
 
         // 13 blocks(ptr2 and ptr4) not marked - will be freed by sweep
-        
+
         bmb.sweep();
 
         // freeBlocks = numFreeBlocks + 13
