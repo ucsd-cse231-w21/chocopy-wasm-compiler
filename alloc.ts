@@ -3,6 +3,7 @@ import * as GC from "./gc";
 export {
   HeapTag,
   TAG_CLASS,
+  TAG_CLOSURE,
   TAG_LIST,
   TAG_STRING,
   TAG_DICT,
@@ -19,6 +20,7 @@ export type StackIndex = bigint;
 export function toHeapTag(tag: bigint): GC.HeapTag {
   if (
     tag === GC.TAG_CLASS ||
+    tag === GC.TAG_CLOSURE ||
     tag === GC.TAG_LIST ||
     tag === GC.TAG_STRING ||
     tag === GC.TAG_DICT ||

@@ -5,6 +5,7 @@ import { throws } from "assert";
 
 export type HeapTag =
   | typeof TAG_CLASS
+  | typeof TAG_CLOSURE
   | typeof TAG_LIST
   | typeof TAG_STRING
   | typeof TAG_DICT
@@ -20,7 +21,13 @@ export const TAG_DICT = 0x4n;
 export const TAG_BIGINT = 0x5n;
 export const TAG_REF = 0x6n;
 export const TAG_DICT_ENTRY = 0x7n;
-export const TAG_OPAQUE = 0x8n;           // NOTE(alex:mm) needed to mark zero-sized-types
+export const TAG_CLOSURE = 0x8n;
+export const TAG_OPAQUE = 0x12n;           // NOTE(alex:mm) needed to mark zero-sized-types
+
+// NOTE(alex:mm): controls whether any GC is ever run
+// Set to false to disable GC (meaning memory allocations will always accumulate)
+// Mainly for debugging purposes and as a fail-safe for unexpected bugs
+export const ENABLE_GC = true;
 
 // Offset in BYTES
 const HEADER_OFFSET_TAG = 0x0;
@@ -296,6 +303,7 @@ export class RootSet {
       if (isPointer(globalVarValue)) {
         const ptr = extractPointer(globalVarValue);
         if (ptr !== 0n) {
+          // console.warn(`Global pointer at ${globalVarAddr}: ${ptr}`);
           callback(ptr);
         }
       }
@@ -306,6 +314,7 @@ export class RootSet {
       // second value is the local index
       frame.forEach((localPtrValue, _) => {
         if (localPtrValue !== 0n) {
+          // console.warn(`Local pointer: ${localPtrValue}`);
           callback(localPtrValue);
         }
       });
@@ -315,6 +324,7 @@ export class RootSet {
     this.tempsStack.forEach((frame) => {
       frame.forEach((localPtrValue) => {
         if (localPtrValue !== 0n) {
+          // console.warn(`Temp pointer: ${localPtrValue}`);
           callback(localPtrValue);
         }
       });
@@ -349,7 +359,9 @@ export class MnS<A extends MarkableAllocator> {
   markFromRoots() {
     let worklist: Array<Pointer> = [];
     this.roots.forEach((root) => {
+      // console.warn(`Checking root: ${root}`);
       if (!this.isMarked(root)) {
+        // console.warn(`Tracing root: ${root}`);
         this.setMarked(root);
         worklist.push(root);
 
@@ -365,9 +377,14 @@ export class MnS<A extends MarkableAllocator> {
   trace(worklist: Array<Pointer>) {
     while (worklist.length > 0) {
       const childPtr = worklist.pop();
+      // console.warn(`Attempting to trace ${childPtr}`);
       const headerRef = this.heap.getHeader(childPtr);
       const childSize = headerRef.getSize(); // in bytes
       const childTag = headerRef.getTag();
+      headerRef.mark();
+      // console.warn(`Tracing ${childPtr} (tag=${childTag}, size=${childSize}, header=${headerRef.headerStart})`);
+      const childValue = readI32(this.memory, Number(childPtr));
+      // console.warn(`\tValue=${childValue}`);
 
       // NOTE(alex:mm): using a `switch` here breaks occasionally for whatever reason
       if (childTag === TAG_CLASS) {
@@ -388,7 +405,8 @@ export class MnS<A extends MarkableAllocator> {
         // Layout: [32-bit TAG_LIST, 32-bit <length>, 32-bit <capacity>, data...]
 
         // Extract value at childPtr + 4. Assumed to be a primitive value
-        const listLength = childSize;
+        const listLength = readI32(this.memory, Number(childPtr + 4n));
+        // console.warn(`Scanning list of length ${listLength}`);
 
         // Sanity check, just-in-case
         // NOTE(sagar): probably not necessary
@@ -400,7 +418,8 @@ export class MnS<A extends MarkableAllocator> {
 
         // Note(sagar): Memory layout is abstracted by allocator
         // childPtr always points to start of data, not header
-        for(let dataPtr = childPtr; dataPtr !== childPtr + listLength * 4n; dataPtr += 4n) {
+        const dataBase = childPtr + 12n;
+        for(let dataPtr = dataBase; dataPtr < dataBase + listLength; dataPtr += 4n) {
           const elementValue = this.getField(dataPtr);
 
           if(isPointer(elementValue)) {
@@ -436,12 +455,35 @@ export class MnS<A extends MarkableAllocator> {
             currListAddr = this.getField(currListAddr + 8n);
           }
         }
-      } else if (TAG_REF) {
-        // NOTE(alex:mm): Used to represent a boxed value
-        // No metadata
-        throw new Error("TODO: trace ref");
+      } else if (childTag === TAG_REF) {
+        // NOTE(alex:mm): assume a single value
+        // TODO(alex:mm): TAG_REF can be potentially be merged with TAG_CLASS
+        const value = readI32(this.memory, Number(childPtr));
+        if (isPointer(value) && value !== 0n) {
+          const pointerValue = extractPointer(value);
+          worklist.push(pointerValue);
+        }
+      } else if (childTag === TAG_CLOSURE) {
+        // Layout [32-bit fn table-index, boxed-values...]
+        this.setMarked(childPtr);
+        const childSize = headerRef.getSize(); // in bytes
+        const boxedRefsSize = childSize - 4n;
+        // console.warn(`TAG CLOSURE {size=${childSize}}`);
+
+        const dataBase = childPtr + 4n;
+        for (let dataPtr = dataBase; dataPtr < dataBase + boxedRefsSize; dataPtr += 4n) {
+          const value = readI32(this.memory, Number(dataPtr));
+          // console.warn(`Value: ${value}`);
+          if (isPointer(value) && value !== 0n) {
+            const pointerValue = extractPointer(value);
+            worklist.push(pointerValue);
+          }
+        }
+
+      } else if (childTag === TAG_OPAQUE) {
+        // NOP
       } else {
-        throw new Error(`Trying to trace unknown heap object: ${childTag.toString()}`);
+        throw new Error(`Trying to trace unknown heap object: { addr=${childPtr}, tag=${childTag.toString()}, size=${childSize} }`);
       }
     }
   }
@@ -476,6 +518,10 @@ export class MnS<A extends MarkableAllocator> {
 
   // Try to make space in the heap
   collect() {
+    if (!ENABLE_GC) {
+      console.error(`Unable to run the GC. ENABLE_GC is not set to true`);
+      return;
+    }
     this.markFromRoots();
     this.sweep();
   }
@@ -505,6 +551,7 @@ export class MnS<A extends MarkableAllocator> {
         this.roots.addTemp(result);
       }
     }
+    // console.warn(`Allocating ${size} at ${result} (tag=${tag})`);
 
     return result;
   }
