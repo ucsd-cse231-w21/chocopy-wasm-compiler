@@ -427,6 +427,13 @@ export function tcStmt(
     case "pass":
       return { a: [NONE, stmt.a], tag: stmt.tag };
     case "for":
+      if (stmt.iterable.tag == "call" && stmt.iterable.name == "enumerate") {
+        if (stmt.name.targets.length!=2) {
+          throw new Error("enumerate must have index variable!")
+        } else {
+          stmt.iterable.name = "range";
+        }
+      }
       // check the type of iterator items, then add the item name into local variables with its type
       const fIter = tcExpr(env, locals, stmt.iterable);
       const iterable_type = fIter.a[0];

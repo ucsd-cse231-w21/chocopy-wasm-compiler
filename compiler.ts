@@ -379,9 +379,16 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           };
 
           var tarname = "";
-          if (stmt.name.targets[0].target.tag === "id") {
-            tarname = stmt.name.targets[0].target.name;
+          if (stmt.name.targets.length == 2) {
+            if (stmt.name.targets[1].target.tag === "id") {
+              tarname = stmt.name.targets[1].target.name;
+            }
+          } else {
+            if (stmt.name.targets[0].target.tag === "id") {
+              tarname = stmt.name.targets[0].target.name;
+            }
           }
+          
           // name = cur
           var ass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
@@ -502,8 +509,14 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           var Code_cur_iniass = codeGenStmt(cur_ass, env);
 
           var tarname = "";
-          if (stmt.name.targets[0].target.tag === "id") {
-            tarname = stmt.name.targets[0].target.name;
+          if (stmt.name.targets.length == 2) {
+            if (stmt.name.targets[1].target.tag === "id") {
+              tarname = stmt.name.targets[1].target.name;
+            }
+          } else {
+            if (stmt.name.targets[0].target.tag === "id") {
+              tarname = stmt.name.targets[0].target.name;
+            }
           }
           // name = cur
           var ass: Stmt<[Type, Location]> = {
@@ -540,51 +553,79 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           };
           var Code_cond = codeGenExpr(Expr_cond, env);
 
-          // if have index
-          // if (stmt.index) {
-          //   var iass: Stmt<[Type, Location]> = {
-          //     a: [NONE, stmt.a[1]],
-          //     tag: "assignment",
-          //     destruct: makeId([NUM, stmt.a[1]], stmt.index),
-          //     value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(-1) } },
-          //   };
-          //   var Code_iass = codeGenStmt(iass, env);
-          //
-          //   var nid: Expr<[Type, Location]> = {
-          //     a: [NUM, stmt.a[1]],
-          //     tag: "binop",
-          //     op: BinOp.Plus,
-          //     left: { a: [NUM, stmt.a[1]], tag: "id", name: stmt.index },
-          //     right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
-          //   };
-          //   var niass: Stmt<[Type, Location]> = {
-          //     a: [NONE, stmt.a[1]],
-          //     tag: "assignment",
-          //     destruct: makeId([NUM, stmt.a[1]], stmt.index),
-          //     value: nid,
-          //   };
-          //   var Code_idstep = codeGenStmt(niass, env);
-          //   // iterable should be a Range object
-          //   return [
-          //     `
-          //     (i32.const ${envLookup(env, "rng" + stmt.id)})
-          //     ${iter.join("\n")}
-          //     (i32.store)
-          //     ${Code_iass.join("\n")}
-          //     ${Code_cur_iniass.join("\n")}
-          //
-          //     (block
-          //       (loop
-          //         ${Code_step.join("\n")}
-          //         ${Code_idstep.join("\n")}
-          //         (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
-          //
-          //         ${Code_ass.join("\n")}
-          //         ${bodyStmts.join("\n")}
-          //         (br 0)
-          //     ))`,
-          //   ];
-          // }
+          console.log("THe var num is " + stmt.name.targets.length + "!!!!!!")
+
+          //if have index
+          if (stmt.name.targets.length == 2) {
+            var tar1name = "";
+            if (stmt.name.targets[1].target.tag === "id") {
+              tar1name = stmt.name.targets[1].target.name;
+            }
+
+            var iass: Stmt<[Type, Location]> = {
+              a: [NONE, stmt.a[1]],
+              tag: "assignment",
+              destruct: makeId([NUM, stmt.a[1]], tar1name),
+              value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(-1) } },
+            };
+            var Code_iass = codeGenStmt(iass, env);
+          
+            var nid: Expr<[Type, Location]> = {
+              a: [NUM, stmt.a[1]],
+              tag: "binop",
+              op: BinOp.Plus,
+              left: { a: [NUM, stmt.a[1]], tag: "id", name: tar1name },
+              right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
+            };
+
+            var niass: Stmt<[Type, Location]> = {
+              a: [NONE, stmt.a[1]],
+              tag: "assignment",
+              destruct: makeId([NUM, stmt.a[1]], tar1name),
+              value: nid,
+            };
+            var Code_idstep = codeGenStmt(niass, env);
+            // iterable should be a Range object
+            // return [
+            //   `
+            //   (i32.const ${envLookup(env, "rng" + stmt.id)})
+            //   ${iter.join("\n")}
+            //   (i32.store)
+            //   ${Code_iass.join("\n")}
+            //   ${Code_cur_iniass.join("\n")}
+          
+            //   (block
+            //     (loop
+            //       ${Code_step.join("\n")}
+            //       ${Code_idstep.join("\n")}
+            //       (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
+          
+            //       ${Code_ass.join("\n")}
+            //       ${bodyStmts.join("\n")}
+            //       (br 0)
+            //   ))`,
+            // ];
+
+            return codeGenTempGuard(
+              [
+                `(i32.const ${envLookup(env, "rng" + stmt.id)})`,
+                ...iter,
+                `(i32.store)`,
+                ...Code_iass,
+                ...Code_cur_iniass,
+                `(block`,
+                `  (loop`,
+                ...Code_step,
+                ...Code_idstep,
+                ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ")"],
+                ...Code_ass,
+                ...bodyStmts,
+                `(br 0)`,
+                `))`,
+              ],
+              FENCE_TEMPS
+            );
+          }
           // iterable should be a Range object
           // test
           // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
