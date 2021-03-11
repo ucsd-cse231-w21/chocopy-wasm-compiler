@@ -372,14 +372,14 @@ export class MnS<A extends MarkableAllocator> {
   trace(worklist: Array<Pointer>) {
     while (worklist.length > 0) {
       const childPtr = worklist.pop();
-      console.warn(`Attempting to trace ${childPtr}`);
+      // console.warn(`Attempting to trace ${childPtr}`);
       const headerRef = this.heap.getHeader(childPtr);
       const childSize = headerRef.getSize(); // in bytes
       const childTag = headerRef.getTag();
       headerRef.mark();
-      console.warn(`Tracing ${childPtr} (tag=${childTag}, size=${childSize}, header=${headerRef.headerStart})`);
+      // console.warn(`Tracing ${childPtr} (tag=${childTag}, size=${childSize}, header=${headerRef.headerStart})`);
       const childValue = readI32(this.memory, Number(childPtr));
-      console.warn(`\tValue=${childValue}`);
+      // console.warn(`\tValue=${childValue}`);
 
       // NOTE(alex:mm): using a `switch` here breaks occasionally for whatever reason
       if (childTag === TAG_CLASS) {
@@ -463,12 +463,12 @@ export class MnS<A extends MarkableAllocator> {
         this.setMarked(childPtr);
         const childSize = headerRef.getSize(); // in bytes
         const boxedRefsSize = childSize - 4n;
-        console.warn(`TAG CLOSURE {size=${childSize}}`);
+        // console.warn(`TAG CLOSURE {size=${childSize}}`);
 
         const dataBase = childPtr + 4n;
         for (let dataPtr = dataBase; dataPtr < dataBase + boxedRefsSize; dataPtr += 4n) {
           const value = readI32(this.memory, Number(dataPtr));
-          console.warn(`Value: ${value}`);
+          // console.warn(`Value: ${value}`);
           if (isPointer(value) && value !== 0n) {
             const pointerValue = extractPointer(value);
             worklist.push(pointerValue);
@@ -542,7 +542,7 @@ export class MnS<A extends MarkableAllocator> {
         this.roots.addTemp(result);
       }
     }
-    console.warn(`Allocating ${size} at ${result} (tag=${tag})`);
+    // console.warn(`Allocating ${size} at ${result} (tag=${tag})`);
 
     return result;
   }

@@ -277,7 +277,7 @@ export class FreeListAllocator implements MarkableAllocator {
     header.setSize(size);
     header.setTag(tag);
 
-    console.warn(`[FREE LIST] Allocating ${size} at ${block.ptr} (size=${header.getSize()})`);
+    // console.warn(`[FREE LIST] Allocating ${size} at ${block.ptr} (size=${header.getSize()})`);
 
     return block.ptr + BigInt(HEADER_SIZE_BYTES);
   }
@@ -480,7 +480,7 @@ export class BitMappedBlocks implements MarkableAllocator {
     header.alloc();
     header.setSize(size);
     header.setTag(tag);
-    console.warn(`[BMB] Allocating ${size} at ${block.ptr} (size=${header.getSize()}, header=${header.headerStart})`);
+    // console.warn(`[BMB] Allocating ${size} at ${block.ptr} (size=${header.getSize()}, header=${header.headerStart})`);
 
     return block.ptr;
   }
