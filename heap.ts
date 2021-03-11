@@ -126,7 +126,7 @@ interface flmd {
   isFree: boolean;
 }
 
-class Node {
+export class Node {
   public next: Node | null = null;
   public prev: Node | null = null;
   data: flmd;
@@ -135,7 +135,7 @@ class Node {
   }
 }
 
-class LinkedList {
+export class LinkedList {
   private head: Node | null = null;
 
   public insertInBegin(data: flmd): Node {
@@ -196,8 +196,20 @@ class LinkedList {
   public setData(n: Node, data: flmd) {
     n.data = data;
   }
-  public getData(n: Node) {
+
+  public getData(n: Node): flmd {
     return n.data;
+  }
+
+  public getNode(ptr: Pointer) {
+    let curr = this.head;
+    while (curr != null) {
+      if (curr.data.addr == ptr - BigInt(HEADER_SIZE_BYTES)) {
+        return curr;
+      }
+      curr = curr.next;
+    }
+    return null;
   }
 }
 
@@ -258,7 +270,7 @@ export class FreeListAllocator implements MarkableAllocator {
   }
 
   description(): string {
-    return `FreeList { start: ${this.regStart}, end: ${this.regEnd} } `;
+    return `FreeList { start: ${this.regStart}, end: ${this.regEnd} }`;
   }
 
   getHeader(ptr: Pointer): Header {
