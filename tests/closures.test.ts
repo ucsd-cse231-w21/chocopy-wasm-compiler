@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 import { assert, assertFail, assertPrint, asserts } from "./utils.test";
 import { PyInt, PyBool, PyNone } from "../utils";
+=======
+import { assert, assertPrint, asserts } from "./utils.test";
+import { PyInt, PyBool, PyNone, PyString } from "../utils";
+>>>>>>> 9c90d9c372b6222e7eefc7be590a14e3c5c75415
 
 describe("Test cases from closures group", () => {
   let src;
@@ -164,6 +169,85 @@ describe("Test cases from closures group", () => {
   assert("10. An escaping function calls its non-escaping sibling", src, PyInt(11));
 
   src = `
+  def concat(items: [bool], stuff: [bool]) -> [bool]:
+    concatted : [bool] = None
+    concatted = items + stuff
+    return concatted
+
+  items : [bool] = None
+  stuff : [bool] = None
+  concatted : [bool] = None
+  items = [True, True, False]
+  stuff = [False, True]
+  concatted = concat(items, stuff)
+`;
+  asserts("11. A function with list created", [
+    [src, PyNone()],
+    ["concatted[0]", PyBool(true)],
+    ["concatted[1]", PyBool(true)],
+    ["concatted[2]", PyBool(false)],
+    ["concatted[3]", PyBool(false)],
+    ["concatted[4]", PyBool(true)],
+  ]);
+
+  src = `
+  def f(x: [int]) -> [int]:
+    def inc() -> [int]:
+      return x + [1]
+    return inc()
+  x : [int] = None
+  x = f(x)
+  x = f(x)
+  x = f(1)
+  `;
+  asserts("12. A nested function with list created", [
+    [src, PyNone()],
+    ["x[0]", PyInt(1)],
+    ["x[1]", PyInt(1)],
+    ["x[2]", PyInt(1)],
+  ]);
+
+  src = `
+  def f(x : [int]) -> [int]:
+    def g(y : [int]) -> [int]:
+      return x + h(y)
+    def h(z : [int]) -> [int]:
+      nonlocal x
+      x = z
+      return x + [1]
+  return g([10]) + g([7])
+
+  x: [int] = None
+  x = f([6])
+  `;
+  asserts("13. A nested function with `nonlocal` and list created", [
+    // [6, 10, 1, 10, 7, 1]
+    [src, PyNone()],
+    ["x[0]", PyInt(6)],
+    ["x[1]", PyInt(10)],
+    ["x[2]", PyInt(1)],
+    ["x[3]", PyInt(10)],
+    ["x[4]", PyInt(7)],
+    ["x[5]", PyInt(1)],
+  ]);
+
+  src = `
+  def f(x : string) -> string:
+    def g(y : string) -> string:
+      return x + h(y)
+    def h(z : string) -> string:
+      nonlocal x
+      x = z
+      return x + "1"
+  return g("10") + g("7")
+
+  x: string = None
+  x = f("6")
+  print(x)
+`;
+  assertPrint("14. A nested function with `nonlocal` and string ", src, "61011071");
+  
+  src = `
   def f(x:int):
     print(x)
   g:Callable[[int], ] = None
@@ -191,8 +275,4 @@ describe("Test cases from closures group", () => {
   `
   assert("17-1. Multiple arguments", src, PyNone());
   assertPrint("17-2. Multiple arguments", src, ["0", "1"]);
-
-  
-
-
 });
