@@ -724,18 +724,19 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       forCount += 1;
       var isDes = false;
       if (targets.length == 2){
-        var dest: Destructure<Location> = {
-          // Info about the value that is being destructured
-          isDestructured: false,
-          targets: [targets[1]],
-        };
-        var index: Destructure<Location> =  {
-          // Info about the value that is being destructured
-          isDestructured: false,
-          targets: [targets[0]],
-        };  
-        return { tag: "for", id: forCount, index: index, name: dest, iterable: iter, body: body, a: location };
-
+        if (iter.tag == "call" && iter.name == "enumerate") {
+          var dest: Destructure<Location> = {
+            // Info about the value that is being destructured
+            isDestructured: false,
+            targets: [targets[1]],
+          };
+          var index: Destructure<Location> =  {
+            // Info about the value that is being destructured
+            isDestructured: false,
+            targets: [targets[0]],
+          };
+          return { tag: "for", id: forCount, index: index, name: dest, iterable: iter, body: body, a: location };
+        }
       }
       var dest: Destructure<Location> = {
         // Info about the value that is being destructured
