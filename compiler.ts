@@ -15,7 +15,17 @@ import {
   Location,
   Assignable,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable, WithTag, bigintToWords } from "./utils";
+import {
+  NUM,
+  BOOL,
+  NONE,
+  CLASS,
+  STRING,
+  unhandledTag,
+  unreachable,
+  WithTag,
+  bigintToWords,
+} from "./utils";
 import * as BaseException from "./error";
 import { RunTime } from "./errorManager";
 import {
@@ -126,9 +136,7 @@ export function augmentEnv(
 
   prog.classes.forEach((cls) => {
     const classFields = new Map();
-    cls.fields.forEach((field, i) =>
-      classFields.set(field.name, [i, field.value])
-    );
+    cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
     newClasses.set(cls.name, classFields);
   });
 
@@ -145,7 +153,6 @@ type CompileResult = {
   mainSource: string;
   newEnv: GlobalEnv;
 };
-
 
 export function makeLocals(locals: Set<string>): Array<string> {
   const localDefines: Array<string> = [];
@@ -264,7 +271,6 @@ export function compile(
     newEnv: withDefines,
   };
 }
-
 
 function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
   const inits: Array<string> = [];
@@ -710,7 +716,6 @@ function codeGenInit(init: VarInit<[Type, Location]>, env: GlobalEnv): Array<str
   }
 }
 
-
 // NOTE(alex:mm): Assuming this is only called for closure allocation
 //   which uses a class-based layout
 function myMemAlloc(name: string, sizeInValueCount: number, closure?: boolean): Array<string> {
@@ -1087,17 +1092,17 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
       return [...leftStmts, ...rightStmts, `(call $${expr.name})`];
-// =======
-//       we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
-//       return [
-//         ...leftStmts,
-//         ...decodeLiteral,
-//         ...rightStmts,
-//         ...decodeLiteral,
-//         ...codeGenCall(expr.a[1], `(call $${expr.name})`),
-//         ...encodeLiteral,
-//       ];
-// >>>>>>> main
+    // =======
+    //       we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
+    //       return [
+    //         ...leftStmts,
+    //         ...decodeLiteral,
+    //         ...rightStmts,
+    //         ...decodeLiteral,
+    //         ...codeGenCall(expr.a[1], `(call $${expr.name})`),
+    //         ...encodeLiteral,
+    //       ];
+    // >>>>>>> main
     case "literal":
       return codeGenLiteral(expr.value);
     case "id":
@@ -1123,14 +1128,18 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           ...encodeLiteral,
         ];
       } else {
-        return [...lhsStmts, ...rhsStmts,
-        ...(expr.op == BinOp.IDiv
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          ...(expr.op == BinOp.IDiv
             ? codeGenRuntimeCheck(
                 expr.a[1],
                 [...rhsStmts, ...decodeLiteral],
                 RunTime.CHECK_ZERO_DIVISION
               )
-            : [""]), codeGenBinOp(expr.op)];
+            : [""]),
+          codeGenBinOp(expr.op),
+        ];
       }
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
@@ -2409,10 +2418,7 @@ function codeGenLiteral(literal: Literal): Array<string> {
     case "string":
       return allocateStringMemory(literal.value);
     case "num":
-      if (
-        literal.value <= INT_LITERAL_MAX &&
-        literal.value >= INT_LITERAL_MIN
-      ) {
+      if (literal.value <= INT_LITERAL_MAX && literal.value >= INT_LITERAL_MIN) {
         return [`(i32.const ${literal.value})`, ...encodeLiteral];
       } else {
         return codeGenBigInt(literal.value);
