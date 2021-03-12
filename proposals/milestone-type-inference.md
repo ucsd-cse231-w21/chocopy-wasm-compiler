@@ -47,11 +47,7 @@
    In conclusion, the biggest challenge of our implementation thus far was making sure that the logics of variable declaration/assignment work as intended.
 
 
-
-
 # Milestone 2 (3/11/2021) for Type Inference
-
-__In your milestone file, add a new section at the end indicating three example programs or scenarios that would require extensions to your design that you can imagine making, but didn't have the time for.__
 
 ## Program 1
 
@@ -61,7 +57,16 @@ __In your milestone file, add a new section at the end indicating three example 
 
 - Since the user has explicitly declared the value `c` to be of type `int`, we could infer that the parameters `a` and `b` ought to be type `int`.
 - Currently this produces an error, and requests additional type information about `a` or `b` to infer from.
-- This change would entail adding additional code to the inference of VarInits for function definitions. 
+- The difficulty with this program is that the way that variable declarations with and without the type annotation are currently handled
+  completely differently during the parsing stage of the compiler. This is an artifact of the class compiler, where there are deliberately
+  different parsing functions set up for statements with and without variable declarations. Originally, we planned combine parsing for 
+  assignments and variable declarations into a algorithm, and treat the *first* assignment as a declaration, but this would have had cascading
+  effects on the class compiler, so we opted against it. In hindsight, we should have just followed through, since we ended up not merging with the
+  class anyway.
+- In principle, our type inference algorithm supports this program, but there needs to be a modification to allow optional (local) type annotations
+  and then add those type annotations to the set of constraints that need to be solved through substitution. However, this modification is made, our
+  algorithm would correctly constrain the RHS `a + b` of the declaration using `c : int` and then correctly infer the types of `a`, `b`, and the
+  return type of `f`.
 
 ## Program 2
 
@@ -71,7 +76,14 @@ __In your milestone file, add a new section at the end indicating three example 
       x = f(1)
 
 - This program was one of our originally specified programs in our proposal. 
-- However, due to time constrains we have not been able to complete a merge with `main` to give the machinary to parse and run this program. 
+- However, due to time constrains we have not been able to complete a merge with `main` to give the machinary to parse and run this program.
+  In particular, our compiler has no parsing support for nested function bodies, so we cannot even proceed from the parsing stage to the type
+  inference and type checking stage.
+- That said, with modifications to take into count how such function bodies would be processed, our existing function inference ought to 
+  support this program as expected. For example, provided some infrastructure to gather definition of `f`, we could simply call `inferReturnType`
+  on that definition to get a fully typed definition for `f` (the parameter `y` of `f` is also inferred by this),
+  which we could use to successfully type check `x`. Finally `inferReturnType` would see that `g` doesn't supply a `return` statement, so
+  its return type is `None`.
 
 ## Program 3
 
@@ -83,7 +95,8 @@ __In your milestone file, add a new section at the end indicating three example 
     
     g(A())
 
-TODO: Explain that if we merged we could probably do this
+- Initially we aimed to implement inference for classes, however we were not able to do so on time. 
+- Our original approach was to use row polymorphism to solve this constraint problem. Using row polymosphism, we can judge by the fact that the return statement of `g` has a field lookup of object `a` that `a` is an object that contains a field `x`. Our thoughts were that we could assign objects of this nature an "open object" type and handle the constraint problem during unification. We initially tried to resolve the "open-objects" during inference through a process of "closing" the object types, but as we soon realized, this cannot be done ahead of time and for this approach to work we will need to heavily modify the type checker and code generation machinery to handle these objects dynamically, which we judged to be unrealistic given the limited time that we had.
 
 
 
