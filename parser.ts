@@ -124,8 +124,15 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             left: args[0],
             right: args[1],
           };
-        } else if (callName === "range") {
+        } else if (callName === "range" || callName === "len") {
           expr = {
+            tag: "call",
+            name: callName,
+            arguments: args,
+          };
+        } else if (callName === "dict") {
+          expr = {
+            a: location,
             tag: "call",
             name: callName,
             arguments: args,
@@ -749,21 +756,25 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
 }
 
 export function traverseType(c: TreeCursor, s: string): Type {
-  let name = s.substring(c.from, c.to);
-  if (c.node.type.name === "ArrayExpression") return traverseBracketType(c, s);
-  switch (name) {
-    case "int":
-      return NUM;
-    case "str":
-      return STRING;
-    case "bool":
-      return BOOL;
-    default:
-      if (c.type.name === "MemberExpression") {
-        return traverseCallable(c, s);
-      } else {
-        return CLASS(name);
+  switch (c.type.name) {
+    case "VariableName":
+      let name = s.substring(c.from, c.to);
+      switch (name) {
+        case "int":
+          return NUM;
+        case "str":
+          return STRING;
+        case "bool":
+          return BOOL;
+        default:
+          return CLASS(name);
       }
+    case "ArrayExpression":
+      return traverseBracketType(c, s);
+    case "MemberExpression":
+      return traverseCallable(c, s);
+    default:
+      throw new BaseException.InternalException("Unable to parse type");
   }
 }
 
