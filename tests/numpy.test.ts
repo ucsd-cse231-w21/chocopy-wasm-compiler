@@ -37,7 +37,7 @@ describe("numpy tests", () => {
          import numpy as np
          a : np.ndarray = None
          a = np.array([1,2])
-         print(a.flatten())`, // equivalent to: for e in a.flatten().tolist(): print(e)
+         print(a.flatten().tolist())`, // equivalent to: for e in a.flatten().tolist().tolist(): print(e)
          ["1", "2"]); // list content; flattened for easy test
   assertTC("3.1. numpy-2darray-tc",          
          `
@@ -58,14 +58,14 @@ describe("numpy tests", () => {
          import numpy as np
          a : np.ndarray = None
          a = np.array([[1,2,3], [4,5,6]])
-         print(a.flatten())`, 
+         print(a.flatten().tolist())`, 
          ["1", "2", "3", "4", "5", "6"]); 
   assertPrint("4. numpy-2darray-signed-content",          
          `
          import numpy as np
          b : np.ndarray = None
          b = np.array([[-1,2,-3], [-4,5,-6]])
-         print(b.flatten())`, 
+         print(b.flatten().tolist())`, 
          ["-1", "2", "-3", "-4", "5", "-6"]); 
   asserts("5. numpy-2darray-shape", [
           [`import numpy as np
@@ -90,7 +90,7 @@ describe("numpy tests", () => {
          b : np.ndarray = None
          a = np.array([[1,2,3], [4,5,6]])
          b = np.array([[-1,2,-3], [-4,5,-6]])
-         print((a+b).flatten())`, 
+         print((a+b).flatten().tolist())`, 
          ["0", "4", "0", "0", "10", "0"]); 
   assertFail("7. numpy-2darray-add-fail",          
          `
@@ -116,7 +116,7 @@ describe("numpy tests", () => {
          c : np.ndarray = None
          b = np.array([[-1,2,-3], [-4,5,-6]])
          c = np.array([[1,2], [4,5]])
-         print((c@b).flatten())`, 
+         print((c@b).flatten().tolist())`, 
          ["-9", "12", "-15", "-24", "33", "-42"]); 
   assertFail("9. numpy-2darray-dot-fail",          
          `
@@ -135,4 +135,40 @@ describe("numpy tests", () => {
        d = np.array([[-1,2,-3], [-4,5,-6], [7,8,9]])
        c.data`, PyList(0)], 
        [`d.data`, PyList(1)]]); 
+  assertPrint("11. numpy-2darray-divide-content",          
+         `
+         import numpy as np
+         a : np.ndarray = None
+         b : np.ndarray = None
+         a = np.array([[1,2,3], [4,5,6]])
+         b = np.array([[-1,2,-3], [-4,5,-6]])
+         print((a//b).flatten().tolist())`, 
+         ["-1", "1", "-1", "-1", "1", "-1"]); 
+  assertPrint("12. numpy-2darray-mul-content",          
+         `
+         import numpy as np
+         a : np.ndarray = None
+         b : np.ndarray = None
+         a = np.array([[1,2,3], [4,5,6]])
+         b = np.array([[-1,2,-3], [-4,5,-6]])
+         print((a*b).flatten().tolist())`, 
+         ["-1", "4", "-9", "-16", "25", "-36"]); 
+  assertPrint("12. numpy-2darray-sub-content",          
+         `
+         import numpy as np
+         a : np.ndarray = None
+         b : np.ndarray = None
+         a = np.array([[1,2,3], [4,5,6]])
+         b = np.array([[-1,2,-3], [-4,5,-6]])
+         print((a-b).flatten().tolist())`, 
+         ["2", "0", "6", "8", "0", "12"]); 
+  assertPrint("13. numpy-2darray-pow-content",          
+         `
+         import numpy as np
+         a : np.ndarray = None
+         b : np.ndarray = None
+         a = np.array([[1,2,3], [4,5,6]])
+         b = np.array([[-1,2,-3], [-4,5,-6]])
+         print((b**a).flatten().tolist())`, 
+         ["-1", "4", "-27", "256", "3125", "46656"]); 
 });
