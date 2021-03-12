@@ -752,13 +752,13 @@ export function tcExpr(
         case BinOp.IDiv:
         case BinOp.Mod:
           if (
-            (expr.op == BinOp.Plus) &&
-            ((tLeft.a[0].tag === "string") &&
-            equalType(tLeft.a[0], tRight.a[0])) ||
+            (expr.op == BinOp.Plus &&
+              tLeft.a[0].tag === "string" &&
+              equalType(tLeft.a[0], tRight.a[0])) ||
             (tLeft.a[0].tag === "list" &&
-            (equalType(tLeft.a[0], tRight.a[0]) ||
-              isEmptyList(tLeft.a[0]) ||
-              isEmptyList(tRight.a[0])))
+              (equalType(tLeft.a[0], tRight.a[0]) ||
+                isEmptyList(tLeft.a[0]) ||
+                isEmptyList(tRight.a[0])))
           ) {
             return { ...tBin, a: [tLeft.a[0], expr.a] };
           }
