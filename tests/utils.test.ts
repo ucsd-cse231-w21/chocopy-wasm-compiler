@@ -1,12 +1,26 @@
 import "mocha";
 import { expect } from "chai";
 import { BasicREPL } from "../repl";
-import { Value } from "../ast";
+import { Value, Location } from "../ast";
 import { importObject } from "./import-object.test";
 import { fail } from "assert";
 
 // Clear the output before every test
 beforeEach(function () {
+  // NOTE(alex:mm): need to reset memory between tests
+  // Specifically, we need to reset static storage b/c globals will be scanned
+  //   and old values will be phantom pointers from a previous test
+  const memory = new Uint8Array(importObject.js.memory.buffer);
+  for (let i = 0; i < memory.length; i++) {
+    memory[i] = 0;
+  }
+
+  // NOTE(alex): the following line results in fast testing
+  //   But occasionally, "WebAssembly.Memory() could not allocate memory" will be thrown
+  //   Maybe there is a memory leak somewhere?
+  // importObject.js.memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+
+  importObject.memoryManager = undefined;
   importObject.output = "";
 });
 
@@ -14,6 +28,14 @@ beforeEach(function () {
 before(function () {
   console.log = function () {};
 });
+
+export function skipassert(name: string, source: string, expected: Value) {
+  it.skip(name, async () => {
+    const repl = new BasicREPL(importObject);
+    const result = await repl.run(source);
+    expect(result).to.deep.eq(expected);
+  });
+}
 
 export function assert(name: string, source: string, expected: Value) {
   it(name, async () => {
@@ -46,11 +68,7 @@ export function assertFail(name: string, source: string) {
   });
 }
 
-export function assertPrint(
-  name: string,
-  source: string,
-  expected: Array<string>
-) {
+export function assertPrint(name: string, source: string, expected: Array<string>) {
   it(name, async () => {
     const repl = new BasicREPL(importObject);
     const result = await repl.run(source);
@@ -83,4 +101,33 @@ export function assertTCFail(name: string, source: string) {
       expect(e).to.instanceof(Error);
     }
   });
+}
+
+export function singleVarAssignment<T>(
+  name: string,
+  value: T,
+  loc1: Location,
+  loc2: Location,
+  loc3: Location
+) {
+  return {
+    a: loc3,
+    tag: "assignment",
+    destruct: {
+      valueType: loc1,
+      isDestructured: false,
+      targets: [
+        {
+          ignore: false,
+          starred: false,
+          target: {
+            a: loc2,
+            name,
+            tag: "id",
+          },
+        },
+      ],
+    },
+    value,
+  };
 }

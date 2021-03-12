@@ -3,15 +3,13 @@ import { NUM, BOOL, NONE } from "../utils";
 
 describe("tc", () => {
   assertTC("number", "1", NUM);
-  assertTC("bignum", "4294967295", NUM);
+  assertTC("big number", "4294967296", NUM);
   assertTC("true", "True", BOOL);
   assertTC("false", "False", BOOL);
 
   assertTC("plus", "1 + 2", NUM);
   assertTCFail("plusBoolRight", "1 + True");
-  assertTCFail("plusBoolRightBigNum", "4294967295 + True");
   assertTCFail("plusBoolLeft", "False + 2");
-  assertTCFail("plusBoolLeftBigNum", "False + 4294967295");
   assertTCFail("plusBoolBoth", "False + True");
 
   assertTC("mul", "1 * 2", NUM);
@@ -127,10 +125,54 @@ describe("tc", () => {
       self.x = x
       self.y = y
       return self
-  
+
   c : C = None
   c = C().new(3, 4)
   c.x`,
     NUM
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+  d : [int,int] = None
+  d = {1:False, 2:True}`
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+    a:[int, [int, int]] = None
+    a = {2:True}`
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+    a:[int, [int, int]] = None
+    a = {2:{3:True}}`
+  );
+
+  assertTCFail(
+    "dict-incomplete-assignment",
+    `
+  d: [int, int] = None
+  d = {4}`
+  );
+
+  assertTCFail(
+    "dict-bad-lookup",
+    `
+  d: [int, int] = None
+  d = {4:5, 1:4}
+  d[True]`
+  );
+
+  assertTCFail(
+    "dict-bad-assign",
+    `
+  a:[int,int]=None
+  a = {}
+  a[8] = True`
   );
 });
