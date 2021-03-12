@@ -238,5 +238,5 @@ for a, b, c in [[1,2,3], [4,5,6]]:
   print(b)
   print(c)
 ```
-Currently the `Destructure` requires all `targets` to be type `class` if we have multiple `target`. 
-Therefore, we need to build a class for each of such assignment programs. 
+Currently the `Destructure` requires value to be type `class` if we have multiple `target`. 
+For this class, it must have as many member variables as the number of target in the destruvture. To assign destructure we have to create some specific classes for different numbers of target, we may not have enought time to do this feature.
