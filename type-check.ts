@@ -690,42 +690,6 @@ function tcDestructure(
         tTargets = tcTuples(destruct.targets, types);
       }
 
-      // let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map(
-      //   (target, i, targets) => {
-      //     if (i >= types.length)
-      //       throw new Error(
-      //         `Not enough values to unpack (expected at least ${i}, got ${types.length})`
-      //       );
-      //     if (target.starred) {
-      //       let tTarget = tcAssignable(env, locals, target.target);
-      //       if (tTarget.a[0].tag !== "list")
-      //         throw new BaseException.CompileError(
-      //           tTarget.a[1],
-      //           `Starred assignment target must have type list, found type ${tTarget.a[0].tag}`
-      //         );
-      //       starOffset = types.length - targets.length; // How many values to offset index to account for starred target
-      //       for (let j = i; j <= i + starOffset; j++)
-      //         if (!isAssignable(env, types[j], tTarget.a[0]))
-      //           throw new BaseException.CompileError(
-      //             tTarget.a[1],
-      //             `Cannot assign type ${types[j].tag} to list of type ${tTarget.a[0].content_type.tag}`
-      //           );
-      //       return {
-      //         target: tTarget,
-      //         starred: target.starred,
-      //         ignore: target.ignore,
-      //       };
-      //     }
-      //     let valueType = types[i + starOffset];
-      //     return tcTarget(target, valueType);
-      //   }
-      // );
-
-      // if (types.length > destruct.targets.length + starOffset)
-      //   throw new Error(
-      //     `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
-      //   );
-
       return {
         isDestructured: destruct.isDestructured,
         targets: tTargets,
