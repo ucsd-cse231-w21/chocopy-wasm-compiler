@@ -1,4 +1,4 @@
-import { assert, assertPrint, asserts } from "./utils.test";
+import { assert, assertPrint, asserts, assertFail } from "./utils.test";
 import { PyInt, PyBool, PyNone, PyString } from "../utils";
 
 describe("Test cases from closures group", () => {
@@ -240,7 +240,7 @@ describe("Test cases from closures group", () => {
   x = f("6")
   print(x)
 `;
-  assertPrint("14. A nested function with `nonlocal` and string ", src, "61011071");
+  assertPrint("14. A nested function with `nonlocal` and string ", src, ["61011071"]);
 
   src = `
   def f(x:int):
