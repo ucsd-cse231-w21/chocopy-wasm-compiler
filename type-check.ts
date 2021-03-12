@@ -75,13 +75,21 @@ export function emptyLocalTypeEnv(): LocalTypeEnv {
   };
 }
 
+export type TypeError = {
+  message: string;
+};
+
 export function equalType(t1: Type, t2: Type): boolean {
+  if (t1 === null) {
+    return t2 === null;
+  }
   return (
     // ensure deep match for nested types (example: [int,[int,int]])
     JSON.stringify(t1) === JSON.stringify(t2) ||
     (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name) ||
     //if dictionary is initialized to empty {}, then we check for "none" type in key and value
     (t1.tag === "dict" && t2.tag === "dict" && t1.key.tag === "none" && t1.value.tag === "none") ||
+    (t1.tag === "list" && t2.tag === "list" && equalType(t1.content_type, t2.content_type)) ||
     (t1.tag === "callable" && t2.tag === "callable" && equalCallabale(t1, t2))
   );
 }
@@ -986,6 +994,24 @@ export function tcExpr(
           );
         }
       }
+      if (expr.name == "dict") {
+        if (expr.arguments.length !== 1) {
+          throw new TypeError(
+            "Expected only 1 argument in function call: " +
+              expr.name +
+              "; got " +
+              expr.arguments.length
+          );
+        }
+        let tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
+        let tRet = tArg[0].a; //dict constructor will take only 1 argument
+        if (tArg[0].a[0].tag !== "dict") {
+          throw new TypeError(
+            "Function call type mismatch: " + expr.name + ". Expected dict type as an argument."
+          );
+        }
+        return { ...expr, a: tRet, arguments: tArg };
+      }
       throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
@@ -1049,6 +1075,115 @@ export function tcExpr(
           } else {
             throw new BaseException.NameError(expr.a, tObj.a[0].name);
           }
+        case "dict":
+        console.log("TC: dict method call");
+        switch (expr.method) {
+          case "pop":
+            let numArgsPop = expr.arguments.length;
+            if (numArgsPop > 2) {
+              throw new BaseException.CompileError(
+                expr.a,
+                `'dict' pop() expected at most 2 arguments, got ${numArgsPop}`
+              );
+            }
+            let dictKeyTypePop = tObj.a[0].key;
+            let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
+            if (!isAssignable(env, dictKeyTypePop, tKeyPop.a[0])) {
+              throw new BaseException.CompileError(
+                expr.a,
+                "Expected key type `" +
+                  dictKeyTypePop.tag +
+                  "`; got key lookup type `" +
+                  tKeyPop.a[0].tag +
+                  "`"
+              );
+            }
+            return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyPop] };
+          case "get":
+            console.log("TC: get function in dict");
+            let numArgsGet = expr.arguments.length;
+            if (numArgsGet !== 2) {
+              throw new BaseException.CompileError(
+                expr.a,
+                `'dict' get() expected 2 arguments, got ${numArgsGet}`
+              );
+            }
+            let dictKeyTypeGet = tObj.a[0].key;
+            let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
+            if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a[0])) {
+              throw new BaseException.CompileError(
+                expr.a,
+                "Expected key type `" +
+                  dictKeyTypeGet.tag +
+                  "`; got key lookup type `" +
+                  tKeyGet.a[0].tag +
+                  "`"
+              );
+              }
+              let dictValueTypeGet = tObj.a[0].value;
+              let tValueGet = tcExpr(env, locals, expr.arguments[1]);
+              if (!isAssignable(env, dictValueTypeGet, tValueGet.a[0])) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  "Expected value type `" +
+                    dictValueTypeGet.tag +
+                    "`; got value lookup type `" +
+                    tValueGet.a[0].tag +
+                    "`"
+                );
+              }
+              return {
+                ...expr,
+                a: [tObj.a[0].value, expr.a],
+                obj: tObj,
+                arguments: [tKeyGet, tValueGet],
+              };
+
+            case "update":
+              console.log("TC: To-Do update function in dict");
+              let numArgsUpdate = expr.arguments.length;
+              if (numArgsUpdate > 2) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  `'dict' update() expected at most 1 argument, got ${numArgsUpdate}`
+                );
+              }
+              let isArgDict = expr.arguments[0];
+              if (isArgDict.tag === "literal") {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  `'dict' update() expected an iterable, got ${isArgDict.value.tag}`
+                );
+              }
+              let tUpdate = tcExpr(env, locals, isArgDict);
+              return {
+                ...expr,
+                a: [NONE, expr.a],
+                obj: tObj,
+                arguments: [tUpdate],
+              };
+            case "clear":
+              // throw error if there are any arguments in clear()
+              let numArgsClear = expr.arguments.length;
+              if (numArgsClear != 0) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  `'dict' clear() takes no arguments (${numArgsClear} given)`
+                );
+              }
+              return {
+                ...expr,
+                a: [NONE, expr.a],
+                obj: tObj,
+                arguments: [],
+              };
+            default:
+              throw new BaseException.CompileError(
+                expr.a,
+                `'dict' object has no attribute '${expr.method}'`
+              );
+          }
+
         case "list":
           if (tObj.a[0].content_type === null && tArgs.length > 0) {
             tObj.a[0].content_type = tArgs[0].a[0];
@@ -1117,7 +1252,7 @@ export function tcExpr(
       let dictType: Type;
       // check for the empty dict, example: d = {} -> returns `none`
       if (!(entries.length > 0)) {
-        dictType = { tag: "dict", key: { tag: "none" }, value: { tag: "none" } };
+        dictType = { tag: "dict", key: NONE, value: NONE };
         return {
           ...expr,
           a: [dictType, expr.a],
