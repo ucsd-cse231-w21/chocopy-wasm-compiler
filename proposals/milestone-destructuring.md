@@ -258,7 +258,7 @@ Adding this feature would allow us to support programs like the following.
 ```python
 # bool and int are both assignable to type object, so we can spread them into an object array
 rest: [object] = None
-n1, rest, n2 = (5, True, 11, False, 9)
+n1, *rest, n2 = (5, True, 11, False, 9)
 rest == [True, 11, False]
 ```
 
@@ -286,6 +286,7 @@ i: int = randint(0, 5)
 obj = (1, True, 10, False, None, Object())[i]
 
 # add support for tuple builtins, including print and len
+tupel: (int, bool) = None
 tupel = (10, True)
 print(tupel)       # prints "(10, True)"
 print(len(tupel))  # prints "2"
