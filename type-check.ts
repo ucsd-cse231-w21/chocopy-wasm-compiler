@@ -1,6 +1,7 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable, jsonStringify } from "./utils";
+import { NUM, BOOL, NONE, CLASS, LIST, unhandledTag, unreachable, jsonStringify } from "./utils";
 import * as BaseException from "./error";
+import { ndarrayName } from "./numpy";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -60,7 +61,7 @@ export type TypeError = {
 };
 
 export function equalType(t1: Type, t2: Type) {
-  return t1 === t2 || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name);
+  return jsonStringify(t1) === jsonStringify(t2) || (t1.tag === "class" && t2.tag === "class" && t1.name === t2.name);
 }
 
 export function isNoneOrClass(t: Type) {
@@ -100,7 +101,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   // TODO: test nested imports
   var envRet = {globals: newGlobs, functions: newFuns, classes: newClasses};
   program.imports.forEach( (ip) => {
-    envRet =  augmentTEnv(envRet, ip);
+      envRet = augmentTEnv(envRet, ip);
   });
   return envRet;
 }
@@ -147,7 +148,9 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<null>): FunDef<Type> {
   locals.topLevel = false;
   fun.parameters.forEach((p) => locals.vars.set(p.name, p.type));
   fun.inits.forEach((init) => locals.vars.set(init.name, tcInit(env, init).type));
-
+  if ("a" in fun){ // skip tc body for imported functions/methods
+    return fun;
+  }
   const tBody = tcBlock(env, locals, fun.body);
   return { ...fun, a: NONE, body: tBody };
 }
@@ -254,6 +257,8 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Mod:
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
             return { a: NUM, ...tBin };
+          } else if (equalType(tLeft.a, CLASS(ndarrayName)) && equalType(tRight.a, CLASS(ndarrayName))) {
+            return { a: CLASS(ndarrayName), ...tBin };
           } else {
             throw new TypeCheckError("Type mismatch for numeric op" + expr.op);
           }
@@ -284,6 +289,12 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           if (!isNoneOrClass(tLeft.a) || !isNoneOrClass(tRight.a))
             throw new TypeCheckError("is operands must be objects");
           return { a: BOOL, ...tBin };
+        case BinOp.MatMul:
+          if (equalType(tLeft.a, CLASS(ndarrayName)) && equalType(tRight.a, CLASS(ndarrayName))) {
+            return { a: CLASS(ndarrayName), ...tBin };
+          } else {
+            throw new TypeCheckError("Type mismatch for matrix op" + expr.op);
+          }
         default:
           return unreachable(expr as never);
       }
@@ -399,10 +410,6 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
           if (methods.has(expr.method)) {
             const [methodArgs, methodRet] = methods.get(expr.method);
             const realArgs = [tObj].concat(tArgs);
-            // TODO: remove this and add tc for numpy.array()
-            if (tObj.a.name==="numpy$import"){
-              return { ...expr, a: methodRet, obj: tObj, arguments: tArgs };
-            }
             if (
               methodArgs.length === realArgs.length &&
               methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a, argTyp))
@@ -426,6 +433,14 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
       } else {
         throw new TypeCheckError("method calls require an object");
       }
+    case "list-expr":
+      // TODO: overwrite this by list team
+      const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
+      return {
+        ...expr,
+        a: { tag: "list", content_type: {tag : "number"} },
+        contents: listExpr,
+      };
     default:
       throw new TypeCheckError(`unimplemented type checking for expr: ${expr}`);
   }
