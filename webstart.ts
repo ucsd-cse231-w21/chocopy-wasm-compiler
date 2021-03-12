@@ -1,7 +1,7 @@
 import { BasicREPL } from "./repl";
 import { Type, Value } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag } from "./utils";
-import { ndarray_flatten } from "./numpy";
+import { ndarray_flatten, ndarray_add, ndarray_dot } from "./numpy";
 import * as compiler from "./compiler";
 
 import CodeMirror from "codemirror";
@@ -50,6 +50,8 @@ function print_lists(lists: number) {
 export const importFuns = {
   print_lists: print_lists,
   numpy_ndarray_flatten: ndarray_flatten,
+  numpy_ndarray_add: ndarray_add,
+  numpy_ndarray_dot: ndarray_dot,
 }
 
 function webStart() {
