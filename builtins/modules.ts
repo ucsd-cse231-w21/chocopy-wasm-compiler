@@ -129,7 +129,7 @@ class Natives extends BuiltInModule{
         const left = this.allocator.getInstance(args[0]);
         const right = this.allocator.getInstance(args[1]);
         if(left.tag === "int" && right.tag === "int"){
-            return this.allocator.allocInt(Math.pow(left.value, right.value));
+            return this.allocator.allocInt(Math.floor(Math.pow(left.value, right.value)));
         }
         return args[0];
     }

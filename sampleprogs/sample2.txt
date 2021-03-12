@@ -1,5 +1,7 @@
-x:int = 0
-if True:
-  x = 5
-else:
-  x = 3
+class C(object):
+  def f(self : C, x : int) -> int:
+    return x * 2
+
+c : C = None
+c = C()
+c.f(4) + c.f(c.f(2))

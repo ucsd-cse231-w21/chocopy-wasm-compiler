@@ -212,7 +212,7 @@ export class BasicREPL {
     this.currentLabels = this.resolveLabels(this.currentLabels, labeled);
 
     const compiled = compile(this.currentSource, this.currentLabels, this.labeledBuiltIns, this.config.allocator);
-    //console.log("---------INSTRS--------\n"+compiled.join("\n"));
+    console.log("---------INSTRS--------\n"+compiled.join("\n"));
 
     this.currentRuntime = this.createRuntimeRep(this.currentRuntime, this.currentSource, labeled);
     this.config.allocator.setModule(0, this.currentRuntime);
@@ -379,7 +379,7 @@ async function main(){
                           allocator: allocator};
   const repl = new BasicREPL(config);
 
-  const input = fs.readFileSync("./sampleprogs/sample8.txt","ascii");
+  const input = fs.readFileSync("./sampleprogs/sample2.txt","ascii");
 
   let v = await repl.run(input);
   console.log("done============="+valToStr(v));

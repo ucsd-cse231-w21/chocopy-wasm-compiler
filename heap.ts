@@ -171,6 +171,8 @@ export class MainAllocator{
   allocInt(int: number): number{
     const addr = this.heapIndex;
 
+    //console.log("=====allocating int: "+int);
+
     this.heap.push({tag: "int", value: int});
     this.heapIndex++;
     return addr;

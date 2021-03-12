@@ -3,6 +3,9 @@ import { NUM, BOOL, NONE, CLASS, unhandledTag, unreachable } from "./utils";
 import * as BaseException from "./error";
 import { callToSignature, ClassPresenter, FuncIdentity, idenToStr, literalToType, ModulePresenter } from "./types";
 
+
+const INIT_NAME = "__init__";
+
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
   __proto__: Error;
@@ -333,16 +336,33 @@ function tcExpr(expr: Expr<null>,
                 callSite: {iden: target.iden, module: target.module, isConstructor: false}};
       }
       else if(global.classes.has(expr.name)){
+        //this is a constructor call
+
+        argTypes.unshift(CLASS(expr.name)); //put class type in front of argTypes
+
         const targetClass = global.classes.get(expr.name);
+
+        const constructors = new Map<string, {iden: FuncIdentity, module: string}>();
+        targetClass.classPresen.instanceMethods.forEach(
+          x => {
+            console.log("is constructor? "+idenToStr(x)+" | "+(x.signature.name === INIT_NAME));
+            if(x.signature.name === INIT_NAME){
+              constructors.set(idenToStr(x), {iden: x, module: undefined});
+              console.log("added!");
+            }
+          }
+        );
+
+        const targetConstructor = flookup(INIT_NAME, argTypes, constructors);
+
+        console.log(` ===> constr call ${callToSignature(expr.name, argTypes)} ${JSON.stringify(constructors)}`);
+
         return {a: {tag: "class", name: expr.name}, 
                 tag: "call", 
                 name: expr.name, 
                 arguments: typedArgExprs, 
-                callSite: {iden: {signature: {name: expr.name, 
-                                              parameters: argTypes}, 
-                                  returnType: {tag: "class", 
-                                               name: expr.name}}, 
-                           module: targetClass.module,
+                callSite: {iden: targetConstructor.iden, 
+                           module: targetConstructor.module,
                            isConstructor: true}};
       }
 
@@ -600,11 +620,32 @@ function tcClassDef(def: Class<null>,
     presenterVars.set(name, info.type);
   }
 
+  let hasConstructor = false;
 
   for(let [sig, info] of def.methods.entries()){
+    if(info.identity.signature.name === INIT_NAME){
+      //we found a "constructor"
+      hasConstructor = true;
+    }
+
     const newF = tcFuncDef(info, global, builtIns);
     newMethods.set(sig, newF);
     presenterMethods.set(sig, newF.identity);
+  }
+
+  //if no constructor was found, add an "empty", no-arg constructor constructor
+  if(!hasConstructor){
+    const noArgIdentity: FuncIdentity = {signature: {name: INIT_NAME, 
+                                                     parameters: [CLASS(def.name)]},
+                                         returnType: NONE};
+    const noArgConstr: FunDef<Type> = {a: {tag: "callable", args: [CLASS(def.name)], ret: NONE},
+                                       identity: noArgIdentity,
+                                       parameters: new Map([["self", CLASS(def.name)]]),
+                                       localVars: new Map(),
+                                       body: new Array()
+                                      };
+    newMethods.set(`${INIT_NAME}(${def.name})`, noArgConstr);
+    presenterMethods.set(`${INIT_NAME}(${def.name})`, noArgIdentity);
   }
 
   const presenter: ClassPresenter = {name: def.name, 
@@ -778,12 +819,16 @@ export function tc(existingEnv: GlobalTable,
     const newClassDef = tcClassDef(def, curGlobalTable, builtIns);
     modClasses.set(name, newClassDef);
 
+    //update the presenter in GlobalTable for any added constructors
+    curGlobalTable.classes.set(name, {classPresen: newClassDef.presenter, module: undefined});
+
     modPresenter.classes.set(name, newClassDef.presenter);
   }
   
   //check top-level statements
   for(let stmt of program.stmts){
     const newStmt = tcStmt(stmt, [modPresenter.moduleVars], curGlobalTable, builtIns);
+
     tlStmts.push(newStmt);
   }
 

@@ -11,8 +11,11 @@ import {BinOp,
         FunDef,
         Class,
         Type,
-        VarInit} from "./ast";
+        VarInit,
+        typeToString} from "./ast";
 import { idenToStr } from "./types";
+
+const INIT_NAME = "__init__";
 
 export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
 
@@ -243,6 +246,23 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
             if(methods.has(idenToStr(classComponent.def.identity))){
               throw new Error(`The class ${className} already has a function ${idenToStr(classComponent.def.identity)}`);
             }
+            else if(classComponent.def.identity.signature.name === INIT_NAME){
+              const identity = classComponent.def.identity;
+
+              //__init__ must have no return type, or must return None
+              if(identity.returnType.tag !== "none"){
+                throw new Error(`__init__ functions can only return None - explicitly or implicitly`);
+              }
+            }
+
+            //all methods must have a "self" parameter of the host class' name
+            //__init__ must have a the self parameter
+            const selfType = classComponent.def.parameters.get("self");
+            if(selfType === undefined || typeToString(selfType) !== className){
+              throw new Error(`The method ${idenToStr(classComponent.def.identity)} has no parameter self of type ${className}`);
+            }
+
+
             methods.set(idenToStr(classComponent.def.identity), classComponent.def);
           }
           else if(classComponent.tag === "vardec"){

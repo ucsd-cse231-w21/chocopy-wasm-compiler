@@ -7,6 +7,9 @@ import { type } from "cypress/types/jquery";
 import { builtinModules } from "module";
 import { MainAllocator } from "./heap";
 import { all } from "cypress/types/bluebird";
+import { last } from "cypress/types/lodash";
+
+const INIT_NAME = "__init__";
 
 export type LabeledModule = {
   moduleCode: number,
@@ -227,6 +230,19 @@ function includeImports(imprts: Array<Stmt<Type>>,
   return {vars: imprtMap, instr: funcHeaders};
 }
 
+function convertLastPath(stmts: Array<Stmt<Type>>) {
+  if(stmts.length >= 1){
+    const lastStmt = stmts[stmts.length - 1];
+    if(lastStmt.tag === "expr"){
+      stmts[stmts.length - 1] = {a: lastStmt.a, tag: "return", value: lastStmt.expr};
+    }
+    else if(lastStmt.tag === "if"){
+      convertLastPath(lastStmt.thn);
+      convertLastPath(lastStmt.els);
+    }
+  }
+}
+
 export function compile(progam: Program<Type>, 
                         labeledSource: LabeledModule, 
                         builtins: Map<string, LabeledModule>,
@@ -292,12 +308,8 @@ export function compile(progam: Program<Type>,
     }
   }
 
-  if(progam.stmts.length >= 1){
-    const lastStmt = progam.stmts[progam.stmts.length - 1];
-    if(lastStmt.tag === "expr"){
-      progam.stmts[progam.stmts.length - 1] = {a: lastStmt.a, tag: "return", value: lastStmt.expr};
-    }
-  }
+  //convert that last viable path - not counting loops - to a return statement
+  convertLastPath(progam.stmts);
 
   //now compile top level stmts
   for(let tlStmt of progam.stmts){
@@ -317,7 +329,9 @@ export function compile(progam: Program<Type>,
         m => {
           const funcIden = idenToStr(m.identity);
           const label = LabeledClass.methods.get(funcIden).label;
-          const methInstrs = codeGenFunction(m, [imports.vars], label, labeledSource, builtins, allcator);
+          const methInstrs = m.identity.signature.name === INIT_NAME ?
+                              codeGenConstr(m, [imports.vars], label, labeledSource, builtins, allcator) : 
+                              codeGenFunction(m, [imports.vars], label, labeledSource, builtins, allcator);
 
           allInstrs.push(...methInstrs);
         }
@@ -338,6 +352,53 @@ export function compile(progam: Program<Type>,
 
 
   return allInstrs;
+}
+
+function codeGenConstr(func: FunDef<Type>, 
+                       idens: Array<Map<string, IdenType>>, 
+                       label: string, 
+                       sourceModule: LabeledModule,
+                       builtins: Map<string, LabeledModule>,
+                       allcator: MainAllocator): Array<string> {
+  const instrs = new Array<string>();
+
+  const localVars = new Map<string, IdenType>();
+
+  //translate parameters to WASM
+  let params = "";
+  Array.from(func.parameters.entries()).forEach(
+    x => {
+          params += `(param $${x[0]} i32) `; 
+          localVars.set(x[0], {tag: "localvar"});
+         }
+  );
+
+  const header = `(func $${label} ${params} (result i32)`;
+  instrs.push(header);
+  instrs.push(`(local $${TEMP_VAR} i32)`); //used for statement values
+
+  //add local variables
+  Array.from(func.localVars.entries()).forEach(
+    x => {
+          instrs.push(`(local $${x[0]} i32)`);
+          localVars.set(x[0], {tag: "localvar"});
+         }
+  );
+
+  //set initial values for local variables
+  Array.from(func.localVars.entries()).forEach(
+    x => instrs.push(`(local.set $${x[0]} ${codeGenLiteral(x[1].value, allcator)})`)
+  );
+
+  //set initial value for TEMP_VAR
+  //instrs.push(`(local.set $${TEMP_VAR} (i32.const 0))`);
+
+  const newIdens = [localVars].concat(idens);
+  func.body.forEach(x => instrs.push(...codeGenStmt(x, newIdens, sourceModule, builtins, allcator)));
+
+  instrs.push(`(local.get $self)`);
+  instrs.push(")");
+  return instrs;
 }
 
 function codeGenFunction(func: FunDef<Type>, 
@@ -408,7 +469,7 @@ function codeGenStmt(stmt: Stmt<Type>,
         const valueInstr = codeGenExpr(stmt.value, idens, sourceModule, builtins, allcator);
 
         if(result.tag === "localvar"){
-          return [`(local.set $${stmt.tag} ${valueInstr})`];
+          return [`(local.set $${stmt.name} ${valueInstr})`];
         }
         else if(result.tag === "globalvar"){
           return [`(call $${MOD_STORE} (i32.const 0) (i32.const ${result.index}) ${valueInstr})`];
@@ -427,10 +488,10 @@ function codeGenStmt(stmt: Stmt<Type>,
     }
     case "if": {
       const condInstrs = codeGenExpr(stmt.cond, idens, sourceModule, builtins, allcator);
-      const thenBranch = stmt.thn.map(x => codeGenStmt(x, idens, sourceModule, builtins, allcator));
-      const elseBranch = stmt.els.map(x => codeGenStmt(x, idens, sourceModule, builtins, allcator));
+      const thenBranch = stmt.thn.map(x => codeGenStmt(x, idens, sourceModule, builtins, allcator).join("\n"));
+      const elseBranch = stmt.els.map(x => codeGenStmt(x, idens, sourceModule, builtins, allcator).join("\n"));
 
-      return [`(if ${condInstrs} (then ${thenBranch.join("\n")}) (else ${elseBranch.join("\n")}) )`];
+      return [`(if (call $${GET_BOOL} ${condInstrs}) (then ${thenBranch.join("\n")}) (else ${elseBranch.join("\n")}) )`];
     }
     case "pass": {
       return [];
@@ -461,7 +522,7 @@ function codeGenStmt(stmt: Stmt<Type>,
     }
     case "while": {
       const condInstrs = codeGenExpr(stmt.cond, idens, sourceModule, builtins, allcator);
-      const loopBody = stmt.body.map(x => codeGenStmt(x, idens, sourceModule, builtins, allcator));
+      const loopBody = stmt.body.map(x => codeGenStmt(x, idens, sourceModule, builtins, allcator).join("\n"));
 
       return [`(block (loop ${loopBody.join("\n")} (br_if 0 ${condInstrs}) (br 1) ))`];
     }
@@ -547,22 +608,24 @@ function codeGenExpr(expr: Expr<Type>,
       return `(call $${targetLabel.label} ${targetInstr} ${argInstrs.join(" ")})`;
     }
     case "call": {
-      if(sourceModule.classes.has(expr.name)){
+      const argInstrs = expr.arguments.map(x => codeGenExpr(x, idens, sourceModule, builtins, allcator));
+
+      if(expr.callSite.isConstructor){
         //this is object instantiation
         const typeInfo = sourceModule.classes.get(expr.name);
-        return `(call $${INTANCTIATE} (i32.const ${typeInfo.typeCode}))`;
+        const initLabel = typeInfo.methods.get(idenToStr(expr.callSite.iden));
+
+        return `(call $${initLabel.label} (call $${INTANCTIATE} (i32.const ${typeInfo.typeCode})) ${argInstrs.join(" ")})`
       }
 
       if(expr.callSite.module === undefined){
         //function is in the source module
         const targetLabel = sourceModule.funcs.get(idenToStr(expr.callSite.iden));      
-        const argInstrs = expr.arguments.map(x => codeGenExpr(x, idens, sourceModule, builtins, allcator));
         return `(call $${targetLabel.label} ${argInstrs.join(" ")})`;
       }
       else{
         const targetModule = builtins.get(expr.callSite.module);
         const targetLabel = targetModule.funcs.get(idenToStr(expr.callSite.iden));      
-        const argInstrs = expr.arguments.map(x => codeGenExpr(x, idens, sourceModule, builtins, allcator));
         return `(call $${targetLabel.label} ${argInstrs.join(" ")})`;
       }
     }
