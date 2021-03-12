@@ -438,7 +438,7 @@ export function tcStmt(
         } else {
           stmt.iterable = stmt.iterable.arguments[0];
         }
-      } else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range"){
+      } else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range") {
         if (stmt.index) {
           throw new BaseException.SyntaxError(stmt.a, "Range should not have index!");
         }
