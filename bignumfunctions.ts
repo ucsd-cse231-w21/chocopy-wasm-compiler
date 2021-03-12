@@ -1,4 +1,5 @@
 import { encodeLiteral, decodeLiteral } from "./compiler";
+import { TAG_BIGINT } from "./gc"
 export const bignumfunctions = `
 (func $$i64tobignum (param $x i64) (result i32)
   (local $addr i32)

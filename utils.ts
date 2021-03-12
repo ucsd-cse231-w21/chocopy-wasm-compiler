@@ -1,5 +1,29 @@
 import { Value, Type } from "./ast";
-import { nTagBits } from "./compiler";
+
+export const nTagBits = 1;
+export const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
+export const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
+
+export function bigintToWords(num: bigint): [number, number, Array<bigint>] {
+  const WORD_SIZE = 4;
+  const mask = BigInt(0x7fffffff);
+  var sign = 1;
+  var size = 0;
+  // fields ? [(0, sign), (1, size)]
+  if (num < 0n) {
+    sign = 0;
+    num *= -1n;
+  }
+  var words: bigint[] = [];
+  do {
+    words.push(num & mask);
+    console.log("j");
+    num >>= 31n;
+    size += 1;
+  } while (num > 0n);
+  // size MUST be > 0
+  return [sign, size, words];
+}
 
 export function stringify(result: Value): string {
   switch (result.tag) {
@@ -18,22 +42,33 @@ export function stringify(result: Value): string {
   }
 }
 
-export function PyValue(typ: Type, result: number, mem: any): Value {
-  switch (typ.tag) {
-    case "string":
-      if (result == -1) throw new Error("String index out of bounds");
-      const view = new Int32Array(mem);
-      let string_length = view[result / 4] + 1;
-      let data = result + 4;
+export function encodeValue(val: Value, mem: any): number {
+  switch (val.tag) {
+    case "num":
+      console.log(val.value);
+      if (val.value <= INT_LITERAL_MAX && val.value >= INT_LITERAL_MIN) {
+        return ((Number(val.value) << nTagBits) & 0xffffffff) | 1;
+      }
+
+      var [sign, size, words] = bigintToWords(val.value);
+      var idx: number = Number(mem[0]) / 4;
+      mem[idx] = sign & 0xffffffff;
+      mem[idx + 1] = size & 0xffffffff;
       var i = 0;
-      var full_string = "";
-      while (i < string_length) {
-        let ascii_val = view[data / 4 + i];
-        var char = String.fromCharCode(ascii_val);
-        full_string += char;
+      while (i < size) {
+        mem[idx + 2 + i] = ((Number(words[i]) << nTagBits) & 0xffffffff) | 1;
         i += 1;
       }
-      return PyString(full_string, result);
+      mem[0] = 4 * (idx + 2 + i);
+      return idx * 4;
+
+    default:
+      throw new Error(`Could not encode value`);
+  }
+}
+
+export function PyValue(typ: Type, result: number, mem: any): Value {
+  switch (typ.tag) {
     case "number":
       if (result & 1) {
         return PyInt(result >> nTagBits);

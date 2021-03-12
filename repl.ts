@@ -5,7 +5,7 @@ import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
 import { importMemoryManager, MemoryManager } from "./alloc";
 import { bignumfunctions } from "./bignumfunctions";
-import { NUM, BOOL, NONE, PyValue, PyBigInt, encodeValue } from "./utils";
+import { NUM, BOOL, NONE, STRING, PyValue, PyBigInt, encodeValue } from "./utils";
 import { InternalException, ZeroDivisionError } from "./error";
 
 interface REPL {

@@ -14,7 +14,7 @@ import {
   Location,
   Assignable,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
+import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable, bigintToWords } from "./utils";
 import * as BaseException from "./error";
 import {
   MemoryManager,
