@@ -1,5 +1,6 @@
 import { Value, Type } from "./ast";
 import { nTagBits } from "./compiler";
+import * as BaseException from "./error";
 
 export function stringify(result: Value): string {
   switch (result.tag) {
@@ -14,14 +15,14 @@ export function stringify(result: Value): string {
     case "object":
       return `<${result.name} object at ${result.address}>`;
     default:
-      throw new Error(`Could not render value: ${result}`);
+      throw new BaseException.InternalException(`Could not render value: ${result}`);
   }
 }
 
 export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "string":
-      if (result == -1) throw new Error("String index out of bounds");
+      if (result == -1) throw new BaseException.InternalException("String index out of bounds");
       const view = new Int32Array(mem);
       let string_length = view[result / 4] + 1;
       let data = result + 4;
@@ -100,7 +101,9 @@ export function isTagged<
 }
 
 export function unreachable(arg: never): never {
-  throw new Error(`Hit unreachable state. Got value ${JSON.stringify(arg)}`);
+  throw new BaseException.InternalException(
+    `Hit unreachable state. Got value ${JSON.stringify(arg)}`
+  );
 }
 
 /**
@@ -108,7 +111,9 @@ export function unreachable(arg: never): never {
  * @param arg Tagged object which is not handled
  */
 export function unhandledTag(arg: { tag: string }): never {
-  throw new Error(`Node tagged with ${arg.tag} is not handled.\n\n${JSON.stringify(arg)}`);
+  throw new BaseException.InternalException(
+    `Node tagged with ${arg.tag} is not handled.\n\n${JSON.stringify(arg)}`
+  );
 }
 
 export const NUM: Type = { tag: "number" };
