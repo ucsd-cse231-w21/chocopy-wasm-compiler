@@ -69,6 +69,20 @@ export function encodeValue(val: Value, mem: any): number {
 
 export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
+    case "string":
+      if (result == -1) throw new Error("String index out of bounds");
+      const view = new Int32Array(mem);
+      let string_length = view[result / 4] + 1;
+      let data = result + 4;
+      var i = 0;
+      var full_string = "";
+      while (i < string_length) {
+        let ascii_val = view[data / 4 + i];
+        var char = String.fromCharCode(ascii_val);
+        full_string += char;
+        i += 1;
+      }
+      return PyString(full_string, result);
     case "number":
       if (result & 1) {
         return PyInt(result >> nTagBits);

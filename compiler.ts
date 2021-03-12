@@ -1188,17 +1188,17 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
 // <<<<<<< HEAD
-//       return [...leftStmts, ...rightStmts, `(call $${expr.name})`];
+      return [...leftStmts, ...rightStmts, `(call $${expr.name})`];
 // =======
       // we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
-      return [
-        ...leftStmts,
-        ...decodeLiteral,
-        ...rightStmts,
-        ...decodeLiteral,
-        `(call $${expr.name})`,
-        ...encodeLiteral,
-      ];
+//       return [
+//         ...leftStmts,
+//         ...decodeLiteral,
+//         ...rightStmts,
+//         ...decodeLiteral,
+//         `(call $${expr.name})`,
+//         ...encodeLiteral,
+//       ];
     case "literal":
       return codeGenLiteral(expr.value);
     case "id":
@@ -1234,7 +1234,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(ListCopyMode.Concat)];
       } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
-      } else {
+      } else if (expr.op == BinOp.And || expr.op == BinOp.Or) {
         return [
           ...lhsStmts,
           ...decodeLiteral,
@@ -1243,6 +1243,18 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           codeGenBinOp(expr.op),
           ...encodeLiteral,
         ];
+      } else {
+        return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)];
+
+//       else {
+//         return [
+//           ...lhsStmts,
+//           ...decodeLiteral,
+//           ...rhsStmts,
+//           ...decodeLiteral,
+//           codeGenBinOp(expr.op),
+//           ...encodeLiteral,
+//         ];
       }
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
