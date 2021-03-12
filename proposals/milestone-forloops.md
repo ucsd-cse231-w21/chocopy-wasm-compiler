@@ -238,3 +238,5 @@ for a, b, c in [[1,2,3], [4,5,6]]:
   print(b)
   print(c)
 ```
+Currently the `Destructure` requires all `targets` to be type `class` if we have multiple `target`. 
+Therefore, we need to build a class for each of such assignment programs. 
