@@ -835,7 +835,7 @@ export function tcExpr(
             ...expr,
             a: [retType, expr.a],
             name: innercall,
-            arguments: populateDefaultParams(tArgs, tArgs, params, kwargsMap),
+            arguments: populateDefaultParams(env, tArgs, tArgs, params, kwargsMap),
             kwargs: tcKwargs,
           };
         } else {
@@ -937,7 +937,7 @@ export function tcExpr(
                 ...expr,
                 a: [methodRet, expr.a],
                 obj: tObj,
-                arguments: populateDefaultParams(tArgs, realArgs, methodParams, kwargsMap),
+                arguments: populateDefaultParams(env, tArgs, realArgs, methodParams, kwargsMap),
                 kwargs: tcKwargs,
               };
             } else if (methodArgs.length != realArgs.length) {
@@ -1085,6 +1085,7 @@ export function toObject(types: Type[]): string {
 }
 
 export function populateDefaultParams(
+  env: GlobalTypeEnv,
   tArgs: Expr<[Type, Location]>[],
   actualArgs: Expr<[Type, Location]>[],
   params: Parameter[],
@@ -1102,10 +1103,31 @@ export function populateDefaultParams(
       throw new Error("Missing parameter ${paramName} from call");
     } else {
       // add default values into arguments as an Expr
-      augArgs = augArgs.concat({
-        tag: "literal",
-        value: params[argNums].value,
-      });
+      const default_value = params[argNums].value;
+      switch (default_value.tag) {
+        case "uninit_param":
+          const className = default_value.className
+          if (env.classes.has(className)) {
+            augArgs = augArgs.concat({
+              tag: "construct",
+              name: className,
+            });
+          } else {
+            throw new Error("Class ${className} missing from default value")
+          }
+          break;
+        case "num":
+        case "bool":
+        case "none":
+        case "string":
+          augArgs = augArgs.concat({
+            tag: "literal",
+            value: default_value,
+          });
+          break;
+        default:
+          throw new Error("Default type not yet supported");
+      }
     }
     argNums = argNums + 1;
   }
