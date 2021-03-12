@@ -738,6 +738,20 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
           return { tag: "for", id: forCount, index: index, name: dest, iterable: iter, body: body, a: location };
         }
       }
+      else {
+        if (iter.tag == "call" && iter.name == "enumerate") {
+          throw new BaseException.CompileError(
+            location,
+            "Could not parse stmt at " +
+              c.node.from +
+              " " +
+              c.node.to +
+              ": " +
+              s.substring(c.from, c.to),
+            "Expected 2 assignables for enumerate, got" + target.length,
+          );
+        }
+      }
       var dest: Destructure<Location> = {
         // Info about the value that is being destructured
         isDestructured: isDes,
