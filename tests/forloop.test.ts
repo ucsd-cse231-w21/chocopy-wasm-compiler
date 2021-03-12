@@ -214,4 +214,53 @@ describe("FOR LOOP TEST", () => {
     `,
     ["0", "1", "2", "3", "4", "5", "6"]
   );
+
+  assertPrint(
+    "loop in class",
+    `
+    class Counter(object):
+      x:int = 0
+  
+      def print_loop(self: Counter, x:int):
+        i:int = 0
+          
+        for i in range(x):
+          print(i)
+        
+        
+    Counter().print_loop(7)
+    `,
+    ["0", "1", "2", "3", "4", "5", "6"]
+
+  );
+
+  assertPrint(
+    "looping list",
+    `
+    i:int = 0
+      
+    for i in [1, 2, 9]:
+      print(i)
+
+    `,
+    ["1", "2", "9"]
+
+  );
+
+  assertPrint(
+    "enumerate list",
+    `
+    i:int = 0
+    x:int = 5
+      
+    for i, x in enumerate([1, 2, 9]):
+      print(i)
+      print(x)
+
+    `,
+    ["0", "1", "1", "2", "2", "9"]
+
+  );
+
+
 });
