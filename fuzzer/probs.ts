@@ -5,11 +5,11 @@ export const IF_ELIF_CHANCE = 0.2;
 export const IF_ELSE_CHANCE = 0.5;
 export const PARAM_CHANCE = 0.5;
 export const CLASS_FIELD_CHANCE = 0.25;
-export const CLASS_METHOD_CHANCE = 0.2;
+export const CLASS_METHOD_CHANCE = 0.05;
 
 export const INIT_TYPE_PROBS = [
-  { key: "number", prob: 0.6 },
-  { key: "bool", prob: 0.8 },
+  { key: "number", prob: 0.4 },
+  { key: "bool", prob: 0.5 },
   { key: "class", prob: 0.95 },
   { key: "none", prob: 1 },
 ];
@@ -28,7 +28,7 @@ export const INIT_EXPR_PROBS = [
   { key: "literal", prob: 0.3 },
   { key: "id", prob: 0.5 },
   { key: "binop", prob: 0.7 },
-  { key: "uniop", prob: 0.8 },
+  { key: "uniop", prob: 0.75 },
   { key: "call", prob: 1 },
   { key: "builtin1", prob: 1 },
   { key: "builtin2", prob: 1 },

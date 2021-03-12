@@ -20,6 +20,8 @@ export function convertStrToType(key: string, className?: string): Type {
 }
 
 export function convertTypeToStr(type: Type): string {
+  if (!type) return "none";
+
   var typeString: string = type.tag;
   if (type.tag == "class") {
     typeString = type.name;

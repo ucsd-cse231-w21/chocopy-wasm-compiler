@@ -338,6 +338,7 @@ function selectRandomClassName(env: Env, level: number): string {
   switch (toGen) {
     case "new":
       var className = "class_" + classList.length;
+      genClassSig(env, className);
       return className;
     case "existing":
       if (classList.length === 0) return undefined;
@@ -363,7 +364,7 @@ function genStmt(env: Env, level: number): Program {
       var assignType: Type = selectRandomType(env, level);
       while (assignType.tag == "none") assignType = selectRandomType(env, level);
 
-      var name = genVar(assignType, env);
+      var name = genId(assignType, env);
       var expr = genExpr(assignType, env, level);
       return { program: [currIndent + name + " = " + expr], lastStmt: "assignment" };
     case "expr":
@@ -396,7 +397,7 @@ function genExpr(type: Type, env: Env, level: number): string {
       return genLiteral(type);
     case "id":
       if (type.tag == "none") return genExpr(type, env, level); // hacky
-      return genVar(type, env);
+      return genId(type, env);
     case "binop":
       if (!["number", "bool"].includes(type.tag)) return genExpr(type, env, level); //reroll the expr
       var op = selectRandomBinOp(type);
@@ -456,9 +457,14 @@ function genExpr(type: Type, env: Env, level: number): string {
         return genExpr(type, env, level);
       }
       var callString = funcSig.name + "(";
+      var comma = 0;
       for (var i = 0; i < funcSig.parameters.length; i++) {
-        if (i > 0) {
+        if (i > comma) {
           callString += ", ";
+        }
+        if (funcSig.parameters[i].name == "self") {
+          comma++;
+          continue;
         }
         callString += genExpr(funcSig.parameters[i].type, env, level);
       }
@@ -492,7 +498,7 @@ function genLiteral(type: Type): string {
  * @param env current Env
  * @return string
  */
-function genVar(type: Type, env: Env): string {
+function genId(type: Type, env: Env): string {
   var typeStr = convertTypeToStr(type);
 
   var vars = env.vars;
@@ -514,11 +520,11 @@ function genVar(type: Type, env: Env): string {
   }
 
   if (type.tag == "class") {
-    genClassSig(env, varName, type.name);
+    genClassSig(env, type.name, varName);
   }
   return varName;
 }
-/* genVar */
+/* genId */
 
 /**
  * Generate variable declaration
@@ -526,7 +532,7 @@ function genVar(type: Type, env: Env): string {
  * @param type of variable
  * @return string
  */
-function genVarDecl(name: string, type: Type): string {
+function genIdDecl(name: string, type: Type): string {
   if (name.includes(".") || name.includes("param") || name == "self") return "";
 
   switch (type.tag) {
@@ -540,7 +546,7 @@ function genVarDecl(name: string, type: Type): string {
       return `${name}:${type.name} = None`;
   }
 }
-/* genVarDecl */
+/* genIdDecl */
 
 /**
  * Generate binary op
@@ -760,7 +766,9 @@ function genFuncDecl(env: Env, level: number, sig: FunDef): Array<string> {
     funcHeader += paramList[i].name + ": " + convertTypeToPythonType(paramList[i].type);
   }
   var retTypeStr = convertTypeToStr(retType);
-  retTypeStr = retType || retTypeStr == "none" ? "" : " -> " + convertStrToPythonType(retTypeStr);
+  if (retType) {
+    retTypeStr = retTypeStr == "none" ? "" : " -> " + convertStrToPythonType(retTypeStr);
+  }
   funcHeader += `)${retTypeStr}:`;
 
   funcStrings.push(funcHeader);
@@ -782,10 +790,33 @@ function genFuncDecl(env: Env, level: number, sig: FunDef): Array<string> {
 /**
  * Generate class signature and populate all lookup calls into env variables and functions
  * @param env current Env
- * @param varName name of variable of declared class
  * @param className name of class
+ * @param varName name of variable of declared class
  */
-function genClassSig(env: Env, varName: string, className: string) {
+function genClassSig(env: Env, className: string, varName?: string) {
+  if (env.classes.has(className)) {
+    var fields = env.classes.get(className).fields;
+    var methods = env.classes.get(className).methods;
+
+    fields.forEach((fieldName) => {
+      if (varName) {
+        env.addVar(varName + "." + fieldName, varType);
+      }
+    });
+
+    methods.forEach((funcDef) => {
+      if (varName) {
+        var newFuncDef: FunDef = {
+          name: varName + "." + funcDef.name,
+          parameters: funcDef.parameters,
+          ret: funcDef.ret,
+        };
+        env.addFunc(newFuncDef);
+      }
+    });
+    return;
+  }
+
   var fields: Map<string, Array<string>> = new Map();
   while (Math.random() < CLASS_FIELD_CHANCE || Array.from(fields.keys()).length == 0) {
     var varType = selectRandomType(env, 1);
@@ -800,7 +831,9 @@ function genClassSig(env: Env, varName: string, className: string) {
     var fieldName = varTypeStr + "_" + fieldsList.length;
 
     fieldsList.push(fieldName);
-    env.addVar(varName + "." + fieldName, varType);
+    if (varName) {
+      env.addVar(varName + "." + fieldName, varType);
+    }
   }
 
   var methods: Array<FunDef> = [];
@@ -810,12 +843,14 @@ function genClassSig(env: Env, varName: string, className: string) {
 
     methods.push(funcDef);
 
-    var newFuncDef: FunDef = {
-      name: varName + "." + funcDef.name,
-      parameters: funcDef.parameters,
-      ret: funcDef.ret,
-    };
-    env.addFunc(newFuncDef);
+    if (varName) {
+      var newFuncDef: FunDef = {
+        name: varName + "." + funcDef.name,
+        parameters: funcDef.parameters,
+        ret: funcDef.ret,
+      };
+      env.addFunc(newFuncDef);
+    }
   }
 
   var classDef: ClassDef = {
@@ -847,6 +882,7 @@ function genClassDecl(env: Env, level: number, className: string): Array<string>
   classStrings.push(classHeader);
 
   var classEnv = env.copyEnv();
+
   var decls: Array<string> = [];
   var classDef: ClassDef = env.getClass(className);
   if (classDef === undefined) {
@@ -855,7 +891,8 @@ function genClassDecl(env: Env, level: number, className: string): Array<string>
 
   classDef.fields.forEach((varNames: Array<string>, varType: string) => {
     varNames.forEach((varName: string) => {
-      decls.push(currIndent + INDENT + genVarDecl(varName, convertStrToType(varType)));
+      decls.push(currIndent + INDENT + genIdDecl(varName, convertStrToType(varType)));
+      classEnv.addVar("self." + varName, convertStrToType(varType));
     });
   });
 
@@ -898,8 +935,8 @@ function genDecl(env: Env, upperEnv: Env, level: number, className?: string): Ar
   env.vars.forEach((names: Array<string>, type: string) => {
     names.forEach((name: string) => {
       if (!upperEnv.vars.has(type) || !upperEnv.vars.get(type).includes(name)) {
-        varDecls.push(currIndent + genVarDecl(name, convertStrToType(type)));
-        if (name != "self" && type.includes("class")) {
+        varDecls.push(currIndent + genIdDecl(name, convertStrToType(type)));
+        if (name != "self" && !name.includes(".") && type.includes("class")) {
           classConstructs.push(currIndent + name + " = " + type + "()");
         }
       }
