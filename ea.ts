@@ -1,5 +1,6 @@
 /** Escape analysis */
 // import { warn } from "console";
+import { expr } from "cypress/types/jquery";
 import {
   Type,
   Program,
@@ -170,7 +171,14 @@ function eaStmt(
           case "lookup":
             return { ...at, target: { ...at.target, obj: eaExpr(at.target.obj, e, nSet) } };
           case "bracket-lookup": {
-            throw new Error('Not implemented yet: "bracket-lookup" case');
+            return {
+              ...at,
+              target: {
+                ...at.target,
+                obj: eaExpr(at.target.obj, e, nSet),
+                key: eaExpr(at.target.key, e, nSet),
+              },
+            };
           }
         }
       });
@@ -214,10 +222,19 @@ function eaStmt(
       return stmt;
 
     case "for":
-      return { ...stmt }; // TODO: implement ea for this new case while merging
+      return {
+        ...stmt,
+        iterable: eaExpr(stmt.iterable, e, nSet),
+        body: stmt.body.map((b) => eaStmt(b, e, nSet)),
+      };
 
     case "bracket-assign":
-      return { ...stmt }; // TODO: implement ea for this new case while merging
+      return {
+        ...stmt,
+        obj: eaExpr(stmt.obj, e, nSet),
+        key: eaExpr(stmt.key, e, nSet),
+        value: eaExpr(stmt.value, e, nSet),
+      };
   }
 }
 
@@ -254,7 +271,10 @@ function eaExpr(
       return { ...expr, left: eaExpr(expr.left, e, nSet), right: eaExpr(expr.right, e, nSet) };
 
     case "call":
-      throw new Error("Pls migrate to call_expr whose callee is an expression.");
+      return {
+        ...expr,
+        arguments: expr.arguments.map((a) => eaExpr(a, e, nSet)),
+      };
 
     case "id":
       const idid = lookupId(expr.name, e);
@@ -287,10 +307,19 @@ function eaExpr(
       throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
     case "comprehension":
-      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
+      return {
+        ...expr,
+        expr: eaExpr(expr.expr, e, nSet),
+        iter: eaExpr(expr.iter, e, nSet),
+        cond: expr.cond != undefined ? eaExpr(expr.cond, e, nSet) : expr.cond,
+      };
 
     case "block":
-      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
+      return {
+        ...expr,
+        block: expr.block.map((b) => eaStmt(b, e, nSet)),
+        expr: eaExpr(expr.expr, e, nSet),
+      };
 
     case "call_expr":
       return {
@@ -309,10 +338,22 @@ function eaExpr(
       };
 
     case "slicing":
-      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
+      return {
+        ...expr,
+        name: eaExpr(expr.name, e, nSet),
+        start: eaExpr(expr.start, e, nSet),
+        end: eaExpr(expr.end, e, nSet),
+        stride: eaExpr(expr.stride, e, nSet),
+      };
 
     case "dict":
-      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
+      return {
+        ...expr,
+        entries: expr.entries.map((keyvalue) => [
+          eaExpr(keyvalue[0], e, nSet),
+          eaExpr(keyvalue[1], e, nSet),
+        ]),
+      };
 
     case "bracket-lookup":
       return {

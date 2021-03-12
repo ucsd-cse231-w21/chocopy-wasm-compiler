@@ -780,6 +780,14 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
   definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.add("$last");
   definedVars.add("$addr");
+  definedVars.add("$list_base");
+  definedVars.add("$list_index");
+  definedVars.add("$list_index2");
+  definedVars.add("$list_temp");
+  definedVars.add("$list_size");
+  definedVars.add("$list_bound");
+  definedVars.add("$list_cmp");
+  definedVars.add("$list_cmp2");
   definedVars.add("$destruct");
   definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
@@ -850,6 +858,14 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
   // NOTE(alex:mm): need to `local.get` object pointer BEFORE generating code
   //   for inner expressions
   definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
+  definedVars.add("$list_base");
+  definedVars.add("$list_index");
+  definedVars.add("$list_index2");
+  definedVars.add("$list_temp");
+  definedVars.add("$list_size");
+  definedVars.add("$list_bound");
+  definedVars.add("$list_cmp");
+  definedVars.add("$list_cmp2");
   definedVars.add("$destruct");
   definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
