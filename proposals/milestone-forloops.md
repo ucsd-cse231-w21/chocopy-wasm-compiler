@@ -209,24 +209,22 @@ There are three example programs or scenarios that would require extensions to o
 
 ``` python
 i:int = 1
+j:int = 2
 list : [int] = None
 list = [5,8,10]
 for i in list:
   print(i)
-  print(j)
 ```
 
 # Program2
 
 ``` python
-i:int = 1
-list : [int] = None
-list = [5,8,10]
-for i, list[0] in enumerate([6,7,8]):
-  print()
-print(list[0])
+i : str = ""
+for i in "Compiler":
+  print(i)
 ```
-
+String are actually structured very similar to lists. They are lists of chars. Since our program supports
+iterating through lists. So, iterating through a string should be easily achievable.
 # Program 3
 
 ``` python
