@@ -217,3 +217,56 @@ and lists don't exist quite yet. To account for this, we decided to implement a 
 destructuring. This still provides progress to our goals however, as we believe that the difference between accessing
 object and tuple fields will be quite minimal. So we believe that only a few changes to our code will be necessary to
 provide support for tuple destructuring when they are ready.
+
+## Week 10 Update
+
+Over the last week, we added destructuring support for lists, including both destructing individual assignments and
+the starred operator. Additionally, we fully implemented tuples, including support for bracket lookup and destructuring
+(albeit _without_ supporting starred assignment). Adding these features and ensuring they worked with other
+teams' code was a challenge, but we wrote a comprehensive unit test suite to ensure everything functions as intended.
+
+However, there are still some additional features we could foresee implementing if allotted more time.
+
+### Chained Assignments
+
+Chained assignments have been a stretch goal since the beginning of this project. While we didn't have time to
+implement them, we did design our ast item in a way that could be extended to support them. By changing the
+`destruct: Destructure<A>` attribute of the assignment statement to `destruct: Array<Destructure<A>>` or an equivalent
+type, we could easily parse a chained assignment and represent it in the ast. Our type checking and compilation code
+could even be kept largely the same, just applied to every `Destructure` object in the array from left-to-right. This
+would allow us to support examples like the following.
+
+```python
+head, *rest = *beginning, end = [1, 5, 25, 125]
+head == 1
+rest == [5, 25, 125]
+beginning == [1, 5, 25]
+end == 125
+```
+
+### Additional tuple type checking
+
+There are a couple enhancements we could make to tuple type checking logic:
+- Currently, tuples do not support the spread operator. Since each element in a tuple can be an arbitrary type,
+  typechecking the spread operator for tuples is far more difficult than the same task for lists. We could have
+  checked to ensure every element shared a common subtype, but we decided to defer writing that logic until we
+  have working class inheritance. However, we could easily reuse lists' type checking logic to type check starred
+  assignments from tuples.
+- To simplify type checking, the argument to a tuple's bracket lookup must be an integer literal. Otherwise, we cannot
+  determine the type of the item being accessed at compile time. However, we could add support for using integer
+  variables in bracket lookups if _every_ item in the tuple was assignable to the target location. We could also reuse
+  the spread operator logic to find a commmon subtype for every item, making this logic easier.
+
+Adding these features would allow us to support examples like the following.
+
+```python
+# bool and int are both assignable to type object, so we can spread them into an object array
+rest: [object] = None
+n1, rest, n2 = (5, True, 11, False, 9)
+
+# all items in the tuple are assignable to object, so we can use an index that isn't determined until runtime
+obj: object = None
+i: int = randint(0, 5)
+obj = (1, True, 10, False, None, Object())[i]
+```
+
