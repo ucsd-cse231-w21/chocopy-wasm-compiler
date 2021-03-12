@@ -36,7 +36,7 @@ Right now, the stacktrace of errors only shows that the error is from webstart.j
 
 
 
-2. Now we only throw a Memory Error when the wasm code runs into a memory problem. The stack trace is not available for Memory Error, this is due to the implementation of memory management. We can modify the code/design to support the stack trace after the implementation of memory management is finished. 
+2. Credit to Winston: In the tesing folder, we can write a function to remove the annotation of parser. Therefore, each team won't need to change a lot of code for testing parsing after we slightly change the annotation type in parser.ts rach time.
 
 
 
