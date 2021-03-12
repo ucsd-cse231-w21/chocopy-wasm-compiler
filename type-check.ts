@@ -752,13 +752,18 @@ export function tcExpr(
         case BinOp.IDiv:
         case BinOp.Mod:
           if (
-            (expr.op == BinOp.Plus &&
-              tLeft.a[0].tag === "string" &&
-              equalType(tLeft.a[0], tRight.a[0])) ||
-            (tLeft.a[0].tag === "list" &&
-              (equalType(tLeft.a[0], tRight.a[0]) ||
-                isEmptyList(tLeft.a[0]) ||
-                isEmptyList(tRight.a[0])))
+            expr.op == BinOp.Plus &&
+            tLeft.a[0].tag === "string" &&
+            equalType(tLeft.a[0], tRight.a[0])
+          ) {
+            return { ...tBin, a: [tLeft.a[0], expr.a] };
+          }
+          if (
+            expr.op == BinOp.Plus &&
+            tLeft.a[0].tag === "list" &&
+            (equalType(tLeft.a[0], tRight.a[0]) ||
+              isEmptyList(tLeft.a[0]) ||
+              isEmptyList(tRight.a[0]))
           ) {
             return { ...tBin, a: [tLeft.a[0], expr.a] };
           }
@@ -848,12 +853,6 @@ export function tcExpr(
       if (expr.name === "print") {
         const tArg = tcExpr(env, locals, expr.arg);
         return { ...expr, a: tArg.a, arg: tArg };
-      } else if (expr.name === "len") {
-        const tArg = tcExpr(env, locals, expr.arg);
-        if (!equalType(tArg.a[0], STRING)) {
-          throw new TypeError("Cannot find length of " + tArg.a + " type");
-        }
-        return { ...expr, a: [NUM, expr.a], arg: tArg };
       } else if (env.functions.has(expr.name)) {
         const [[expectedParam], retTyp] = env.functions.get(expr.name);
         const tArg = tcExpr(env, locals, expr.arg);
@@ -995,7 +994,14 @@ export function tcExpr(
         const tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
         if (tArg.length == 1) {
-          if (tArg[0].a[0].tag === "list" || tArg[0].a[0].tag === "dict") {
+          if (equalType(tArg[0].a[0], STRING)) {
+            // We are returning a different tag here due to some escape analysis conflicts
+            return { a: [NUM, expr.a], tag: "builtin1", name: expr.name, arg: tArg[0] };
+          } else if (
+            tArg[0].a[0].tag === "list" ||
+            tArg[0].a[0].tag === "dict" ||
+            equalType(tArg[0].a[0], STRING)
+          ) {
             return { ...expr, a: [NUM, expr.a], arguments: tArg };
           } else {
             throw new BaseException.TypeMismatchError(expr.a, LIST(null), tArg[0].a[0]);
