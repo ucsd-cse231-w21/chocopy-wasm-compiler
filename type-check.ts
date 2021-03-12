@@ -497,7 +497,7 @@ export function tcStmt(
           a: [NONE, stmt.a],
           id: stmt.id,
           tag: "for",
-          name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable),
+          name: tcDestructure(env, locals, stmt.name, iter_type, stmt.iterable),
           index: tcDestructure(env, locals, stmt.index, iter_type, stmt.iterable),
           iterable: fIter,
           body: fBody,
@@ -507,7 +507,7 @@ export function tcStmt(
           a: [NONE, stmt.a],
           id: stmt.id,
           tag: "for",
-          name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable),
+          name: tcDestructure(env, locals, stmt.name, iter_type, stmt.iterable),
           iterable: fIter,
           body: fBody,
         };
