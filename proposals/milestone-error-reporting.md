@@ -28,6 +28,102 @@ Right now, the stacktrace of errors only shows that the error is from webstart.j
 
 
 ## March 11
+### Make a final pull request that outlines which examples you were able to get to, and which you weren't. Focus on code quality and solid implementation of a smaller set of features rather than stretching to do more with messy code.
+
+### *CompileError*
+
+NameError
+
+
+![image of NameError](https://i.ibb.co/q1b29GT/Name-Error.png)
+
+
+AttributeError
+
+
+![image of AttributeError](https://i.ibb.co/pdXc15H/Attribute-Error-Compiler-Error.png)
+
+
+TypeMismatchError
+
+
+![image of TypeMismatchError](https://i.ibb.co/mD59Y3h/2021-03-11-4-39-59.png)
+
+
+ConditionTypeError
+
+
+![image of ConditionTypeError](https://i.ibb.co/1GcXvT6/2021-03-11-4-44-16.png)
+
+
+UnsupportedOperandTypeError
+
+
+![image of UnsupportedOperandTypeError](https://i.ibb.co/DkWsYq6/2021-03-11-4-42-36.png)
+
+
+
+### *RuntimeError*
+
+IndexError
+
+
+![image of IndexError](https://i.ibb.co/ypq36GW/2021-03-11-4-27-35.png)
+
+
+KeyError
+
+
+![image of KeyError](https://i.ibb.co/VVRGcG7/2021-03-11-4-30-31.png)
+
+
+MemoryError
+
+
+![image of MemoryError](https://i.ibb.co/st0kfz1/Memory-Error.png)
+
+
+Operation on None
+
+
+![image of Operation on None](https://i.ibb.co/CW4sJ56/2021-03-11-4-32-42.png)
+
+
+![image of Operation on None](https://i.ibb.co/TYR5NXW/2021-03-11-4-35-25.png)
+
+
+Recursion Error
+
+
+![image of RecursionError](https://i.ibb.co/CJPDTDw/Max-Recursion.jpg)
+
+
+Stacktrace with REPLs
+
+
+![image of stack trace](https://i.ibb.co/8X7D8pP/Stack-Trace.png)
+
+
+AttributeError
+
+
+![image of AttributeError](https://i.ibb.co/7NTLsqX/Attribute-Error-Runtime.png)
+
+
+ZeroDivisionError
+
+
+![image of ZeroDivisionError](https://i.ibb.co/mhqFcbQ/Screen-Shot-2021-03-11-at-17-18-37.png)
+
+
+### *Not supported:*
+
+KeyInterruptedError
+
+
+IndentationError
+
+
 
 ### In your milestone file, add a new section at the end indicating three example programs or scenarios that would require extensions to your design that you can imagine making, but didn't have the time for.
 
