@@ -379,14 +379,8 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           };
 
           var tarname = "";
-          if (stmt.name.targets.length == 2) {
-            if (stmt.name.targets[1].target.tag === "id") {
-              tarname = stmt.name.targets[1].target.name;
-            }
-          } else {
-            if (stmt.name.targets[0].target.tag === "id") {
-              tarname = stmt.name.targets[0].target.name;
-            }
+          if (stmt.name.targets[0].target.tag === "id") {
+            tarname = stmt.name.targets[0].target.name;
           }
           
           // name = cur
@@ -419,30 +413,35 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           };
           var Code_cond = codeGenExpr(Expr_cond, env);
 
-          // if (stmt.index) {
-          //   var idass: Stmt<[Type, Location]> = {
-          //     a: [NONE, stmt.a[1]],
-          //     tag: "assignment",
-          //     destruct: makeId([NUM, stmt.a[1]], stmt.index),
-          //     value: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id },
-          //   };
-          //   var Code_idass = codeGenStmt(idass, env);
-          //   return [
-          //     `
-          //     ${Code_iass.join("\n")}
-          //
-          //     (block
-          //       (loop
-          //         ${Code_idstep.join("\n")}
-          //         (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
-          //
-          //         ${Code_ass.join("\n")}
-          //         ${Code_idass.join("\n")}
-          //         ${bodyStmts.join("\n")}
-          //         (br 0)
-          //     ))`,
-          //   ];
-          // }
+          if (stmt.index) {
+            var idname = "";
+            if (stmt.index.targets[0].target.tag === "id") {
+              idname = stmt.index.targets[0].target.name;
+            }
+
+            var idass: Stmt<[Type, Location]> = {
+              a: [NONE, stmt.a[1]],
+              tag: "assignment",
+              destruct: makeId([NUM, stmt.a[1]], idname),
+              value: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id },
+            };
+            var Code_idass = codeGenStmt(idass, env);
+            return [
+              `
+              ${Code_iass.join("\n")}
+          
+              (block
+                (loop
+                  ${Code_idstep.join("\n")}
+                  (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
+          
+                  ${Code_ass.join("\n")}
+                  ${Code_idass.join("\n")}
+                  ${bodyStmts.join("\n")}
+                  (br 0)
+              ))`,
+            ];
+          }
 
           return codeGenTempGuard(
             [
@@ -509,14 +508,8 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           var Code_cur_iniass = codeGenStmt(cur_ass, env);
 
           var tarname = "";
-          if (stmt.name.targets.length == 2) {
-            if (stmt.name.targets[1].target.tag === "id") {
-              tarname = stmt.name.targets[1].target.name;
-            }
-          } else {
-            if (stmt.name.targets[0].target.tag === "id") {
-              tarname = stmt.name.targets[0].target.name;
-            }
+          if (stmt.name.targets[0].target.tag === "id") {
+            tarname = stmt.name.targets[0].target.name;
           }
           // name = cur
           var ass: Stmt<[Type, Location]> = {
@@ -553,19 +546,17 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           };
           var Code_cond = codeGenExpr(Expr_cond, env);
 
-          console.log("THe var num is " + stmt.name.targets.length + "!!!!!!")
-
           //if have index
-          if (stmt.name.targets.length == 2) {
-            var tar1name = "";
-            if (stmt.name.targets[1].target.tag === "id") {
-              tar1name = stmt.name.targets[1].target.name;
+          if (stmt.index) {
+            var idname = "";
+            if (stmt.index.targets[0].target.tag === "id") {
+              idname = stmt.index.targets[0].target.name;
             }
 
             var iass: Stmt<[Type, Location]> = {
               a: [NONE, stmt.a[1]],
               tag: "assignment",
-              destruct: makeId([NUM, stmt.a[1]], tar1name),
+              destruct: makeId([NUM, stmt.a[1]], idname),
               value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(-1) } },
             };
             var Code_iass = codeGenStmt(iass, env);
@@ -574,14 +565,14 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
               a: [NUM, stmt.a[1]],
               tag: "binop",
               op: BinOp.Plus,
-              left: { a: [NUM, stmt.a[1]], tag: "id", name: tar1name },
+              left: { a: [NUM, stmt.a[1]], tag: "id", name: idname },
               right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
             };
 
             var niass: Stmt<[Type, Location]> = {
               a: [NONE, stmt.a[1]],
               tag: "assignment",
-              destruct: makeId([NUM, stmt.a[1]], tar1name),
+              destruct: makeId([NUM, stmt.a[1]], idname),
               value: nid,
             };
             var Code_idstep = codeGenStmt(niass, env);
