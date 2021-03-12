@@ -1320,8 +1320,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           .concat();
 
         return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`, ...extStmts];
-
-
       } else {
         // I don't think this error can happen
         throw new BaseException.InternalException(
@@ -1524,8 +1522,9 @@ function codeGenTupleAlloc(
   expr.contents.forEach((content, offset) => {
     stmts.push(...codeGenExpr(content, env), `(i32.store offset=${offset * 4})`);
   });
-  return stmts
+  return stmts;
 }
+
 function codeGenDictMethods(
   obj: Expr<[Type, Location]>,
   method: string,

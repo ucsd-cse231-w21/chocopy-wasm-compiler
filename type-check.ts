@@ -1076,49 +1076,49 @@ export function tcExpr(
             throw new BaseException.NameError(expr.a, tObj.a[0].name);
           }
         case "dict":
-        console.log("TC: dict method call");
-        switch (expr.method) {
-          case "pop":
-            let numArgsPop = expr.arguments.length;
-            if (numArgsPop > 2) {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' pop() expected at most 2 arguments, got ${numArgsPop}`
-              );
-            }
-            let dictKeyTypePop = tObj.a[0].key;
-            let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
-            if (!isAssignable(env, dictKeyTypePop, tKeyPop.a[0])) {
-              throw new BaseException.CompileError(
-                expr.a,
-                "Expected key type `" +
-                  dictKeyTypePop.tag +
-                  "`; got key lookup type `" +
-                  tKeyPop.a[0].tag +
-                  "`"
-              );
-            }
-            return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyPop] };
-          case "get":
-            console.log("TC: get function in dict");
-            let numArgsGet = expr.arguments.length;
-            if (numArgsGet !== 2) {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' get() expected 2 arguments, got ${numArgsGet}`
-              );
-            }
-            let dictKeyTypeGet = tObj.a[0].key;
-            let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
-            if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a[0])) {
-              throw new BaseException.CompileError(
-                expr.a,
-                "Expected key type `" +
-                  dictKeyTypeGet.tag +
-                  "`; got key lookup type `" +
-                  tKeyGet.a[0].tag +
-                  "`"
-              );
+          console.log("TC: dict method call");
+          switch (expr.method) {
+            case "pop":
+              let numArgsPop = expr.arguments.length;
+              if (numArgsPop > 2) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  `'dict' pop() expected at most 2 arguments, got ${numArgsPop}`
+                );
+              }
+              let dictKeyTypePop = tObj.a[0].key;
+              let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
+              if (!isAssignable(env, dictKeyTypePop, tKeyPop.a[0])) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  "Expected key type `" +
+                    dictKeyTypePop.tag +
+                    "`; got key lookup type `" +
+                    tKeyPop.a[0].tag +
+                    "`"
+                );
+              }
+              return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyPop] };
+            case "get":
+              console.log("TC: get function in dict");
+              let numArgsGet = expr.arguments.length;
+              if (numArgsGet !== 2) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  `'dict' get() expected 2 arguments, got ${numArgsGet}`
+                );
+              }
+              let dictKeyTypeGet = tObj.a[0].key;
+              let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
+              if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a[0])) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  "Expected key type `" +
+                    dictKeyTypeGet.tag +
+                    "`; got key lookup type `" +
+                    tKeyGet.a[0].tag +
+                    "`"
+                );
               }
               let dictValueTypeGet = tObj.a[0].value;
               let tValueGet = tcExpr(env, locals, expr.arguments[1]);
