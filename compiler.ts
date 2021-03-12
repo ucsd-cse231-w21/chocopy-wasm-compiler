@@ -382,7 +382,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
           if (stmt.name.targets[0].target.tag === "id") {
             tarname = stmt.name.targets[0].target.name;
           }
-          
           // name = cur
           var ass: Stmt<[Type, Location]> = {
             a: [NONE, stmt.a[1]],
@@ -429,12 +428,12 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             return [
               `
               ${Code_iass.join("\n")}
-          
+
               (block
                 (loop
                   ${Code_idstep.join("\n")}
                   (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
-          
+
                   ${Code_ass.join("\n")}
                   ${Code_idass.join("\n")}
                   ${bodyStmts.join("\n")}
@@ -557,18 +556,24 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
               a: [NONE, stmt.a[1]],
               tag: "assignment",
               destruct: makeId([NUM, stmt.a[1]], idname),
-              value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(-1) } },
+              value: {
+                a: [NUM, stmt.a[1]],
+                tag: "literal",
+                value: { tag: "num", value: BigInt(-1) },
+              },
             };
             var Code_iass = codeGenStmt(iass, env);
-          
             var nid: Expr<[Type, Location]> = {
               a: [NUM, stmt.a[1]],
               tag: "binop",
               op: BinOp.Plus,
               left: { a: [NUM, stmt.a[1]], tag: "id", name: idname },
-              right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
+              right: {
+                a: [NUM, stmt.a[1]],
+                tag: "literal",
+                value: { tag: "num", value: BigInt(1) },
+              },
             };
-
             var niass: Stmt<[Type, Location]> = {
               a: [NONE, stmt.a[1]],
               tag: "assignment",
@@ -584,13 +589,13 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
             //   (i32.store)
             //   ${Code_iass.join("\n")}
             //   ${Code_cur_iniass.join("\n")}
-          
+
             //   (block
             //     (loop
             //       ${Code_step.join("\n")}
             //       ${Code_idstep.join("\n")}
             //       (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
-          
+
             //       ${Code_ass.join("\n")}
             //       ${bodyStmts.join("\n")}
             //       (br 0)

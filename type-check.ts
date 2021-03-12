@@ -439,10 +439,14 @@ export function tcStmt(
           stmt.iterable = stmt.iterable.arguments[0];
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
       }else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range"){
         if (stmt.index){
 =======
       } else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range"){
+=======
+      } else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range") {
+>>>>>>> b22a1d0b57cb4fd243fd9b332581e7e7adb84291
         if (stmt.index) {
 >>>>>>> b280127020dc7e44b3e4ebf58046aa580a7e64de
           throw new BaseException.SyntaxError(stmt.a, "Range should not have index!");
