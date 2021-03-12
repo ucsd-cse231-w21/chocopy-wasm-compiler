@@ -17,6 +17,7 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
   Location,
+  Default,
 } from "./ast";
 
 import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
@@ -905,11 +906,48 @@ export function traverseTypeDef(c: TreeCursor, s: string): Type {
   }
 }
 
-export function traverseDefaultValue(c: TreeCursor, s: string): Literal {
+export function traverseDefault(c: TreeCursor, s: string): Default {
+  var location: Location = getSourcePos(c, s);
+  switch (c.type.name) {
+    case "Number":
+      return {
+        tag: "num",
+        value: BigInt(s.substring(c.from, c.to)),
+      };
+    case "String":
+      const str = s.substring(c.from, c.to);
+      const str_trimmed = str.substring(1, str.length - 1);
+      return {
+        tag: "string",
+        value: str_trimmed,
+      };
+    case "Boolean":
+      return {
+        tag: "bool",
+        value: s.substring(c.from, c.to) === "True",
+      };
+    case "None":
+      return {
+        tag: "none",
+      };
+    case "CallExpression":
+      c.firstChild();
+      const classname = s.substring(c.from, c.to);
+      c.parent(); // pop CallExpression
+      return {
+        tag: "uninit_param",
+        classname,
+      };
+    default:
+      throw new BaseException.CompileError(location, "not default", "ParsingError");
+  }
+}
+
+export function traverseDefaultValue(c: TreeCursor, s: string): Default {
   switch (c.type.name) {
     case "AssignOp":
       c.nextSibling(); // Move on to default value
-      let val = traverseLiteral(c, s);
+      let val = traverseDefault(c, s);
       c.nextSibling(); // Move on to comma
       return val;
     default:
@@ -926,7 +964,6 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
     let name = s.substring(c.from, c.to);
     c.nextSibling(); // Focuses on "TypeDef", hopefully, or "," if mistake
     let typ = traverseTypeDef(c, s);
-
     c.nextSibling(); // Move on to comma or ")" or "="
     let val = traverseDefaultValue(c, s);
     if (val !== null) {

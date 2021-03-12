@@ -319,4 +319,20 @@ describe("fancy-calling-convention tests", () => {
     `,
     PyInt(4)
   );
+
+  assert(
+    "class-init-defaults",
+    `
+  class C(object):
+    field : int = 3
+    def foo(Self : C, x : int = 3, y : int = 5, z : int = 10)->int:
+      return x + y - z + Self.field
+
+  def func(c: C = C()) -> int:
+    return c.foo(1, 2)
+  
+  func()
+    `,
+    PyInt(-4)
+  );
 });

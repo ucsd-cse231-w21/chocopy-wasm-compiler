@@ -189,7 +189,7 @@ While we were in the middle of implementing this program and spent a lot of time
 
 ### AST
 ```
-export type Defaults =
+export type Default =
   | Literal
   | { tag: "uninit_param", classname: string }
 ```
