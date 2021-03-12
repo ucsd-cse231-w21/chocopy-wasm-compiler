@@ -723,19 +723,27 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       c.parent();
       forCount += 1;
       var isDes = false;
-      if (targets.length == 2){
+      if (targets.length == 2) {
         if (iter.tag == "call" && iter.name == "enumerate") {
           var dest: Destructure<Location> = {
             // Info about the value that is being destructured
             isDestructured: false,
             targets: [targets[1]],
           };
-          var index: Destructure<Location> =  {
+          var index: Destructure<Location> = {
             // Info about the value that is being destructured
             isDestructured: false,
             targets: [targets[0]],
           };
-          return { tag: "for", id: forCount, index: index, name: dest, iterable: iter, body: body, a: location };
+          return {
+            tag: "for",
+            id: forCount,
+            index: index,
+            name: dest,
+            iterable: iter,
+            body: body,
+            a: location
+          };
         }
         else {
           throw new BaseException.CompileError(
@@ -769,7 +777,14 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
         isDestructured: isDes,
         targets: targets,
       };
-      return { tag: "for", id: forCount, name: dest, iterable: iter, body: body, a: location };
+      return {
+        tag: "for",
+        id: forCount,
+        name: dest,
+        iterable: iter,
+        body: body,
+        a: location
+      };
     default:
       throw new BaseException.CompileError(
         location,
