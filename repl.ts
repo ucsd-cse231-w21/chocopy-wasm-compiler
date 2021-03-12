@@ -1,10 +1,11 @@
 import { run, Config } from "./runner";
-import { GlobalEnv } from "./compiler";
+import { GlobalEnv, libraryFuns, ListContentTag } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
-import { Value, Type } from "./ast";
+import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
+import { importMemoryManager, MemoryManager } from "./alloc";
 import { bignumfunctions } from "./bignumfunctions";
-import { NUM, BOOL, NONE, PyValue, PyBool, PyBigInt, encodeValue } from "./utils";
+import { NUM, STRING, BOOL, NONE, LIST, CLASS, PyValue, stringify, PyString, PyBigInt, encodeValue } from "./utils";
 import { InternalException, ZeroDivisionError } from "./error";
 
 interface REPL {
@@ -17,6 +18,7 @@ export class BasicREPL {
   functions: string;
   importObject: any;
   memory: any;
+  memoryManager: MemoryManager;
   constructor(importObject: any) {
     this.importObject = importObject;
     if (!importObject.js) {
@@ -25,17 +27,56 @@ export class BasicREPL {
       view[0] = 4;
       this.importObject.js = { memory: memory };
     }
+
+    if (!importObject.memoryManager) {
+      const memory = this.importObject.js.memory;
+      const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
+        staticStorage: 512n,
+        total: 2000n,
+      });
+      this.memoryManager = memoryManager;
+      importMemoryManager(this.importObject, memoryManager);
+    }
     this.currentEnv = {
       globals: new Map(),
       classes: new Map(),
-      locals: new Set(),
-      offset: 1,
+// <<<<<<< HEAD
+//       locals: new Set(),
+//       offset: 1,
+//     };
+//     this.importObject.imports.__internal_print = (arg: any) => {
+//       console.log("Logging from WASM: ", arg);
+//       this.importObject.imports.print(
+//         PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
+//       );
+//       return arg;
+//     };
+//     this.importObject.imports.__internal_print_num = (arg: number) => {
+//       console.log("Logging from WASM: ", arg);
+//       this.importObject.imports.print(
+//         PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
+//       );
+//       return arg;
+//     };
+//     this.importObject.imports.__internal_print_bool = (arg: number) => {
+//       console.log("Logging from WASM: ", arg);
+//       this.importObject.imports.print(PyValue(BOOL, arg, null));
+//       return arg;
+//     };
+// =======
+      locals: new Map(),
+      funs: new Map(),
     };
     this.importObject.imports.__internal_print = (arg: any) => {
       console.log("Logging from WASM: ", arg);
       this.importObject.imports.print(
         PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
       );
+      return arg;
+    };
+    this.importObject.imports.__internal_print_none = (arg: number) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(PyValue(NONE, arg, null));
       return arg;
     };
     this.importObject.imports.__internal_print_num = (arg: number) => {
@@ -45,14 +86,75 @@ export class BasicREPL {
       );
       return arg;
     };
+    this.importObject.imports.__internal_print_str = (arg: number) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(
+        PyValue(STRING, arg, new Uint32Array(this.importObject.js.memory.buffer))
+      );
+      return arg;
+    };
+    this.importObject.imports.__internal_print_list = (arg: number, typ: ListContentTag) => {
+      console.log("Logging from WASM: ", arg);
+      let mem = new Uint32Array(this.importObject.js.memory.buffer);
+      const view = new Int32Array(mem);
+      let list_length = view[arg / 4 + 1];
+      let list_bound = view[arg / 4 + 2];
+      var base_str = "";
+      var index = 0;
+      let p_list = [];
+
+      while (index < list_length) {
+        switch (typ) {
+          case ListContentTag.Num:
+            base_str = stringify(PyValue(LIST(NUM), arg, mem));
+            p_list.push(stringify(PyValue(NUM, view[arg / 4 + 3 + index], mem)));
+            break;
+          case ListContentTag.Bool:
+            base_str = stringify(PyValue(LIST(BOOL), arg, mem));
+            p_list.push(stringify(PyValue(BOOL, view[arg / 4 + 3 + index], mem)));
+            break;
+          //Realistically can never happen
+          case ListContentTag.None:
+            base_str = stringify(PyValue(LIST(NONE), arg, mem));
+            p_list.push(stringify(PyValue(NONE, view[arg / 4 + 3 + index], mem)));
+            break;
+          //We didn't actually store the name of the class anywhere
+          //This will display as "<list<class> object at N>"
+          case ListContentTag.Str:
+            base_str = stringify(PyValue(LIST(STRING), arg, mem));
+            p_list.push(stringify(PyValue(STRING, view[arg / 4 + 3 + index], mem)));
+            break;
+          case ListContentTag.Class:
+            base_str = stringify(PyValue(LIST(CLASS("class")), arg, mem));
+            p_list.push(stringify(PyValue(CLASS("CLASS"), view[arg / 4 + 3 + index], mem)));
+            break;
+          //Doesn't display type of inner list
+          //This will display as "<list<list> object at N>"
+          case ListContentTag.List:
+            base_str = stringify(PyValue(LIST(LIST(null)), arg, mem));
+            p_list.push(stringify(PyValue(LIST(LIST(null)), view[arg / 4 + 3 + index], mem)));
+            break;
+          //TODO: Placeholder for Dict
+          case ListContentTag.Dict:
+            base_str = stringify(PyValue(LIST(LIST(null)), arg, mem));
+            p_list.push(stringify(PyValue(CLASS("Dict"), view[arg / 4 + 3 + index], mem)));
+            break;
+          //TODO: Placeholder for Callable
+          case ListContentTag.Callable:
+            base_str = stringify(PyValue(LIST(NUM), arg, mem));
+            p_list.push(stringify(PyValue(CLASS("Callable"), view[arg / 4 + 3 + index], mem)));
+            break;
+        }
+        index += 1;
+      }
+
+      this.importObject.imports.print(PyString(`${base_str} [ ${p_list.join(", ")} ]`, arg));
+
+      return arg;
+    };
     this.importObject.imports.__internal_print_bool = (arg: number) => {
       console.log("Logging from WASM: ", arg);
       this.importObject.imports.print(PyValue(BOOL, arg, null));
-      return arg;
-    };
-    this.importObject.imports.__internal_print_none = (arg: number) => {
-      console.log("Logging from WASM: ", arg);
-      this.importObject.imports.print(PyValue(NONE, arg, null));
       return arg;
     };
     this.importObject.imports.abs = (arg: number) =>
@@ -126,8 +228,14 @@ export class BasicREPL {
         return x >= y;
       });
 
+    // initialization for range() calss and its constructor.
+    const classFields: Map<string, [number, Literal]> = new Map();
+    classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);
+    classFields.set("stop", [1, { tag: "num", value: BigInt(0) }]);
+    classFields.set("step", [2, { tag: "num", value: BigInt(1) }]);
+    this.currentEnv.classes.set("Range", classFields);
     this.currentTypeEnv = defaultTypeEnv;
-    this.functions = bignumfunctions;
+    this.functions = libraryFuns() + "\n\n" + bignumfunctions;
   }
   binOpInterface(
     x: number,
@@ -138,7 +246,7 @@ export class BasicREPL {
     var xval = PyValue(NUM, x, mem);
     var yval = PyValue(NUM, y, mem);
     if (xval.tag == "num" && yval.tag == "num") {
-      return encodeValue(PyBigInt(f(xval.value, yval.value)), mem);
+      return encodeValue(PyBigInt(f(xval.value, yval.value)), this.importObject.imports.gcalloc, mem);
     }
     throw new InternalException("binary operation failed at runtime");
   }
@@ -159,7 +267,7 @@ export class BasicREPL {
     var mem = new Uint32Array(this.importObject.js.memory.buffer);
     var xval = PyValue(NUM, x, mem);
     if (xval.tag == "num") {
-      return encodeValue(PyBigInt(f(xval.value)), mem);
+      return encodeValue(PyBigInt(f(xval.value)), this.importObject.imports.gcalloc, mem);
     }
     throw new InternalException("binary operation failed at runtime");
   }
@@ -169,14 +277,14 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      memoryManager: this.memoryManager,
     };
-    const [result, newEnv, newTypeEnv, newFunctions] = await run(
-      source,
-      config
-    );
+    const [result, newEnv, newTypeEnv, newFunctions] = await run(source, config);
     this.currentEnv = newEnv;
     this.currentTypeEnv = newTypeEnv;
     this.functions += newFunctions;
+
+    this.memoryManager.forceCollect();
     return result;
   }
   async tc(source: string): Promise<Type> {
@@ -185,9 +293,10 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      memoryManager: this.memoryManager,
     };
     const parsed = parse(source);
     const [result, _] = await tc(this.currentTypeEnv, parsed);
-    return result.a;
+    return result.a[0];
   }
 }

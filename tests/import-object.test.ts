@@ -1,11 +1,15 @@
-import { Type } from "../ast";
-import { stringify } from "../utils";
-import { Value } from "../ast";
+import { Type, Value } from "../ast";
+import { NUM, STRING, BOOL, NONE, unhandledTag, stringify } from "../utils";
+import { MemoryManager } from "../alloc";
+import { nTagBits } from "../compiler";
 
 function print(val: Value) {
   importObject.output += stringify(val);
   importObject.output += "\n";
 }
+
+const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+var memory_js = { memory: memory };
 
 export const importObject = {
   imports: {
@@ -15,6 +19,7 @@ export const importObject = {
     //  console.
     print: print,
   },
-
+  js: memory_js,
   output: "",
+  memoryManager: undefined as undefined | MemoryManager,
 };

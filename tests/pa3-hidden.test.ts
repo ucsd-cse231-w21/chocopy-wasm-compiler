@@ -1,12 +1,5 @@
 import { PyInt, PyBool, PyNone, NUM, BOOL, CLASS, NONE } from "../utils";
-import {
-  assert,
-  asserts,
-  assertPrint,
-  assertTCFail,
-  assertTC,
-  assertFail,
-} from "./utils.test";
+import { assert, asserts, assertPrint, assertTCFail, assertTC, assertFail } from "./utils.test";
 
 describe("PA3 hidden tests", () => {
   assertTC(
@@ -57,7 +50,7 @@ else:
   class C(object):
     def none(self: C) -> C:
       return None
-      
+
   C().none()`,
     CLASS("C")
   );
@@ -67,7 +60,7 @@ else:
     `
   class C(object):
     box : C = None
-    
+
   c : C = None
   c = C()
   c.box = None`,
@@ -158,7 +151,7 @@ else:
     PyBool(true)
   );
 
-  /*assertTC("void-is-none-tc", `    
+  /*assertTC("void-is-none-tc", `
   class C(object):
     def new(self: C, other: C) -> C:
       return other
@@ -167,12 +160,12 @@ else:
 
   C().new(None).f()`, NONE);
 
-  assert("void-is-none", `    
+  assert("void-is-none", `
   class C(object):
     def new(self: C) -> C:
       return self
     def f(self: C):
-      return 
+      return
 
   C().new().f() is None`, PyBool(true)); */
 
@@ -181,7 +174,7 @@ else:
     `
   class C(object):
     x : int = 0
-    
+
   c1 : C = None
   c2 : C = None
   c1 = C()
@@ -219,7 +212,7 @@ else:
     other : C = None
     def f(self:C, other: C):
       other.f()
-    
+
   c : C = None
   c = c()
   c.f(None)`
@@ -234,7 +227,7 @@ else:
     x : int = 0
   class C2(object):
     x : int = 0
-    
+
   C1() is C2()`,
     BOOL
   );
@@ -278,7 +271,7 @@ else:
   class C(object):
     def f(x : int) -> int:
       return 0
-      
+
   C().f(True)`
   );
 
@@ -332,7 +325,7 @@ else:
     n : int = 0
     def __init__(self: C):
       self.n = 1
-      
+
   C().n`,
     PyInt(1)
   );
@@ -347,7 +340,7 @@ else:
         return 1
       else:
         return n * self.fib(n-1)
-  
+
   C().fib(5)`,
     NUM
   );
@@ -361,7 +354,7 @@ else:
         return 1
       else:
         return n * self.fib(n-1)
-  
+
   C().fib(5)`
   );
 
@@ -399,10 +392,7 @@ class LinkedList(object):
       PyNone(),
     ],
     [`l: LinkedList = None`, PyNone()],
-    [
-      `l = LinkedList().new(1, LinkedList().new(2, LinkedList().new(3, None)))`,
-      PyNone(),
-    ],
+    [`l = LinkedList().new(1, LinkedList().new(2, LinkedList().new(3, None)))`, PyNone()],
     [`l.sum()`, PyInt(6)],
     [`l.next.sum()`, PyInt(5)],
   ]);

@@ -3,15 +3,13 @@ import { NUM, BOOL, NONE } from "../utils";
 
 describe("tc", () => {
   assertTC("number", "1", NUM);
-  assertTC("bignum", "4294967295", NUM);
+  assertTC("big number", "4294967296", NUM);
   assertTC("true", "True", BOOL);
   assertTC("false", "False", BOOL);
 
   assertTC("plus", "1 + 2", NUM);
   assertTCFail("plusBoolRight", "1 + True");
-  assertTCFail("plusBoolRightBigNum", "4294967295 + True");
   assertTCFail("plusBoolLeft", "False + 2");
-  assertTCFail("plusBoolLeftBigNum", "False + 4294967295");
   assertTCFail("plusBoolBoth", "False + True");
 
   assertTC("mul", "1 * 2", NUM);
@@ -127,10 +125,149 @@ describe("tc", () => {
       self.x = x
       self.y = y
       return self
-  
+
   c : C = None
   c = C().new(3, 4)
   c.x`,
     NUM
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+  d : [int,int] = None
+  d = {1:False, 2:True}`
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+    a:[int, [int, int]] = None
+    a = {2:True}`
+  );
+
+  assertTCFail(
+    "dict-bad-assignment",
+    `
+    a:[int, [int, int]] = None
+    a = {2:{3:True}}`
+  );
+
+  assertTCFail(
+    "dict-incomplete-assignment",
+    `
+  d: [int, int] = None
+  d = {4}`
+  );
+
+  assertTCFail(
+    "dict-bad-lookup",
+    `
+  d: [int, int] = None
+  d = {4:5, 1:4}
+  d[True]`
+  );
+
+  assertTCFail(
+    "dict-bad-assign",
+    `
+  a:[int,int]=None
+  a = {}
+  a[8] = True`
+  );
+
+  assertTCFail(
+    "dict-bad-constructor-init",
+    `
+  a:[int,int]=None
+  a = dict(1)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-pop",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.pop(6)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-pop",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.pop(True)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-pop",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.pop(7,8,9)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-get",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.get(7,8,9)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-get",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.get(7)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-get",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.get(False)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-clear",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.clear(5)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-update",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.update(4)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-update",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.update(9,4)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-update",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.update(True)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-update",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.update([9,4])`
   );
 });
