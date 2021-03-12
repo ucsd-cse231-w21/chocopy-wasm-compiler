@@ -393,7 +393,8 @@ export class MnS<A extends MarkableAllocator> {
       // console.warn(`\tValue=${childValue}`);
 
       // NOTE(alex:mm): using a `switch` here breaks occasionally for whatever reason
-      if (childTag === TAG_CLASS) {
+      if (childTag === TAG_CLASS || childTag === TAG_TUPLE) {
+        // classes and tuples use the same memory structure: a value at each memory position
         // NOTE(alex:mm): use field indices for debug info later
         for (let fieldIndex = 0n; fieldIndex < childSize / 4n; fieldIndex++) {
           const fieldValue = this.getField(childPtr + 4n * fieldIndex);
