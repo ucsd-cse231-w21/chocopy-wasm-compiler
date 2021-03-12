@@ -472,7 +472,7 @@ function codeGenStmt(stmt: Stmt<Type>,
           return [`(local.set $${stmt.name} ${valueInstr})`];
         }
         else if(result.tag === "globalvar"){
-          return [`(call $${MOD_STORE} (i32.const 0) (i32.const ${result.index}) ${valueInstr})`];
+          return [`(call $${MOD_STORE} (i32.const ${result.moduleCode}) (i32.const ${result.index}) ${valueInstr})`];
         }
         else{
           //this shouldn't happen as type checking wouldn't allow it
@@ -508,7 +508,7 @@ function codeGenStmt(stmt: Stmt<Type>,
           const targetModule = builtins.get(moduleName);
           const varIndex = targetModule.globalVars.get(stmt.field);
 
-          return [`(call $${MOD_STORE} ${objInstrs} ${valueInstrs} (i32.const ${varIndex}))`];
+          return [`(call $${MOD_STORE} ${objInstrs} (i32.const ${varIndex}) ${valueInstrs} )`];
         }
         else{
           const targetClass = sourceModule.classes.get(stmt.obj.a.name);

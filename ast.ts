@@ -220,3 +220,11 @@ export function valToStr(l: Value): string{
     default: return litToStr(l);
   }
 }
+
+export function defaultValue(type: Type) : Literal {
+  switch(type.tag){
+    case "bool": return {tag: "bool", value: false};
+    case "number": return {tag: "num", value: BigInt(0)};
+    default: return {tag: "none"};
+  }
+}

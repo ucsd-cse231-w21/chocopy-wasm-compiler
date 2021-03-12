@@ -1,4 +1,4 @@
-from otherModule import someFunc, otherFunc
+from otherModule import someFunc, otherFunc, otherVar, printOtherVar
 import otherModule
 
 class Test:
@@ -40,6 +40,15 @@ z = Test()
 z.meth()
 
 someFunc(10)
+
+print(otherVar)
+
+otherVar = abs(otherVar) - abs(otherVar)
+
+print(otherVar)
+
+otherModule.printOtherVar()
+
 
 
 

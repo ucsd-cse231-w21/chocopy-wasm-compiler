@@ -1,11 +1,11 @@
 import { run } from "./runner";
 import { GlobalTable, tc } from "./type-check";
-import { Value, Type, typeToString, Program, Literal, litToStr, valToStr } from "./ast";
+import { Value, Type, typeToString, Program, Literal, litToStr, valToStr, defaultValue } from "./ast";
 import { parse } from "./parser";
 import { builtinModules } from "module";
-import { attachPresenter, BuiltInModule, gatherPresenters } from "./builtins/builtins";
+import { attachPresenter, BuiltInModule, BuiltVariable, gatherPresenters } from "./builtins/builtins";
 import { ModulePresenter, ClassPresenter, FuncIdentity, idenToStr, literalToType } from "./types";
-import { NONE } from "./utils";
+import { BOOL, NONE } from "./utils";
 import fs from 'fs';
 import { MainAllocator, RuntimeModule } from "./heap";
 import { compile, LabeledClass, LabeledModule } from "./compiler";
@@ -148,6 +148,7 @@ export class BasicREPL {
 
   constructor(config: Config) {
     this.config = config;
+    this.config.allocator.initGlobalVars(this.config.builtIns.size + 1); //+1 for sourc module
     this.labeler = new Labeler();
     //this.labeler.init(config.builtIns);
 
@@ -164,7 +165,6 @@ export class BasicREPL {
     let modCode = 1; //we start at 1 as the module code 0 is reserved for the source module
     for(let [name, mod] of builtins.entries()){
       const labeledMod = labeler.label(modCode, mod.presenter, false);
-
       const modFuncs: any = {};
 
       for(let [_, func] of mod.functions.entries()){
@@ -173,7 +173,26 @@ export class BasicREPL {
         modFuncs[label] = (...args: number[]) => {return func.func(...args)};
       }
 
+      for(let [_, v] of mod.variables.entries()){
+        console.log("adding gvar at modCode "+modCode);
+        allocator.addNewGVar(modCode, v);
+      }
+
+      const classes = new Map<number, {vars: Array<Literal>, nameMap: Array<string>}>();
+      for(let [name , d] of mod.classes.entries()){
+        const varLits = new Array<Literal>();
+        const nameMap = new Array<string>();
+
+        for(let [vname, v] of d.variables.entries()){
+          varLits.push(defaultValue(v.getType()));
+          nameMap.push(vname);
+        }
+
+        classes.set(labeledMod.classes.get(name).typeCode, {vars: varLits, nameMap: nameMap});
+      }
+
       funcs[name] = modFuncs;
+      allocator.setModule(modCode, {presenter: mod.presenter, isBuiltin: true, classes: classes});
       labeledBuiltIns.set(name, labeledMod);
       modCode++;
     }
@@ -212,7 +231,7 @@ export class BasicREPL {
     this.currentLabels = this.resolveLabels(this.currentLabels, labeled);
 
     const compiled = compile(this.currentSource, this.currentLabels, this.labeledBuiltIns, this.config.allocator);
-    console.log("---------INSTRS--------\n"+compiled.join("\n"));
+    //console.log("---------INSTRS--------\n"+compiled.join("\n"));
 
     this.currentRuntime = this.createRuntimeRep(this.currentRuntime, this.currentSource, labeled);
     this.config.allocator.setModule(0, this.currentRuntime);
@@ -295,13 +314,15 @@ export class BasicREPL {
       presenter: program.presenter,
       isBuiltin: false,
       classes: curRuntime === undefined ? new Map() : new Map(this.currentRuntime.classes),
-      varNames: curRuntime === undefined ? new Map() : new Map(this.currentRuntime.varNames)
+      //varNames: curRuntime === undefined ? new Map() : new Map(this.currentRuntime.)
     };
 
     //add global vars
+    /*
     for(let [name, index] of labeled.globalVars.entries()){
       runtimeVers.varNames.set(index, name);
     }
+    */
 
     //add classes
     for(let [name, labClass] of labeled.classes.entries()){
@@ -309,13 +330,15 @@ export class BasicREPL {
 
       const classDef = program.classes.get(name);
       const literals = new Array<Literal>();
+      const names = new Array<string>();
 
       for(let [vName, _] of labClass.varIndices.entries()){
         //console.log(`     -> for ${vName}, literal is ${litToStr(classDef.fields.get(vName).value)}`);
         literals.push(classDef.fields.get(vName).value);
+        names.push(vName);
       } 
 
-      runtimeVers.classes.set(labClass.typeCode, {vars: literals});
+      runtimeVers.classes.set(labClass.typeCode, {vars: literals, nameMap: names});
     }
 
     return runtimeVers;
@@ -323,7 +346,7 @@ export class BasicREPL {
 
   initGVars(program: Program<Type>, labeled: LabeledModule){
     for(let [name, def] of program.inits.entries()){
-      this.config.allocator.addNewGVar(0, name, def.type);
+      this.config.allocator.addNewGVar(0, new BuiltVariable(name, def.type));
 
       let initValue = 0;
       switch(def.value.tag){
@@ -379,7 +402,7 @@ async function main(){
                           allocator: allocator};
   const repl = new BasicREPL(config);
 
-  const input = fs.readFileSync("./sampleprogs/sample2.txt","ascii");
+  const input = fs.readFileSync("./sampleprogs/sample7.txt","ascii");
 
   let v = await repl.run(input);
   console.log("done============="+valToStr(v));

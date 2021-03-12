@@ -153,7 +153,9 @@ class OtherModule extends BuiltInModule {
         super(allocator);
         this.name = "otherModule";
         this.classes = new Map();
-        this.variables = new Map();
+        this.variables = new Map([
+            ["otherVar", new BuiltVariable("otherVar", NUM)]
+        ]);
         this.functions = new Map([
             ["someFunc()", {isConstructor: false, 
                             identity: {signature: {name: "someFunc", parameters: []}, 
@@ -170,8 +172,20 @@ class OtherModule extends BuiltInModule {
             ["otherFunc(string,number,bool)", {isConstructor: false, 
                                 identity: {signature: {name: "otherFunc", parameters: [STR, NUM, BOOL]}, 
                                            returnType: STR},
-                                func: this.otherFuncOne.bind(this)}],                             
+                                func: this.otherFuncOne.bind(this)}],    
+            ["printOtherVar()", {isConstructor: false, 
+                                identity: {signature: {name: "printOtherVar", parameters: []}, 
+                                            returnType: NONE},
+                                func: this.printOtherVar.bind(this)}]                        
         ]);
+
+        //set otherVar to be -20
+        this.variables.get("otherVar").set(allocator.allocInt(-20));
+    }
+
+    printOtherVar(): number{
+        console.log("current value of otherVar is: "+stringtify(this.allocator, this.variables.get("otherVar").get()));
+        return 0;
     }
 
     someFunc() : number{

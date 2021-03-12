@@ -1,12 +1,18 @@
 import { ClassPresenter, ModulePresenter } from "./types";
 import { Value, Type, Literal } from "./ast";
 import {BuiltInModule, BuiltVariable} from "./builtins/builtins";
+import { add } from "cypress/types/lodash";
 
 export type RuntimeModule = {
   presenter: ModulePresenter,
   isBuiltin: boolean,
-  classes: Map<number, {vars: Array<Literal>}>,
-  varNames: Map<number, string>
+  classes: Map<number, {vars: Array<Literal>, nameMap: Array<string>}>,
+}
+
+export type MappedInstance = {
+  moduleCode: number, 
+  typeCode: number, 
+  attrs: Map<string, number>
 }
 
 /*
@@ -38,6 +44,8 @@ export class MainAllocator{
     for(let i = 0; i < totalModules; i++){
       this.globalVars[i] = [];
     }
+
+    console.log("initialized allocator with "+totalModules);
   }
 
   doesTypeExists(modCode: number, typeCode: number): boolean {
@@ -48,16 +56,36 @@ export class MainAllocator{
     this.typesByModule.set(modCode, module);
   }
 
-  addNewType(modCode: number, typeCode: number, initValues: Array<Literal>){
-    this.typesByModule.get(modCode).classes.set(typeCode, {vars: initValues});
+  addNewType(modCode: number, typeCode: number, initValues: Array<Literal>, nameMap: Array<string>){
+    this.typesByModule.get(modCode).classes.set(typeCode, {vars: initValues, nameMap: nameMap});
   }
 
-  addNewGVar(modCode: number, name: string, type: Type){
-    this.globalVars[modCode].push(new BuiltVariable(name, type));
+  addNewGVar(modCode: number, variable: BuiltVariable){
+    this.globalVars[modCode].push(variable);
   }
 
-  getInstance(addr: number): Instance{
+  getInstance(addr: number): Instance {
     return this.heap[addr];
+  }
+
+  packInstance(addr: number): MappedInstance {
+    const instance = this.heap[addr];
+    if(instance === undefined){
+      return undefined;
+    }
+
+    if(instance.tag === "instance"){
+      const classInfo = this.typesByModule.get(instance.moduleCode).classes.get(instance.typeCode);
+
+      const attrMap = new Map<string, number>();
+      for(let i = 0; i < classInfo.nameMap.length; i++){
+        attrMap.set(classInfo.nameMap[i], instance.attrs[i]);
+      }
+
+      return {moduleCode: instance.moduleCode, typeCode: instance.typeCode, attrs: attrMap};
+    }
+
+    return undefined;
   }
 
   getInt(addr: number): number {
