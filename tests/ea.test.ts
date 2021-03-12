@@ -27,7 +27,7 @@ describe("ea(tAst) function", () => {
         { tag: "number" },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 104,
           line: 1,
         },
@@ -254,7 +254,7 @@ describe("ea(tAst) function", () => {
         { tag: "number" },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 203,
           line: 1,
         },

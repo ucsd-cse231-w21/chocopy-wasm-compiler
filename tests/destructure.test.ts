@@ -160,7 +160,7 @@ describe("traverseDestructure()", () => {
     expect(assign).to.eql({
       a: {
         fileId: 1,
-        col: 0,
+        col: 1,
         length: 5,
         line: 1,
       },
@@ -170,54 +170,6 @@ describe("traverseDestructure()", () => {
           {
             ignore: false,
             starred: false,
-            target: {
-              a: {
-                fileId: 1,
-                col: 0,
-                length: 1,
-                line: 1,
-              },
-              name: "y",
-              tag: "id",
-            },
-          },
-        ],
-        valueType: {
-          fileId: 1,
-          col: 0,
-          length: 1,
-          line: 1,
-        },
-      },
-      tag: "assignment",
-      value: {
-        a: {
-          fileId: 1,
-          col: 4,
-          length: 1,
-          line: 1,
-        },
-        name: "z",
-        tag: "id",
-      },
-    });
-  });
-
-  it("*y, = z is valid (starred in destructure)", () => {
-    const assign = parse("*y, = z").stmts[0];
-    expect(assign).to.eql({
-      a: {
-        fileId: 1,
-        col: 0,
-        length: 7,
-        line: 1,
-      },
-      destruct: {
-        isDestructured: true,
-        targets: [
-          {
-            ignore: false,
-            starred: true,
             target: {
               a: {
                 fileId: 1,
@@ -232,7 +184,7 @@ describe("traverseDestructure()", () => {
         ],
         valueType: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 1,
           line: 1,
         },
@@ -241,7 +193,55 @@ describe("traverseDestructure()", () => {
       value: {
         a: {
           fileId: 1,
-          col: 6,
+          col: 5,
+          length: 1,
+          line: 1,
+        },
+        name: "z",
+        tag: "id",
+      },
+    });
+  });
+
+  it("*y, = z is valid (starred in destructure)", () => {
+    const assign = parse("*y, = z").stmts[0];
+    expect(assign).to.eql({
+      a: {
+        fileId: 1,
+        col: 1,
+        length: 7,
+        line: 1,
+      },
+      destruct: {
+        isDestructured: true,
+        targets: [
+          {
+            ignore: false,
+            starred: true,
+            target: {
+              a: {
+                fileId: 1,
+                col: 2,
+                length: 1,
+                line: 1,
+              },
+              name: "y",
+              tag: "id",
+            },
+          },
+        ],
+        valueType: {
+          fileId: 1,
+          col: 1,
+          length: 1,
+          line: 1,
+        },
+      },
+      tag: "assignment",
+      value: {
+        a: {
+          fileId: 1,
+          col: 7,
           length: 1,
           line: 1,
         },
@@ -256,7 +256,7 @@ describe("traverseDestructure()", () => {
     expect(assign).to.eql({
       a: {
         fileId: 1,
-        col: 0,
+        col: 1,
         length: 10,
         line: 1,
       },
@@ -269,7 +269,7 @@ describe("traverseDestructure()", () => {
             target: {
               a: {
                 fileId: 1,
-                col: 0,
+                col: 1,
                 length: 3,
                 line: 1,
               },
@@ -278,93 +278,12 @@ describe("traverseDestructure()", () => {
               obj: {
                 a: {
                   fileId: 1,
-                  col: 0,
+                  col: 1,
                   length: 1,
                   line: 1,
                 },
                 name: "c",
                 tag: "id",
-              },
-            },
-          },
-          {
-            ignore: false,
-            starred: false,
-            target: {
-              a: {
-                fileId: 1,
-                col: 5,
-                length: 1,
-                line: 1,
-              },
-              name: "y",
-              tag: "id",
-            },
-          },
-        ],
-        valueType: {
-          fileId: 1,
-          col: 0,
-          length: 3,
-          line: 1,
-        },
-      },
-      tag: "assignment",
-      value: {
-        a: {
-          fileId: 1,
-          col: 9,
-          length: 1,
-          line: 1,
-        },
-        name: "z",
-        tag: "id",
-      },
-    });
-  });
-
-  it("allows fields in assignment2", () => {
-    const assign = parse("d[2], y = z").stmts[0];
-    expect(assign).to.eql({
-      a: {
-        fileId: 1,
-        col: 0,
-        length: 11,
-        line: 1,
-      },
-      destruct: {
-        isDestructured: true,
-        targets: [
-          {
-            ignore: false,
-            starred: false,
-            target: {
-              a: {
-                fileId: 1,
-                col: 0,
-                length: 4,
-                line: 1,
-              },
-              tag: "bracket-lookup",
-              obj: {
-                a: {
-                  fileId: 1,
-                  col: 0,
-                  length: 1,
-                  line: 1,
-                },
-                tag: "id",
-                name: "d",
-              },
-              key: {
-                a: {
-                  fileId: 1,
-                  col: 2,
-                  length: 1,
-                  line: 1,
-                },
-                tag: "literal",
-                value: { tag: "num", value: 2n },
               },
             },
           },
@@ -385,8 +304,8 @@ describe("traverseDestructure()", () => {
         ],
         valueType: {
           fileId: 1,
-          col: 0,
-          length: 4,
+          col: 1,
+          length: 3,
           line: 1,
         },
       },
@@ -395,6 +314,87 @@ describe("traverseDestructure()", () => {
         a: {
           fileId: 1,
           col: 10,
+          length: 1,
+          line: 1,
+        },
+        name: "z",
+        tag: "id",
+      },
+    });
+  });
+
+  it("allows fields in assignment2", () => {
+    const assign = parse("d[2], y = z").stmts[0];
+    expect(assign).to.eql({
+      a: {
+        fileId: 1,
+        col: 1,
+        length: 11,
+        line: 1,
+      },
+      destruct: {
+        isDestructured: true,
+        targets: [
+          {
+            ignore: false,
+            starred: false,
+            target: {
+              a: {
+                fileId: 1,
+                col: 1,
+                length: 4,
+                line: 1,
+              },
+              tag: "bracket-lookup",
+              obj: {
+                a: {
+                  fileId: 1,
+                  col: 1,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "id",
+                name: "d",
+              },
+              key: {
+                a: {
+                  fileId: 1,
+                  col: 3,
+                  length: 1,
+                  line: 1,
+                },
+                tag: "literal",
+                value: { tag: "num", value: 2n },
+              },
+            },
+          },
+          {
+            ignore: false,
+            starred: false,
+            target: {
+              a: {
+                fileId: 1,
+                col: 7,
+                length: 1,
+                line: 1,
+              },
+              name: "y",
+              tag: "id",
+            },
+          },
+        ],
+        valueType: {
+          fileId: 1,
+          col: 1,
+          length: 4,
+          line: 1,
+        },
+      },
+      tag: "assignment",
+      value: {
+        a: {
+          fileId: 1,
+          col: 11,
           length: 1,
           line: 1,
         },

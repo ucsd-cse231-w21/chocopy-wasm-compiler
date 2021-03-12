@@ -10,7 +10,7 @@ export class ErrorManager {
   }
 
   __pushStack(line: number, col: number, length: number, fileId: number) {
-    this.callStack.push({ line: line, col, length, fileId });
+    this.callStack.push({ line: line, col: col, length: length, fileId: fileId });
     if (this.callStack.length >= 100) throw new BaseException.RecursionError(this.callStack);
   }
 
@@ -66,16 +66,13 @@ export class ErrorManager {
         this.callStack,
         "'NoneType' object is not subscriptable or does not support item assignment"
       );
-    console.log(arg);
   }
 
   __checkIndex(size: number, key: number) {
-    console.log(key + " " + size);
     if (key < 0 || key >= size) throw new BaseException.IndexError(this.callStack);
   }
 
   __checkKey(key: number) {
-    console.log(key);
     if (key === -1) throw new BaseException.KeyError(this.callStack);
   }
 }
