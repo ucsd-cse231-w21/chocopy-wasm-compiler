@@ -216,6 +216,8 @@ for i in list:
   print(j)
 ```
 
+We didn't handle the case where iterable is an id variable, and actually it needs more information than a range object or list-expr, because we may need to find some metadata such as length of a list. Which might need us to check it using wasm rather than typescript. This may consume a lot more time. so we haven't realized this feature yet. 
+
 # Program2
 
 ``` python
