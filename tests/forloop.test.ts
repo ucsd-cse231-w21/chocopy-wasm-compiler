@@ -231,7 +231,6 @@ describe("FOR LOOP TEST", () => {
     Counter().print_loop(7)
     `,
     ["0", "1", "2", "3", "4", "5", "6"]
-
   );
 
   assertPrint(
@@ -244,7 +243,6 @@ describe("FOR LOOP TEST", () => {
 
     `,
     ["1", "2", "9"]
-
   );
 
   assertPrint(
@@ -262,5 +260,29 @@ describe("FOR LOOP TEST", () => {
 
   );
 
+  assertTCFail(
+    "too many declare",
+    `
+    i:int = 0
+    x:int = 5
+      
+    for i, x in range(5):
+      print(i)
+      print(x)
 
+    `,
+  )
+
+  assertTCFail(
+    "too many declare 2",
+    `
+    i:int = 0
+    x:int = 5
+      
+    for i, x in [1, 7, 3]:
+      print(i)
+      print(x)
+
+    `,
+  )
 });
