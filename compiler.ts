@@ -312,7 +312,7 @@ function codeGenExpr(expr: Expr): Array<string> {
           // ptr on stack, no acti
           return codeGenAlloc(ct);
         } else {
-          let funcEnv = envManager.envMap.get(`${ct.globalName}#__init__`);
+          let funcEnv = envManager.envMap.get(ct.methods.get("__init__").globalName);
           pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true);
           fillArgsExpr = codeGenFillParam(expr.args.length+1);
           wasms = wasms.concat(

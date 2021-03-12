@@ -156,7 +156,19 @@ def func1():
         z:int=3
         print(x+y+z)
     func2()
-func1()`, ["6"])
+func1()`, ["6"]);
+
+    assertPrint("extra3", `
+class n(object):
+    x: int = 10
+    def __init__(self:n):
+        self.x = 3
+class fib(n):
+    pass
+
+d:fib = None
+d = fib()
+print(d.x)`, ["3"])
 
     assert("resolve-issue", `
 class blah(object):
