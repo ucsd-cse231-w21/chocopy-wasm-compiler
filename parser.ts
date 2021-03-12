@@ -742,9 +742,8 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
             name: dest,
             iterable: iter,
             body: body,
-            a: location
-          };
-        }
+            a: location,
+          };}
         else {
           throw new BaseException.CompileError(
             location,
@@ -754,11 +753,10 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
               c.node.to +
               ": " +
               s.substring(c.from, c.to),
-            "Expected 1 assignable for range, got" + targets.length,
+            "Expected 1 assignable for range, got" + targets.length
           );
         }
-      }
-      else {
+      } else {
         if (iter.tag == "call" && iter.name == "enumerate") {
           throw new BaseException.CompileError(
             location,
@@ -768,7 +766,7 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
               c.node.to +
               ": " +
               s.substring(c.from, c.to),
-            "Expected 2 assignables for enumerate, got" + targets.length,
+            "Expected 2 assignables for enumerate, got" + targets.length
           );
         }
       }
@@ -783,7 +781,7 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
         name: dest,
         iterable: iter,
         body: body,
-        a: location
+        a: location,
       };
     default:
       throw new BaseException.CompileError(
