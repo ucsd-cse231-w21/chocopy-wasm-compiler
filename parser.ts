@@ -748,7 +748,7 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
               c.node.to +
               ": " +
               s.substring(c.from, c.to),
-            "Expected 2 assignables for enumerate, got" + target.length,
+            "Expected 2 assignables for enumerate, got" + targets.length,
           );
         }
       }
