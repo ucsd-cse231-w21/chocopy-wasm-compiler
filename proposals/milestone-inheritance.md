@@ -133,7 +133,26 @@ class C(A, B):
 C().show()  # expect 2
 ```
 
+```python
+# C4 super
+class Base(object):
+	def work(self):
+		print(1)
+class A(Base):
+	def work(self):
+		super().work()
+		print(3)
+class B(Base):
+	def work(self):
+		super().work()
+		print(2)
+class C(A,B):
+	def work(self):
+		super().work()
+		print(4)
 
+C().work() #expected output is "1\n2\n3\n4"
+```
 
 
 
