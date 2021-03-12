@@ -1106,14 +1106,14 @@ export function populateDefaultParams(
       const default_value = params[argNums].value;
       switch (default_value.tag) {
         case "uninit_param":
-          const className = default_value.classname
+          const className = default_value.classname;
           if (env.classes.has(className)) {
             augArgs = augArgs.concat({
               tag: "construct",
               name: className,
             });
           } else {
-            throw new Error("Class ${className} missing from default value")
+            throw new Error("Class ${className} missing from default value");
           }
           break;
         case "num":

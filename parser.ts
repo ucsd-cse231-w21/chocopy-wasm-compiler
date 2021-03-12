@@ -936,7 +936,7 @@ export function traverseDefault(c: TreeCursor, s: string): Default {
       c.parent(); // pop CallExpression
       return {
         tag: "uninit_param",
-        classname
+        classname,
       };
     default:
       throw new BaseException.CompileError(location, "not default", "ParsingError");
