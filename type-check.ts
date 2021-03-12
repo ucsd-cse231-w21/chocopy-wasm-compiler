@@ -427,6 +427,7 @@ export function tcStmt(
     case "pass":
       return { a: [NONE, stmt.a], tag: stmt.tag };
     case "for":
+      // check the index existance with enumerate
       if (stmt.iterable.tag == "call" && stmt.iterable.name == "enumerate") {
         if (!stmt.index){
           throw new BaseException.SyntaxError(stmt.a, "Require index for enumerate!");
@@ -448,6 +449,7 @@ export function tcStmt(
       var iter_type = NUM;
       const iterable_type = fIter.a[0];
 
+      // type check destructure in names and index
       switch (iterable_type.tag) {
         case "class":
           if (iterable_type.name === "Range") {
