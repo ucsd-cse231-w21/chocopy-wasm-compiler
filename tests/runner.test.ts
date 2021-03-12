@@ -105,11 +105,11 @@ describe("run", () => {
 
   assert("add3", "2 + 3 + 4", PyInt(2 + 3 + 4));
 
-  skipassert("add-overflow", "4294967295 + 1", PyBigInt(4294967296n));
+  assert("add-overflow", "4294967295 + 1", PyBigInt(4294967296n));
 
   assert("sub", "1 - 2", PyInt(1 - 2));
 
-  skipassert("sub-underflow", "0 - 4294967295 - 1", PyBigInt(-4294967296n));
+  assert("sub-underflow", "0 - 4294967295 - 1", PyBigInt(-4294967296n));
 
   assert("mul", "2 * 3 * 4", PyInt(2 * 3 * 4));
 

@@ -1,4 +1,6 @@
 import { Value, Type } from "./ast";
+import { TAG_BIGINT } from "./alloc";
+import { BasicREPL } from "./repl";
 
 export const nTagBits = 1;
 export const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
@@ -42,16 +44,17 @@ export function stringify(result: Value): string {
   }
 }
 
-export function encodeValue(val: Value, mem: any): number {
+export function encodeValue(val: Value, repl: BasicREPL, mem: any): number {
   switch (val.tag) {
     case "num":
       console.log(val.value);
       if (val.value <= INT_LITERAL_MAX && val.value >= INT_LITERAL_MIN) {
         return ((Number(val.value) << nTagBits) & 0xffffffff) | 1;
       }
-
       var [sign, size, words] = bigintToWords(val.value);
-      var idx: number = Number(mem[0]) / 4;
+      var idx = repl.importObject.imports.gcalloc(TAG_BIGINT, 2 + size);
+
+//       var idx: number = Number(mem[0]) / 4;
       mem[idx] = sign & 0xffffffff;
       mem[idx + 1] = size & 0xffffffff;
       var i = 0;
@@ -59,8 +62,10 @@ export function encodeValue(val: Value, mem: any): number {
         mem[idx + 2 + i] = ((Number(words[i]) << nTagBits) & 0xffffffff) | 1;
         i += 1;
       }
-      mem[0] = 4 * (idx + 2 + i);
-      return idx * 4;
+      console.log(idx, mem.slice(idx, idx + 64));
+
+//       mem[0] = 4 * (idx + 2 + i);
+      return idx;
 
     default:
       throw new Error(`Could not encode value`);
@@ -98,6 +103,7 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
           i += 1;
         }
         if (!sign) num = -num;
+        console.log("pybigint", num, idx);
         return PyBigInt(num);
       }
     case "bool":

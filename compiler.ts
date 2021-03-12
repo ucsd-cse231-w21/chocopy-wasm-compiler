@@ -152,31 +152,6 @@ export function makeLocals(locals: Set<string>): Array<string> {
     localDefines.push(`(local $${v} i32)`);
   });
   return localDefines;
-// <<<<<<< HEAD
-// }
-//
-// export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
-//   const withDefines = augmentEnv(env, ast);
-//
-//   const definedVars: Set<string> = new Set(); //getLocals(ast);
-//   definedVars.add("$last");
-//   definedVars.add("$string_class"); //needed for strings in class
-//   definedVars.forEach(env.locals.add, env.locals);
-//   const localDefines = makeLocals(definedVars);
-//   const funs: Array<string> = [];
-//   ast.funs.forEach((f) => {
-//     funs.push(codeGenDef(f, withDefines).join("\n"));
-//   });
-//   const classes: Array<string> = ast.classes
-//     .map((cls) => codeGenClass(cls, withDefines))
-//     .flat();
-//   const allFuns = funs.concat(classes).join("\n\n");
-//   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
-//   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-//   const commands = localDefines.concat(
-//     inits.concat([].concat.apply([], commandGroups))
-//   );
-// =======
 }
 
 //Any built-in WASM functions go here
@@ -341,55 +316,6 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
       var exprStmts = codeGenExpr(stmt.expr, env);
       return codeGenTempGuard(exprStmts.concat([`(local.set $$last)`]), FENCE_TEMPS);
     case "if":
-// <<<<<<< HEAD
-//       var condExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
-//       var thnStmts = stmt.thn
-//         .map((innerStmt) => codeGenStmt(innerStmt, env))
-//         .flat();
-//       var elsStmts = stmt.els
-//         .map((innerStmt) => codeGenStmt(innerStmt, env))
-//         .flat();
-//       return [
-//         `${condExpr.join("\n")} \n (if (then ${thnStmts.join(
-//           "\n"
-//         )}) (else ${elsStmts.join("\n")}))`,
-//       ];
-//     case "while":
-//       var wcondExpr = codeGenExpr(stmt.cond, env).concat(decodeLiteral);
-//       var bodyStmts = stmt.body
-//         .map((innerStmt) => codeGenStmt(innerStmt, env))
-//         .flat();
-//       return [
-//         `(block (loop  ${bodyStmts.join("\n")} (br_if 0 ${wcondExpr.join(
-//           "\n"
-//         )}) (br 1) ))`,
-//       ];
-//     case "pass":
-//       return [];
-//     case "field-assign":
-//       var objStmts = codeGenExpr(stmt.obj, env);
-//       var objTyp = stmt.obj.a;
-//       if (objTyp.tag !== "class") {
-//         I don't think this error can happen
-//         throw new Error(
-//           "Report this as a bug to the compiler developer, this shouldn't happen " +
-//             objTyp.tag
-//         );
-//       }
-//       var className = objTyp.name;
-//       var [offset, _] = env.classes.get(className).get(stmt.field);
-//       var valStmts = codeGenExpr(stmt.value, env);
-//       return [
-//         ...objStmts,
-//         `(i32.add (i32.const ${offset * 4}))`,
-//         ...valStmts,
-//         `(i32.store)`,
-//       ];
-//   }
-// }
-//
-// function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
-// =======
       // TODO(alex:mm): Are these temporary guards correct/minimal?
       var condExpr = codeGenTempGuard(
         codeGenExpr(stmt.cond, env).concat(decodeLiteral),
@@ -939,19 +865,6 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
     })
     .join(" ");
 
-  // def.parameters.forEach(p => definedVars.delete(p.name));
-// <<<<<<< HEAD
-//   definedVars.forEach(env.locals.add, env.locals);
-//   def.parameters.forEach((p) => env.locals.add(p.name));
-//
-//   const localDefines = makeLocals(definedVars);
-//   const locals = localDefines.join("\n");
-//   const inits = def.inits
-//     .map((init) => codeGenInit(init, env))
-//     .flat()
-//     .join("\n");
-//   var params = def.parameters.map((p) => `(param $${p.name} i32)`).join(" ");
-// =======
   definedVars.forEach((v) => {
     env.locals.set(v, currLocalIndex);
     currLocalIndex += 1;
@@ -971,26 +884,6 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
   });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
-// <<<<<<< HEAD
-//   return [
-//     `(func $${def.name} ${params} (result i32)
-//     ${locals}
-//     ${inits}
-//     ${stmtsBody}
-//     (i32.const 0)
-//     (return))`,
-//   ];
-// }
-//
-// function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
-//   const methods = [...cls.methods];
-//   methods.forEach((method) => (method.name = `${cls.name}$${method.name}`));
-//   const result = methods.map((method) => codeGenDef(method, env));
-//   return result.flat();
-// }
-//
-// function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
-// =======
 
   return [
     `(func $${def.name} ${params} (result i32)
@@ -1187,18 +1080,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
     case "builtin2":
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
-// <<<<<<< HEAD
       return [...leftStmts, ...rightStmts, `(call $${expr.name})`];
-// =======
-      // we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
-//       return [
-//         ...leftStmts,
-//         ...decodeLiteral,
-//         ...rightStmts,
-//         ...decodeLiteral,
-//         `(call $${expr.name})`,
-//         ...encodeLiteral,
-//       ];
     case "literal":
       return codeGenLiteral(expr.value);
     case "id":
@@ -1210,26 +1092,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
     case "binop":
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
-// <<<<<<< HEAD
-//       if (expr.op == BinOp.Is) {
-//         return [
-//           ...lhsStmts,
-//           ...rhsStmts,
-//           codeGenBinOp(expr.op),
-//           ...encodeLiteral,
-//         ];
-//       } else if (expr.op == BinOp.And || expr.op == BinOp.Or) {
-//         return [
-//           ...lhsStmts,
-//           ...decodeLiteral,
-//           ...rhsStmts,
-//           ...decodeLiteral,
-//           codeGenBinOp(expr.op),
-//           ...encodeLiteral,
-//         ];
-//       } else {
-//         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)];
-// =======
       if (typeof expr.left.a !== "undefined" && expr.left.a[0].tag === "list") {
         return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(ListCopyMode.Concat)];
       } else if (expr.op == BinOp.Is) {
@@ -1245,16 +1107,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         ];
       } else {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)];
-
-//       else {
-//         return [
-//           ...lhsStmts,
-//           ...decodeLiteral,
-//           ...rhsStmts,
-//           ...decodeLiteral,
-//           codeGenBinOp(expr.op),
-//           ...encodeLiteral,
-//         ];
       }
     case "uniop":
       const exprStmts = codeGenExpr(expr.expr, env);
@@ -1353,24 +1205,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
       return callExpr;
     case "construct":
-// <<<<<<< HEAD
-//       var stmts: Array<string> = [];
-//       stmts.push(
-//         ...[
-//           "(i32.const 0) ;; to store the updated heap ptr", // Address for our upcoming store instruction
-//           "(i32.load (i32.const 0))", // Load the dynamic heap head offset
-//           "(local.set $$string_class)",
-//           "(i32.load (i32.const 0))",
-//           `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`, // Move heap head beyond the k words we just created for fields
-//           "(i32.store) ;; to store the updated heap ptr", // Save the new heap offset
-//         ]
-//       );
-//       env.classes.get(expr.name).forEach(([offset, initVal], field) =>
-//         stmts.push(
-//           ...[
-//             `(local.get $$string_class) ;; object address for ${expr.name}`,
-//             `(i32.add (i32.const ${offset * 4})) ;; offset for ${field}`, // Calc field offset from heap offset
-// =======
       let allocSize = env.classes.get(expr.name).size * 4;
       let heapTag = TAG_CLASS;
       // TODO(alex:mm): figure out what do with ZSTs
@@ -1407,38 +1241,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           ]
         )
       );
-// <<<<<<< HEAD
-//       stmts.push(
-//         ...[
-//           "(local.get $$string_class)",
-//           `(call $${expr.name}$__init__)`, // call __init__
-//           "(drop)",
-//           "(local.get $$string_class) ;; return the address of the constructed object",
-//         ]
-//       );
-//       return stmts;
-//     case "method-call":
-//       var objStmts = codeGenExpr(expr.obj, env);
-//       var objTyp = expr.obj.a;
-//       if (objTyp.tag !== "class") {
-//         I don't think this error can happen
-//         throw new Error(
-//           "Report this as a bug to the compiler developer, this shouldn't happen " +
-//             objTyp.tag
-//         );
-//       }
-//       var className = objTyp.name;
-//       var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-//       return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`];
-//     case "lookup":
-//       var objStmts = codeGenExpr(expr.obj, env);
-//       var objTyp = expr.obj.a;
-//       if (objTyp.tag !== "class") {
-//         I don't think this error can happen
-//         throw new Error(
-//           "Report this as a bug to the compiler developer, this shouldn't happen " +
-//             objTyp.tag
-// =======
       return stmts.concat([
         // Pointer to deref should be on the top of the stack already
         `(call $${expr.name}$__init__)`, // call __init__
