@@ -5,11 +5,24 @@ import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
 import { importMemoryManager, MemoryManager } from "./alloc";
 import { bignumfunctions } from "./bignumfunctions";
-import { NUM, STRING, BOOL, NONE, LIST, CLASS, PyValue, stringify, PyString, PyBigInt, PyBool, encodeValue } from "./utils";
-import { InternalException, ZeroDivisionError, AttributeError } from "./error";
+import {
+  NUM,
+  STRING,
+  BOOL,
+  NONE,
+  LIST,
+  CLASS,
+  PyValue,
+  stringify,
+  PyString,
+  PyBigInt,
+  PyBool,
+  encodeValue,
+} from "./utils";
+import { InternalException } from "./error";
 import { ErrorManager, importErrorManager } from "./errorManager";
 
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface REPL {
   run(source: string): Promise<any>;
 }
@@ -78,7 +91,7 @@ export class BasicREPL {
       let mem = new Uint32Array(this.importObject.js.memory.buffer);
       const view = new Int32Array(mem);
       let list_length = view[arg / 4 + 1];
-      let list_bound = view[arg / 4 + 2];
+      //let list_bound = view[arg / 4 + 2];
       var base_str = "";
       var index = 0;
       let p_list = [];
@@ -177,7 +190,7 @@ export class BasicREPL {
         if (y === 0n) {
           // TODO change this back to ZeroDivisionError
           throw new Error("Cannot divide by zero");
-//           throw new ZeroDivisionError();
+          //           throw new ZeroDivisionError();
         }
         return (x - (((x % y) + y) % y)) / y;
       });
@@ -221,29 +234,25 @@ export class BasicREPL {
     this.currentTypeEnv = defaultTypeEnv;
     this.functions = libraryFuns() + "\n\n" + bignumfunctions;
   }
-  binOpInterface(
-    x: number,
-    y: number,
-    f: (x: bigint, y: bigint) => bigint
-  ): number {
+  binOpInterface(x: number, y: number, f: (x: bigint, y: bigint) => bigint): number {
     var mem = new Uint32Array(this.importObject.js.memory.buffer);
     var xval = PyValue(NUM, x, mem);
     var yval = PyValue(NUM, y, mem);
     if (xval.tag == "num" && yval.tag == "num") {
-      return encodeValue(PyBigInt(f(xval.value, yval.value)), this.importObject.imports.gcalloc, mem);
+      return encodeValue(
+        PyBigInt(f(xval.value, yval.value)),
+        this.importObject.imports.gcalloc,
+        mem
+      );
     }
     throw new InternalException("binary operation failed at runtime");
   }
-  binOpInterfaceBool(
-    x: number,
-    y: number,
-    f: (x: bigint, y: bigint) => boolean
-  ): number {
+  binOpInterfaceBool(x: number, y: number, f: (x: bigint, y: bigint) => boolean): number {
     var mem = new Uint32Array(this.importObject.js.memory.buffer);
     var xval = PyValue(NUM, x, mem);
     var yval = PyValue(NUM, y, mem);
     if (xval.tag == "num" && yval.tag == "num") {
-      return encodeValue(PyBool(f(xval.value, yval.value)), this.importObject.imports.gcalloc,mem);
+      return encodeValue(PyBool(f(xval.value, yval.value)), this.importObject.imports.gcalloc, mem);
     }
     throw new InternalException("binary operation failed at runtime");
   }

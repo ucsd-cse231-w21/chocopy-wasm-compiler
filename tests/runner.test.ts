@@ -13,17 +13,9 @@ describe("run", () => {
 
   assert("bignum-op-neg", "-4294967295", PyBigInt(-4294967295n));
 
-  assert(
-    "bignum-op-mul",
-    "4294967295 * 4294967295",
-    PyBigInt(18446744065119617025n)
-  );
+  assert("bignum-op-mul", "4294967295 * 4294967295", PyBigInt(18446744065119617025n));
 
-  assert(
-    "bignum-op-div",
-    "18446744065119617025 // 4294967295",
-    PyBigInt(4294967295n)
-  );
+  assert("bignum-op-div", "18446744065119617025 // 4294967295", PyBigInt(4294967295n));
 
   assert("bignum-op-mod", "4294967296 % 4294967297", PyBigInt(4294967296n));
 

@@ -3,16 +3,14 @@
 // - https://github.com/AssemblyScript/wabt.js/
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
-import { checkServerIdentity } from "tls";
 import wabt from "wabt";
-import { wasm } from "webpack";
 import * as compiler from "./compiler";
 import { parse } from "./parser";
 // import { emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt } from "./type-check";
 // import { Type, Value } from "./ast";
 // import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
 import { GlobalTypeEnv, tc } from "./type-check";
-import { Value, Type, Location } from "./ast";
+import { Value } from "./ast";
 import { PyValue, NONE } from "./utils";
 import { importMemoryManager, MemoryManager, TAG_CLASS } from "./alloc";
 import { ea } from "./ea";
@@ -72,10 +70,10 @@ export async function run(
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)";
   }
-  let globalsBefore = (config.env.globals as Map<string, number>).size;
+  // let globalsBefore = (config.env.globals as Map<string, number>).size;
   const eaProgram = ea(tprogram);
   const compiled = compiler.compile(eaProgram, config.env, config.memoryManager);
-  let globalsAfter = compiled.newEnv.globals.size;
+  // let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;
   if (!importObject.js) {
@@ -112,7 +110,6 @@ export async function run(
 (table ${funs.size} funcref)
 (elem (i32.const 0) ${sorted_funs.join(" ")})
 `;
-
 
   /*
   class Range(object):

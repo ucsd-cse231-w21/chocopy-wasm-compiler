@@ -107,7 +107,6 @@ export class MemoryManager {
     this.staticAllocator = new H.BumpAllocator(memory, staticStart, staticEnd);
 
     const gcStart = BigInt(staticEnd);
-    const gcEnd = BigInt(cfg.total);
 
     const wordBucketCount = 64n;
     const bucketWordStart = gcStart;

@@ -1,6 +1,5 @@
 import { Value, Type } from "./ast";
 import { TAG_BIGINT } from "./alloc";
-import { BasicREPL } from "./repl";
 import * as BaseException from "./error";
 
 export const nTagBits = 1;
@@ -8,7 +7,6 @@ export const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
 export const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
 
 export function bigintToWords(num: bigint): [number, number, Array<bigint>] {
-  const WORD_SIZE = 4;
   const mask = BigInt(0x7fffffff);
   var sign = 1;
   var size = 0;
@@ -45,7 +43,11 @@ export function stringify(result: Value): string {
   }
 }
 
-export function encodeValue(val: Value, allocFun: (tag: number, size: number) => number, mem: any): number {
+export function encodeValue(
+  val: Value,
+  allocFun: (tag: number, size: number) => number,
+  mem: any
+): number {
   switch (val.tag) {
     case "num":
       console.log(val.value);

@@ -1,7 +1,6 @@
 import { BasicREPL } from "./repl";
-import { Type, Value } from "./ast";
-import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
-import { defaultTypeEnv } from "./type-check";
+import { Value } from "./ast";
+import { stringify } from "./utils";
 import { themeList_export } from "./themelist";
 
 import CodeMirror from "codemirror";
@@ -12,8 +11,6 @@ import "codemirror/addon/hint/show-hint";
 import "codemirror/addon/lint/lint";
 
 import "./style.scss";
-import { toEditorSettings } from "typescript";
-import { ErrorManager } from "./errorManager";
 
 function print(val: Value) {
   const elt = document.createElement("pre");
@@ -59,9 +56,7 @@ function webStart() {
 
     function setupRepl() {
       document.getElementById("output").innerHTML = "";
-      const replCodeElement = document.getElementById(
-        "next-code"
-      ) as HTMLTextAreaElement;
+      const replCodeElement = document.getElementById("next-code") as HTMLTextAreaElement;
       replCodeElement.addEventListener("keypress", (e) => {
         if (!e.shiftKey && e.key === "Enter") {
           e.preventDefault();
@@ -99,9 +94,7 @@ function webStart() {
 
     document.getElementById("run").addEventListener("click", function (e) {
       repl = new BasicREPL(importObject);
-      const source = document.getElementById(
-        "user-code"
-      ) as HTMLTextAreaElement;
+      const source = document.getElementById("user-code") as HTMLTextAreaElement;
       resetRepl();
       repl
         .run(source.value)
@@ -218,6 +211,7 @@ function webStart() {
   });
 }
 // Simple helper to highlight line given line number
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function highlightLine(actualLineNumber: number): void {
   var ele = document.querySelector(".CodeMirror") as any;
   var editor = ele.CodeMirror;
