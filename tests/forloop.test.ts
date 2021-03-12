@@ -120,7 +120,7 @@ describe("FOR LOOP TEST", () => {
     i:int = 0
     x:int = 0
     z:int = 0
-      
+
     for i in range(10):
       for x in range(5):
         z = z + 1
@@ -135,7 +135,7 @@ describe("FOR LOOP TEST", () => {
     i:int = 0
     j:int = 0
     k:int = 0
-      
+
     for i in range(1, 3):
       for j in range(1, 3):
         for k in range(1, 3):
@@ -150,7 +150,7 @@ describe("FOR LOOP TEST", () => {
     i:int = 0
     j:int = 0
     k:int = 0
-      
+
     for i in range(1, 3):
       for j in range(1, 3):
         for k in range(1, 3):
@@ -169,7 +169,7 @@ describe("FOR LOOP TEST", () => {
     i:int = 0
     j:int = 0
     k:int = 0
-      
+
     for i in range(1, 3):
       for j in range(1, 3):
         for k in range(1, 3):
@@ -186,12 +186,12 @@ describe("FOR LOOP TEST", () => {
     "loop in function",
     `
     k:int = 5
-  
+
     def count(x:int):
       i:int = 0
       for i in range(x):
         print(i)
-      
+
     count(k)
     `,
     ["0", "1", "2", "3", "4"]
@@ -202,32 +202,14 @@ describe("FOR LOOP TEST", () => {
     `
     class Counter(object):
       x:int = 0
-  
-      def print_loop(self: Counter, x:int):
-        i:int = 0
-          
-        for i in range(x):
-          print(i)
-        
-        
-    Counter().print_loop(7)
-    `,
-    ["0", "1", "2", "3", "4", "5", "6"]
-  );
 
-  assertPrint(
-    "loop in class",
-    `
-    class Counter(object):
-      x:int = 0
-  
       def print_loop(self: Counter, x:int):
         i:int = 0
-          
+
         for i in range(x):
           print(i)
-        
-        
+
+
     Counter().print_loop(7)
     `,
     ["0", "1", "2", "3", "4", "5", "6"]
@@ -238,7 +220,7 @@ describe("FOR LOOP TEST", () => {
     "looping list",
     `
     i:int = 0
-      
+
     for i in [1, 2, 9]:
       print(i)
 
@@ -252,7 +234,7 @@ describe("FOR LOOP TEST", () => {
     `
     i:int = 0
     x:int = 5
-      
+
     for i, x in enumerate([1, 2, 9]):
       print(i)
       print(x)
