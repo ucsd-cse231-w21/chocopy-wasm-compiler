@@ -119,20 +119,15 @@ A common technique that was used for our implemented features is that during typ
 1. Default
 2. All defaults
 3. Keyword argument
-5. Default construct (modified as stated in last pull request)
+5. Default construct
 7. Default inside class method
 
 ### Examples we were not able to get to
 4. Arbitrary argument
-5. Default is a construct (original)
 6. Keyword arguments passed as dictionary
 8. Arbitrary arguments inside class method
 9. Default and arbitrary arguments
 10. Arbitrary arguments and keyword arguments passed as a dictionary
-
-
-
-
 
 ## 3 example programs that require us to extend our design
 
@@ -185,6 +180,9 @@ This program would create a new object of class `Foo` when the function `baz` is
 
 While we were in the middle of implementing this program and spent a lot of time discussing possible approaches, we were not able to fully implement this feature. Below, we will go into detail on how we intended to implement this feature.
 
+*** Update ***
+In the final hours before our final submission, we were able to successfully implement and test this program. Organizing the details for implementing this program in the update to our milestone proposal helped us complete the implementation.
+*** Update End ***
 ## Changes to files
 
 ### AST
