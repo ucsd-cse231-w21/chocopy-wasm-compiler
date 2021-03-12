@@ -200,3 +200,40 @@ parameter to determine which block to break through. Therefore, we have to add a
 the current depth and give the value to all break statements.
 
 Another challenge is incorporating the for loop into class methods. Since we are implementing the range() function as an object, we need to handle the class variables, and the heap index correctly
+
+## Final Submission
+
+# Program1
+
+``` python
+i:int = 1
+j:int = 2
+list : [int] = None
+list = [5,8,10]
+for i,j in list:
+  print(i)
+  print(j)
+```
+
+# Program2
+
+``` python
+i:int = 1
+list : [int] = None
+list = [5,8,10]
+for i, list[0] in enumerate([6,7,8]):
+  print()
+print(list[0])
+```
+
+# Program 3
+
+``` python
+a:int = 0
+b:int = 0
+c:int = 0
+for a, b, c in [[1,2,3], [4,5,6]]:
+  print(a)
+  print(b)
+  print(c)
+```
