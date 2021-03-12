@@ -107,7 +107,7 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<null>): GlobalT
   });
 
   program.funs.forEach((fun) => {
-    if (fun.ret.tag === "none") {
+    if (fun.ret.tag === "none" || fun.parameters.some(st => st.type === undefined)) {
       let locEnv = emptyLocalTypeEnv();
       fun.parameters.forEach((param) => {
         if (param.type === undefined) { // (nathan): No type annotation was given here.
