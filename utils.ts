@@ -60,6 +60,10 @@ export function encodeValue(val: Value, mem: any): number {
       mem[0] = 4 * (idx + 2 + i);
       return idx * 4;
 
+    case "bool":
+      if (val.value == true) return 0x3;
+      else return 0x1;
+
     default:
       throw new Error(`Could not encode value`);
   }

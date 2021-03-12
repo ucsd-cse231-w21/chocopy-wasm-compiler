@@ -4,7 +4,7 @@ import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type } from "./ast";
 import { parse } from "./parser";
 import { bignumfunctions } from "./bignumfunctions";
-import { NUM, BOOL, NONE, PyValue, PyBigInt, encodeValue } from "./utils";
+import { NUM, BOOL, NONE, PyValue, PyBool, PyBigInt, encodeValue } from "./utils";
 import { InternalException, ZeroDivisionError } from "./error";
 
 interface REPL {
@@ -146,12 +146,12 @@ export class BasicREPL {
     x: number,
     y: number,
     f: (x: bigint, y: bigint) => boolean
-  ): boolean {
+  ): number {
     var mem = new Uint32Array(this.importObject.js.memory.buffer);
     var xval = PyValue(NUM, x, mem);
     var yval = PyValue(NUM, y, mem);
     if (xval.tag == "num" && yval.tag == "num") {
-      return f(xval.value, yval.value);
+      return encodeValue(PyBool(f(xval.value, yval.value)), mem);
     }
     throw new InternalException("binary operation failed at runtime");
   }
