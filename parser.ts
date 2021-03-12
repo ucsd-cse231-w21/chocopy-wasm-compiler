@@ -743,8 +743,8 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
             iterable: iter,
             body: body,
             a: location,
-          };}
-        else {
+          };
+        } else {
           throw new BaseException.CompileError(
             location,
             "Could not parse stmt at " +

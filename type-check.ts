@@ -429,17 +429,22 @@ export function tcStmt(
     case "for":
       // check the index existance with enumerate
       if (stmt.iterable.tag == "call" && stmt.iterable.name == "enumerate") {
-        if (!stmt.index){
+        if (!stmt.index) {
           throw new BaseException.SyntaxError(stmt.a, "Require index for enumerate!");
         }
         const enum_arg = tcExpr(env, locals, stmt.iterable.arguments[0]);
-        if (enum_arg.a[0] === NUM){
+        if (enum_arg.a[0] === NUM) {
           stmt.iterable.name = "range";
         } else {
           stmt.iterable = stmt.iterable.arguments[0];
         }
+<<<<<<< HEAD
       }else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range"){
         if (stmt.index){
+=======
+      } else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range"){
+        if (stmt.index) {
+>>>>>>> b280127020dc7e44b3e4ebf58046aa580a7e64de
           throw new BaseException.SyntaxError(stmt.a, "Range should not have index!");
         }
       }
@@ -499,8 +504,7 @@ export function tcStmt(
       // locals.vars.delete(stmt.name);
       locals.loop_depth = last_depth;
       // return type checked stmt
-      console.log("here 1");
-      if (stmt.index){
+      if (stmt.index) {
         return {
           a: [NONE, stmt.a],
           id: stmt.id,
