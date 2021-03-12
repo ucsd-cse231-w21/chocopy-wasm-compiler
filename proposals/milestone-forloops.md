@@ -205,7 +205,7 @@ Another challenge is incorporating the for loop into class methods. Since we are
 
 There are three example programs or scenarios that would require extensions to our design that we can imagine making, but didn't have the time for. 
 
-# Program1
+#### Program1
 
 ``` python
 i:int = 1
@@ -218,7 +218,7 @@ for i in list:
 
 We didn't handle the case where iterable is an id variable, and actually it needs more information than a range object or list-expr, because we may need to find some metadata such as length of a list. Which might need us to check it using wasm rather than typescript. This may consume a lot more time. so we haven't realized this feature yet. 
 
-# Program2
+#### Program2
 
 ``` python
 i : str = ""
@@ -227,7 +227,7 @@ for i in "Compiler":
 ```
 String are actually structured very similar to lists. They are lists of chars. Since our program supports
 iterating through lists. So, iterating through a string should be easily achievable.
-# Program 3
+#### Program 3
 
 ``` python
 a:int = 0
