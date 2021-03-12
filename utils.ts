@@ -1,6 +1,23 @@
 import { Value, Type } from "./ast";
 import { nTagBits } from "./compiler";
 
+export function stringify(result: Value): string {
+  switch (result.tag) {
+    case "num":
+      return result.value.toString();
+    case "string":
+      return result.value;
+    case "bool":
+      return result.value ? "True" : "False";
+    case "none":
+      return "None";
+    case "object":
+      return `<${result.name} object at ${result.address}>`;
+    default:
+      throw new Error(`Could not render value: ${result}`);
+  }
+}
+
 export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "string":
@@ -72,6 +89,8 @@ export function PyNone(): Value {
   return { tag: "none" };
 }
 
+export type WithTag<O, T> = O extends { tag: T } ? O : never;
+
 export function isTagged<
   A extends string[],
   V extends { tag: string },
@@ -101,6 +120,9 @@ export function LIST(type: Type): Type {
 }
 export function CLASS(name: string): Type {
   return { tag: "class", name };
+}
+export function TUPLE(...types: Array<Type>): Type {
+  return { tag: "tuple", contentTypes: types };
 }
 
 export function CALLABLE(args: Array<Type>, ret: Type): Type {

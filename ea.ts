@@ -302,6 +302,12 @@ function eaExpr(
     case "list-expr":
       return { ...expr, contents: expr.contents.map((c) => eaExpr(c, e, nSet)) };
 
+    case "tuple-expr":
+      return {
+        ...expr,
+        contents: expr.contents.map((c) => eaExpr(c, e, nSet)),
+      };
+
     case "slicing":
       throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
 
