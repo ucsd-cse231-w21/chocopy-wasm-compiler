@@ -83,7 +83,7 @@ export type Stmt<A> =
       index?: Destructure<A>;
       name: Destructure<A>;
       iterable: Expr<A>;
-      body: Array<Stmt<A>>
+      body: Array<Stmt<A>>;
     }
   | { a?: A; tag: "bracket-assign"; obj: Expr<A>; key: Expr<A>; value: Expr<A> };
 
