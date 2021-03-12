@@ -1,8 +1,9 @@
 import { run, Config } from "./runner";
-import { GlobalEnv } from "./compiler";
+import { GlobalEnv, libraryFuns } from "./compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
-import { Value, Type } from "./ast";
+import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
+import { importMemoryManager, MemoryManager } from "./alloc";
 import { bignumfunctions } from "./bignumfunctions";
 import { NUM, BOOL, NONE, PyValue, PyBigInt, encodeValue } from "./utils";
 import { InternalException, ZeroDivisionError } from "./error";
@@ -17,6 +18,7 @@ export class BasicREPL {
   functions: string;
   importObject: any;
   memory: any;
+  memoryManager: MemoryManager;
   constructor(importObject: any) {
     this.importObject = importObject;
     if (!importObject.js) {
@@ -25,11 +27,45 @@ export class BasicREPL {
       view[0] = 4;
       this.importObject.js = { memory: memory };
     }
+
+    if (!importObject.memoryManager) {
+      const memory = this.importObject.js.memory;
+      const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
+        staticStorage: 512n,
+        total: 2000n,
+      });
+      this.memoryManager = memoryManager;
+      importMemoryManager(this.importObject, memoryManager);
+    }
     this.currentEnv = {
       globals: new Map(),
       classes: new Map(),
-      locals: new Set(),
-      offset: 1,
+// <<<<<<< HEAD
+//       locals: new Set(),
+//       offset: 1,
+//     };
+//     this.importObject.imports.__internal_print = (arg: any) => {
+//       console.log("Logging from WASM: ", arg);
+//       this.importObject.imports.print(
+//         PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
+//       );
+//       return arg;
+//     };
+//     this.importObject.imports.__internal_print_num = (arg: number) => {
+//       console.log("Logging from WASM: ", arg);
+//       this.importObject.imports.print(
+//         PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
+//       );
+//       return arg;
+//     };
+//     this.importObject.imports.__internal_print_bool = (arg: number) => {
+//       console.log("Logging from WASM: ", arg);
+//       this.importObject.imports.print(PyValue(BOOL, arg, null));
+//       return arg;
+//     };
+// =======
+      locals: new Map(),
+      funs: new Map(),
     };
     this.importObject.imports.__internal_print = (arg: any) => {
       console.log("Logging from WASM: ", arg);
@@ -45,14 +81,16 @@ export class BasicREPL {
       );
       return arg;
     };
+    this.importObject.imports.__internal_print_str = (arg: number) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(
+        PyValue(STRING, arg, new Uint32Array(this.importObject.js.memory.buffer))
+      );
+      return arg;
+    };
     this.importObject.imports.__internal_print_bool = (arg: number) => {
       console.log("Logging from WASM: ", arg);
       this.importObject.imports.print(PyValue(BOOL, arg, null));
-      return arg;
-    };
-    this.importObject.imports.__internal_print_none = (arg: number) => {
-      console.log("Logging from WASM: ", arg);
-      this.importObject.imports.print(PyValue(NONE, arg, null));
       return arg;
     };
     this.importObject.imports.abs = (arg: number) =>
@@ -126,8 +164,14 @@ export class BasicREPL {
         return x >= y;
       });
 
+    // initialization for range() calss and its constructor.
+    const classFields: Map<string, [number, Literal]> = new Map();
+    classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);
+    classFields.set("stop", [1, { tag: "num", value: BigInt(0) }]);
+    classFields.set("step", [2, { tag: "num", value: BigInt(1) }]);
+    this.currentEnv.classes.set("Range", classFields);
     this.currentTypeEnv = defaultTypeEnv;
-    this.functions = bignumfunctions;
+    this.functions = libraryFuns() + "\n\n" + bignumfunctions;
   }
   binOpInterface(
     x: number,
@@ -169,14 +213,14 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      memoryManager: this.memoryManager,
     };
-    const [result, newEnv, newTypeEnv, newFunctions] = await run(
-      source,
-      config
-    );
+    const [result, newEnv, newTypeEnv, newFunctions] = await run(source, config);
     this.currentEnv = newEnv;
     this.currentTypeEnv = newTypeEnv;
     this.functions += newFunctions;
+
+    this.memoryManager.forceCollect();
     return result;
   }
   async tc(source: string): Promise<Type> {
@@ -185,9 +229,10 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      memoryManager: this.memoryManager,
     };
     const parsed = parse(source);
     const [result, _] = await tc(this.currentTypeEnv, parsed);
-    return result.a;
+    return result.a[0];
   }
 }

@@ -3,5 +3,7 @@ build
 cli
 *.sw*
 mochawesome-report
-*.js
-**.DS_Store
+
+.github/
+*.md
+package-lock.json
