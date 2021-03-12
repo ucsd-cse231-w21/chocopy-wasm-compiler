@@ -140,6 +140,7 @@ export async function run(
     (func $$check_index (import "imports" "__checkIndex") (param i32) (param i32))
     (func $$check_key (import "imports" "__checkKey") (param i32))
     (func $$check_none_lookup (import "imports" "__checkNoneLookup") (param i32))
+    (func $$check_division (import "imports" "__checkZeroDivision") (param i32))
 
     (func $$gcalloc (import "imports" "gcalloc") (param i32) (param i32) (result i32))
     (func $$pushCaller (import "imports" "pushCaller"))

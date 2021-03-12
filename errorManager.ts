@@ -75,6 +75,10 @@ export class ErrorManager {
   __checkKey(key: number) {
     if (key === -1) throw new BaseException.KeyError(this.callStack);
   }
+
+  __checkZeroDivision(key: number) {
+    if (key == 0) throw new BaseException.ZeroDivisionError(this.callStack);
+  }
 }
 
 export function importErrorManager(importObject: any, em: ErrorManager) {
@@ -100,6 +104,10 @@ export function importErrorManager(importObject: any, em: ErrorManager) {
 
   importObject.imports.__checkKey = (key: number) => {
     em.__checkKey(key);
+  };
+
+  importObject.imports.__checkZeroDivision = (key: number) => {
+    em.__checkZeroDivision(key);
   };
 }
 

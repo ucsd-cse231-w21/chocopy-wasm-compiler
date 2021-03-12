@@ -36,7 +36,7 @@ export function getSourcePos(c: TreeCursor, s: string): Location {
   const col = c.node.from - prevContent.length;
   return {
     line: line,
-    col: line == 1? col + 1 : col,
+    col: line == 1 ? col + 1 : col,
     length: c.node.to - c.node.from,
     fileId: id,
   };
