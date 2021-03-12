@@ -24,9 +24,9 @@ export type Scope<A> =
 
 export type Parameter = { name: string; type: Type; value?: Default };
 
-export type Default = 
+export type Default =
   | Literal
-  | { tag: "uninit_param", className: string }
+  | { tag: "uninit_param", classname: string }
 
 export type Program<A> = {
   a?: A;
