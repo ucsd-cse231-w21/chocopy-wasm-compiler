@@ -121,6 +121,7 @@ export enum BinOp {
   Minus,
   Mul,
   IDiv,
+  Pow,
   Mod,
   Eq,
   Neq,
