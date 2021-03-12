@@ -102,27 +102,27 @@ export class BasicREPL {
         return ((x % y) + y) % y;
       });
     this.importObject.imports.__big_num_eq = (x: number, y: number) =>
-      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
         return x === y;
       });
     this.importObject.imports.__big_num_ne = (x: number, y: number) =>
-      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
         return x !== y;
       });
     this.importObject.imports.__big_num_lt = (x: number, y: number) =>
-      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
         return x < y;
       });
     this.importObject.imports.__big_num_lte = (x: number, y: number) =>
-      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
         return x <= y;
       });
     this.importObject.imports.__big_num_gt = (x: number, y: number) =>
-      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
         return x > y;
       });
     this.importObject.imports.__big_num_gte = (x: number, y: number) =>
-      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
         return x >= y;
       });
 
@@ -139,6 +139,19 @@ export class BasicREPL {
     var yval = PyValue(NUM, y, mem);
     if (xval.tag == "num" && yval.tag == "num") {
       return encodeValue(PyBigInt(f(xval.value, yval.value)), mem);
+    }
+    throw new InternalException("binary operation failed at runtime");
+  }
+  binOpInterfaceBool(
+    x: number,
+    y: number,
+    f: (x: bigint, y: bigint) => boolean
+  ): boolean {
+    var mem = new Uint32Array(this.importObject.js.memory.buffer);
+    var xval = PyValue(NUM, x, mem);
+    var yval = PyValue(NUM, y, mem);
+    if (xval.tag == "num" && yval.tag == "num") {
+      return f(xval.value, yval.value);
     }
     throw new InternalException("binary operation failed at runtime");
   }
