@@ -251,8 +251,8 @@ describe("FOR LOOP TEST", () => {
       print(i)
       print(x)
 
-    `,
-  )
+    `
+  );
 
   assertTCFail(
     "too many declare 2",
@@ -264,6 +264,6 @@ describe("FOR LOOP TEST", () => {
       print(i)
       print(x)
 
-    `,
-  )
+    `
+  );
 });
