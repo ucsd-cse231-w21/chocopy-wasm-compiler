@@ -411,6 +411,8 @@ export function constrainExprType(
               [leftAction, left] = constrainExprType(expr.left, LIST(type_.content_type), globEnv, locEnv);
               [rightAction, right] = constrainExprType(expr.right, LIST(type_.content_type), globEnv, locEnv);
               break
+            default:
+              return [Action.None, { ...expr, a: UNSAT }]
           }
         }
         case BinOp.Minus:

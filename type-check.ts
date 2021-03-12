@@ -1,6 +1,6 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, CLASS, NOTHING, unhandledTag, unreachable, FAILEDINFER } from "./utils";
-import { inferExprType, inferTypeLit, isSubtype, inferReturnType } from "./infer";
+import { inferExprType, inferTypeLit, isSubtype, inferReturnType, constrainExprType, annotateExpr} from "./infer";
 import * as BaseException from "./error";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -169,7 +169,9 @@ export function tcInit(
     valTyp = inferExprType(init.value, env, localEnv);
     init.declaredType = valTyp;
   } else {
-    init.value = tcExpr(env, emptyLocalTypeEnv(), init.value)
+    let [_, expr_] = annotateExpr(init.value, env, localEnv, false);
+    [_, expr_] = constrainExprType(expr_, init.declaredType, env, localEnv);
+    init.value = tcExpr(env, localEnv, expr_);
     valTyp = init.value.a;
   }
   if (isAssignable(env, valTyp, init.declaredType)) {
@@ -278,7 +280,7 @@ export function tcStmt(env: GlobalTypeEnv, locals: LocalTypeEnv, stmt: Stmt<null
   }
 }
 
-export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null>): Expr<Type> {
+export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<any>): Expr<Type> {
   switch (expr.tag) {
     case "literal":
       return { ...expr, a: inferTypeLit(expr.value) };
