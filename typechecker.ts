@@ -139,6 +139,8 @@ export function tcExpr(e: Expr): Expr {
       let ct = owner.type;
       if (ct.attributes.has(e.property)) {
         e.type = ct.attributes.get(e.property).type;
+        console.log("??????????????");
+        console.log(e.type);
       } else if (ct.methods.has(e.property)) {
         e.funcType = ct.methods.get(e.property);
       } else {
@@ -227,6 +229,10 @@ export function tcStmt(s: Stmt) {
       let te = tcExpr(s.expr);
       if (te.type.globalName !== "$bool") {
         throw new Error("Expect bool type, get type " + te.type.getName());
+      }
+
+      for (const stmt of s.stmts) {
+        tcStmt(stmt);
       }
 
       return;
