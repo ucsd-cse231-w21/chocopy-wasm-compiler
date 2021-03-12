@@ -128,6 +128,7 @@ export async function run(
     (import "js" "memory" (memory 1))
     (func $print (import "imports" "__internal_print") (param i32) (result i32))
     (func $print_str (import "imports" "__internal_print_str") (param i32) (result i32))
+    (func $print_list (import "imports" "__internal_print_list") (param i32) (param i32) (result i32))
     (func $print_num (import "imports" "__internal_print_num") (param i32) (result i32))
     (func $print_bool (import "imports" "__internal_print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "__internal_print_none") (param i32) (result i32))

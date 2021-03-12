@@ -507,9 +507,24 @@ while False:
   );
 
   assert(
+    "empty-dict-constructor init",
+    `d:[int, int] = None
+          d = dict({})`,
+    PyNone()
+  );
+
+  assert(
     "key-val-pair-dict-init",
     `d:[int, int] = None
           d = {1:2}
+          `,
+    PyNone()
+  );
+
+  assert(
+    "key-val-pair-dict-constructor-init",
+    `d:[int, int] = None
+          d = dict({1:2, 3:4})
           `,
     PyNone()
   );
@@ -520,6 +535,53 @@ while False:
           d = {1:2}
           d[2] = 3`,
     PyNone()
+  );
+
+  assert(
+    "dict-get-method",
+    `d:[int, int] = None
+          d = {1:2, 2:10}
+          d.get(1,100)
+          `,
+    PyInt(2)
+  );
+
+  assert(
+    "dict-get-method-default",
+    `d:[int, int] = None
+          d = {1:2,2:10,15:25}
+          d.get(5,100)
+          `,
+    PyInt(100)
+  );
+
+  assert(
+    "dict-pop-method-return",
+    `d:[int, int] = None
+     d = {1:2,2:10,15:25}
+     d.pop(2)
+          `,
+    PyInt(10)
+  );
+
+  assert(
+    "dict-update-method",
+    `d:[int, int] = None
+     d = {1:2,2:10,15:25}
+     d.update({5:100})
+     d[5]
+          `,
+    PyInt(100)
+  );
+
+  assert(
+    "dict-update-method-multiple-key-value-pairs",
+    `d:[int, int] = None
+     d = {1:2,5:10,15:25}
+     d.update({5:100, 11: 22})
+     d[5] + d.get(1,99) + d.get(12,99)
+          `,
+    PyInt(201)
   );
 
   assert(
