@@ -16,44 +16,292 @@ import {
   Destructure,
   ASSIGNABLE_TAGS,
 } from "./ast";
-import { importPostfix } from "./utils";
+import { NUM, BOOL, NONE, CLASS, LIST, importDel, importMethodDel } from "./utils";
+import * as compiler from "./compiler";
 
-export const numpyFields : Array<VarInit<null>> = [
-	{name: "dtype", type: {tag: "string"}, value: { tag: "string", value: "int32"} }, // assume int32
-	// use shape0/shape1 for now; wait for ast update on list value type
-	{name: "shape0", type: {tag: "number"}, value: { tag: "num", value: BigInt(-1)} },
-	{name: "shape1", type: {tag: "number"}, value: { tag: "num", value: BigInt(-1)} },
-	// ndarray pointer; assume its numeric content for now; later will be an offset number to list (in TS env or WASM heap) 
-	{name: "ndarray", type: {tag: "number"}, value: { tag: "num", value: BigInt(-999)} }
-	// {name: "shape", type: {tag: "list", content_type: {tag: "number"} }, value: { tag: "none"} } // use list as tuple
+export const ndarrayName = "numpy"+importDel+"ndarray";
+
+export const ndarrayFields : Array<VarInit<null>> = [
+	// TODO: add dtype field once string is implemented
+	// {name: "dtype", type: {tag: "string"}, value: { tag: "string", value: "int32"} }, // assume int32
+	// use shape0/shape1 for now; wait for merge with list team
+	{name: "shape0", type: NUM, value: { tag: "num", value: -1} },
+	{name: "shape1", type: NUM, value: { tag: "num", value: -1} },
+	// ndarray pointer; an offset number to list in TS env 
+	{name: "data", type: LIST, value: { tag: "num", value: -999} }
+	// {name: "shape", type: {tag: "list", content_type: NUM }, value: { tag: "none"} } // use list as tuple
 	// skip other fields e.g. stride, offset
 ];
 
-export const numpyMethods : Array<FunDef<null>> = [
-	// TODO: update parameters for self here or in type-check.ts
+// TODO: allow poly-type eg 5+a, np.array(10), np.array([true])
+// assume all methods/functions have CLASS(name) as a
+export const ndarrayMethods : Array<FunDef<any>> = [
 	// method signature only; special codegen in compiler.ts
-	{name: "__add__", // self.__add__(x2), element-wise add
-	parameters: [{name: "x2", type: {tag: "class", name: "numpy"}}], 
-	ret: {tag: "class", name: "numpy"},
+	{a: NONE, name: "__init__",
+	parameters: [{ name: "self", type: CLASS(ndarrayName) }],
+   	ret: NONE, decls: [], inits: [], funs: [], body: [],},
+	{a: CLASS(ndarrayName), name: "__add__", // self.__add__(x2), element-wise add
+	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
+				{name: "x2", type: CLASS(ndarrayName)}], 
+	ret: CLASS(ndarrayName),
 	decls: [], inits: [], funs: [], body: []},
-	{name: "dot", // self.dot(x2) or self @ x2, matrix multiplication
-	parameters: [{name: "x2", type: {tag: "class", name: "numpy"}}], 
-	ret: {tag: "class", name: "numpy"},
-	decls: [], inits: [], funs: [], body: []} 
+	{a: CLASS(ndarrayName), name: "dot", // self.dot(x2) or self @ x2, matrix multiplication
+	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
+				{name: "x2", type: CLASS(ndarrayName)}], 
+	ret: CLASS(ndarrayName),
+	decls: [], inits: [], funs: [], body: []},
+	{a: CLASS(ndarrayName), name: "flatten", // self.flatten()
+	parameters: [{name: "self", type: CLASS(ndarrayName)}], 
+	ret: LIST,
+	decls: [], inits: [], funs: [], body: []}  
 ];
 
-export const numpyImportMethods : Array<FunDef<null>> = [
-	// TODO: update parameters for self here or in type-check.ts
-	{name: "array", 
-	parameters: [{name: "object", type: {tag: "number"}}], // assume number for now; wait for list parsing
-	ret: {tag: "class", name: "numpy"}, 
+export const numpyMethods : Array<FunDef<any>> = [
+	{a: NONE, name: "__init__",
+	parameters: [{ name: "self", type: CLASS("numpy") }],
+   	ret: NONE, decls: [], inits: [], funs: [], body: [],},
+	{a: CLASS("numpy"), name: "array", 
+	parameters: [{name: "self", type: CLASS("numpy")}, 
+				{name: "object", type: LIST}], // assume number for now; wait for list parsing
+	ret: CLASS(ndarrayName), 
 	decls: [], inits: [], funs: [], body: [] }
 ];
 
-export function numpyArray(obj: number) : number {
-	// TODO: enable list parameter; add dynamic shape calculation; return heap offset
-	return 999;
+export function codeGenNumpyArray(expr: Expr<Type>, env: compiler.GlobalEnv): Array<string> {
+  	if (expr.tag!=="method-call"){
+	    throw new Error("Only method class of imported functions/menthods are supported.");
+  	}
+
+  	// reverse lists and static shape calculation
+  	const listExpr = expr.arguments[0];
+  	var lists : any;
+  	let shape0 = -1;
+  	let shape1 = -1;
+  	switch (listExpr.tag) {
+  		case "list-expr":
+  			lists = reverseList(listExpr);
+  			shape0 = lists.length;
+  			if (lists[0] instanceof Array){
+  				shape1 = lists[0].length;
+  			}
+  			break;
+  		case "literal":
+  			let val = listExpr.value;
+  			if (val.tag!=="num"){
+  				throw new Error(`${val.tag} not supported as literal in numpy array initialization`);
+  			}
+  			lists = val.value;
+  	}
+
+  	// save list in TS env; set lists field as its index in TS env
+  	const listIdx = compiler.tsHeap.length;
+  	compiler.tsHeap.push(lists);
+  	// console.log("numpy array", lists, listIdx);
+
+  	// shape and lists pointer initialization by accessing WASM heap directly
+	var stmts: Array<string> = [];
+	env.classes.get(ndarrayName).forEach(([offset, initVal], field) => {
+		let val;
+		switch (field) {
+	    	case "shape0":
+	    		val = shape0;
+	    		break;
+	    	case "shape1":
+	    		val = shape1;
+	    		break;
+	    	case "data":
+	    		val = listIdx;
+	    		break;
+	    }
+	    stmts = stmts.concat(
+	      [`(i32.load (i32.const 0))`, // Load the dynamic heap head offset
+	        `(i32.add (i32.const ${offset * 4}))`, // Calc field offset from heap offset
+	        `(i32.const ${val})`, // Initialize field
+	        "(i32.store)", // Put the default field value on the heap
+	      ])
+	});
+
+	// const callName = ndarrayName+importMethodDel+"__init__";
+	return stmts.concat([
+	    "(i32.load (i32.const 0))", // Get address for the object (this is the return value)
+	    "(i32.const 0)", // Address for our upcoming store instruction
+	    "(i32.load (i32.const 0))", // Load the dynamic heap head offset
+	    `(i32.add (i32.const ${env.classes.get(ndarrayName).size * 4}))`, // Move heap head beyond the two words we just created for fields
+	    "(i32.store)", // Save the new heap offset
+	]);
 } 
 
-// var a = nj.array([2,3,4]);
-// console.log(a)
+export function codeGenNdarrayFlatten(expr: Expr<Type>, env: compiler.GlobalEnv): Array<string> {
+  	if ( (expr.tag!=="method-call") || (expr.obj.a.tag!=="class")){
+	    throw new Error("Report this as a bug to the compiler developer.");
+  	}
+    var objStmts = compiler.codeGenExpr(expr.obj, env);
+    var objTyp = expr.obj.a;
+    var argsStmts = expr.arguments.map((arg) => compiler.codeGenExpr(arg, env)).flat();
+    var callName = objTyp.name+importMethodDel+expr.method;
+    return [...objStmts, ...argsStmts, `(call $${callName})`];
+} 
+
+export function codeGenNdarrayBinOp(expr: Expr<Type>, env: compiler.GlobalEnv): Array<string> {
+  	if ( (expr.tag!=="binop") || (expr.left.a.tag!=="class") || ((expr.right.a.tag!=="class"))){
+	    throw new Error("Only ndarray binops are supported.");
+  	}
+    var stmts = compiler.codeGenExpr(expr.left, env);
+    stmts = stmts.concat(compiler.codeGenExpr(expr.right, env));
+    let methodName;
+    switch (expr.op) {
+    	case BinOp.Plus:
+    		methodName = "add";
+    		break;
+    	case BinOp.MatMul:
+    		methodName = "dot";
+    		break;
+    	default:
+    		throw new Error(`binop enum ${expr.op} not supported`);
+    		break;
+    }
+    var callName = expr.left.a.name+importMethodDel+methodName;
+    return [...stmts, `(call $${callName})`];
+} 
+
+export function ndarray_flatten(self: number): number {
+	// self: offset (byte) of ndarray object's first field in wasm heap
+	// return: offset (index) of flattened ndarray list in ts heap
+	const listIdx = getField(ndarrayFieldNames, self, "data");
+	var lists : Array<any> = compiler.tsHeap[listIdx];
+  	const listIdxRet = compiler.tsHeap.length;
+  	// console.log(lists, listIdx, listIdxRet);
+  	if (lists instanceof Array){
+  		compiler.tsHeap.push(nj.array(lists).flatten().tolist());
+  	}else{
+		compiler.tsHeap.push(nj.array([lists]).flatten().tolist());
+  	}
+  	// console.log("flatten", self, lists, listIdx, listIdxRet);
+  	return listIdxRet;
+}
+
+export function ndarray_add(self: number, x2: number): number {
+	// self: offset (byte) of ndarray object's first field  in wasm heap
+	// x2: offset (byte) of another ndarray object in wasm heap
+	// return: offset (byte) of new ndarray object in wasm heap (stores offset to first field)
+	const shape0 = getField(ndarrayFieldNames, self, "shape0");
+	const shape1 = getField(ndarrayFieldNames, self, "shape1");
+	const x2Shape0 = getField(ndarrayFieldNames, x2, "shape0");
+	const x2Shape1 = getField(ndarrayFieldNames, x2, "shape1");
+	if ((shape0!==x2Shape0) || (shape1!==x2Shape1)){
+		throw new TypeError(`operands on add could not be broadcast together with shapes
+		                    (${shape0}, ${shape1})  (${x2Shape0}, ${x2Shape1})`);
+	}
+	const listIdx = getField(ndarrayFieldNames, self, "data");
+	var lists : Array<any> = compiler.tsHeap[listIdx];
+	const x2listIdx = getField(ndarrayFieldNames, x2, "data");
+	var x2lists : Array<any> = compiler.tsHeap[x2listIdx];
+	// console.log("add", self, x2, lists, x2lists, listIdx, x2listIdx);
+  	return createNdarray(shape0, shape1, nj.array(lists).add(nj.array(x2lists)).tolist());
+}
+
+export function ndarray_dot(self: number, x2: number): number {
+	const shape0 = getField(ndarrayFieldNames, self, "shape0");
+	const shape1 = getField(ndarrayFieldNames, self, "shape1");
+	const x2Shape0 = getField(ndarrayFieldNames, x2, "shape0");
+	const x2Shape1 = getField(ndarrayFieldNames, x2, "shape1");
+	if ((shape1!==x2Shape0)){
+		throw new TypeError(`operands on dot could not be broadcast together with shapes
+		                    (${shape0}, ${shape1})  (${x2Shape0}, ${x2Shape1})`);
+	}
+	const listIdx = getField(ndarrayFieldNames, self, "data");
+	var lists : Array<any> = compiler.tsHeap[listIdx];
+	const x2listIdx = getField(ndarrayFieldNames, x2, "data");
+	var x2lists : Array<any> = compiler.tsHeap[x2listIdx];
+  	return createNdarray(shape0, shape1, nj.array(lists).dot(nj.array(x2lists)).tolist());
+}
+
+// numpy utils below
+export const ndarrayFieldNames : Array<string> = [];
+ndarrayFields.forEach((f) => {ndarrayFieldNames.push(f.name)});
+
+export const numpyWAT = `
+(func $print_lists (import "imports" "print_lists") (param i32) (result i32))
+(func $numpy_ndarray_flatten (import "imports" "numpy_ndarray_flatten") (param i32) (result i32))
+(func $numpy_ndarray_add (import "imports" "numpy_ndarray_add") (param i32) (param i32) (result i32))
+(func $numpy_ndarray_dot (import "imports" "numpy_ndarray_dot") (param i32) (param i32) (result i32))
+`
+
+export type Ndarray = {
+	shape: Array<number>,
+	data: Array<any>,
+}
+
+// export function tcNdarrayMethod(ndarrays: Array<Ndarray>, method: string) : Ndarray {
+// 	return;
+// }
+
+export function createNdarray(shape0: number, shape1: number, lists: Array<any>): number {
+  	const listIdx = compiler.tsHeap.length; // ts heap offset
+	compiler.tsHeap.push(lists);
+
+	const offsetObj = compiler.wasmHeap[0];
+	compiler.wasmHeap[0] +=  4; // will create a new global in wasm heap (though not visible in env)
+	var offset = compiler.wasmHeap[0]/4; // wasm heap offset (divide byte by 4 to get index)
+	compiler.wasmHeap[offset] = shape0; // save fields in wasm heap
+	compiler.wasmHeap[offset+1] = shape1;
+	compiler.wasmHeap[offset+2] = listIdx;
+	compiler.wasmHeap[0] = (offset+3)*4; // update wasm heap offset (multiply index by 4 to get byte)
+	compiler.wasmHeap[offsetObj/4] = offset*4; // save offset value into this new global
+	// console.log("create", offsetObj, offset, compiler.wasmHeap[0], "fields", shape0, shape1, listIdx, lists);
+	return offset*4; // return wasm heap value (not byte offset!l; ie offset of first field) for this ndarray object
+}
+
+export function getField(fields: Array<string>, offset: number, field: string) : number {
+	if (!fields.includes(field)){
+		throw new Error(`field ${field} not found in ndarray`);
+	}
+    return compiler.wasmHeap[(offset/4)+fields.indexOf(field)]; // offset is in byte!
+}
+
+export function reverseList(expr: Expr<Type>): Array<any> {
+	// reverse list-expr as Array in TS
+	const lists: Array<any> = []
+	if (expr.tag==="list-expr"){
+  		expr.contents.forEach( (l) => {
+  			let listContent : any;
+  			switch (l.tag) {
+  				case "list-expr":
+  					listContent = reverseList(l);
+  					break;
+  				case "literal":
+  					let val = l.value;
+  					switch (val.tag) {
+  						case "num":
+  							listContent = val.value
+  							break;
+  						default:
+  							throw new Error(`${val.tag} literal not supported in numpy.array initialization`)
+  					}
+  					break;
+  				case "uniop":
+  					switch (l.op) {
+  						case UniOp.Neg:
+  							let opexpr = l.expr;
+  							if (opexpr.tag!=="literal"){
+  								throw new Error(`report this bug to developer`);
+  							}
+  							let opexprl = opexpr.value;
+  							if (opexprl.tag!=="num"){
+  								throw new Error(`report this bug to developer`);
+  							}
+  							listContent = -opexprl.value;
+  							break;
+  						default:
+  							throw new Error(`${l.op} uniop not supported in numpy.array initialization`)
+  					}
+  					break;
+  				default:
+  					throw new Error(`${l.tag} not supported in numpy.array initialization`)
+  					break;
+  			}
+  			lists.push(listContent);
+  		});
+  	}
+	return lists;
+}
