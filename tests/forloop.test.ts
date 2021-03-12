@@ -220,11 +220,11 @@ describe("FOR LOOP TEST", () => {
     `
     i:int = 0
 
-    for i in [1, 2, 9]:
+    for i in [1, 654, 9]:
       print(i)
 
     `,
-    ["1", "2", "9"]
+    ["1", "654", "9"]
   );
 
   assertPrint(
@@ -239,7 +239,6 @@ describe("FOR LOOP TEST", () => {
 
     `,
     ["0", "1", "1", "2", "2", "9"]
-
   );
 
   assertTCFail(
