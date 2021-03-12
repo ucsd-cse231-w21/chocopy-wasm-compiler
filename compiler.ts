@@ -1,6 +1,12 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
-import { NUM, BOOL, NONE, unhandledTag, unreachable } from "./utils";
+import { NUM, BOOL, NONE, LIST, unhandledTag, unreachable, importMethodDel } from "./utils";
 import * as BaseException from "./error";
+import { ndarrayName, codeGenNumpyArray, codeGenNdarrayFlatten, codeGenNdarrayBinOp, reverseList } from "./numpy";
+
+// TODO: to better support REPL, put heaps in GlobalEnv and modify codeGen*() signatures; may need garbage collector
+// or put TS heap in WASM heap; depend on lists/memory teams' implementations
+export var tsHeap = new Array<any>(); // array of numbers, (nested) lists, etc.
+export var wasmHeap =  new Int32Array();
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -10,6 +16,7 @@ export type GlobalEnv = {
   classes: Map<string, Map<string, [number, Literal]>>;
   locals: Set<string>;
   offset: number;
+  imports: Set<string>; // import names
 };
 
 export const emptyEnv: GlobalEnv = {
@@ -17,6 +24,7 @@ export const emptyEnv: GlobalEnv = {
   classes: new Map(),
   locals: new Set(),
   offset: 0,
+  imports: new Set(),
 };
 
 export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
@@ -41,8 +49,16 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>): GlobalEnv {
     classes: newClasses,
     locals: env.locals,
     offset: newOffset,
+    imports: env.imports,
   }
   prog.imports.forEach( (ip) => {
+    let ipt = ip.a
+    if (ipt.tag==="class"){
+      envRet.imports.add(ipt.name);
+      ip.classes.forEach( (cls) => { // register imported classes
+        envRet.imports.add(cls.name); 
+      });
+    }
     envRet =  augmentEnv(envRet, ip);
   });
   return envRet;
@@ -74,7 +90,8 @@ export function makeLocals(locals: Set<string>): Array<string> {
   return localDefines;
 }
 
-export function compile(ast: Program<Type>, env: GlobalEnv): CompileResult {
+export function compile(ast: Program<Type>, env: GlobalEnv, view: Int32Array): CompileResult {
+  wasmHeap = view; // TODO: evaluate potential security risks if exposing WASM heap
   const withDefines = augmentEnv(env, ast);
 
   const definedVars: Set<string> = new Set(); //getLocals(ast);
@@ -105,6 +122,17 @@ function envLookup(env: GlobalEnv, name: string): number {
     throw new Error("Could not find name " + name);
   }
   return env.globals.get(name) * 4; // 4-byte values
+}
+
+function hasImports(env: GlobalEnv, exprs: Array<Expr<Type>>) : boolean {
+  for (let e of exprs) {
+    if ("a" in e){
+      let eClassName = ((e.a.tag==="class") ? e.a.name : "");
+      if (env.imports.has(eClassName)){
+        return true;
+      }};
+    }
+  return false;
 }
 
 function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
@@ -181,7 +209,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
 
 function codeGenInit(init: VarInit<Type>, env: GlobalEnv): Array<string> {
   const value = codeGenLiteral(init.value, env);
-  if (env.locals.has(init.name)) {
+  if (env.locals.has(init.name)) { // do not use foreach; return does not break
     return [...value, `(local.set $${init.name})`];
   } else {
     const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; ${init.name}`];
@@ -224,7 +252,7 @@ function codeGenClass(cls: Class<Type>, env: GlobalEnv): Array<string> {
   return result.flat();
 }
 
-function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
+export function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
   switch (expr.tag) {
     case "builtin1":
       const argTyp = expr.a;
@@ -236,6 +264,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         callName = "print_bool";
       } else if (expr.name === "print" && argTyp === NONE) {
         callName = "print_none";
+      } else if (expr.name === "print" && argTyp === LIST) {
+        callName = "print_lists";
       }
       return argStmts.concat([`(call $${callName})`]);
     case "builtin2":
@@ -251,6 +281,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         return [`(i32.const ${envLookup(env, expr.name)})`, `(i32.load)`];
       }
     case "binop":
+      if (hasImports(env, [expr.left, expr.right])){ 
+        return codeGenCallImport(expr, env);
+      }
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
       return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)];
@@ -291,6 +324,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         "(drop)",
       ]);
     case "method-call":
+      if (hasImports(env, [expr.obj])){ 
+        return codeGenCallImport(expr, env);
+      }
       var objStmts = codeGenExpr(expr.obj, env);
       var objTyp = expr.obj.a;
       if (objTyp.tag !== "class") {
@@ -314,8 +350,45 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var className = objTyp.name;
       var [offset, _] = env.classes.get(className).get(expr.field);
       return [...objStmts, `(i32.add (i32.const ${offset * 4}))`, `(i32.load)`];
+    case "list-expr":
+      // TODO: fill this by list team
+      return [];
     default:
       unhandledTag(expr);
+  }
+}
+
+function codeGenCallImport(expr: Expr<Type>, env: GlobalEnv): Array<string> {
+  switch (expr.tag) {
+    case "method-call":
+      const objName = ((expr.obj.a.tag==="class") ? expr.obj.a.name : "");
+      switch (objName) {
+        case "numpy":
+          switch (expr.method) {
+            case "array":
+              return codeGenNumpyArray(expr, env);
+            default:
+              throw new Error(`Method ${expr.method} not found in import ${objName}`);
+          }
+          break;
+        case ndarrayName:
+          switch (expr.method) {
+            case "flatten":
+              return codeGenNdarrayFlatten(expr, env);
+              break;
+            default:
+              throw new Error(`Method ${expr.method} not found in import ${objName}`);
+          }
+          break;
+        default:
+          throw new Error(`Imported name ${objName} not found`);
+      }
+      break;
+    case "binop":
+      return codeGenNdarrayBinOp(expr, env);
+    default:
+      throw new Error(`expr ${expr.tag} not supported in import`);
+      break;
   }
 }
 
