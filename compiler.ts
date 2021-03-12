@@ -930,6 +930,13 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           ...decodeLiteral,
           ...rhsStmts,
           ...decodeLiteral,
+          ...(expr.op == BinOp.IDiv
+            ? codeGenRuntimeCheck(
+                expr.a[1],
+                [...rhsStmts, ...decodeLiteral],
+                RunTime.CHECK_ZERO_DIVISION
+              )
+            : [""]),
           codeGenBinOp(expr.op),
           ...encodeLiteral,
         ];
@@ -1715,7 +1722,7 @@ function codeGenBinOp(op: BinOp): string {
 //          code: codes for the parameters to pass in the check function
 //          func: ENUM to identify the checkFunction.
 function codeGenRuntimeCheck(loc: Location, code: Array<string>, func: RunTime): Array<string> {
-  if (func == RunTime.CHECK_ZERO_DIVISION || func == RunTime.CHECK_VALUE_ERROR) return [];
+  if (func == RunTime.CHECK_VALUE_ERROR) return [];
   return [...codeGenPushStack(loc), ...code, `(call $$${func.toString()})`, ...codeGenPopStack()];
 }
 

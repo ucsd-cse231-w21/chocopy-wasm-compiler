@@ -66,17 +66,18 @@ export class ErrorManager {
         this.callStack,
         "'NoneType' object is not subscriptable or does not support item assignment"
       );
-    console.log(arg);
   }
 
   __checkIndex(size: number, key: number) {
-    console.log(key + " " + size);
     if (key < 0 || key >= size) throw new BaseException.IndexError(this.callStack);
   }
 
   __checkKey(key: number) {
-    console.log(key);
     if (key === -1) throw new BaseException.KeyError(this.callStack);
+  }
+
+  __checkZeroDivision(key: number) {
+    if (key == 0) throw new BaseException.ZeroDivisionError(this.callStack);
   }
 }
 
@@ -103,6 +104,10 @@ export function importErrorManager(importObject: any, em: ErrorManager) {
 
   importObject.imports.__checkKey = (key: number) => {
     em.__checkKey(key);
+  };
+
+  importObject.imports.__checkZeroDivision = (key: number) => {
+    em.__checkZeroDivision(key);
   };
 }
 
