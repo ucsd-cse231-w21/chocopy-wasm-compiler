@@ -62,7 +62,7 @@
     While our current work allows us to represent arbitrarily-large integer values, we could extend this representation to floating-point values and allow for arbitrarily-precise decimal values. Currently Python supports this through its `decimal` class, as shown above, and allows the programmer to specify the precision to which operations are calculated. We can use much of our existing work to store the magnitude of any decimal number in memory to an arbitrary amount of digits. Then we will need to extend that representation to allow us to store the exponent of that decimal number to account for the floating point. The arithmetic operators can then implemented by developing appropriate algorithms for the floating-point arithmetic.
 
 ----------------
-Other extensions that we have considered include the following:
+* Other extensions that we have considered include the following:
 
   4. Implementing binary and unary operators in WASM
 
