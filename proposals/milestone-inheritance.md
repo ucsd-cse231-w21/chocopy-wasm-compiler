@@ -134,7 +134,7 @@ C().show()  # expect 2
 ```
 
 ```python
-# C4 super
+# super
 class Base(object):
 	def work(self):
 		print(1)
