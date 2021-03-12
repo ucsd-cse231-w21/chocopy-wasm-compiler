@@ -6,12 +6,13 @@
   "scripts": {
     "start": "webpack serve --mode=development --open",
     "build-web": "webpack",
-    "build-parse": "tsc parsestart.ts --esModuleInterop --moduleResolution node --outDir cli/",
+    "build-parse": "tsc parsestart.ts --lib es2019,dom --downlevelIteration --esModuleInterop --moduleResolution node --outDir cli/",
     "lint": "eslint . --ext .ts,.js --quiet",
     "lint:ci": "eslint . --ext .ts,.js",
     "lint:fix": "eslint . --ext .ts,.js --fix --quiet",
     "fix": "npm run lint:fix",
     "test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/mocha/bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/*.test.ts'",
+    "numpy-test": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/mocha/bin/mocha -r ts-node/register --reporter mochawesome 'tests/**/numpy.test.ts'",
     "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/mocha/bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/**/*.test.ts'"
   },
   "engines": {
