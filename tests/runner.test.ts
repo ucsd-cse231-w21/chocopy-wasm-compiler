@@ -437,6 +437,15 @@ while False:
   );
 
   assert(
+    "dict-pop-method-return",
+    `d:[int, int] = None
+     d = {1:2,2:10,15:25}
+     d.pop(2)
+          `,
+    PyInt(10)
+  );
+
+  assert(
     "dict-update-method",
     `d:[int, int] = None
      d = {1:2,2:10,15:25}

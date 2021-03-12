@@ -16,7 +16,7 @@ import {
   AssignTarget,
   Parameter,
 } from "./ast";
-import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged } from "./utils";
+import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged, LIST } from "./utils";
 import * as BaseException from "./error";
 import { at } from "cypress/types/lodash";
 
@@ -41,6 +41,7 @@ defaultGlobalFunctions.set("min", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("pow", [[{ type: NUM }, { type: NUM }], NUM]);
 defaultGlobalFunctions.set("print", [[CLASS("object")], NUM]);
 defaultGlobalFunctions.set("range", [[NUM], CLASS("Range")]);
+defaultGlobalFunctions.set("len", [[LIST(null)], NUM]);
 
 const defaultGlobalClasses = new Map();
 // Range initialization
@@ -79,6 +80,9 @@ export type TypeError = {
 };
 
 export function equalType(t1: Type, t2: Type): boolean {
+  if (t1 === null) {
+    return t2 === null;
+  }
   return (
     // ensure deep match for nested types (example: [int,[int,int]])
     JSON.stringify(t1) === JSON.stringify(t2) ||
@@ -109,15 +113,31 @@ export function isNoneOrClass(t: Type) {
   return t.tag === "none" || t.tag === "class";
 }
 
-const objtypes = ["class", "list", "dict", "callable"];
+const objtypes = ["class", "list", "dict", "callable", "tuple"];
 function isObjectTypeTag(t: string): boolean {
   return objtypes.indexOf(t) >= 0;
 }
+
+function isEmptyList(t: Type): boolean {
+  return JSON.stringify(t) === JSON.stringify(LIST(null));
+}
 export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
-  return equalType(t1, t2) || (t1.tag === "none" && isObjectTypeTag(t2.tag));
+  return (
+    equalType(t1, t2) ||
+    (t1.tag === "none" && isObjectTypeTag(t2.tag)) ||
+    isEmptyList(t1) ||
+    isEmptyList(t2)
+  );
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
+  if (t1.tag === "tuple" && t2.tag === "tuple") {
+    if (t1.contentTypes.length !== t2.contentTypes.length) return false;
+    for (let i = 0; i < t1.contentTypes.length; i++) {
+      if (!isAssignable(env, t1.contentTypes[i], t2.contentTypes[i])) return false;
+    }
+    return true;
+  }
   return isSubtype(env, t1, t2);
 }
 
@@ -131,14 +151,14 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<Location>): Glo
   const newClasses = new Map(env.classes);
   program.inits.forEach((init) => {
     if (newGlobs.has(init.name)) {
-      throw new BaseException.CompileError(init.a, `Duplicate variable ${init.name}`);
+      throw new BaseException.CompileError([init.a], `Duplicate variable ${init.name}`);
     }
     newGlobs.set(init.name, init.type);
   });
   program.funs.forEach((fun) => {
     newFuns.set(fun.name, [fun.parameters, fun.ret]);
     if (newGlobs.has(fun.name)) {
-      throw new BaseException.CompileError(fun.a, `Duplicate variable ${fun.name}`);
+      throw new BaseException.CompileError([fun.a], `Duplicate variable ${fun.name}`);
     }
     newGlobs.set(fun.name, {
       tag: "callable",
@@ -153,14 +173,14 @@ export function augmentTEnv(env: GlobalTypeEnv, program: Program<Location>): Glo
     const methods = new Map();
     cls.fields.forEach((field) => {
       if (fields.has(field.name)) {
-        throw new BaseException.CompileError(field.a, `Duplicate variable ${field.name}`);
+        throw new BaseException.CompileError([field.a], `Duplicate variable ${field.name}`);
       }
       fields.set(field.name, field.type);
     });
     cls.methods.forEach((method) => {
       methods.set(method.name, [method.parameters, method.ret]);
       if (fields.has(method.name)) {
-        throw new BaseException.CompileError(method.a, `Duplicate variable ${method.name}`);
+        throw new BaseException.CompileError([method.a], `Duplicate variable ${method.name}`);
       }
       fields.set(method.name, {
         tag: "callable",
@@ -213,7 +233,7 @@ export function tcInit(env: GlobalTypeEnv, init: VarInit<Location>): VarInit<[Ty
     return { ...init, a: [NONE, init.a] };
   } else {
     // Some type mismatch is allowed in python, so we use customized TypeMismatchError here, which does not exist in real python.
-    throw new BaseException.TypeMismatchError(init.a, init.type, valTyp);
+    throw new BaseException.TypeMismatchError([init.a], init.type, valTyp);
   }
 }
 
@@ -224,29 +244,29 @@ export function tcDef(env: GlobalTypeEnv, fun: FunDef<Location>): FunDef<[Type, 
 
   fun.parameters.forEach((p) => {
     if (locals.vars.has(p.name)) {
-      throw new BaseException.CompileError(fun.a, `Duplicate variable ${p.name}`);
+      throw new BaseException.CompileError([fun.a], `Duplicate variable ${p.name}`);
     }
     locals.vars.set(p.name, p.type);
   });
   fun.inits.forEach((init) => {
     if (locals.vars.has(init.name)) {
-      throw new BaseException.CompileError(init.a, `Duplicate variable ${init.name}`);
+      throw new BaseException.CompileError([init.a], `Duplicate variable ${init.name}`);
     }
     locals.vars.set(init.name, tcInit(env, init).type);
   });
   fun.decls.forEach((decl) => {
     if (decl.tag == "nonlocal") {
-      throw new BaseException.CompileError(fun.a, `Invalid Nonlocal Variable ${decl.name}`);
+      throw new BaseException.CompileError([decl.a], `Invalid Nonlocal Variable ${decl.name}`);
     }
     if (!env.globals.has(decl.name)) {
-      throw new BaseException.CompileError(fun.a, `Invalid global Variable ${decl.name}`);
+      throw new BaseException.CompileError([decl.a], `Invalid global Variable ${decl.name}`);
     }
-    throw new Error(`Invalid global Variable ${decl.name}`);
+    throw new BaseException.CompileError([decl.a], `Invalid global Variable ${decl.name}2`);
   });
   fun.funs.forEach((func) => {
     locals.functions.set(func.name, [func.parameters, func.ret]);
     if (locals.vars.has(func.name)) {
-      throw new BaseException.CompileError(func.a, `Duplicate variable ${func.name}`);
+      throw new BaseException.CompileError([func.a], `Duplicate variable ${func.name}`);
     }
     locals.vars.set(func.name, {
       tag: "callable",
@@ -281,26 +301,26 @@ export function tcNestDef(
 
   fun.parameters.forEach((p) => {
     if (locals.vars.has(p.name)) {
-      throw new BaseException.CompileError(fun.a, `Duplicate variable ${p.name}`);
+      throw new BaseException.CompileError([fun.a], `Duplicate variable ${p.name}`);
     }
     locals.vars.set(p.name, p.type);
   });
   fun.inits.forEach((init) => {
     if (locals.vars.has(init.name)) {
-      throw new BaseException.CompileError(init.a, `Duplicate variable ${init.name}`);
+      throw new BaseException.CompileError([init.a], `Duplicate variable ${init.name}`);
     }
     locals.vars.set(init.name, tcInit(env, init).type);
   });
   fun.decls.forEach((decl) => {
     if (locals.vars.has(decl.name) || !nestEnv.vars.has(decl.name)) {
-      throw new BaseException.CompileError(decl.a, `Invalid Nonlocal Variable ${decl.name}`);
+      throw new BaseException.CompileError([decl.a], `Invalid Nonlocal Variable ${decl.name}`);
     }
   });
 
   fun.funs.forEach((func) => {
     locals.functions.set(func.name, [func.parameters, func.ret]);
     if (locals.vars.has(func.name)) {
-      throw new BaseException.CompileError(func.a, `Duplicate variable ${func.name}`);
+      throw new BaseException.CompileError([func.a], `Duplicate variable ${func.name}`);
     }
     locals.vars.set(func.name, {
       tag: "callable",
@@ -342,9 +362,10 @@ export function tcDefault(paramType: Type, paramLiteral: Literal) {
   } else if (paramLiteral.tag === "num" && paramType.tag === "number") {
     return;
   } else if (paramLiteral.tag !== paramType.tag) {
-    throw new BaseException.CompileError(
+    throw new BaseException.TypeMismatchError(
       undefined, // TODO
-      "Default value type " + paramLiteral.tag + " does not match param type " + paramType.tag
+      paramType,
+      tcLiteral(paramLiteral)
     );
   }
 }
@@ -371,7 +392,10 @@ export function tcLambda(locals: LocalTypeEnv, expr: Expr<Location>, expected: T
         locals.vars.set(args[i], expected.args[i].type);
       }
     } else {
-      throw new TypeError("Function call type mismatch: Lambda");
+      throw new BaseException.TypeError(
+        [expr.a],
+        `lambda function takes ${expected.args.length} positional arguments but ${args.length} were given`
+      );
     }
   }
 }
@@ -403,20 +427,20 @@ export function tcStmt(
       const elsTyp = tEls[tEls.length - 1].a[0];
       // restore loop depth
       locals.loop_depth -= 1;
-      if (tCond.a[0] !== BOOL) throw new BaseException.ConditionTypeError(tCond.a[1], tCond.a[0]);
+      if (tCond.a[0] !== BOOL) throw new BaseException.ConditionTypeError([tCond.a[1]], tCond.a[0]);
       else if (thnTyp !== elsTyp)
-        throw new BaseException.SyntaxError(stmt.a, "Types of then and else branches must match");
+        throw new BaseException.SyntaxError([stmt.a], "Types of then and else branches must match");
       return { a: [thnTyp, stmt.a], tag: stmt.tag, cond: tCond, thn: tThn, els: tEls };
     case "return":
       if (locals.topLevel)
-        throw new BaseException.SyntaxError(stmt.a, "‘return’ outside of functions");
+        throw new BaseException.SyntaxError([stmt.a], "'return' outside of functions");
 
       if (stmt.value.tag === "lambda" && locals.expectedRet.tag === "callable") {
         tcLambda(locals, stmt.value, locals.expectedRet);
       }
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a[0], locals.expectedRet))
-        throw new BaseException.TypeMismatchError(stmt.a, locals.expectedRet, tRet.a[0]);
+        throw new BaseException.TypeMismatchError([stmt.a], locals.expectedRet, tRet.a[0]);
       return { a: tRet.a, tag: stmt.tag, value: tRet };
     case "while":
       // record the history depth
@@ -428,7 +452,7 @@ export function tcStmt(
       locals.loop_depth = wlast_depth;
 
       if (!equalType(tCond.a[0], BOOL))
-        throw new BaseException.ConditionTypeError(tCond.a[1], tCond.a[0]);
+        throw new BaseException.ConditionTypeError([tCond.a[1]], tCond.a[0]);
       return { a: [NONE, stmt.a], tag: stmt.tag, cond: tCond, body: tBody };
     case "pass":
       return { a: [NONE, stmt.a], tag: stmt.tag };
@@ -442,19 +466,19 @@ export function tcStmt(
             break;
           } else {
             throw new BaseException.CompileError(
-              stmt.a,
+              [stmt.a],
               "for-loop cannot take " + fIter.a[0].name + " class as iterator."
             );
           }
         case "string":
           // Character not implemented
           // locals.vars.set(stmt.name, {tag: 'char'});
-          throw new BaseException.CompileError(stmt.a, "for-loop with strings are not implmented.");
+          throw new BaseException.InternalException("for-loop with strings are not implmented.");
         case "list":
           locals.vars.set(stmt.name, fIter.a[0].content_type);
           break;
         default:
-          throw new BaseException.CompileError(stmt.a, "Illegal iterating item in for-loop.");
+          throw new BaseException.CompileError([stmt.a], "Illegal iterating item in for-loop.");
       }
       // record the history depth
       const last_depth = locals.loop_depth;
@@ -477,33 +501,33 @@ export function tcStmt(
       };
     case "break":
       if (locals.loop_depth < 1) {
-        throw new BaseException.SyntaxError(stmt.a, "Break outside a loop.");
+        throw new BaseException.SyntaxError([stmt.a], "'Break' outside a loop.");
       }
       return { a: [NONE, stmt.a], tag: "break", depth: locals.loop_depth };
     case "continue":
       if (locals.loop_depth < 1) {
-        throw new BaseException.SyntaxError(stmt.a, "Continue outside a loop.");
+        throw new BaseException.SyntaxError([stmt.a], "'Continue' outside a loop.");
       }
       const depth = locals.loop_depth - 1;
       return { a: [NONE, stmt.a], tag: "continue", depth: depth };
-    case "field-assign":
+    case "field-assign": // unreachable code ???
       var tObj = tcExpr(env, locals, stmt.obj);
       const tVal = tcExpr(env, locals, stmt.value);
       console.log("field a" + tObj.a);
       if (tObj.a[0].tag !== "class")
-        throw new BaseException.CompileError(stmt.a, "field assignments require an object");
+        throw new BaseException.CompileError([stmt.a], "field assignments require an object");
       if (!env.classes.has(tObj.a[0].name))
-        throw new BaseException.CompileError(stmt.a, "field assignment on an unknown class");
+        throw new BaseException.CompileError([stmt.a], "field assignment on an unknown class");
       const [fields, _] = env.classes.get(tObj.a[0].name);
       if (!fields.has(stmt.field))
         throw new BaseException.CompileError(
-          stmt.a,
+          [stmt.a],
           `could not find field ${stmt.field} in class ${tObj.a[0].name}`
         );
       if (!isAssignable(env, tVal.a[0], fields.get(stmt.field)))
         // throw new BaseException.TypeMismatchError(stmt.a, fields.get(stmt.field) , tVal.a);
         throw new BaseException.CompileError(
-          stmt.a,
+          [stmt.a],
           `could not assign value of type: ${tVal.a}; field ${
             stmt.field
           } expected type: ${fields.get(stmt.field)}`
@@ -548,7 +572,7 @@ function tcDestructure(
       valueType = tcExpr(env, locals, expr).a[0];
     }
     if (!isAssignable(env, valueType, targetType[0]))
-      throw new BaseException.TypeMismatchError(aTarget.target.a, targetType[0], valueType);
+      throw new BaseException.TypeMismatchError([aTarget.target.a], targetType[0], valueType);
     return {
       starred,
       ignore,
@@ -557,6 +581,11 @@ function tcDestructure(
   }
 
   if (!destruct.isDestructured) {
+    if (destruct.targets.length !== 1) {
+      throw new BaseException.InternalException(
+        `Non-destructured assignment takes exactly 1 target. ${destruct.targets.length} provided.`
+      );
+    }
     let target = tcTarget(destruct.targets[0], value);
     return {
       valueType: [value, destruct.valueType],
@@ -566,48 +595,127 @@ function tcDestructure(
   }
 
   let types: Type[] = [];
-  if (value.tag === "class") {
-    // This is a temporary hack to get destructuring working (reuse for tuples later?)
-    let cls = env.classes.get(value.name);
-    if (cls === undefined)
-      throw new BaseException.InternalException(
-        `Class ${value.name} not found in global environment. This is probably a parsing bug.`
-      );
-    let attrs = cls[0];
-    // attrs.forEach((val) => types.push(val));
-    attrs.forEach((val) => {
-      if (val.tag === "callable" && val.isVar == false) return; // method should not count
-      types.push(val);
-    });
-    let starOffset = 0;
-    let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map((target, i, targets) => {
-      if (i >= types.length)
-        throw new BaseException.ValueError(
-          `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+  // Note:The parser guarantees at most 1 starred assignment target
+  switch (value.tag) {
+    // TODO: Remove class-based destructuring in the long term, leave for now until it can be safely removed
+    case "class": {
+      let cls = env.classes.get(value.name);
+      if (cls === undefined)
+        throw new BaseException.InternalException(
+          `Class ${value.name} not found in global environment. This is probably a parsing bug.`
         );
-      if (target.starred) {
-        starOffset = types.length - targets.length; // How many values will be assigned to the starred target
-        throw new BaseException.CompileError(destruct.valueType, "Starred values not supported");
-      }
-      let valueType = types[i + starOffset];
-      return tcTarget(target, valueType);
-    });
-
-    if (types.length > destruct.targets.length + starOffset)
-      throw new BaseException.ValueError(
-        `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      let attrs = cls[0];
+      // attrs.forEach((val) => types.push(val));
+      attrs.forEach((val) => {
+        if (val.tag === "callable" && val.isVar == false) return; // method should not count
+        types.push(val);
+      });
+      let starOffset = 0;
+      let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map(
+        (target, i, targets) => {
+          if (i >= types.length)
+            throw new BaseException.ValueError(
+              [expr.a],
+              `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+            );
+          if (target.starred) {
+            starOffset = types.length - targets.length; // How many values will be assigned to the starred target
+            throw new BaseException.CompileError(
+              [destruct.valueType],
+              "Starred values not supported"
+            );
+          }
+          let valueType = types[i + starOffset];
+          return tcTarget(target, valueType);
+        }
       );
 
-    return {
-      isDestructured: destruct.isDestructured,
-      targets: tTargets,
-      valueType: [value, destruct.valueType],
-    };
-  } else {
-    throw new BaseException.CompileError(
-      destruct.valueType,
-      `Type ${value.tag} cannot be destructured`
-    );
+      if (types.length > destruct.targets.length + starOffset)
+        throw new BaseException.ValueError(
+          [expr.a],
+          `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+        );
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: [value, destruct.valueType],
+      };
+    }
+    case "list": {
+      // Since we can't know the exact length of the list, we'll have to check that the list length matches the number
+      // of assign targets at runtime.
+      let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map((target) =>
+        tcTarget(target, target.starred ? value : value.content_type)
+      );
+
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: [value, destruct.valueType],
+      };
+    }
+
+    case "tuple": {
+      let types = value.contentTypes;
+      const starredIndex = destruct.targets.findIndex(({ starred }) => starred);
+      const tcTuples = (targets: AssignTarget<Location>[], types: Type[]) => {
+        if (targets.length !== types.length) {
+          throw new Error(
+            `Too many values to unpack (expected ${targets.length}, got ${types.length})`
+          );
+        }
+        return targets.map((target, i) => tcTarget(target, types[i]));
+      };
+
+      let tTargets: AssignTarget<[Type, Location]>[];
+
+      if (starredIndex >= 0) {
+        // subtract 1 from targets since starred can == []
+        if (types.length < destruct.targets.length - 1) {
+          throw new BaseException.CompileError([destruct.valueType], `Not enough values on RHS`);
+        }
+        const head = destruct.targets.slice(0, starredIndex);
+        const starred = destruct.targets[starredIndex];
+        const tail = destruct.targets.slice(starredIndex + 1, destruct.targets.length);
+
+        const tHead = tcTuples(head, types.slice(0, head.length));
+        const starredTypes = types.slice(starredIndex, -tail.length);
+        const tStarred = tcAssignable(env, locals, starred.target);
+        const starredType = tStarred.a[0];
+        if (starredType.tag !== "list") {
+          throw new BaseException.CompileError(
+            [tStarred.a[1]],
+            `Starred assignment target must have type list, found type ${starredType.tag}`
+          );
+        }
+        starredTypes.forEach((type) => {
+          if (!isAssignable(env, starredType.content_type, type)) {
+            throw new BaseException.TypeMismatchError(
+              [tStarred.a[1]],
+              starredType.content_type,
+              type
+            );
+          }
+        });
+        const tTail =
+          tail.length === 0 ? [] : tcTuples(tail, types.slice(-tail.length, types.length));
+        tTargets = [...tHead, { ...starred, target: tStarred }, ...tTail];
+      } else {
+        tTargets = tcTuples(destruct.targets, types);
+      }
+
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: [value, destruct.valueType],
+      };
+    }
+    default: {
+      throw new BaseException.CompileError(
+        [destruct.valueType],
+        `Type ${value.tag} cannot be destructured`
+      );
+    }
   }
 }
 
@@ -618,7 +726,15 @@ function tcAssignable(
 ): Assignable<[Type, Location]> {
   const expr = tcExpr(env, locals, target);
   if (!isTagged(expr, ASSIGNABLE_TAGS)) {
-    throw new BaseException.CompileError(target.a, `Cannot assing to target type ${expr.tag}`);
+    throw new BaseException.CompileError([target.a], `Cannot assign to target type ${expr.tag}`);
+  } else if (
+    (expr.a[0].tag === "string" || expr.a[0].tag === "tuple") &&
+    expr.tag === "bracket-lookup"
+  ) {
+    throw new BaseException.CompileError(
+      [target.a],
+      `${expr.a[0].tag} does not support item assignment`
+    );
   }
   return expr;
 }
@@ -644,14 +760,16 @@ export function tcExpr(
           if (
             expr.op == BinOp.Plus &&
             tLeft.a[0].tag === "list" &&
-            equalType(tLeft.a[0], tRight.a[0])
+            (equalType(tLeft.a[0], tRight.a[0]) ||
+              isEmptyList(tLeft.a[0]) ||
+              isEmptyList(tRight.a[0]))
           ) {
             return { ...tBin, a: [tLeft.a[0], expr.a] };
           }
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
             return { ...tBin, a: [NUM, expr.a] };
           } else {
-            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError([expr.a], expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
@@ -661,7 +779,7 @@ export function tcExpr(
           if (equalType(tLeft.a[0], tRight.a[0])) {
             return { ...tBin, a: [BOOL, expr.a] };
           } else {
-            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError([expr.a], expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
@@ -673,7 +791,7 @@ export function tcExpr(
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
             return { ...tBin, a: [BOOL, expr.a] };
           } else {
-            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError([expr.a], expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
@@ -683,14 +801,14 @@ export function tcExpr(
           if (equalType(tLeft.a[0], BOOL) && equalType(tRight.a[0], BOOL)) {
             return { ...tBin, a: [BOOL, expr.a] };
           } else {
-            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError([expr.a], expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
           }
         case BinOp.Is:
           if (!isNoneOrClass(tLeft.a[0]) || !isNoneOrClass(tRight.a[0]))
-            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [
+            throw new BaseException.UnsupportedOperandTypeError([expr.a], expr.op, [
               tLeft.a[0],
               tRight.a[0],
             ]);
@@ -706,13 +824,13 @@ export function tcExpr(
           if (equalType(tExpr.a[0], NUM)) {
             return tUni;
           } else {
-            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [tExpr.a[0]]);
+            throw new BaseException.UnsupportedOperandTypeError([expr.a], expr.op, [tExpr.a[0]]);
           }
         case UniOp.Not:
           if (equalType(tExpr.a[0], BOOL)) {
             return tUni;
           } else {
-            throw new BaseException.UnsupportedOperandTypeError(expr.a, expr.op, [tExpr.a[0]]);
+            throw new BaseException.UnsupportedOperandTypeError([expr.a], expr.op, [tExpr.a[0]]);
           }
         default:
           return unreachable(expr);
@@ -723,7 +841,7 @@ export function tcExpr(
       } else if (env.globals.has(expr.name)) {
         return { ...expr, a: [env.globals.get(expr.name), expr.a] };
       } else {
-        throw new BaseException.NameError(expr.a, expr.name);
+        throw new BaseException.NameError([expr.a], expr.name);
       }
     case "builtin1":
       if (expr.name === "print") {
@@ -736,10 +854,10 @@ export function tcExpr(
         if (isAssignable(env, tArg.a[0], expectedParam.type)) {
           return { ...expr, a: [retTyp, expr.a], arg: tArg };
         } else {
-          throw new BaseException.TypeMismatchError(expr.a, expectedParam.type, tArg.a[0]);
+          throw new BaseException.TypeMismatchError([expr.a], expectedParam.type, tArg.a[0]);
         }
       } else {
-        throw new BaseException.NameError(expr.a, expr.name);
+        throw new BaseException.NameError([expr.a], expr.name);
       }
     case "builtin2":
       if (env.functions.has(expr.name)) {
@@ -753,16 +871,16 @@ export function tcExpr(
           return { ...expr, a: [retTyp, expr.a], left: tLeftArg, right: tRightArg };
         } else {
           throw new BaseException.TypeMismatchError(
-            expr.a,
+            [expr.a],
             [leftParam.type, rightParam.type],
             [tLeftArg.a[0], tRightArg.a[0]]
           );
         }
       } else {
-        throw new BaseException.NameError(expr.a, expr.name);
+        throw new BaseException.NameError([expr.a], expr.name);
       }
     case "lambda":
-      throw new BaseException.TypeError(expr.a, "Lambda is not supported");
+      throw new BaseException.InternalException("Lambda is not supported");
     /*
       var args: Type[] = [];
       expr.args.forEach((arg) => args.push(locals.vars.get(arg)));
@@ -782,7 +900,7 @@ export function tcExpr(
           const [initArgs, initRet] = methods.get("__init__");
           if (expr.arguments.length !== initArgs.length - 1) {
             throw new BaseException.TypeError(
-              expr.a,
+              [expr.a],
               `__init__() takes ${initArgs.length} positional arguments but ${
                 expr.arguments.length + 1
               } were given`
@@ -790,7 +908,7 @@ export function tcExpr(
           }
           if (initRet !== NONE) {
             throw new BaseException.TypeError(
-              expr.a,
+              [expr.a],
               `__init__() should return None, not '${
                 initRet.tag == "class" ? initRet.name : initRet.tag
               }'`
@@ -828,7 +946,7 @@ export function tcExpr(
           var argNums = tArgs.length;
           while (argNums < argTypes.length) {
             if (params[argNums].value === undefined) {
-              throw new BaseException.CompileError(expr.a, "Missing argument from call");
+              throw new BaseException.TypeError([expr.a], "Missing argument from call");
             } else {
               // add default values into arguments as an Expr
               augArgs = augArgs.concat([
@@ -840,17 +958,15 @@ export function tcExpr(
           return { ...expr, a: [retType, expr.a], name: innercall, arguments: augArgs };
         } else {
           throw new BaseException.TypeMismatchError(
-            expr.a,
+            [expr.a],
             argTypes,
             tArgs.map((s) => {
               return s.a[0];
             })
           );
         }
-      } else {
-        // TODO incorrect parameter for call_expression
-        throw new BaseException.NameError(expr.a, expr.name.tag);
       }
+      throw new BaseException.TypeError([expr.a], "Not callable");
     case "call":
       if (expr.name == "range") {
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
@@ -866,6 +982,21 @@ export function tcExpr(
           name: expr.name,
           arguments: tArgs,
         };
+      } else if (expr.name == "len") {
+        const tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
+
+        if (tArg.length == 1) {
+          if (tArg[0].a[0].tag === "list" || tArg[0].a[0].tag === "dict") {
+            return { ...expr, a: [NUM, expr.a], arguments: tArg };
+          } else {
+            throw new BaseException.TypeMismatchError([expr.a], LIST(null), tArg[0].a[0]);
+          }
+        } else {
+          throw new BaseException.TypeError(
+            [expr.a],
+            `len takes 1 positional arguments but ${expr.arguments.length + 1} were given`
+          );
+        }
       }
       if (expr.name == "dict") {
         if (expr.arguments.length !== 1) {
@@ -885,7 +1016,9 @@ export function tcExpr(
         }
         return { ...expr, a: tRet, arguments: tArg };
       }
-      throw new TypeError("Parser should use call_expr instead whose callee is an expression.");
+      throw new BaseException.InternalException(
+        "Parser should use call_expr instead whose callee is an expression."
+      );
     case "lookup":
       var tObj = tcExpr(env, locals, expr.obj);
       if (tObj.a[0].tag === "class") {
@@ -894,47 +1027,195 @@ export function tcExpr(
           if (fields.has(expr.field)) {
             return { ...expr, a: [fields.get(expr.field), expr.a], obj: tObj };
           } else {
-            throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.field);
+            throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.field);
           }
         } else {
-          throw new BaseException.NameError(expr.a, tObj.a[0].name);
+          throw new BaseException.NameError([expr.a], tObj.a[0].name);
         }
       } else {
-        throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.field);
+        throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.field);
       }
     case "method-call":
       var tObj = tcExpr(env, locals, expr.obj);
       var tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
-      if (tObj.a[0].tag === "class") {
-        if (env.classes.has(tObj.a[0].name)) {
-          const [fields, methods] = env.classes.get(tObj.a[0].name);
+      switch (tObj.a[0].tag) {
+        case "class":
+          if (env.classes.has(tObj.a[0].name)) {
+            const [fields, methods] = env.classes.get(tObj.a[0].name);
 
-          var methodArgs: Type[];
-          var methodRet: Type;
-          if (fields.has(expr.method)) {
-            var temp = fields.get(expr.method);
-            // should always be true
-            if (temp.tag === "callable") {
-              [methodArgs, methodRet] = [temp.args.map((p) => p.type), temp.ret];
-            }
+            var methodArgs: Type[];
+            var methodRet: Type;
+            if (fields.has(expr.method)) {
+              var temp = fields.get(expr.method);
+              // should always be true
+              if (temp.tag === "callable") {
+                [methodArgs, methodRet] = [temp.args.map((p) => p.type), temp.ret];
+              }
 
-            var realArgs: Expr<[Type, Location]>[] = tArgs;
-            if (methods.has(expr.method)) {
-              realArgs = [tObj].concat(tArgs);
+              var realArgs: Expr<[Type, Location]>[] = tArgs;
+              if (methods.has(expr.method)) {
+                realArgs = [tObj].concat(tArgs);
+              }
+              if (
+                methodArgs.length === realArgs.length &&
+                methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
+              ) {
+                return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs };
+              } else if (methodArgs.length != realArgs.length) {
+                throw new BaseException.TypeError(
+                  [expr.a],
+                  `${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`
+                );
+              } else {
+                throw new BaseException.TypeMismatchError(
+                  [expr.a],
+                  methodArgs,
+                  realArgs.map((s) => {
+                    return s.a[0];
+                  })
+                );
+              }
+            } else {
+              throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.method);
             }
+          } else {
+            throw new BaseException.NameError([expr.a], tObj.a[0].name);
+          }
+        case "dict":
+          console.log("TC: dict method call");
+          switch (expr.method) {
+            case "pop":
+              let numArgsPop = expr.arguments.length;
+              if (numArgsPop > 2) {
+                throw new BaseException.CompileError(
+                  [expr.a],
+                  `'dict' pop() expected at most 2 arguments, got ${numArgsPop}`
+                );
+              }
+              let dictKeyTypePop = tObj.a[0].key;
+              let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
+              if (!isAssignable(env, dictKeyTypePop, tKeyPop.a[0])) {
+                throw new BaseException.CompileError(
+                  [expr.a],
+                  "Expected key type `" +
+                    dictKeyTypePop.tag +
+                    "`; got key lookup type `" +
+                    tKeyPop.a[0].tag +
+                    "`"
+                );
+              }
+              return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyPop] };
+            case "get":
+              console.log("TC: get function in dict");
+              let numArgsGet = expr.arguments.length;
+              if (numArgsGet !== 2) {
+                throw new BaseException.CompileError(
+                  [expr.a],
+                  `'dict' get() expected 2 arguments, got ${numArgsGet}`
+                );
+              }
+              let dictKeyTypeGet = tObj.a[0].key;
+              let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
+              if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a[0])) {
+                throw new BaseException.CompileError(
+                  [expr.a],
+                  "Expected key type `" +
+                    dictKeyTypeGet.tag +
+                    "`; got key lookup type `" +
+                    tKeyGet.a[0].tag +
+                    "`"
+                );
+              }
+              let dictValueTypeGet = tObj.a[0].value;
+              let tValueGet = tcExpr(env, locals, expr.arguments[1]);
+              if (!isAssignable(env, dictValueTypeGet, tValueGet.a[0])) {
+                throw new BaseException.CompileError(
+                  [expr.a],
+                  "Expected value type `" +
+                    dictValueTypeGet.tag +
+                    "`; got value lookup type `" +
+                    tValueGet.a[0].tag +
+                    "`"
+                );
+              }
+              return {
+                ...expr,
+                a: [tObj.a[0].value, expr.a],
+                obj: tObj,
+                arguments: [tKeyGet, tValueGet],
+              };
+
+            case "update":
+              console.log("TC: To-Do update function in dict");
+              let numArgsUpdate = expr.arguments.length;
+              if (numArgsUpdate > 2) {
+                throw new BaseException.CompileError(
+                  [expr.a],
+                  `'dict' update() expected at most 1 argument, got ${numArgsUpdate}`
+                );
+              }
+              let isArgDict = expr.arguments[0];
+              if (isArgDict.tag === "literal") {
+                throw new BaseException.CompileError(
+                  [expr.a],
+                  `'dict' update() expected an iterable, got ${isArgDict.value.tag}`
+                );
+              }
+              let tUpdate = tcExpr(env, locals, isArgDict);
+              return {
+                ...expr,
+                a: [NONE, expr.a],
+                obj: tObj,
+                arguments: [tUpdate],
+              };
+            case "clear":
+              // throw error if there are any arguments in clear()
+              let numArgsClear = expr.arguments.length;
+              if (numArgsClear != 0) {
+                throw new BaseException.CompileError(
+                  [expr.a],
+                  `'dict' clear() takes no arguments (${numArgsClear} given)`
+                );
+              }
+              return {
+                ...expr,
+                a: [NONE, expr.a],
+                obj: tObj,
+                arguments: [],
+              };
+            default:
+              throw new BaseException.CompileError(
+                [expr.a],
+                `'dict' object has no attribute '${expr.method}'`
+              );
+          }
+
+        case "list":
+          if (tObj.a[0].content_type === null && tArgs.length > 0) {
+            tObj.a[0].content_type = tArgs[0].a[0];
+          }
+          const list_builtin = new Map<string, [Array<Type>, Type]>([
+            ["append", [[tObj.a[0].content_type], tObj.a[0]]],
+            ["clear", [[], tObj.a[0]]],
+            ["copy", [[], tObj.a[0]]],
+            ["count", [[tObj.a[0].content_type], NUM]],
+            ["index", [[tObj.a[0].content_type], NUM]],
+          ]);
+          [methodArgs, methodRet] = list_builtin.get(expr.method);
+          if (list_builtin.has(expr.method)) {
             if (
-              methodArgs.length === realArgs.length &&
-              methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
+              methodArgs.length === tArgs.length &&
+              methodArgs.every((argTyp, i) => isAssignable(env, tArgs[i].a[0], argTyp))
             ) {
               return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs };
             } else if (methodArgs.length != realArgs.length) {
               throw new BaseException.TypeError(
-                expr.a,
+                [expr.a],
                 `${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`
               );
             } else {
               throw new BaseException.TypeMismatchError(
-                expr.a,
+                [expr.a],
                 methodArgs,
                 realArgs.map((s) => {
                   return s.a[0];
@@ -942,127 +1223,18 @@ export function tcExpr(
               );
             }
           } else {
-            throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
+            throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.method);
           }
-        } else {
-          throw new BaseException.NameError(expr.a, tObj.a[0].name);
-        }
-      } else if (tObj.a[0].tag === "dict") {
-        console.log("TC: dict method call");
-        switch (expr.method) {
-          case "pop":
-            let numArgsPop = expr.arguments.length;
-            if (numArgsPop > 2) {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' pop() expected at most 2 arguments, got ${numArgsPop}`
-              );
-            }
-            let dictKeyTypePop = tObj.a[0].key;
-            let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
-            if (!isAssignable(env, dictKeyTypePop, tKeyPop.a[0])) {
-              throw new BaseException.CompileError(
-                expr.a,
-                "Expected key type `" +
-                  dictKeyTypePop.tag +
-                  "`; got key lookup type `" +
-                  tKeyPop.a[0].tag +
-                  "`"
-              );
-            }
-            return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyPop] };
-          case "get":
-            console.log("TC: get function in dict");
-            let numArgsGet = expr.arguments.length;
-            if (numArgsGet !== 2) {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' get() expected 2 arguments, got ${numArgsGet}`
-              );
-            }
-            let dictKeyTypeGet = tObj.a[0].key;
-            let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
-            if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a[0])) {
-              throw new BaseException.CompileError(
-                expr.a,
-                "Expected key type `" +
-                  dictKeyTypeGet.tag +
-                  "`; got key lookup type `" +
-                  tKeyGet.a[0].tag +
-                  "`"
-              );
-            }
-            let dictValueTypeGet = tObj.a[0].value;
-            let tValueGet = tcExpr(env, locals, expr.arguments[1]);
-            if (!isAssignable(env, dictValueTypeGet, tValueGet.a[0])) {
-              throw new BaseException.CompileError(
-                expr.a,
-                "Expected value type `" +
-                  dictValueTypeGet.tag +
-                  "`; got value lookup type `" +
-                  tValueGet.a[0].tag +
-                  "`"
-              );
-            }
-            return {
-              ...expr,
-              a: [tObj.a[0].value, expr.a],
-              obj: tObj,
-              arguments: [tKeyGet, tValueGet],
-            };
-
-          case "update":
-            console.log("TC: To-Do update function in dict");
-            let numArgsUpdate = expr.arguments.length;
-            if (numArgsUpdate > 2) {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' update() expected at most 1 argument, got ${numArgsUpdate}`
-              );
-            }
-            let isArgDict = expr.arguments[0];
-            if (isArgDict.tag === "literal") {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' update() expected an iterable, got ${isArgDict.value.tag}`
-              );
-            }
-            let tUpdate = tcExpr(env, locals, isArgDict);
-            return {
-              ...expr,
-              a: [NONE, expr.a],
-              obj: tObj,
-              arguments: [tUpdate],
-            };
-          case "clear":
-            // throw error if there are any arguments in clear()
-            let numArgsClear = expr.arguments.length;
-            if (numArgsClear != 0) {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' clear() takes no arguments (${numArgsClear} given)`
-              );
-            }
-            return {
-              ...expr,
-              a: [NONE, expr.a],
-              obj: tObj,
-              arguments: [{ tag: "literal", value: { tag: "none" } }],
-            };
-          default:
-            throw new BaseException.CompileError(
-              expr.a,
-              `'dict' object has no attribute '${expr.method}'`
-            );
-        }
-      } else {
-        throw new BaseException.AttributeError(expr.a, tObj.a[0], expr.method);
+          break;
+        default:
+          throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.method);
       }
+
     case "list-expr":
       var commonType = null;
       const listExpr = expr.contents.map((content) => tcExpr(env, locals, content));
       if (listExpr.length == 0) {
-        commonType = NONE;
+        commonType = null;
       } else {
         commonType = listExpr[0].a[0];
         for (var i = 1; i < listExpr.length; ++i) {
@@ -1071,7 +1243,7 @@ export function tcExpr(
             if (equalType(commonType, NONE) && isNoneOrClass(lexprType)) {
               commonType = lexprType;
             } else if (!(equalType(lexprType, NONE) && isNoneOrClass(commonType))) {
-              throw new BaseException.TypeMismatchError(expr.a, commonType, lexprType);
+              throw new BaseException.TypeMismatchError([expr.a], commonType, lexprType);
             }
           }
         }
@@ -1108,11 +1280,11 @@ export function tcExpr(
           valueTypes.add(JSON.stringify(valueType.a[0]));
         }
         if (keyTypes.size > 1) {
-          throw new BaseException.CompileError(expr.a, "Heterogenous `Key` types aren't supported");
+          throw new BaseException.TypeError([expr.a], "Heterogenous `Key` types aren't supported");
         }
         if (valueTypes.size > 1) {
-          throw new BaseException.CompileError(
-            expr.a,
+          throw new BaseException.TypeError(
+            [expr.a],
             "Heterogenous `Value` types aren't supported"
           );
         }
@@ -1129,30 +1301,45 @@ export function tcExpr(
         let valueType = obj_t.a[0].value;
         let keyLookupType = key_t.a[0];
         if (!isAssignable(env, keyType, keyLookupType))
-          throw new BaseException.TypeMismatchError(expr.a, keyType, keyLookupType);
+          throw new BaseException.TypeMismatchError([expr.a], keyType, keyLookupType);
         return { ...expr, a: [valueType, expr.a], obj: obj_t, key: key_t };
       } else if (obj_t.a[0].tag == "string") {
         if (!equalType(key_t.a[0], NUM)) {
-          throw new BaseException.CompileError(
-            expr.a,
-            "String lookup supports only integer indices"
-          );
+          throw new BaseException.TypeMismatchError([expr.a], NUM, key_t.a[0]);
         }
         return { ...expr, obj: obj_t, key: key_t, a: obj_t.a };
       } else if (obj_t.a[0].tag === "list") {
         if (!equalType(key_t.a[0], NUM)) {
-          throw new BaseException.CompileError(expr.a, "List lookup supports only integer indices");
+          throw new BaseException.TypeMismatchError([expr.a], NUM, key_t.a[0]);
         }
         return { ...expr, obj: obj_t, key: key_t, a: [obj_t.a[0].content_type, expr.a] };
+      } else if (obj_t.a[0].tag === "tuple") {
+        if (key_t.tag !== "literal" || key_t.value.tag !== "num") {
+          throw new BaseException.CompileError(
+            [expr.a],
+            "Tuple lookup only supports integer literals for indices"
+          );
+        } else if (key_t.value.value >= 2n ** 32n) {
+          throw new BaseException.CompileError(
+            [expr.a],
+            "Invalid tuple index, only a maximum of 2^32 - 1 is allowed"
+          );
+        }
+        let i = Number(key_t.value.value);
+        return { ...expr, obj: obj_t, key: key_t, a: [obj_t.a[0].contentTypes[i], obj_t.a[1]] };
       } else {
-        throw new BaseException.CompileError(
-          expr.a,
+        throw new BaseException.TypeError(
+          [expr.a],
           "Bracket lookup on " + obj_t.a[0].tag + " type not possible"
         );
       }
-
+    case "tuple-expr": {
+      let contents = expr.contents.map((expr) => tcExpr(env, locals, expr));
+      let contentTypes = contents.map((expr) => expr.a[0]);
+      return { tag: "tuple-expr", contents, a: [{ tag: "tuple", contentTypes }, expr.a] };
+    }
     default:
-      throw new BaseException.CompileError(expr.a, `unimplemented type checking for expr: ${expr}`);
+      throw new BaseException.InternalException(`unimplemented type checking for expr: ${expr}`);
   }
 }
 
