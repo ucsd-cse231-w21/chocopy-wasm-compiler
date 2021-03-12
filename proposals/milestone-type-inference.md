@@ -46,3 +46,45 @@
 
    In conclusion, the biggest challenge of our implementation thus far was making sure that the logics of variable declaration/assignment work as intended.
 
+
+
+
+# Milestone 2 (3/11/2021) for Type Inference
+
+__In your milestone file, add a new section at the end indicating three example programs or scenarios that would require extensions to your design that you can imagine making, but didn't have the time for.__
+
+## Program 1
+
+    def f(a, b):
+      c: int = a + b
+      return c
+
+- Since the user has explicitly declared the value `c` to be of type `int`, we could infer that the parameters `a` and `b` ought to be type `int`.
+- Currently this produces an error, and requests additional type information about `a` or `b` to infer from.
+- This change would entail adding additional code to the inference of VarInits for function definitions. 
+
+## Program 2
+
+    def g(z: int): 
+      def f(y): 
+        return y + 1
+      x = f(1)
+
+- This program was one of our originally specified programs in our proposal. 
+- However, due to time constrains we have not been able to complete a merge with `main` to give the machinary to parse and run this program. 
+
+## Program 3
+
+    class A(object):
+      x: int = 0
+
+    def g(a): 
+      return a.x
+    
+    g(A())
+
+TODO: Explain that if we merged we could probably do this
+
+
+
+
