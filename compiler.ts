@@ -106,7 +106,6 @@ export function augmentEnv(
   for (let index = lastCount + 1; index <= forCount; index++) {
     let idxAddr = mm.staticAlloc(4n);
     newGlobals.set("idx" + index, Number(idxAddr));
-    mm.addGlobal(idxAddr);
   }
 
   prog.classes.forEach((cls) => {
