@@ -1,6 +1,6 @@
 import { Type } from "../ast";
 import { NUM, BOOL, NONE, unhandledTag } from "../utils";
-import { ndarray_flatten, ndarray_add, ndarray_dot } from "../numpy";
+import * as numpy from "../numpy";
 import * as compiler from "../compiler";
 
 function stringify(typ: Type, arg: any): string {
@@ -41,9 +41,14 @@ function print_lists(lists: number) {
 // unknown errors of importing importFuns from ../webstart?
 export const importFuns = {
   print_lists: print_lists,
-  numpy_ndarray_flatten: ndarray_flatten,
-  numpy_ndarray_add: ndarray_add,
-  numpy_ndarray_dot: ndarray_dot,
+  numpy_ndarray_flatten: numpy.ndarray_flatten,
+  numpy_ndarray_tolist: numpy.ndarray_tolist,
+  numpy_ndarray_add: numpy.ndarray_add,
+  numpy_ndarray_dot: numpy.ndarray_dot,
+  numpy_ndarray_divide: numpy.ndarray_divide,
+  numpy_ndarray_subtract: numpy.ndarray_subtract,
+  numpy_ndarray_multiply: numpy.ndarray_multiply,
+  numpy_ndarray_pow: numpy.ndarray_pow,
 }
 
 export const importObject = {
