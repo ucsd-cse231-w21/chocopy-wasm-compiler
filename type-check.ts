@@ -255,6 +255,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Mul:
         case BinOp.IDiv:
         case BinOp.Mod:
+        case BinOp.Pow:
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
             return { a: NUM, ...tBin };
           } else if (equalType(tLeft.a, CLASS(ndarrayName)) && equalType(tRight.a, CLASS(ndarrayName))) {
