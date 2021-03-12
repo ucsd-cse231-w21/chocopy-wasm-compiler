@@ -13,6 +13,7 @@ import "codemirror/addon/lint/lint";
 
 import "./style.scss";
 import { toEditorSettings } from "typescript";
+import { ErrorManager } from "./errorManager";
 
 function print(val: Value) {
   const elt = document.createElement("pre");
@@ -29,6 +30,7 @@ function webStart() {
     };
 
     var filecontent: string | ArrayBuffer;
+    (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -48,11 +50,11 @@ function webStart() {
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
       var text = "";
-      if (result.loc != undefined)
-        text = `line ${result.loc.line}: ${source
-          .split(/\r?\n/)
-          [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
-      elt.innerText = text.concat("\n").concat(String(result));
+      if (result.callStack != undefined) {
+        console.log(result.callStack);
+        text = repl.errorManager.stackToString(result.callStack);
+      }
+      elt.innerText = String(result).concat("\n").concat(text);
     }
 
     function setupRepl() {
@@ -76,6 +78,7 @@ function webStart() {
           const source = replCodeElement.value;
           elt.value = source;
           replCodeElement.value = "";
+          repl.errorManager.clearStack();
           repl
             .run(source)
             .then((r) => {

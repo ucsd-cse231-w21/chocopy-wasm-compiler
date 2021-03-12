@@ -5,8 +5,10 @@ import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
 import { importMemoryManager, MemoryManager } from "./alloc";
 import { bignumfunctions } from "./bignumfunctions";
-import { NUM, STRING, BOOL, NONE, LIST, CLASS, PyValue, stringify, PyString, PyBigInt, encodeValue } from "./utils";
-import { InternalException, ZeroDivisionError } from "./error";
+import { NUM, STRING, BOOL, NONE, LIST, CLASS, PyValue, stringify, PyString, PyBigInt, PyBool, encodeValue } from "./utils";
+import { InternalException, ZeroDivisionError, AttributeError } from "./error";
+import { ErrorManager, importErrorManager } from "./errorManager";
+
 
 interface REPL {
   run(source: string): Promise<any>;
@@ -18,9 +20,11 @@ export class BasicREPL {
   functions: string;
   importObject: any;
   memory: any;
+  errorManager: ErrorManager;
   memoryManager: MemoryManager;
   constructor(importObject: any) {
     this.importObject = importObject;
+    this.errorManager = new ErrorManager();
     if (!importObject.js) {
       const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
       const view = new Int32Array(memory.buffer);
@@ -40,30 +44,6 @@ export class BasicREPL {
     this.currentEnv = {
       globals: new Map(),
       classes: new Map(),
-// <<<<<<< HEAD
-//       locals: new Set(),
-//       offset: 1,
-//     };
-//     this.importObject.imports.__internal_print = (arg: any) => {
-//       console.log("Logging from WASM: ", arg);
-//       this.importObject.imports.print(
-//         PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
-//       );
-//       return arg;
-//     };
-//     this.importObject.imports.__internal_print_num = (arg: number) => {
-//       console.log("Logging from WASM: ", arg);
-//       this.importObject.imports.print(
-//         PyValue(NUM, arg, new Uint32Array(this.importObject.js.memory.buffer))
-//       );
-//       return arg;
-//     };
-//     this.importObject.imports.__internal_print_bool = (arg: number) => {
-//       console.log("Logging from WASM: ", arg);
-//       this.importObject.imports.print(PyValue(BOOL, arg, null));
-//       return arg;
-//     };
-// =======
       locals: new Map(),
       funs: new Map(),
     };
@@ -195,7 +175,9 @@ export class BasicREPL {
     this.importObject.imports.__big_num_div = (x: number, y: number) =>
       this.binOpInterface(x, y, (x: bigint, y: bigint) => {
         if (y === 0n) {
-          throw new ZeroDivisionError();
+          // TODO change this back to ZeroDivisionError
+          throw new Error("Cannot divide by zero");
+//           throw new ZeroDivisionError();
         }
         return (x - (((x % y) + y) % y)) / y;
       });
@@ -228,6 +210,8 @@ export class BasicREPL {
         return x >= y;
       });
 
+    importErrorManager(this.importObject, this.errorManager);
+
     // initialization for range() calss and its constructor.
     const classFields: Map<string, [number, Literal]> = new Map();
     classFields.set("cur", [0, { tag: "num", value: BigInt(0) }]);
@@ -259,7 +243,7 @@ export class BasicREPL {
     var xval = PyValue(NUM, x, mem);
     var yval = PyValue(NUM, y, mem);
     if (xval.tag == "num" && yval.tag == "num") {
-      return encodeValue(PyBool(f(xval.value, yval.value)), mem);
+      return encodeValue(PyBool(f(xval.value, yval.value)), this.importObject.imports.gcalloc,mem);
     }
     throw new InternalException("binary operation failed at runtime");
   }
@@ -277,12 +261,14 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      errorManager: this.errorManager,
       memoryManager: this.memoryManager,
     };
-    const [result, newEnv, newTypeEnv, newFunctions] = await run(source, config);
+    const [result, newEnv, newTypeEnv, newFunctions, newErrorManager] = await run(source, config);
     this.currentEnv = newEnv;
     this.currentTypeEnv = newTypeEnv;
     this.functions += newFunctions;
+    this.errorManager = newErrorManager;
 
     this.memoryManager.forceCollect();
     return result;
@@ -293,9 +279,10 @@ export class BasicREPL {
       env: this.currentEnv,
       typeEnv: this.currentTypeEnv,
       functions: this.functions,
+      errorManager: this.errorManager,
       memoryManager: this.memoryManager,
     };
-    const parsed = parse(source);
+    const parsed = parse(source, config);
     const [result, _] = await tc(this.currentTypeEnv, parsed);
     return result.a[0];
   }
