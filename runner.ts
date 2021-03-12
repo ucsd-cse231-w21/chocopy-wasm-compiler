@@ -80,11 +80,11 @@ export async function run(
     importObject.js = { memory: memory };
   }
   if (!importObject.memoryManager) {
-    const memory = importObject.js.memory;
-    const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
-      staticStorage: 512n,
-      total: 2000n,
-    });
+    // NOTE(alex:mm): DO NOT INSTANTIATE A NEW MEMORY MANAGER
+    // MemoryManager potentially carries its own metadata CRUCIAL to GC
+    // If you allocate a new MemoryManager and call GC methods on an old MemoryManager,
+    //   expect massive breakage
+    const memoryManager = config.memoryManager;
     importObject.memoryManager = memoryManager;
     importMemoryManager(importObject, memoryManager);
   }
@@ -127,6 +127,7 @@ export async function run(
     (import "js" "memory" (memory 1))
     (func $print (import "imports" "__internal_print") (param i32) (result i32))
     (func $print_str (import "imports" "__internal_print_str") (param i32) (result i32))
+    (func $print_list (import "imports" "__internal_print_list") (param i32) (param i32) (result i32))
     (func $print_num (import "imports" "__internal_print_num") (param i32) (result i32))
     (func $print_bool (import "imports" "__internal_print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "__internal_print_none") (param i32) (result i32))

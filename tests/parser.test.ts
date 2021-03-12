@@ -46,7 +46,6 @@ describe("traverseExpr(c, s) function", () => {
       },
     });
   });
-
   // TODO: add additional tests here to ensure traverseExpr works as expected
   it("parses None in the beginning", () => {
     const source = "None";
@@ -185,7 +184,6 @@ describe("traverseExpr(c, s) function", () => {
     });
   });
 
-  //| { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
   it("parses a list lookup", () => {
     const source = "items[6]";
     const cursor = parser.parse(source).cursor();
@@ -225,39 +223,28 @@ describe("traverseExpr(c, s) function", () => {
   });
 });
 
-// describe("traverseStmt(c, s) function", () => {
-//   // TODO: add tests here to ensure traverseStmt works as expected
-//   it("parses a list-assignment", () => {
-//     const source = "items[2] = True";
-//     const cursor = parser.parse(source).cursor();
-//     cursor.firstChild(); //go to statement
-//     const parsedStmt = traverseStmt(cursor, source);
-
-//     expect(parsedStmt).to.deep.equal({
-//       tag: "bracket-assign",
-//       obj: { tag: "id", name: "items" },
-//       key: { tag: "literal", value: { tag: "num", value: BigInt(2) } },
-//       value: { tag: "literal", value: { tag: "bool", value: true } },
-//     });
-//   });
-// });
-
-/*
-describe('traverse(c, s) function', () => {
-  // TODO: add tests here to ensure traverse works as expected
-});
-*/
-
-/*
-export type Program<A> = {
-  a?: A;
-  funs: Array<FunDef<A>>;
-  inits: Array<VarInit<A>>;
-  classes: Array<Class<A>>;
-  stmts: Array<Stmt<A>>;
-};
-*/
 describe("parse(source) function", () => {
+  it("parse a typed dict variable initialization", () => {
+    const parsed = parse("d:[int, bool] = None");
+    expect(parsed.inits).to.deep.equal([
+      {
+        a: {
+          col: 1,
+          length: 20,
+          line: 1,
+          fileId: 1,
+        },
+        name: "d",
+        type: {
+          tag: "dict",
+          key: { tag: "number" },
+          value: { tag: "bool" },
+        }, //end of type
+        value: { tag: "none" },
+      },
+    ]);
+  });
+
   it("parse a number", () => {
     const parsed = parse("987");
     expect(parsed.stmts).to.deep.equal([

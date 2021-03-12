@@ -5,12 +5,15 @@ import * as BaseException from "./error";
 export {
   HeapTag,
   TAG_CLASS,
+  TAG_CLOSURE,
   TAG_LIST,
   TAG_STRING,
   TAG_DICT,
   TAG_DICT_ENTRY,
   TAG_BIGINT,
   TAG_REF,
+  TAG_TUPLE,
+  TAG_OPAQUE,
 } from "./gc";
 
 // Untagged pointer (32-bits)
@@ -20,12 +23,15 @@ export type StackIndex = bigint;
 export function toHeapTag(tag: bigint): GC.HeapTag {
   if (
     tag === GC.TAG_CLASS ||
+    tag === GC.TAG_CLOSURE ||
     tag === GC.TAG_LIST ||
     tag === GC.TAG_STRING ||
     tag === GC.TAG_DICT ||
     tag === GC.TAG_DICT_ENTRY ||
     tag === GC.TAG_BIGINT ||
-    tag === GC.TAG_REF
+    tag === GC.TAG_REF ||
+    tag === GC.TAG_TUPLE ||
+    tag === GC.TAG_OPAQUE
   ) {
     return tag;
   }
@@ -86,9 +92,7 @@ export class MemoryManager {
   memory: Uint8Array;
   staticAllocator: H.BumpAllocator;
 
-  // In the future, we can do something like
-  // globalAllocator: Fallback<BumpAllocator, Generic>
-  gc: GC.MnS<H.BumpAllocator>;
+  gc: GC.MnS<GC.MarkableAllocator>;
 
   constructor(
     memory: Uint8Array,
@@ -98,8 +102,39 @@ export class MemoryManager {
     }
   ) {
     this.memory = memory;
-    this.staticAllocator = new H.BumpAllocator(memory, 4n, cfg.staticStorage + 4n);
-    const gcHeap = new H.BumpAllocator(memory, cfg.staticStorage, cfg.total);
+    const staticStart = 4n;
+    const staticEnd = staticStart + cfg.staticStorage;
+    this.staticAllocator = new H.BumpAllocator(memory, staticStart, staticEnd);
+
+    const gcStart = BigInt(staticEnd);
+    const gcEnd = BigInt(cfg.total);
+
+    const wordBucketCount = 64n;
+    const bucketWordStart = gcStart;
+    const bucketWordEnd = gcStart + wordBucketCount * 4n;
+
+    const flStart = bucketWordEnd;
+    const flEnd = cfg.total;
+    if (flStart >= flEnd) {
+      throw new Error(`flEnd (${flEnd}) >= ${flStart}`);
+    }
+
+    const bucketWord = new H.BitMappedBlocks(
+      bucketWordStart,
+      bucketWordEnd,
+      4n,
+      BigInt(GC.HEADER_SIZE_BYTES)
+    );
+
+    const fl = new H.FreeListAllocator(memory, flStart, flEnd);
+
+    const gcHeap = new GC.MarkableSegregator(
+      4n,
+      bucketWord,
+      // new GC.MarkableFallback(bucketWord, fl),
+      fl
+    );
+
     this.gc = new GC.MnS(memory, gcHeap);
   }
 
@@ -199,6 +234,9 @@ export class MemoryManager {
   // Returns an untagged pointer to the start of the object's memory (not the header)
   // Throws 'Out of memory' if allocation failed after the GC ran
   gcalloc(tag: GC.HeapTag, size: bigint): Pointer {
+    if (size <= 0n) {
+      throw new Error(`Invalid galloc size: ${size.toString()}`);
+    }
     const result = this.gc.gcalloc(tag, size);
     if (result == 0x0n) {
       throw new BaseException.MemoryError(undefined, `Out of memory`);
@@ -236,6 +274,10 @@ export class MemoryManager {
   getSize(ptr: Pointer): bigint {
     const header = this.gc.heap.getHeader(ptr);
     return header.getSize();
+  }
+
+  heapMemoryUsage(): bigint {
+    return this.gc.heap.memoryUsage();
   }
 }
 

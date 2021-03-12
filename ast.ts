@@ -9,6 +9,7 @@ export type Type =
   | { tag: "class"; name: string }
   | { tag: "list"; content_type: Type }
   | { tag: "dict"; key: Type; value: Type }
+  | { tag: "tuple"; contentTypes: Array<Type> }
   | CallableType;
 
 export type CallableType = {
@@ -67,7 +68,7 @@ export type ClosureDef<A> = {
 };
 
 export type Stmt<A> =
-  | { a?: A; tag: "assignment"; destruct: Destructure<A>; value: Expr<A> } // TODO: unify field assignment with destructuring. This will eventually replace tag: "id-assign"
+  | { a?: A; tag: "assignment"; destruct: Destructure<A>; value: Expr<A> }
   | { a?: A; tag: "return"; value: Expr<A> }
   | { a?: A; tag: "expr"; expr: Expr<A> }
   | { a?: A; tag: "if"; cond: Expr<A>; thn: Array<Stmt<A>>; els: Array<Stmt<A>> }
@@ -145,7 +146,8 @@ export type Expr<A> =
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
   | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
-  | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
+  | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> }
+  | { a?: A; tag: "tuple-expr"; contents: Array<Expr<A>> };
 
 export type Literal =
   | { tag: "num"; value: bigint }
@@ -180,6 +182,7 @@ export type Value =
   | Literal
   | { tag: "string"; value: string; address: number }
   | { tag: "object"; name: string; address: number }
+  | { tag: "list"; name: string; address: number; content_type: Type }
   | { tag: "callable"; name: string; address: number };
 
 export type Location = { line: number; col: number; length: number; fileId: number };
