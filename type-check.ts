@@ -438,9 +438,17 @@ export function tcStmt(
         }
       }
       // check the type of iterator items, then add the item name into local variables with its type
-      const fIter = tcExpr(env, locals, stmt.iterable);
-      const iterable_type = fIter.a[0];
+      var fIter = tcExpr(env, locals, stmt.iterable);
       var iter_type = NUM;
+      if (fIter.tag == "call") {
+        if (fIter.arguments.length == 1 && fIter.arguments[0].a[0].tag != "number"){
+          fIter = fIter.arguments[0];
+        }
+      }
+      const iterable_type = fIter.a[0];
+
+
+
       switch (iterable_type.tag) {
         case "class":
           if (iterable_type.name === "Range") {
