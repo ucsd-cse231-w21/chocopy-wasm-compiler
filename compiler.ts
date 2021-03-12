@@ -1,7 +1,7 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, LIST, unhandledTag, unreachable, importMethodDel } from "./utils";
 import * as BaseException from "./error";
-import { ndarrayName, codeGenNumpyArray, codeGenNdarrayFlatten, codeGenNdarrayBinOp, reverseList } from "./numpy";
+import { ndarrayName, codeGenNumpyArray, codeGenNdarrayUniOp, codeGenNdarrayBinOp, reverseList } from "./numpy";
 
 // TODO: to better support REPL, put heaps in GlobalEnv and modify codeGen*() signatures; may need garbage collector
 // or put TS heap in WASM heap; depend on lists/memory teams' implementations
@@ -374,7 +374,8 @@ function codeGenCallImport(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         case ndarrayName:
           switch (expr.method) {
             case "flatten":
-              return codeGenNdarrayFlatten(expr, env);
+            case "tolist":
+              return codeGenNdarrayUniOp(expr, env);
               break;
             default:
               throw new Error(`Method ${expr.method} not found in import ${objName}`);
