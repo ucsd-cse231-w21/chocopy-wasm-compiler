@@ -44,7 +44,7 @@ export function stringify(result: Value): string {
   }
 }
 
-export function encodeValue(val: Value, repl: BasicREPL, mem: any): number {
+export function encodeValue(val: Value, allocFun: (tag: number, size: number) => number, mem: any): number {
   switch (val.tag) {
     case "num":
       console.log(val.value);
@@ -52,7 +52,8 @@ export function encodeValue(val: Value, repl: BasicREPL, mem: any): number {
         return ((Number(val.value) << nTagBits) & 0xffffffff) | 1;
       }
       var [sign, size, words] = bigintToWords(val.value);
-      var idx = repl.importObject.imports.gcalloc(TAG_BIGINT, 2 + size);
+      var allocPointer = allocFun(Number(TAG_BIGINT), 4 * (2 + size));
+      var idx = allocPointer / 4;
 
 //       var idx: number = Number(mem[0]) / 4;
       mem[idx] = sign & 0xffffffff;
@@ -65,7 +66,7 @@ export function encodeValue(val: Value, repl: BasicREPL, mem: any): number {
       console.log(idx, mem.slice(idx, idx + 64));
 
 //       mem[0] = 4 * (idx + 2 + i);
-      return idx;
+      return allocPointer;
 
     default:
       throw new Error(`Could not encode value`);

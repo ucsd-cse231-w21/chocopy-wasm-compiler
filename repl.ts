@@ -246,7 +246,7 @@ export class BasicREPL {
     var xval = PyValue(NUM, x, mem);
     var yval = PyValue(NUM, y, mem);
     if (xval.tag == "num" && yval.tag == "num") {
-      return encodeValue(PyBigInt(f(xval.value, yval.value)), this, mem);
+      return encodeValue(PyBigInt(f(xval.value, yval.value)), this.importObject.imports.gcalloc, mem);
     }
     throw new InternalException("binary operation failed at runtime");
   }
@@ -267,7 +267,7 @@ export class BasicREPL {
     var mem = new Uint32Array(this.importObject.js.memory.buffer);
     var xval = PyValue(NUM, x, mem);
     if (xval.tag == "num") {
-      return encodeValue(PyBigInt(f(xval.value)), this, mem);
+      return encodeValue(PyBigInt(f(xval.value)), this.importObject.imports.gcalloc, mem);
     }
     throw new InternalException("binary operation failed at runtime");
   }
