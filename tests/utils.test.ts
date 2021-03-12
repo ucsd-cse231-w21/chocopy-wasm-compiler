@@ -7,6 +7,19 @@ import { fail } from "assert";
 
 // Clear the output before every test
 beforeEach(function () {
+  // NOTE(alex:mm): need to reset memory between tests
+  // Specifically, we need to reset static storage b/c globals will be scanned
+  //   and old values will be phantom pointers from a previous test
+  const memory = new Uint8Array(importObject.js.memory.buffer);
+  for (let i = 0; i < memory.length; i++) {
+    memory[i] = 0;
+  }
+
+  // NOTE(alex): the following line results in fast testing
+  //   But occasionally, "WebAssembly.Memory() could not allocate memory" will be thrown
+  //   Maybe there is a memory leak somewhere?
+  // importObject.js.memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+
   importObject.memoryManager = undefined;
   importObject.output = "";
 });

@@ -154,6 +154,8 @@ export class BasicREPL {
     this.currentEnv = newEnv;
     this.currentTypeEnv = newTypeEnv;
     this.functions += newFunctions;
+
+    this.memoryManager.forceCollect();
     return result;
   }
   async tc(source: string): Promise<Type> {
