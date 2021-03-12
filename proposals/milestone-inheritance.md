@@ -99,26 +99,8 @@ c = C()
 print(c.x)
 ```
 
-
-
 ```python
-# basic MRO (method resolution order)
-class A(object):
-    def show():
-        print(1)
-class B(object):
-    def show():
-        print(2)
-class C(A, B):
-    pass
-
-C().show()  # expect 1
-```
-
-
-
-```python
-# C3 MRO
+# C3 MRO(method resolution order)
 class Base(object):
     def show():
         print(0)
@@ -134,7 +116,7 @@ C().show()  # expect 2
 ```
 
 ```python
-# C4 super
+# C3 MRO with super
 class Base(object):
 	def work(self):
 		print(1)
@@ -151,7 +133,7 @@ class C(A,B):
 		super().work()
 		print(4)
 
-C().work() #expected output is "1\n2\n3\n4"
+C().work()  # expected output is "1\n2\n3\n4"
 ```
 
 
