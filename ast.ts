@@ -22,7 +22,9 @@ export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support
   | { a?: A; tag: "nonlocal"; name: string };
 
-export type Parameter = { name: string; type: Type; value?: Literal };
+export type Parameter = { name: string; type: Type; value?: Default };
+
+export type Default = Literal | { tag: "uninit_param"; classname: string };
 
 export type Program<A> = {
   a?: A;
