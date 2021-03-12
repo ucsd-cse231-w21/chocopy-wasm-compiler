@@ -428,6 +428,9 @@ export function tcStmt(
       return { a: [NONE, stmt.a], tag: stmt.tag };
     case "for":
       if (stmt.iterable.tag == "call" && stmt.iterable.name == "enumerate") {
+        if (!stmt.index){
+          throw new BaseException.SyntaxError(stmt.a, "Require index for enumerate!");
+        }
         if (stmt.name.targets.length != 2) {
           throw new BaseException.SyntaxError(stmt.a, "enumerate must have index variable!");
         } else {
@@ -494,7 +497,7 @@ export function tcStmt(
           a: [NONE, stmt.a],
           id: stmt.id,
           tag: "for",
-          name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable), // change NUM to fix this issue
+          name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable),
           index: tcDestructure(env, locals, stmt.index, iter_type, stmt.iterable),
           iterable: fIter,
           body: fBody,
@@ -504,12 +507,11 @@ export function tcStmt(
           a: [NONE, stmt.a],
           id: stmt.id,
           tag: "for",
-          name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable), // change NUM to fix this issue
+          name: tcDestructure(env, locals, stmt.name, iterable_type, stmt.iterable),
           iterable: fIter,
           body: fBody,
         };
       }
-
     case "break":
       if (locals.loop_depth < 1) {
         throw new BaseException.SyntaxError(stmt.a, "Break outside a loop.");
