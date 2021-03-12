@@ -74,6 +74,10 @@ export class BasicREPL {
       );
       return arg;
     };
+    this.importObject.imports.__internal_print_none = (arg: any) => {
+      console.log("Logging from WASM: ", arg);
+      return arg;
+    };
     this.importObject.imports.__internal_print_num = (arg: number) => {
       console.log("Logging from WASM: ", arg);
       this.importObject.imports.print(

@@ -458,9 +458,9 @@ export const bignumfunctions = `
       (i32.load)
       (i32.mul (i32.const 4))
       (i32.add (i32.const 8))
-      (call $$gcalloc)
-      (local.tee $addr)
-      (local.tee $allocPointer)
+;;      (call $$gcalloc)
+;;      (local.tee $addr)
+;;      (local.tee $allocPointer)
 
       ;; flip the sign bit of the new bigint
       (i32.const 1)
@@ -490,7 +490,7 @@ export const bignumfunctions = `
           )
         )
       )
-      (local.get $allocPointer)
+;;      (local.get $allocPointer)
       (local.set $x)
     )
   )
