@@ -37,10 +37,27 @@ export const ndarrayFields : Array<VarInit<null>> = [
 // assume all methods/functions have CLASS(name) as a
 export const ndarrayMethods : Array<FunDef<any>> = [
 	// method signature only; special codegen in compiler.ts
-	{a: NONE, name: "__init__",
-	parameters: [{ name: "self", type: CLASS(ndarrayName) }],
-   	ret: NONE, decls: [], inits: [], funs: [], body: [],},
-	{a: CLASS(ndarrayName), name: "__add__", // self.__add__(x2), element-wise add
+	{a: CLASS(ndarrayName), name: "add", // self.__add__(x2), element-wise add
+	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
+				{name: "x2", type: CLASS(ndarrayName)}], 
+	ret: CLASS(ndarrayName),
+	decls: [], inits: [], funs: [], body: []},
+	{a: CLASS(ndarrayName), name: "multiply", // self.__add__(x2), element-wise add
+	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
+				{name: "x2", type: CLASS(ndarrayName)}], 
+	ret: CLASS(ndarrayName),
+	decls: [], inits: [], funs: [], body: []},
+	{a: CLASS(ndarrayName), name: "divide", // self.__add__(x2), element-wise add
+	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
+				{name: "x2", type: CLASS(ndarrayName)}], 
+	ret: CLASS(ndarrayName),
+	decls: [], inits: [], funs: [], body: []},
+	{a: CLASS(ndarrayName), name: "subtract", // self.__add__(x2), element-wise add
+	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
+				{name: "x2", type: CLASS(ndarrayName)}], 
+	ret: CLASS(ndarrayName),
+	decls: [], inits: [], funs: [], body: []},
+	{a: CLASS(ndarrayName), name: "pow", // self.__add__(x2), element-wise add
 	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
 				{name: "x2", type: CLASS(ndarrayName)}], 
 	ret: CLASS(ndarrayName),
@@ -52,14 +69,15 @@ export const ndarrayMethods : Array<FunDef<any>> = [
 	decls: [], inits: [], funs: [], body: []},
 	{a: CLASS(ndarrayName), name: "flatten", // self.flatten()
 	parameters: [{name: "self", type: CLASS(ndarrayName)}], 
+	ret: CLASS(ndarrayName),
+	decls: [], inits: [], funs: [], body: []},  
+	{a: CLASS(ndarrayName), name: "tolist", // self.tolist()
+	parameters: [{name: "self", type: CLASS(ndarrayName)}], 
 	ret: LIST,
-	decls: [], inits: [], funs: [], body: []}  
+	decls: [], inits: [], funs: [], body: []},  
 ];
 
 export const numpyMethods : Array<FunDef<any>> = [
-	{a: NONE, name: "__init__",
-	parameters: [{ name: "self", type: CLASS("numpy") }],
-   	ret: NONE, decls: [], inits: [], funs: [], body: [],},
 	{a: CLASS("numpy"), name: "array", 
 	parameters: [{name: "self", type: CLASS("numpy")}, 
 				{name: "object", type: LIST}], // assume number for now; wait for list parsing
@@ -131,15 +149,21 @@ export function codeGenNumpyArray(expr: Expr<Type>, env: compiler.GlobalEnv): Ar
 	]);
 } 
 
-export function codeGenNdarrayFlatten(expr: Expr<Type>, env: compiler.GlobalEnv): Array<string> {
+export function codeGenNdarrayUniOp(expr: Expr<Type>, env: compiler.GlobalEnv): Array<string> {
   	if ( (expr.tag!=="method-call") || (expr.obj.a.tag!=="class")){
 	    throw new Error("Report this as a bug to the compiler developer.");
   	}
-    var objStmts = compiler.codeGenExpr(expr.obj, env);
-    var objTyp = expr.obj.a;
-    var argsStmts = expr.arguments.map((arg) => compiler.codeGenExpr(arg, env)).flat();
-    var callName = objTyp.name+importMethodDel+expr.method;
-    return [...objStmts, ...argsStmts, `(call $${callName})`];
+    var stmts = compiler.codeGenExpr(expr.obj, env);
+    switch (expr.method) {
+    	case "flatten":
+    	case "tolist":
+    		break;
+    	default:
+    		throw new Error(`uniop method ${expr.method} not supported`);
+    		break;
+    }
+    var callName = expr.obj.a.name+importMethodDel+expr.method;
+    return [...stmts, `(call $${callName})`];
 } 
 
 export function codeGenNdarrayBinOp(expr: Expr<Type>, env: compiler.GlobalEnv): Array<string> {
@@ -150,8 +174,20 @@ export function codeGenNdarrayBinOp(expr: Expr<Type>, env: compiler.GlobalEnv): 
     stmts = stmts.concat(compiler.codeGenExpr(expr.right, env));
     let methodName;
     switch (expr.op) {
+    	case BinOp.Mul:
+    		methodName = "multiply";
+    		break;
+    	case BinOp.Minus:
+    		methodName = "subtract";
+    		break;
+    	case BinOp.IDiv:
+    		methodName = "divide";
+    		break;
     	case BinOp.Plus:
     		methodName = "add";
+    		break;
+    	case BinOp.Pow:
+    		methodName = "pow";
     		break;
     	case BinOp.MatMul:
     		methodName = "dot";
@@ -164,77 +200,134 @@ export function codeGenNdarrayBinOp(expr: Expr<Type>, env: compiler.GlobalEnv): 
     return [...stmts, `(call $${callName})`];
 } 
 
-export function ndarray_flatten(self: number): number {
+// ndarray uniop methods
+export function ndarray_tolist(self: number): number {
 	// self: offset (byte) of ndarray object's first field in wasm heap
 	// return: offset (index) of flattened ndarray list in ts heap
 	const listIdx = getField(ndarrayFieldNames, self, "data");
 	var lists : Array<any> = compiler.tsHeap[listIdx];
   	const listIdxRet = compiler.tsHeap.length;
-  	// console.log(lists, listIdx, listIdxRet);
-  	if (lists instanceof Array){
-  		compiler.tsHeap.push(nj.array(lists).flatten().tolist());
-  	}else{
-		compiler.tsHeap.push(nj.array([lists]).flatten().tolist());
-  	}
-  	// console.log("flatten", self, lists, listIdx, listIdxRet);
+	compiler.tsHeap.push(nj.array(lists).tolist());
+  	// console.log("tolist", self, lists, listIdx, listIdxRet);
   	return listIdxRet;
 }
 
+export function ndarray_flatten(self: number): number {
+	const [shapes, listsAll] = ndarrayMethod([self], "flatten");
+	// console.log(shapes, listsAll);
+  	return createNdarray(shapes[0], shapes[1], 
+  	                     nj.array(listsAll[0]).flatten().tolist());
+}
+
+// ndarray binop methods
 export function ndarray_add(self: number, x2: number): number {
 	// self: offset (byte) of ndarray object's first field  in wasm heap
 	// x2: offset (byte) of another ndarray object in wasm heap
 	// return: offset (byte) of new ndarray object in wasm heap (stores offset to first field)
-	const shape0 = getField(ndarrayFieldNames, self, "shape0");
-	const shape1 = getField(ndarrayFieldNames, self, "shape1");
-	const x2Shape0 = getField(ndarrayFieldNames, x2, "shape0");
-	const x2Shape1 = getField(ndarrayFieldNames, x2, "shape1");
-	if ((shape0!==x2Shape0) || (shape1!==x2Shape1)){
-		throw new TypeError(`operands on add could not be broadcast together with shapes
-		                    (${shape0}, ${shape1})  (${x2Shape0}, ${x2Shape1})`);
-	}
-	const listIdx = getField(ndarrayFieldNames, self, "data");
-	var lists : Array<any> = compiler.tsHeap[listIdx];
-	const x2listIdx = getField(ndarrayFieldNames, x2, "data");
-	var x2lists : Array<any> = compiler.tsHeap[x2listIdx];
-	// console.log("add", self, x2, lists, x2lists, listIdx, x2listIdx);
-  	return createNdarray(shape0, shape1, nj.array(lists).add(nj.array(x2lists)).tolist());
+	const [shapes, listsAll] = ndarrayMethod([self, x2], "add");
+  	return createNdarray(shapes[0], shapes[1], 
+  	                     nj.array(listsAll[0]).add(nj.array(listsAll[1])).tolist());
+}
+
+export function ndarray_divide(self: number, x2: number): number {
+	const [shapes, listsAll] = ndarrayMethod([self, x2], "divide");
+  	return createNdarray(shapes[0], shapes[1], 
+  	                     nj.array(listsAll[0]).divide(nj.array(listsAll[1])).tolist());
+}
+
+export function ndarray_multiply(self: number, x2: number): number {
+	const [shapes, listsAll] = ndarrayMethod([self, x2], "multiply");
+  	return createNdarray(shapes[0], shapes[1], 
+  	                     nj.array(listsAll[0]).multiply(nj.array(listsAll[1])).tolist());
+}
+
+export function ndarray_subtract(self: number, x2: number): number {
+	const [shapes, listsAll] = ndarrayMethod([self, x2], "subtract");
+  	return createNdarray(shapes[0], shapes[1], 
+  	                     nj.array(listsAll[0]).subtract(nj.array(listsAll[1])).tolist());
+}
+
+export function ndarray_pow(self: number, x2: number): number {
+	const [shapes, listsAll] = ndarrayMethod([self, x2], "pow");
+  	return createNdarray(shapes[0], shapes[1], 
+  	                     nj.array(listsAll[0]).pow(nj.array(listsAll[1])).tolist());
 }
 
 export function ndarray_dot(self: number, x2: number): number {
-	const shape0 = getField(ndarrayFieldNames, self, "shape0");
-	const shape1 = getField(ndarrayFieldNames, self, "shape1");
-	const x2Shape0 = getField(ndarrayFieldNames, x2, "shape0");
-	const x2Shape1 = getField(ndarrayFieldNames, x2, "shape1");
-	if ((shape1!==x2Shape0)){
-		throw new TypeError(`operands on dot could not be broadcast together with shapes
-		                    (${shape0}, ${shape1})  (${x2Shape0}, ${x2Shape1})`);
-	}
-	const listIdx = getField(ndarrayFieldNames, self, "data");
-	var lists : Array<any> = compiler.tsHeap[listIdx];
-	const x2listIdx = getField(ndarrayFieldNames, x2, "data");
-	var x2lists : Array<any> = compiler.tsHeap[x2listIdx];
-  	return createNdarray(shape0, shape1, nj.array(lists).dot(nj.array(x2lists)).tolist());
+	const [shapes, listsAll] = ndarrayMethod([self, x2], "dot");
+  	return createNdarray(shapes[0], shapes[1], 
+  	                     nj.array(listsAll[0]).dot(nj.array(listsAll[1])).tolist());
 }
 
 // numpy utils below
 export const ndarrayFieldNames : Array<string> = [];
 ndarrayFields.forEach((f) => {ndarrayFieldNames.push(f.name)});
 
+// generate all method imports in wat
 export const numpyWAT = `
 (func $print_lists (import "imports" "print_lists") (param i32) (result i32))
-(func $numpy_ndarray_flatten (import "imports" "numpy_ndarray_flatten") (param i32) (result i32))
-(func $numpy_ndarray_add (import "imports" "numpy_ndarray_add") (param i32) (param i32) (result i32))
-(func $numpy_ndarray_dot (import "imports" "numpy_ndarray_dot") (param i32) (param i32) (result i32))
-`
+`+codeGenImport(ndarrayName, ndarrayMethods).join("\n");
 
 export type Ndarray = {
+	self: number,
 	shape: Array<number>,
 	data: Array<any>,
 }
 
-// export function tcNdarrayMethod(ndarrays: Array<Ndarray>, method: string) : Ndarray {
-// 	return;
-// }
+export function ndarrayMethod(selfs: Array<number>, method: string) : [Array<number>, Array<Array<any>>] {
+	const ndarrays : Array<Ndarray> = [];
+	const listsAll : Array<Array<any>> = [];
+
+	selfs.forEach((s) => {
+		let shape0 = getField(ndarrayFieldNames, s, "shape0");
+		let shape1 = getField(ndarrayFieldNames, s, "shape1");
+		let listIdx = getField(ndarrayFieldNames, s, "data");
+		let lists : Array<any> = compiler.tsHeap[listIdx];
+		ndarrays.push({self: s, shape: [shape0, shape1], data: lists});
+		listsAll.push(lists);
+	});
+
+	// check shape compatible
+	var shapes: Array<number> = [];
+	switch (method) {
+		case "add":
+		case "subtract":
+		case "multiply":
+		case "divide":
+		case "pow":
+			// all dimensions should match
+			for (let a of ndarrays){
+				if (shapes.length===0){
+					shapes = a.shape;
+					continue;
+				}
+				shapes.forEach((s, i) => {
+					if (s!==a.shape[i]){
+						throw new TypeError(`operands could not be broadcast together with shapes
+		                    ${s}, ${a.shape[i]} on dimension ${i}`);
+					}
+				})
+			}
+			break;
+		case "dot":
+			// last dimension should match second-last dimension
+			let shape1 = ndarrays[0].shape;
+			let shape2 = ndarrays[1].shape;
+			if (shape1[shape1.length-1]!==shape2[shape2.length-2]){
+				throw new TypeError(`operands could not be broadcast together with shapes
+                    ${shape1[shape1.length-1]}, ${shape2[shape2.length-2]} on 1st vs last-2nd dimensions`);
+			}
+			shapes = shape1.slice(0,shape1.length-1).concat(shape2[shape2.length-1]);
+			break;
+		case "flatten":
+			// use original shape 
+			shapes = ndarrays[0].shape;
+			break;
+	}
+
+	// TODO: call enumerated methods by name using windows(); create and return ndarray offset directly
+	return [shapes, listsAll];
+}
 
 export function createNdarray(shape0: number, shape1: number, lists: Array<any>): number {
   	const listIdx = compiler.tsHeap.length; // ts heap offset
@@ -257,6 +350,23 @@ export function getField(fields: Array<string>, offset: number, field: string) :
 		throw new Error(`field ${field} not found in ndarray`);
 	}
     return compiler.wasmHeap[(offset/4)+fields.indexOf(field)]; // offset is in byte!
+}
+
+export function codeGenImport(name: string, methods: Array<FunDef<any>>) : Array<string> {
+	const imports : Array<string> = [];
+	methods.forEach((m) => {
+		let callName = name+importMethodDel+m.name;
+		let importStr = `(func $${callName} (import "imports" "${callName}") `;
+		m.parameters.forEach( (p) => {
+			importStr += "(param i32) ";
+		});
+		if (m.ret.tag!=="none"){
+			importStr += "(result i32)";
+		}
+		importStr += ")";
+		imports.push(importStr);
+	});
+	return imports;
 }
 
 export function reverseList(expr: Expr<Type>): Array<any> {
