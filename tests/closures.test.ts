@@ -1,7 +1,7 @@
-import { assert, asserts } from "./utils.test";
+import { assert, assertFail, assertPrint, asserts } from "./utils.test";
 import { PyInt, PyBool, PyNone } from "../utils";
 
-describe("Closures group's test cases on the proposal", () => {
+describe("Test cases from closures group", () => {
   let src;
   src = `
   def f(x: int) -> int:
@@ -46,7 +46,7 @@ describe("Closures group's test cases on the proposal", () => {
   g_where_x_is_6 = f(6)
   g_where_x_is_6(5)
   `;
-  assert("5. Function escapes when it is returned", src, PyInt(11));
+  assert("5. A function escapes when it is returned", src, PyInt(11));
 
   src = `
   class A(object):
@@ -66,7 +66,7 @@ describe("Closures group's test cases on the proposal", () => {
   a.x = 10
   g(2) + a.x
   `;
-  assert("6. Closure with variable of object type", src, PyInt(24));
+  assert("6. A closure with a variable of object type", src, PyInt(24));
 
   src = `
   class Triplet(object):
@@ -116,8 +116,7 @@ describe("Closures group's test cases on the proposal", () => {
 
   id(f(10))(5)
   `;
-  assert(
-    "8. An non-escaping function passed to another function as a callable argument",
+  assert("8. An non-escaping function passed to another function as a callable argument",
     src,
     PyBool(true)
   );
@@ -145,7 +144,8 @@ describe("Closures group's test cases on the proposal", () => {
   add_2 = add_n(2)
   r = map2(3, 5, add_2)
   `;
-  asserts("9. An escaping function passed to another function as a callable argument", [
+  asserts("9. An escaping function passed to another function as a callable argument", 
+  [
     [src, PyNone()],
     ["r.fst", PyInt(5)],
     ["r.snd", PyInt(7)],
@@ -162,4 +162,37 @@ describe("Closures group's test cases on the proposal", () => {
   f(10)()
   `;
   assert("10. An escaping function calls its non-escaping sibling", src, PyInt(11));
+
+  src = `
+  def f(x:int):
+    print(x)
+  g:Callable[[int], ] = None
+  g = f
+  g()
+  `
+  assertFail("15. Invalid number of arguments to call a function value", src);
+
+  src = `
+  def f(x:bool):
+    print(x)
+  g:Callable[[int], ] = None
+  g = f
+  g(0)
+  `
+  assertFail("16. Invalid type of argument to call a function value", src);
+
+  src = `
+  def f(x:int, y:int):
+    print(x)
+    print(y)
+  g:Callable[[int, int], ] = None
+  g = f
+  g(0, 1)
+  `
+  assert("17-1. Multiple arguments", src, PyNone());
+  assertPrint("17-2. Multiple arguments", src, ["0", "1"]);
+
+  
+
+
 });
