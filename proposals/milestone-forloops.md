@@ -203,14 +203,15 @@ Another challenge is incorporating the for loop into class methods. Since we are
 
 ## Final Submission
 
+There are three example programs or scenarios that would require extensions to our design that we can imagine making, but didn't have the time for. 
+
 # Program1
 
 ``` python
 i:int = 1
-j:int = 2
 list : [int] = None
 list = [5,8,10]
-for i,j in list:
+for i in list:
   print(i)
   print(j)
 ```
