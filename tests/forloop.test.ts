@@ -246,24 +246,24 @@ describe("FOR LOOP TEST", () => {
     `
     i:int = 0
     x:int = 5
-      
+
     for i, x in range(5):
       print(i)
       print(x)
 
-    `,
-  )
+    `
+  );
 
   assertTCFail(
     "too many declare 2",
     `
     i:int = 0
     x:int = 5
-      
+
     for i, x in [1, 7, 3]:
       print(i)
       print(x)
 
-    `,
-  )
+    `
+  );
 });
