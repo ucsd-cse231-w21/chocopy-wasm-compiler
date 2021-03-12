@@ -92,6 +92,8 @@ export function PyNone(): Value {
   return { tag: "none" };
 }
 
+export type WithTag<O, T> = O extends { tag: T } ? O : never;
+
 export function isTagged<
   A extends string[],
   V extends { tag: string },
@@ -121,6 +123,9 @@ export function LIST(type: Type): Type {
 }
 export function CLASS(name: string): Type {
   return { tag: "class", name };
+}
+export function TUPLE(...types: Array<Type>): Type {
+  return { tag: "tuple", contentTypes: types };
 }
 
 export function CALLABLE(args: Array<Type>, ret: Type): Type {

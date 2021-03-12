@@ -113,7 +113,7 @@ export function isNoneOrClass(t: Type) {
   return t.tag === "none" || t.tag === "class";
 }
 
-const objtypes = ["class", "list", "dict", "callable"];
+const objtypes = ["class", "list", "dict", "callable", "tuple"];
 function isObjectTypeTag(t: string): boolean {
   return objtypes.indexOf(t) >= 0;
 }
@@ -131,6 +131,13 @@ export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
+  if (t1.tag === "tuple" && t2.tag === "tuple") {
+    if (t1.contentTypes.length !== t2.contentTypes.length) return false;
+    for (let i = 0; i < t1.contentTypes.length; i++) {
+      if (!isAssignable(env, t1.contentTypes[i], t2.contentTypes[i])) return false;
+    }
+    return true;
+  }
   return isSubtype(env, t1, t2);
 }
 
@@ -570,6 +577,11 @@ function tcDestructure(
   }
 
   if (!destruct.isDestructured) {
+    if (destruct.targets.length !== 1) {
+      throw new BaseException.InternalException(
+        `Non-destructured assignment takes exactly 1 target. ${destruct.targets.length} provided.`
+      );
+    }
     let target = tcTarget(destruct.targets[0], value);
     return {
       valueType: [value, destruct.valueType],
@@ -579,48 +591,125 @@ function tcDestructure(
   }
 
   let types: Type[] = [];
-  if (value.tag === "class") {
-    // This is a temporary hack to get destructuring working (reuse for tuples later?)
-    let cls = env.classes.get(value.name);
-    if (cls === undefined)
-      throw new BaseException.InternalException(
-        `Class ${value.name} not found in global environment. This is probably a parsing bug.`
-      );
-    let attrs = cls[0];
-    // attrs.forEach((val) => types.push(val));
-    attrs.forEach((val) => {
-      if (val.tag === "callable" && val.isVar == false) return; // method should not count
-      types.push(val);
-    });
-    let starOffset = 0;
-    let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map((target, i, targets) => {
-      if (i >= types.length)
-        throw new BaseException.ValueError(
-          `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+  // Note:The parser guarantees at most 1 starred assignment target
+  switch (value.tag) {
+    // TODO: Remove class-based destructuring in the long term, leave for now until it can be safely removed
+    case "class": {
+      let cls = env.classes.get(value.name);
+      if (cls === undefined)
+        throw new BaseException.InternalException(
+          `Class ${value.name} not found in global environment. This is probably a parsing bug.`
         );
-      if (target.starred) {
-        starOffset = types.length - targets.length; // How many values will be assigned to the starred target
-        throw new BaseException.CompileError(destruct.valueType, "Starred values not supported");
-      }
-      let valueType = types[i + starOffset];
-      return tcTarget(target, valueType);
-    });
-
-    if (types.length > destruct.targets.length + starOffset)
-      throw new BaseException.ValueError(
-        `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+      let attrs = cls[0];
+      // attrs.forEach((val) => types.push(val));
+      attrs.forEach((val) => {
+        if (val.tag === "callable" && val.isVar == false) return; // method should not count
+        types.push(val);
+      });
+      let starOffset = 0;
+      let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map(
+        (target, i, targets) => {
+          if (i >= types.length)
+            throw new BaseException.ValueError(
+              `Not enough values to unpack (expected at least ${i}, got ${types.length})`
+            );
+          if (target.starred) {
+            starOffset = types.length - targets.length; // How many values will be assigned to the starred target
+            throw new BaseException.CompileError(
+              destruct.valueType,
+              "Starred values not supported"
+            );
+          }
+          let valueType = types[i + starOffset];
+          return tcTarget(target, valueType);
+        }
       );
 
-    return {
-      isDestructured: destruct.isDestructured,
-      targets: tTargets,
-      valueType: [value, destruct.valueType],
-    };
-  } else {
-    throw new BaseException.CompileError(
-      destruct.valueType,
-      `Type ${value.tag} cannot be destructured`
-    );
+      if (types.length > destruct.targets.length + starOffset)
+        throw new BaseException.ValueError(
+          `Too many values to unpack (expected ${destruct.targets.length}, got ${types.length})`
+        );
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: [value, destruct.valueType],
+      };
+    }
+    case "list": {
+      // Since we can't know the exact length of the list, we'll have to check that the list length matches the number
+      // of assign targets at runtime.
+      let tTargets: AssignTarget<[Type, Location]>[] = destruct.targets.map((target) =>
+        tcTarget(target, target.starred ? value : value.content_type)
+      );
+
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: [value, destruct.valueType],
+      };
+    }
+
+    case "tuple": {
+      let types = value.contentTypes;
+      const starredIndex = destruct.targets.findIndex(({ starred }) => starred);
+      const tcTuples = (targets: AssignTarget<Location>[], types: Type[]) => {
+        if (targets.length !== types.length) {
+          throw new Error(
+            `Too many values to unpack (expected ${targets.length}, got ${types.length})`
+          );
+        }
+        return targets.map((target, i) => tcTarget(target, types[i]));
+      };
+
+      let tTargets: AssignTarget<[Type, Location]>[];
+
+      if (starredIndex >= 0) {
+        // subtract 1 from targets since starred can == []
+        if (types.length < destruct.targets.length - 1) {
+          throw new BaseException.CompileError(destruct.valueType, `Not enough values on RHS`);
+        }
+        const head = destruct.targets.slice(0, starredIndex);
+        const starred = destruct.targets[starredIndex];
+        const tail = destruct.targets.slice(starredIndex + 1, destruct.targets.length);
+
+        const tHead = tcTuples(head, types.slice(0, head.length));
+        const starredTypes = types.slice(starredIndex, -tail.length);
+        const tStarred = tcAssignable(env, locals, starred.target);
+        const starredType = tStarred.a[0];
+        if (starredType.tag !== "list") {
+          throw new BaseException.CompileError(
+            tStarred.a[1],
+            `Starred assignment target must have type list, found type ${starredType.tag}`
+          );
+        }
+        starredTypes.forEach((type) => {
+          if (!isAssignable(env, starredType.content_type, type)) {
+            throw new BaseException.TypeMismatchError(
+              tStarred.a[1],
+              starredType.content_type,
+              type
+            );
+          }
+        });
+        const tTail =
+          tail.length === 0 ? [] : tcTuples(tail, types.slice(-tail.length, types.length));
+        tTargets = [...tHead, { ...starred, target: tStarred }, ...tTail];
+      } else {
+        tTargets = tcTuples(destruct.targets, types);
+      }
+
+      return {
+        isDestructured: destruct.isDestructured,
+        targets: tTargets,
+        valueType: [value, destruct.valueType],
+      };
+    }
+    default: {
+      throw new BaseException.CompileError(
+        destruct.valueType,
+        `Type ${value.tag} cannot be destructured`
+      );
+    }
   }
 }
 
@@ -631,7 +720,15 @@ function tcAssignable(
 ): Assignable<[Type, Location]> {
   const expr = tcExpr(env, locals, target);
   if (!isTagged(expr, ASSIGNABLE_TAGS)) {
-    throw new BaseException.CompileError(target.a, `Cannot assing to target type ${expr.tag}`);
+    throw new BaseException.CompileError(target.a, `Cannot assign to target type ${expr.tag}`);
+  } else if (
+    (expr.a[0].tag === "string" || expr.a[0].tag === "tuple") &&
+    expr.tag === "bracket-lookup"
+  ) {
+    throw new BaseException.CompileError(
+      target.a,
+      `${expr.a[0].tag} does not support item assignment`
+    );
   }
   return expr;
 }
@@ -992,49 +1089,49 @@ export function tcExpr(
             throw new BaseException.NameError(expr.a, tObj.a[0].name);
           }
         case "dict":
-        console.log("TC: dict method call");
-        switch (expr.method) {
-          case "pop":
-            let numArgsPop = expr.arguments.length;
-            if (numArgsPop > 2) {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' pop() expected at most 2 arguments, got ${numArgsPop}`
-              );
-            }
-            let dictKeyTypePop = tObj.a[0].key;
-            let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
-            if (!isAssignable(env, dictKeyTypePop, tKeyPop.a[0])) {
-              throw new BaseException.CompileError(
-                expr.a,
-                "Expected key type `" +
-                  dictKeyTypePop.tag +
-                  "`; got key lookup type `" +
-                  tKeyPop.a[0].tag +
-                  "`"
-              );
-            }
-            return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyPop] };
-          case "get":
-            console.log("TC: get function in dict");
-            let numArgsGet = expr.arguments.length;
-            if (numArgsGet !== 2) {
-              throw new BaseException.CompileError(
-                expr.a,
-                `'dict' get() expected 2 arguments, got ${numArgsGet}`
-              );
-            }
-            let dictKeyTypeGet = tObj.a[0].key;
-            let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
-            if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a[0])) {
-              throw new BaseException.CompileError(
-                expr.a,
-                "Expected key type `" +
-                  dictKeyTypeGet.tag +
-                  "`; got key lookup type `" +
-                  tKeyGet.a[0].tag +
-                  "`"
-              );
+          console.log("TC: dict method call");
+          switch (expr.method) {
+            case "pop":
+              let numArgsPop = expr.arguments.length;
+              if (numArgsPop > 2) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  `'dict' pop() expected at most 2 arguments, got ${numArgsPop}`
+                );
+              }
+              let dictKeyTypePop = tObj.a[0].key;
+              let tKeyPop = tcExpr(env, locals, expr.arguments[0]);
+              if (!isAssignable(env, dictKeyTypePop, tKeyPop.a[0])) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  "Expected key type `" +
+                    dictKeyTypePop.tag +
+                    "`; got key lookup type `" +
+                    tKeyPop.a[0].tag +
+                    "`"
+                );
+              }
+              return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyPop] };
+            case "get":
+              console.log("TC: get function in dict");
+              let numArgsGet = expr.arguments.length;
+              if (numArgsGet !== 2) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  `'dict' get() expected 2 arguments, got ${numArgsGet}`
+                );
+              }
+              let dictKeyTypeGet = tObj.a[0].key;
+              let tKeyGet = tcExpr(env, locals, expr.arguments[0]);
+              if (!isAssignable(env, dictKeyTypeGet, tKeyGet.a[0])) {
+                throw new BaseException.CompileError(
+                  expr.a,
+                  "Expected key type `" +
+                    dictKeyTypeGet.tag +
+                    "`; got key lookup type `" +
+                    tKeyGet.a[0].tag +
+                    "`"
+                );
               }
               let dictValueTypeGet = tObj.a[0].value;
               let tValueGet = tcExpr(env, locals, expr.arguments[1]);
@@ -1226,6 +1323,20 @@ export function tcExpr(
           throw new BaseException.CompileError(expr.a, "List lookup supports only integer indices");
         }
         return { ...expr, obj: obj_t, key: key_t, a: [obj_t.a[0].content_type, expr.a] };
+      } else if (obj_t.a[0].tag === "tuple") {
+        if (key_t.tag !== "literal" || key_t.value.tag !== "num") {
+          throw new BaseException.CompileError(
+            expr.a,
+            "Tuple lookup only supports integer literals for indices"
+          );
+        } else if (key_t.value.value >= 2n ** 32n) {
+          throw new BaseException.CompileError(
+            expr.a,
+            "Invalid tuple index, only a maximum of 2^32 - 1 is allowed"
+          );
+        }
+        let i = Number(key_t.value.value);
+        return { ...expr, obj: obj_t, key: key_t, a: [obj_t.a[0].contentTypes[i], obj_t.a[1]] };
       } else {
         throw new BaseException.CompileError(
           expr.a,
@@ -1260,6 +1371,11 @@ export function tcExpr(
         throw new BaseException.CompileError(expr.a, "Slicing parameters must be of num type");
       }
       return { ...expr, name: obj_name, a: obj_name.a, start: start, end: end, stride: stride };
+    case "tuple-expr": {
+      let contents = expr.contents.map((expr) => tcExpr(env, locals, expr));
+      let contentTypes = contents.map((expr) => expr.a[0]);
+      return { tag: "tuple-expr", contents, a: [{ tag: "tuple", contentTypes }, expr.a] };
+    }
     default:
       throw new BaseException.CompileError(expr.a, `unimplemented type checking for expr: ${expr}`);
   }

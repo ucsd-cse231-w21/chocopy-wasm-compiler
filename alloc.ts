@@ -10,6 +10,7 @@ export {
   TAG_DICT_ENTRY,
   TAG_BIGINT,
   TAG_REF,
+  TAG_TUPLE,
   TAG_OPAQUE,
 } from "./gc";
 
@@ -27,6 +28,7 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
     tag === GC.TAG_DICT_ENTRY ||
     tag === GC.TAG_BIGINT ||
     tag === GC.TAG_REF ||
+    tag === GC.TAG_TUPLE ||
     tag === GC.TAG_OPAQUE
   ) {
     return tag;

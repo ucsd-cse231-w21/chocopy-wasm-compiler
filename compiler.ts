@@ -11,10 +11,11 @@ import {
   VarInit,
   Class,
   Destructure,
+  AssignTarget,
   Location,
   Assignable,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
+import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable, WithTag } from "./utils";
 import * as BaseException from "./error";
 import {
   MemoryManager,
@@ -27,6 +28,7 @@ import {
   TAG_OPAQUE,
   TAG_REF,
   TAG_STRING,
+  TAG_TUPLE,
 } from "./alloc";
 import { augmentFnGc } from "./compiler-gc";
 import { defaultMaxListeners } from "stream";
@@ -216,6 +218,7 @@ export function compile(
   definedVars.add("$list_cmp");
   definedVars.add("$list_cmp2");
   definedVars.add("$destruct");
+  definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
@@ -507,30 +510,127 @@ function codeGenDestructure(
 
   if (destruct.isDestructured) {
     const objTyp = destruct.valueType[0];
-    if (objTyp.tag === "class") {
-      const className = objTyp.name;
-      const classFields = env.classes.get(className).values();
-      // Collect every assignStmt
+    switch (objTyp.tag) {
+      // TODO: Remove class-based destructuring in the long term, leave for now until it can be safely removed
+      case "class": {
+        const className = objTyp.name;
+        const classFields = env.classes.get(className).values();
 
-      assignStmts = destruct.targets.flatMap(({ target }) => {
-        const [offset, _] = classFields.next().value;
-        // The WASM code value that we extracted from the object at this current offset
-        const addressOffset = offset * 4;
-        const fieldValue = [`(i32.add ${value} (i32.const ${addressOffset}))`, `(i32.load)`];
+        // Collect every assignStmt
+        assignStmts = destruct.targets.flatMap((target) => {
+          const assignable = target.target;
+          if (target.starred) {
+            throw new Error("Do not currently support starred assignment targets for objects");
+          } else {
+            const [offset, _] = classFields.next().value;
+            // The WASM code value that we extracted from the object at this current offset
+            const addressOffset = offset * 4;
+            const fieldValue = [value, `(i32.load offset=${addressOffset})`];
+            return codeGenAssignable(assignable, fieldValue, env);
+          }
+        });
+        break;
+      }
+      case "tuple": {
+        let offset = 0;
 
-        return codeGenAssignable(target, fieldValue, env);
-      });
-    } else {
-      // Currently assumes that the valueType of our destructure is an object
-      throw new BaseException.InternalException(
-        "Destructuring not supported yet for types other than 'class'"
-      );
+        assignStmts = destruct.targets.flatMap((target) => {
+          const assignable = target.target;
+          if (target.starred) {
+            throw new Error("Do not currently support starred assignment targets for tuples");
+          } else {
+            const fieldValue = [value, `(i32.load offset=${offset})`];
+            offset += 4;
+            return codeGenAssignable(assignable, fieldValue, env);
+          }
+        });
+        break;
+      }
+      case "list": {
+        // Determines if we have a single target with starred == true
+        // used to run a different runtime length check
+        const isStarred = destruct.targets.some((target) => target.starred);
+
+        let targetListLength: number;
+        let compareLengthOperator: string;
+        if (isStarred) {
+          // Targets list length - 1 is the lower bound for number of required elements in our array
+          // The array can be larger/equal to this (because of star operator) but not smaller
+          targetListLength = destruct.targets.length - 1;
+          compareLengthOperator = `(i32.ge_u)`;
+        } else {
+          // No star operator simply means the target lists and the runtime list must be same length
+          targetListLength = destruct.targets.length;
+          compareLengthOperator = `(i32.eq)`;
+        }
+        // TODO: Add nice runtime error instead of "RuntimeError: unreachable"
+        const lengthCheck = [
+          value,
+          `(i32.load offset=4)`, // list length, stored at byte offset 4
+          `(i32.const ${targetListLength})`, // number of destruct targets
+          compareLengthOperator,
+          `(if (then (nop)) (else (unreachable)))`,
+          //`(if (then (nop)) (else (call $SomeExitingErrorFunction)))`
+        ];
+
+        // Skip past the three header values of lists and to the actual values
+        let initalizeOffset = [`(i32.const 12)`, `(local.set $$destructListOffset)`];
+        let offset = [`(local.get $$destructListOffset)`];
+        const targetStmts = destruct.targets.flatMap((target) => {
+          const assignable = target.target;
+          if (target.starred) {
+            //throw new Error("Star operator not implemented yet.");
+
+            // The starting index of the star operator
+            // subtracting the 12 for the header values, dividing by 4 to convert from byte offset to index in list
+            const startStarIndex = [`(i32.div_s (i32.sub ${offset} (i32.const 12)) (i32.const 4))`];
+
+            let nonStarredElements = destruct.targets.length - 1;
+            // The WASM number of elements we need in our starred element list
+            const numStarElements = [
+              value,
+              `(i32.load offset=4)`, // list length, stored at byte offset 4
+              `(i32.const ${nonStarredElements})`,
+              `(i32.sub)`, // results in the number of elements needed in the starred list
+            ];
+            // The ending index of the star operator (exclusive)
+            const endStarIndex = [
+              `(i32.add ${startStarIndex.join("\n")} ${numStarElements.join("\n")})`,
+            ];
+
+            const sourceList = [value];
+            const incrementOffset = [
+              ...offset,
+              `(i32.mul ${numStarElements.join("\n")} (i32.const 4))`,
+              `(i32.add)`,
+              `(local.set $$destructListOffset)`,
+            ];
+            let copyListSlice: string[] = [
+              ...startStarIndex,
+              ...endStarIndex,
+              ...sourceList,
+              ...codeGenListCopy(ListCopyMode.Slice),
+            ];
+
+            return codeGenAssignable(assignable, copyListSlice, env).concat(incrementOffset);
+          } else {
+            const fieldValue = [`(i32.load (i32.add ${value} ${offset}))`];
+            const incrementOffset = [
+              ...offset,
+              `(i32.const 4)`,
+              `(i32.add)`,
+              `(local.set $$destructListOffset)`,
+            ];
+            return codeGenAssignable(assignable, fieldValue, env).concat(incrementOffset);
+          }
+        });
+        assignStmts = [...lengthCheck, ...initalizeOffset, ...targetStmts];
+        break;
+      }
     }
   } else {
     const target = destruct.targets[0];
-    if (!target.ignore) {
-      assignStmts = codeGenAssignable(target.target, [value], env);
-    }
+    assignStmts = codeGenAssignable(target.target, [value], env);
   }
 
   return assignStmts;
@@ -686,6 +786,7 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
   definedVars.add("$last");
   definedVars.add("$addr");
   definedVars.add("$destruct");
+  definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
@@ -760,6 +861,7 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
   //   for inner expressions
   definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.add("$destruct");
+  definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
@@ -1251,8 +1353,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           .concat();
 
         return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`, ...extStmts];
-
-
       } else {
         // I don't think this error can happen
         throw new BaseException.InternalException(
@@ -1337,7 +1437,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
 
       //Move heap head to the end of the list and return list address
       return stmts.concat([`(local.get $$allocPointer)`]);
-
+    case "tuple-expr":
+      return codeGenTupleAlloc(expr, env);
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
         case "dict":
@@ -1379,6 +1480,21 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               `(i32.load) ;; load list element`,
             ]
           );
+        case "tuple": {
+          return [
+            // Get tuple address
+            ...codeGenExpr(expr.obj, env),
+            // Get word offset from tuple address
+            ...codeGenExpr(expr.key, env),
+            ...decodeLiteral,
+            // Get byte offset
+            "(i32.mul (i32.const 4))",
+            // Calculate target address
+            "(i32.add)",
+            // Load target value
+            "(i32.load)",
+          ];
+        }
         default:
           throw new BaseException.InternalException(
             "Code gen for bracket-lookup for types other than dict not implemented"
@@ -1549,6 +1665,26 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
     default:
       unhandledTag(expr);
   }
+}
+
+function codeGenTupleAlloc(
+  expr: WithTag<Expr<[Type, Location]>, "tuple-expr">,
+  env: GlobalEnv
+): string[] {
+  let stmts = [
+    `(i32.const ${Number(TAG_TUPLE)})   ;; heap-tag: tuple`,
+    `(i32.const ${expr.contents.length * 4})   ;; size in bytes`,
+    `(call $$gcalloc)`,
+    `(local.set $$allocPointer)`,
+  ];
+  // Adopting the object hack of pushing one copy of $$allocPointer onto the stack for every item in the tuple.
+  // The best solution would be to reset allocPointer to its original value after creating the new stack
+  // object, but it's probably too late to institute a change like that.
+  stmts.push("(local.get $$allocPointer)\n".repeat(expr.contents.length + 1));
+  expr.contents.forEach((content, offset) => {
+    stmts.push(...codeGenExpr(content, env), `(i32.store offset=${offset * 4})`);
+  });
+  return stmts;
 }
 
 function codeGenDictMethods(
