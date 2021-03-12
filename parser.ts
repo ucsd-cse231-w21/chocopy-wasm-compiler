@@ -114,6 +114,9 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<null> {
         case "//":
           op = BinOp.IDiv;
           break;
+        case "**":
+          op = BinOp.Pow;
+          break;
         case "%":
           op = BinOp.Mod;
           break;
