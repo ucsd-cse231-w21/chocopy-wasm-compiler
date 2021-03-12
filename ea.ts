@@ -300,7 +300,7 @@ function eaExpr(
       };
 
     case "list-expr":
-      throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);
+      return { ...expr, contents: expr.contents.map((c) => eaExpr(c, e, nSet)) };
 
     case "slicing":
       throw new BaseException.InternalException(`ea not yet implemented!: ${expr.tag}`);

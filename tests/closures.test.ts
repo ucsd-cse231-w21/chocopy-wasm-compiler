@@ -116,7 +116,8 @@ describe("Test cases from closures group", () => {
 
   id(f(10))(5)
   `;
-  assert("8. An non-escaping function passed to another function as a callable argument",
+  assert(
+    "8. An non-escaping function passed to another function as a callable argument",
     src,
     PyBool(true)
   );
@@ -144,8 +145,7 @@ describe("Test cases from closures group", () => {
   add_2 = add_n(2)
   r = map2(3, 5, add_2)
   `;
-  asserts("9. An escaping function passed to another function as a callable argument", 
-  [
+  asserts("9. An escaping function passed to another function as a callable argument", [
     [src, PyNone()],
     ["r.fst", PyInt(5)],
     ["r.snd", PyInt(7)],
@@ -191,9 +191,9 @@ describe("Test cases from closures group", () => {
       return x + [1]
     return inc()
   x : [int] = None
+  x = f([1])
   x = f(x)
   x = f(x)
-  x = f(1)
   `;
   asserts("12. A nested function with list created", [
     [src, PyNone()],
@@ -210,7 +210,7 @@ describe("Test cases from closures group", () => {
       nonlocal x
       x = z
       return x + [1]
-  return g([10]) + g([7])
+    return g([10]) + g([7])
 
   x: [int] = None
   x = f([6])
@@ -227,20 +227,24 @@ describe("Test cases from closures group", () => {
   ]);
 
   src = `
-  def f(x : string) -> string:
-    def g(y : string) -> string:
-      return x + h(y)
-    def h(z : string) -> string:
+  def f(x : str) -> str:
+    def g(y : str) -> str:
+      l:str = ""
+      l = h(y)
+      print(x)
+      return l
+    def h(z : str) -> str:
       nonlocal x
+      print(x)
       x = z
-      return x + "1"
-  return g("10") + g("7")
+      return x
+    return g("10")
 
-  x: string = None
+  x: str = ""
   x = f("6")
   print(x)
 `;
-  assertPrint("14. A nested function with `nonlocal` and string ", src, ["61011071"]);
+  assertPrint("14. A nested function with `nonlocal` and string ", src, ["6", "10", "10"]);
 
   src = `
   def f(x:int):
@@ -248,7 +252,7 @@ describe("Test cases from closures group", () => {
   g:Callable[[int], ] = None
   g = f
   g()
-  `
+  `;
   assertFail("15. Invalid number of arguments to call a function value", src);
 
   src = `
@@ -257,7 +261,7 @@ describe("Test cases from closures group", () => {
   g:Callable[[int], ] = None
   g = f
   g(0)
-  `
+  `;
   assertFail("16. Invalid type of argument to call a function value", src);
 
   src = `
@@ -267,7 +271,7 @@ describe("Test cases from closures group", () => {
   g:Callable[[int, int], ] = None
   g = f
   g(0, 1)
-  `
+  `;
   assert("17-1. Multiple arguments", src, PyNone());
   assertPrint("17-2. Multiple arguments", src, ["0", "1"]);
 });
