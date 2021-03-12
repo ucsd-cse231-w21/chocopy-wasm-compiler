@@ -11,6 +11,7 @@ import { parse } from "./parser";
 import { GlobalTypeEnv, tc } from "./type-check";
 import { Value } from "./ast";
 import { PyValue, NONE } from "./utils";
+import { numpyWAT } from "./numpy";
 
 export type Config = {
   importObject: any;
@@ -61,9 +62,6 @@ export async function run(
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)";
   }
-  let globalsBefore = (config.env.globals as Map<string, number>).size;
-  const compiled = compiler.compile(tprogram, config.env);
-  let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;
   if (!importObject.js) {
@@ -72,6 +70,10 @@ export async function run(
   }
 
   const view = new Int32Array(importObject.js.memory.buffer);
+  let globalsBefore = (config.env.globals as Map<string, number>).size;
+  const compiled = compiler.compile(tprogram, config.env, view);
+  let globalsAfter = compiled.newEnv.globals.size;
+
   let offsetBefore = view[0];
   console.log("before updating: ", offsetBefore);
   view[0] = offsetBefore + (globalsAfter - globalsBefore) * 4;
@@ -86,6 +88,7 @@ export async function run(
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    ${numpyWAT}
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
