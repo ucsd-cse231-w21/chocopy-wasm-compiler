@@ -1,5 +1,7 @@
 import { Type } from "../ast";
 import { NUM, BOOL, NONE, unhandledTag } from "../utils";
+import { ndarray_flatten, ndarray_add, ndarray_dot } from "../numpy";
+import * as compiler from "../compiler";
 
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
@@ -22,12 +24,35 @@ function print(typ: Type, arg: any): any {
   return arg;
 }
 
+function print_lists(lists: number) {
+  const listContent = compiler.tsHeap[lists];
+  // TODO: overwrite this by list team?
+  // assume lists are stored in TS heap; flattened already; number element
+  if (listContent instanceof Array){
+    listContent.forEach( (e: number) => {
+      print(NUM, e);
+    });
+  }else {
+    print(NUM, listContent);
+  }
+}
+
+// TODO: add more imported functions/methods here
+// unknown errors of importing importFuns from ../webstart?
+export const importFuns = {
+  print_lists: print_lists,
+  numpy_ndarray_flatten: ndarray_flatten,
+  numpy_ndarray_add: ndarray_add,
+  numpy_ndarray_dot: ndarray_dot,
+}
+
 export const importObject = {
   imports: {
     // we typically define print to mean logging to the console. To make testing
     // the compiler easier, we define print so it logs to a string object.
     //  We can then examine output to see what would have been printed in the
     //  console.
+    ...importFuns,
     print: (arg: any) => print(NUM, arg),
     print_num: (arg: number) => print(NUM, arg),
     print_bool: (arg: number) => print(BOOL, arg),
