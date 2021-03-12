@@ -55,6 +55,24 @@ export const nTagBits = 1;
 const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
 const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
 
+export enum ListContentTag {
+  Num = 0,
+  Bool,
+  None,
+  Str,
+  Class,
+  List,
+  Dict,
+  Callable,
+}
+
+enum ListCopyMode {
+  Copy = 0,
+  Slice,
+  Double,
+  Concat,
+}
+
 export const encodeLiteral: Array<string> = [
   `(i32.const ${nTagBits})`,
   "(i32.shl)",
@@ -139,7 +157,9 @@ export function makeLocals(locals: Set<string>): Array<string> {
 
 //Any built-in WASM functions go here
 export function libraryFuns(): string {
-  return dictUtilFuns().join("\n");
+  var libfunc = dictUtilFuns().join("\n");
+  libfunc += "\n" + listBuiltInFuns().join("\n");
+  return libfunc;
 }
 
 export function makeId<A>(a: A, x: string): Destructure<A> {
@@ -188,7 +208,9 @@ export function compile(
   definedVars.add("$addr"); // address of the allocated memory
   definedVars.add("$list_base");
   definedVars.add("$list_index");
+  definedVars.add("$list_index2");
   definedVars.add("$list_temp");
+  definedVars.add("$list_size");
   definedVars.add("$list_bound");
   definedVars.add("$list_cmp");
   definedVars.add("$list_cmp2");
@@ -546,6 +568,19 @@ function codeGenAssignable(
         case "dict":
           return codeGenExpr(target.obj, env).concat(codeGenDictKeyVal(target.key, value, 10, env));
         case "list":
+          const listObjStmts = codeGenExpr(target.obj, env);
+          const listKeyStmts = codeGenExpr(target.key, env);
+          //Add base + (3*4) + (key*4)
+          //TODO key is bigNum handling
+          const listLocationToStore = [
+            ...listObjStmts,
+            `(i32.add (i32.const 12)) ;; move past type, size, bound`,
+            ...listKeyStmts,
+            ...decodeLiteral,
+            `(i32.mul (i32.const 4)) `,
+            `(i32.add)`,
+          ];
+          return [...listLocationToStore, ...value, "(i32.store)"];
         default:
           throw new BaseException.InternalException(
             "Bracket-assign for types other than dict not implemented"
@@ -554,7 +589,7 @@ function codeGenAssignable(
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
-      const err: never = <never>target;
+      const err: never = target;
       throw new BaseException.InternalException(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
@@ -764,40 +799,89 @@ function codeGenClass(cls: Class<[Type, Location]>, env: GlobalEnv): Array<strin
   return result.flat();
 }
 
-// If concat is 0, then the function generate code for list.copy()
-// If concat is 2, then the function generate code for concat.
-// If concat is 3, then the function generate code for append.
-function codeGenListCopy(concat: number): Array<string> {
+function codeGenListCopy(mode: ListCopyMode): Array<string> {
   var stmts: Array<string> = [];
   var loopstmts: Array<string> = [];
   var condstmts: Array<string> = [];
+  var concatstmts: Array<string> = [];
+  var doublestmts: Array<string> = [];
   var tempstmts: Array<string> = [];
   var listType = 10; //temporary list type number
   var header = [4, 8]; //size, bound relative position
   var cmp = [""];
-  stmts.push(...[`(local.set $$list_cmp)`]); //store first address to local var
-  if (concat == 2) {
-    stmts.push(...[`(local.set $$list_cmp2)`]);
-    tempstmts = [`(local.get $$list_cmp2)`, `(i32.add (i32.const 8))`, `(i32.load)`, `(i32.add)`];
-    cmp = ["", "2"];
+
+  stmts.push(
+    ...[
+      `(local.tee $$list_cmp)`, //store first address to local var
+      `(i32.add (i32.const 8))`,
+      `(i32.load)`,
+      `(local.set $$list_temp)`, //capacity
+      `(i32.const 0)`,
+      `(local.set $$list_index2)`, //second index
+    ]
+  );
+
+  if (mode === ListCopyMode.Slice) {
+    stmts.push(
+      ...[
+        `(local.set $$list_bound)`, // max index(not include)
+        `(local.set $$list_index)`, // current index
+        `(local.get $$list_bound)`,
+        `(local.get $$list_index)`,
+        `(i32.sub)`,
+        `(local.set $$list_size)`,
+      ] //size of list
+    );
+  } else {
+    stmts.push(
+      ...[
+        `(local.get $$list_cmp)`,
+        `(i32.add (i32.const 4))`,
+        `(i32.load)`,
+        `(local.tee $$list_size)`, //capacity
+        `(local.set $$list_bound)`,
+        `(i32.const 0)`,
+        `(local.set $$list_index)`,
+      ]
+    );
   }
-  if (concat == 3) {
-    tempstmts = tempstmts.concat("(i32.mul (i32.const 2))");
+
+  if (mode === ListCopyMode.Concat) {
+    cmp = ["", "2"];
+    stmts.push(
+      ...[
+        `(local.tee $$list_cmp2)`,
+        `(i32.add (i32.const 8))`,
+        `(i32.load)`,
+        `(local.get $$list_temp)`,
+        `(i32.add)`,
+        `(local.set $$list_temp)`, //capacity
+        `(local.get $$list_cmp2)`,
+        `(i32.add (i32.const 4))`,
+        `(i32.load)`,
+        `(local.get $$list_size)`,
+        `(i32.add)`,
+        `(local.set $$list_size)`, //size
+      ]
+    );
+  }
+
+  if (mode === ListCopyMode.Double) {
+    stmts.push(
+      ...[
+        `(local.get $$list_temp)`,
+        `(i32.mul (i32.const 2))`,
+        `(local.set $$list_temp)`, //capacity
+      ]
+    );
   }
 
   stmts.push(
     ...[
       `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
-      `(local.get $$list_cmp)`, // load capacty
-      `(i32.add (i32.const 8))`,
-      `(i32.load)`,
-    ]
-  );
-  stmts.push(...tempstmts);
-  stmts.push(
-    ...[
-      `(i32.mul (i32.const 4))`, // new_cap = cap * 4 + 12
-      `(i32.add (i32.const 12))`,
+      `(local.get $$list_temp)`, // load capacty
+      `(i32.add (i32.const 3))`,
+      `(i32.mul (i32.const 4))`,
       `(call $$gcalloc)`,
       `(local.set $$list_base)`,
     ]
@@ -805,20 +889,12 @@ function codeGenListCopy(concat: number): Array<string> {
 
   //add/modify header info of the list
   header.forEach((addr) => {
-    var double_size = addr == 8 && concat == 3 ? [`(i32.mul (i32.const 2))`] : [];
-    var tempstmts =
-      concat == 2
-        ? [`(local.get $$list_cmp2)`, `(i32.add (i32.const ${addr}))`, `(i32.load)`, `(i32.add)`]
-        : [];
+    var varname = `list_${addr === 4 ? "size" : "temp"}`;
     stmts.push(
       ...[
         `(local.get $$list_base)`,
         `(i32.add (i32.const ${addr}))`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(i32.load)`,
-        ...tempstmts,
-        ...double_size,
+        `(local.get $$${varname})`,
         `(i32.store)`,
       ]
     );
@@ -834,7 +910,7 @@ function codeGenListCopy(concat: number): Array<string> {
     ...[
       `(local.get $$list_base)`,
       `(i32.add (i32.const 12))`,
-      `(local.get $$list_temp)`,
+      `(local.get $$list_index2)`,
       `(i32.mul (i32.const 4))`,
       `(i32.add)`,
       `(local.get $$list_cmp)`,
@@ -847,37 +923,28 @@ function codeGenListCopy(concat: number): Array<string> {
       `(local.get $$list_index)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
-      `(local.get $$list_temp)`,
+      `(local.get $$list_index2)`,
       `(i32.add (i32.const 1))`,
-      `(local.set $$list_temp)`,
+      `(local.set $$list_index2)`,
     ]
   );
 
   cmp.forEach((s) => {
-    if (s === ``) {
+    if (s !== ``) {
       stmts.push(
         ...[
+          `(local.get $$list_cmp2)`,
+          `(local.set $$list_cmp)`,
           `(i32.const 0)`,
+          `(local.set $$list_index)`,
+          `(local.get $$list_cmp)`,
+          `(i32.add (i32.const 4))`,
+          `(i32.load)`,
+          `(i32.add (local.get $$list_bound))`,
           `(local.set $$list_bound)`,
-          `(i32.const 0)`,
-          `(local.set $$list_temp)`, //second index
         ]
       );
-    } else {
-      stmts.push(...[`(local.get $$list_cmp2)`, `(local.set $$list_cmp)`]);
     }
-
-    stmts.push(
-      ...[
-        `(i32.const 0)`,
-        `(local.set $$list_index)`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const 4))`,
-        `(i32.load)`,
-        `(i32.add (local.get $$list_bound))`,
-        `(local.set $$list_bound)`,
-      ]
-    );
 
     //while loop structure
     stmts.push(
@@ -900,6 +967,10 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         callName = "print_num";
       } else if (expr.name === "print" && argTyp === STRING) {
         callName = "print_str";
+        //print_list takes an additional arg: type of elements in list
+        //print_list(base_addr, elem_type)
+      } else if (expr.name === "print" && argTyp.tag === "list") {
+        return argStmts.concat([codeGenListElemType(argTyp.content_type), `(call $print_list)`]);
       } else if (expr.name === "print" && argTyp === BOOL) {
         return argStmts.concat([`(call $print_bool)`]);
       } else if (expr.name === "print" && argTyp === NONE) {
@@ -930,7 +1001,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
       if (typeof expr.left.a !== "undefined" && expr.left.a[0].tag === "list") {
-        return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(2)];
+        return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(ListCopyMode.Concat)];
       } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
       } else {
@@ -954,6 +1025,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           return unreachable(expr);
       }
     case "call":
+      var prefix = "";
       if (expr.name === "range") {
         switch (expr.arguments.length) {
           case 1:
@@ -974,9 +1046,15 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           default:
             throw new Error("Unsupported range() call!");
         }
+      } else if (expr.name === "len") {
+        if (expr.arguments[0].a[0].tag === "list") {
+          prefix = "$$list";
+        } else {
+          throw new Error("Unimplemented len() for " + expr.arguments[0].a[0].tag);
+        }
       }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      valStmts.push(`(call $${expr.name})`);
+      valStmts.push(`(call ${prefix}$${expr.name})`);
       return valStmts;
     case "call_expr":
       const callExpr: Array<string> = [];
@@ -1071,6 +1149,47 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         // Pointer to return should be on the top of the stack already
       ]);
     case "method-call":
+      var objTyp = expr.obj.a[0];
+
+      //handle list built in
+      switch (objTyp.tag) {
+        case "list":
+          var objStmts = codeGenExpr(expr.obj, env);
+          className = "$list";
+          var extStmts: Array<string> = [];
+          var objExpr = expr.obj;
+          if (expr.method === "append") {
+            switch (objExpr.tag) {
+              case "id":
+                if (env.locals.has(objExpr.name)) {
+                  extStmts = [
+                    `(local.tee $$list_temp)`,
+                    `(local.set $${objExpr.name})`,
+                    `(local.get $$list_temp)`,
+                  ];
+                } else {
+                  const locationToStore = [
+                    `(i32.const ${envLookup(env, objExpr.name)}) ;; ${objExpr.name}`,
+                  ];
+                  extStmts = [
+                    `(local.set $$list_temp)`,
+                    ...locationToStore,
+                    `(local.get $$list_temp)`,
+                    "(i32.store)",
+                    `(local.get $$list_temp)`,
+                  ];
+                }
+                break;
+            }
+          }
+          var argsStmts = expr.arguments
+            .map((arg) => codeGenExpr(arg, env))
+            .flat()
+            .concat();
+
+          return [...objStmts, ...argsStmts, `(call $${className}$${expr.method})`, ...extStmts];
+      }
+
       let clsName = (expr.obj.a[0] as any).name;
       if (env.classes.get(clsName).has(expr.method)) {
         let callExpr: Array<string> = [];
@@ -1359,6 +1478,221 @@ function codeGenDictKeyVal(
     "(call $ha$htable$Update)",
   ]);
   return dictKeyValStmts;
+}
+
+function listBuiltInFuns(): Array<string> {
+  let listFunStmts: Array<string> = [];
+  //len function
+  listFunStmts.push(
+    ...[
+      "(func $$list$len (param $$list_cmp i32) (result i32)",
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      ...encodeLiteral,
+      "(return))",
+      "",
+    ]
+  );
+  //append function
+  listFunStmts.push(
+    ...[
+      "(func $$list$append (param $$list_cmp i32) (param $$val i32) (result i32)",
+      `(local $$list_base i32)`,
+      `(local $$list_index i32)`,
+      `(local $$list_index2 i32)`,
+      `(local $$list_size i32)`,
+      `(local $$list_bound i32)`,
+      `(local $$list_temp i32)`,
+      `(if `, // check if list bounds need to expand
+      `(i32.eq`,
+      `(local.get $$list_cmp)`, // get address of current list
+      `(i32.add (i32.const 8))`,
+      `(i32.load)`, // load the bound of the list
+      `(local.get $$list_cmp)`, // get address of current list
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`, // load the size of the list
+      `)`,
+      `(then`,
+      `(local.get $$list_cmp)`, // generate code for append element
+      ...codeGenListCopy(ListCopyMode.Double),
+      `(local.set $$list_cmp)`,
+      `)`, // end then
+      `)`, // end if
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`, //load index to store
+      `(i32.mul (i32.const 4))`,
+      `(i32.add (i32.const 12))`, // add base position
+      `(i32.add (local.get $$list_cmp))`,
+      `(local.get $$val)`,
+      `(i32.store)`,
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(i32.add (i32.const 1))`, // add 1 to the size
+      `(i32.store)`,
+      `(local.get $$list_cmp)`,
+      "(return))",
+      "",
+    ]
+  );
+
+  //index function //count could be very similar to this function
+  listFunStmts.push(
+    ...[
+      "(func $$list$index (param $$list_cmp i32) (param $$val i32) (result i32)",
+      `(local $$list_index i32)`, // to iterate through list
+      `(local $$list_size i32)`, // size of list
+      `(i32.const 0)`, // list_index = 0
+      `(local.set $$list_index)`,
+      `(local.get $$list_cmp)`, // load list_size from list metadata
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.set $$list_size)`,
+      `(local.get $$list_cmp)`, // beginning of list
+      `(i32.add (i32.const 12))`,
+      `(local.set $$list_cmp)`,
+      `(block`,
+      `(loop`, // while loop for searching the value
+      `(br_if 1`, // condition start
+      `(local.get $$list_size)`,
+      `(local.get $$list_index)`,
+      `(i32.eq)`,
+      `)`, // condition end
+      // loop body start
+
+      `(if `, // check if element of index match to the value
+      `(i32.eq`,
+      `(local.get $$list_cmp)`,
+      `(local.get $$list_index)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(i32.load)`,
+      `(local.get $$val)`,
+      `)`,
+
+      `(then`, // return index
+      `(local.get $$list_index)`,
+      ...encodeLiteral,
+      `(return)`,
+      `)`, // end then
+      `)`, // end if
+      `(local.get $$list_index)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_index)`,
+
+      `(br 0)`,
+      `)`,
+      `)`,
+      `(i32.const -1)`, // find nothing
+      ...encodeLiteral,
+      "(return))",
+      "",
+    ]
+  );
+
+  //count function, similar to index
+  listFunStmts.push(
+    ...[
+      "(func $$list$count (param $$list_cmp i32) (param $$val i32) (result i32)",
+      `(local $$list_counter i32)`, // counter of how many times we see list_cmp
+      `(local $$list_index i32)`, // to iterate through list
+      `(local $$list_size i32)`, // size of list
+      `(i32.const 0)`, // list_counter = 0
+      `(local.set $$list_counter)`,
+      `(i32.const 0)`, // list_index = 0
+      `(local.set $$list_index)`,
+      `(local.get $$list_cmp)`, // load list_size from list metadata
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.set $$list_size)`,
+      `(local.get $$list_cmp)`, // beginning of list
+      `(i32.add (i32.const 12))`,
+      `(local.set $$list_cmp)`,
+      `(block`,
+      `(loop`, // while loop for searching the value
+      `(br_if 1`, // condition start
+      `(local.get $$list_size)`,
+      `(local.get $$list_index)`,
+      `(i32.eq)`,
+      `)`, // condition end
+      // loop body start
+
+      `(if `, // check if element of index match to the value
+      `(i32.eq`,
+      `(local.get $$list_cmp)`,
+      `(local.get $$list_index)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(i32.load)`,
+      `(local.get $$val)`,
+      `)`,
+
+      `(then`, // add to count variable
+      `(local.get $$list_counter)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_counter)`,
+      `)`, // end then
+      `)`, // end if
+      `(local.get $$list_index)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_index)`,
+
+      `(br 0)`,
+      `)`,
+      `)`,
+      `(local.get $$list_counter)`, // return count
+      ...encodeLiteral,
+      "(return))",
+      "",
+    ]
+  );
+
+  //clear function
+  //simply sets internal metadata size to 0
+  listFunStmts.push(
+    ...[
+      "(func $$list$clear (param $$list_baseaddr i32) (result i32)",
+      `(local.get $$list_baseaddr)`, // get address of list size
+      `(i32.add (i32.const 4))`,
+      `(i32.const 0)`, // store 0 into list size
+      `(i32.store)`,
+      `(local.get $$list_baseaddr)`, // return address of the list
+      "(return))",
+      "",
+    ]
+  );
+
+  //copy function
+  //creates new copy of that list and returns new copy's base addr
+  listFunStmts.push(
+    ...[
+      "(func $$list$copy (param $$list_baseaddr i32) (result i32)",
+      `(local $$list_base i32)`,
+      `(local $$list_index i32)`,
+      `(local $$list_bound i32)`,
+      `(local $$list_temp i32)`,
+      `(local $$list_cmp i32)`,
+      `(local $$list_index2 i32)`,
+      `(local $$list_size i32)`,
+      `(local.get $$list_baseaddr)`,
+      ...codeGenListCopy(ListCopyMode.Copy),
+      "(return))",
+      "",
+    ]
+  );
+
+  //          ["append",[[tObj.a.content_type], tObj.a]],
+  //           ["clear", [[], tObj.a]],
+  //           ["copy",  [[], tObj.a]],
+  //           ["count", [[tObj.a.content_type], NUM]],
+  //           ["index", [[tObj.a.content_type], NUM]],
+
+  //This function returns a memory address for the value of a key. It returns -1 if not found.
+  return listFunStmts;
 }
 
 function dictUtilFuns(): Array<string> {
@@ -1697,6 +2031,26 @@ function codeGenBinOp(op: BinOp): string {
   }
 }
 
+function codeGenListElemType(elemTyp: Type): string {
+  switch (elemTyp.tag) {
+    case "number":
+      return `(i32.const ${ListContentTag.Num})`;
+    case "bool":
+      return `(i32.const ${ListContentTag.Bool})`;
+    case "none":
+      return `(i32.const ${ListContentTag.None})`;
+    case "string":
+      return `(i32.const ${ListContentTag.Str})`;
+    case "class":
+      return `(i32.const ${ListContentTag.Class})`;
+    case "list":
+      return `(i32.const ${ListContentTag.List})`;
+    case "dict":
+      return `(i32.const ${ListContentTag.Dict})`;
+    case "callable":
+      return `(i32.const ${ListContentTag.Callable})`;
+  }
+}
 function isInternal(s: string): boolean {
   return s.substring(1).indexOf("$") !== -1;
 }
