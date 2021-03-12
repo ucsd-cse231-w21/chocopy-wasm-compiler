@@ -431,10 +431,10 @@ export function tcStmt(
         if (!stmt.index){
           throw new BaseException.SyntaxError(stmt.a, "Require index for enumerate!");
         }
-        if (stmt.name.targets.length != 2) {
-          throw new BaseException.SyntaxError(stmt.a, "enumerate must have index variable!");
-        } else {
-          stmt.iterable.name = "range";
+        stmt.iterable.name = "range";
+      }else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range"){
+        if (stmt.index){
+          throw new BaseException.SyntaxError(stmt.a, "Range should not have index!");
         }
       }
       // check the type of iterator items, then add the item name into local variables with its type
