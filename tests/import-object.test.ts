@@ -1,4 +1,7 @@
 import { Type } from "../ast";
+import { Config } from "../repl";
+import { MainAllocator } from "../heap";
+import { initializeBuiltins } from "../builtins/modules";
 import { NUM, BOOL, NONE, unhandledTag } from "../utils";
 
 function stringify(typ: Type, arg: any): string {
@@ -22,7 +25,19 @@ function print(typ: Type, arg: any): any {
   return arg;
 }
 
-export const importObject = {
+export const importObject: {config: Config, output: string} = function () : {config: Config, output: string} {
+  const allocator = new MainAllocator();
+  const builtins = initializeBuiltins(allocator);
+  allocator.initGlobalVars(builtins.modules.size);
+
+  const config: Config = {builtIns: builtins.modules, 
+                          builtInPresenters: builtins.presenters, 
+                          allocator: allocator};
+  return {config: config, output: ""};
+}();
+
+/*
+{
   imports: {
     // we typically define print to mean logging to the console. To make testing
     // the compiler easier, we define print so it logs to a string object.
@@ -40,3 +55,4 @@ export const importObject = {
 
   output: "",
 };
+*/

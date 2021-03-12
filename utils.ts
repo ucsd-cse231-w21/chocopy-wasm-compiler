@@ -53,6 +53,7 @@ export function unhandledTag(arg: { tag: string }): never {
 }
 
 export const NUM: Type = { tag: "number" };
+export const STR: Type = { tag: "string" };
 export const BOOL: Type = { tag: "bool" };
 export const NONE: Type = { tag: "none" };
 export function CLASS(name: string): Type {

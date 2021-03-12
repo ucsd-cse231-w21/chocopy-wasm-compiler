@@ -37,7 +37,7 @@ function flookup(fname: string,
               x[1].iden.signature.parameters.length == fpTypes.length);
 
     for(let [ x , iden] of ofSameName){
-      console.log("candidate: "+x);
+      //console.log("candidate: "+x);
       let incompatabilityFound = false;
     
       for(let i = 0; i < iden.iden.signature.parameters.length; i++){
@@ -96,7 +96,7 @@ function isAssignable(destType: Type, sourceType: Type) : boolean {
              (sourceType.tag === "class" && sourceType.name === destType.name)
   }
   else{
-      console.log(`  in assignable ${destType === undefined} ${sourceType === undefined}`);
+      //console.log(`  in assignable ${destType === undefined} ${sourceType === undefined}`);
       return destType.tag === sourceType.tag;
   }
 }
@@ -187,7 +187,7 @@ export function includeImports(env: GlobalTable,
 
         //add functions to env with the name mentioned 
         for(let [name, def] of target.functions.entries()){
-          console.log(`---- Including import from module ${target.name} ${name}`);
+          //console.log(`---- Including import from module ${target.name} ${name}`);
           if(compSet.has(def.signature.name)){
             anyFound = true;
 
@@ -316,7 +316,7 @@ function tcExpr(expr: Expr<null>,
     case "call":{
       const typedArgExprs : Array<Expr<Type>> = new Array();
 
-      console.log(` ====> tcing call ${expr.name} ${expr.arguments.length}`);
+      //console.log(` ====> tcing call ${expr.name} ${expr.arguments.length}`);
       for(let i = 0; i < expr.arguments.length; i++){
         const typedExpr = tcExpr(expr.arguments[i], vars, global, builtIns);
         typedArgExprs.push(typedExpr);
@@ -408,9 +408,13 @@ function tcExpr(expr: Expr<null>,
               tag: "list-expr", 
               contents: valueTypes};
     }
+    case "nestedexpr":{
+      const nestedType = tcExpr(expr.expr, vars, global, builtIns);
+      return {a: nestedType.a, tag: "nestedexpr", expr: nestedType};
+    }
     case "method-call":{
 
-      console.log(` ====> meth call ${JSON.stringify(expr)}`);
+      //console.log(` ====> meth call ${JSON.stringify(expr)}`);
 
       const target = tcExpr(expr.obj, vars, global, builtIns);
       const targetArgs = expr.arguments.map(x => tcExpr(x, vars, global, builtIns));
@@ -495,9 +499,14 @@ function tcStmt(stmt: Stmt<null>,
               alias: stmt.alias};
     }
     case "assign": {
-      const varType = lookup(stmt.name, vars);
+      let varType = lookup(stmt.name, vars);
       if(varType === undefined){
-        throw new Error(`Cannot find variable ${stmt.name} ${JSON.stringify(vars)}`);
+        const globIden = global.vars.get(stmt.name);
+        if(globIden === undefined){
+          throw new Error(`Cannot find variable ${stmt.name} ${JSON.stringify(vars)}`);
+        }
+
+        varType = globIden.type;
       }
 
       const typedValue = tcExpr(stmt.value, vars, global, builtIns);
@@ -557,7 +566,7 @@ function tcStmt(stmt: Stmt<null>,
         throw new TypeCheckError(`The type ${typeToString(valueType.a)} is not assignable to ${typeToString(leftSideType.a)}`);
       }
 
-      console.log(` ---------tcing field assign: ${typeToString(leftSideType.a)}`);
+      //console.log(` ---------tcing field assign: ${typeToString(leftSideType.a)}`);
       return {a: valueType.a, 
               tag: "field-assign", 
               obj: leftSideType,  //DEV_NOTE: This may potentially cause errors. Be careful
@@ -610,7 +619,7 @@ function tcFuncDef(def: FunDef<null>,
                    builtIns: Map<string, ModulePresenter>) : FunDef<Type>{
   //function signature. Useful for errors
   const funcIdentity = idenToStr(def.identity);
-  console.log(`-------TCing Func def: ${funcIdentity}`);
+  //console.log(`-------TCing Func def: ${funcIdentity}`);
 
   //check if return type exists
   const retMissing = doesTypeExist(def.identity.returnType, global);
@@ -665,7 +674,7 @@ function tcFuncDef(def: FunDef<null>,
     newStmts.push(newStmt);
   }
 
-  console.log(`======> is func return type undef? ${def.identity.returnType === undefined}`);
+  //console.log(`======> is func return type undef? ${def.identity.returnType === undefined}`);
   if(!checkReturn(newStmts, def.identity.returnType)){
     if(def.identity.returnType.tag !== "none"){
       throw new TypeCheckError(`The function ${idenToStr(def.identity)} must have 
@@ -697,7 +706,7 @@ export function tc(existingEnv: GlobalTable,
   }
 
   //first include imports
-  includeImports(curGlobalTable, builtIns, program.stmts);
+  includeImports(curGlobalTable, builtIns, program.imports);
 
   const modPresenter: ModulePresenter = {
     name: undefined,
@@ -784,6 +793,7 @@ export function tc(existingEnv: GlobalTable,
     funcs: modFunctions, 
     classes: modClasses, 
     stmts: tlStmts, 
+    imports: program.imports,
     presenter: modPresenter
   };
 

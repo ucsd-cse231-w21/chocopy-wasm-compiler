@@ -119,7 +119,7 @@ export class MainAllocator{
     const targetClass = module.classes.get(typeCode);
 
     const attrs = new Array<number>();
-    console.log(`------Runtime instanciating ${modCode} ${typeCode} , ${targetClass.vars.length}`);
+    //console.log(`------Runtime instanciating ${modCode} ${typeCode} , ${targetClass.vars.length}`);
     
     for(let initValue of targetClass.vars){
       switch(initValue.tag){

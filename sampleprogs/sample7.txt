@@ -39,6 +39,7 @@ z: Test = None
 z = Test()
 z.meth()
 
+someFunc(10)
 
 
 

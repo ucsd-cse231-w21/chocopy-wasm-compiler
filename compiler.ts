@@ -162,7 +162,7 @@ function includeImports(imprts: Array<Stmt<Type>>,
 
   for(let imprt of imprts){
     if(imprt.tag === "import"){
-      console.log(` ***PRELUDING IMPORT ${imprt.target}`);
+      //console.log(` ***PRELUDING IMPORT ${imprt.target}`);
 
       const targetModule = builtins.get(imprt.target);
 
@@ -238,9 +238,12 @@ export function compile(progam: Program<Type>,
   allInstrs.push(...system);
 
   //set the first global vars to be imports
-  const imports = includeImports(progam.stmts, builtins);
+  const imports = includeImports(progam.imports, builtins);
+  Array.from(labeledSource.globalVars.entries()).forEach(
+    x => imports.vars.set(x[0], {tag: "globalvar", moduleCode: 0, index: x[1]})
+  );
 
-  console.log(` ----------PRE COMPILE: ${imports.instr.join("\n")}`);
+  //console.log(` ----------PRE COMPILE: ${imports.instr.join("\n")}`);
   allInstrs.push(...imports.instr);
 
   allInstrs.push(`(func $exported_func (export "exported_func") (result i32)`);
@@ -298,7 +301,7 @@ export function compile(progam: Program<Type>,
 
   //now compile top level stmts
   for(let tlStmt of progam.stmts){
-    console.log(` =====> COMP TPLVEL : ${tlStmt.tag}`);
+    //console.log(` =====> COMP TPLVEL : ${tlStmt.tag}`);
     allInstrs.push(codeGenStmt(tlStmt, [imports.vars], labeledSource, builtins, allcator).join("\n"));
   }
 
@@ -434,7 +437,7 @@ function codeGenStmt(stmt: Stmt<Type>,
     }
     case "field-assign": {
       //check if target object is an imported module
-      console.log(`compiling...... ${JSON.stringify(stmt.obj)}`);
+      //console.log(`compiling...... ${JSON.stringify(stmt.obj)}`);
       const objInstrs = codeGenExpr(stmt.obj, idens, sourceModule, builtins, allcator);
       if(stmt.obj.a.tag === "class"){
         const valueInstrs = codeGenExpr(stmt.value, idens, sourceModule, builtins, allcator);
@@ -486,6 +489,7 @@ function codeGenExpr(expr: Expr<Type>,
   switch(expr.tag){
     case "id": {
       const idensResults = lookup(expr.name, idens);
+      //console.log(`   ---- maps: ${JSON.stringify(idens)}`);
       switch(idensResults.tag){
         case "localvar": return `(local.get $${expr.name})`;
         case "globalvar": return `(call $${MOD_REF} (i32.const ${idensResults.moduleCode}) (i32.const ${idensResults.index}))`;
@@ -513,12 +517,15 @@ function codeGenExpr(expr: Expr<Type>,
     case "literal": {
       return codeGenLiteral(expr.value, allcator);
     }
+    case "nestedexpr": {
+      return codeGenExpr(expr.expr, idens, sourceModule, builtins, allcator);
+    }
     case "uniop":{
       const targetInstr = codeGenExpr(expr.expr, idens, sourceModule, builtins, allcator);
 
       switch(expr.op){
         case UniOp.Not: {
-          return `(call $${ALLC_BOOL} (select (i32.const 0) (i32.const 1) (call ${GET_BOOL} ${targetInstr}) ))`;
+          return `(call $${ALLC_BOOL} (select (i32.const 0) (i32.const 1) (call $${GET_BOOL} ${targetInstr}) ))`;
         }
         case UniOp.Neg:{
           return `(call $${ALLC_INT} (i32.mul (i32.const -1) (call $${GET_INT} ${targetInstr}) ))`;

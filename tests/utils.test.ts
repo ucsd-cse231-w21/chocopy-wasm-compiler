@@ -17,14 +17,14 @@ before(function () {
 
 export function assert(name: string, source: string, expected: Value) {
   it(name, async () => {
-    const repl = new BasicREPL(importObject);
+    const repl = new BasicREPL(importObject.config);
     const result = await repl.run(source);
     expect(result).to.deep.eq(expected);
   });
 }
 
 export function asserts(name: string, pairs: Array<[string, Value]>) {
-  const repl = new BasicREPL(importObject);
+  const repl = new BasicREPL(importObject.config);
 
   it(name, async () => {
     for (let i = 0; i < pairs.length; i++) {
@@ -37,7 +37,7 @@ export function asserts(name: string, pairs: Array<[string, Value]>) {
 export function assertFail(name: string, source: string) {
   it(name, async () => {
     try {
-      const repl = new BasicREPL(importObject);
+      const repl = new BasicREPL(importObject.config);
       const result = await repl.run(source);
       fail("Expected an exception, got a type " + JSON.stringify(result));
     } catch (err) {
@@ -48,7 +48,7 @@ export function assertFail(name: string, source: string) {
 
 export function assertPrint(name: string, source: string, expected: Array<string>) {
   it(name, async () => {
-    const repl = new BasicREPL(importObject);
+    const repl = new BasicREPL(importObject.config);
     const result = await repl.run(source);
     expect(importObject.output.trim().split("\n")).to.deep.eq(expected);
   });
@@ -63,7 +63,7 @@ export function assertPrint(name: string, source: string, expected: Array<string
 
 export function assertTC(name: string, source: string, result: any) {
   it(name, async () => {
-    const repl = new BasicREPL(importObject);
+    const repl = new BasicREPL(importObject.config);
     const typ = await repl.tc(source);
     expect(typ).to.deep.eq(result);
   });
@@ -71,7 +71,7 @@ export function assertTC(name: string, source: string, result: any) {
 
 export function assertTCFail(name: string, source: string) {
   it(name, async () => {
-    const repl = new BasicREPL(importObject);
+    const repl = new BasicREPL(importObject.config);
     try {
       const typ = await repl.tc(source);
       fail("Expected an exception, got a type " + typ);

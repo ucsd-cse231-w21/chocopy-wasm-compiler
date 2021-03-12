@@ -79,6 +79,7 @@ export type Program<A> = {
   inits: Map<string, VarInit<A>>;
   classes: Map<string, Class<A>>;
   stmts: Array<Stmt<A>>;
+  imports: Array<Stmt<A>>;
   presenter? : ModulePresenter;
 };
 
@@ -210,5 +211,12 @@ export function litToStr(l: Literal): string{
     case "num": return l.value.toString()
     case "string": return l.value
     case "none" : return "none"
+  }
+}
+
+export function valToStr(l: Value): string{
+  switch(l.tag){
+    case "object": return `<obj instance @${l.address}>`;
+    default: return litToStr(l);
   }
 }

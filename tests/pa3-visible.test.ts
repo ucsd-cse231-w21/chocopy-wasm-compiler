@@ -278,4 +278,15 @@ if True:
   `,
     PyNone()
   );
+
+  assert(
+    "import statement test 2",
+    `
+    from otherModule import someFunc, otherFunc
+    someFunc(10)
+  `,
+    PyInt(100)
+  );
+
+  
 });

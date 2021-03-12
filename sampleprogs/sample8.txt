@@ -1,4 +1,3 @@
 from otherModule import someFunc, otherFunc
-
-someFunc()
-otherFunc()
+someFunc(10)
+otherFunc("hi", 20, False)

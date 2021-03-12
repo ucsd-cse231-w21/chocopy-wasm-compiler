@@ -162,7 +162,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
 
 export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
 
-  console.log("stmt cur state?: "+c.node.type.name);
+  //console.log("stmt cur state?: "+c.node.type.name);
 
   switch(c.node.type.name) {
     case "ImportStatement":{
@@ -265,7 +265,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       return {tag: "class", def: {name: className, fields: variables, methods: methods}};
     }
     case "AssignStatement": {
-      console.log("**** ASSIGN? "+s.substring(c.from, c.to));
+      //console.log("**** ASSIGN? "+s.substring(c.from, c.to));
 
       c.firstChild(); //goes into AssignStatement, landing on the variable name
       if(c.node.type.name as string === "MemberExpression"){
@@ -304,7 +304,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
           c.parent();
           c.nextSibling();
 
-          console.log("      -> is local var dec: "+c.node.type.name);
+          //console.log("      -> is local var dec: "+c.node.type.name);
         }
 
         c.nextSibling(); //value of the variable 
@@ -515,6 +515,7 @@ export function traverse(c : TreeCursor, s : string) : Program<null> {
       const classes = new Map<string, Class<null>>();
       const vars = new Map<string, VarInit<null>>();
       const stmts = new Array<Stmt<null>>();
+      const imports = new Array<Stmt<null>>();
 
       do {
         const stmt = traverseStmt(c, s);
@@ -544,6 +545,9 @@ export function traverse(c : TreeCursor, s : string) : Program<null> {
             vars.set(stmt.def.name, stmt.def);
             break;
           }
+          case "import": {
+            imports.push(stmt);
+          }
           default: {
             stmts.push(stmt);
             break;
@@ -551,7 +555,7 @@ export function traverse(c : TreeCursor, s : string) : Program<null> {
         }
       } while(c.nextSibling())
 
-      return {funcs: funcs, inits: vars, classes: classes, stmts: stmts};
+      return {funcs: funcs, inits: vars, classes: classes, stmts: stmts, imports: imports};
     default:
       throw new Error("Could not parse program at " + c.node.from + " " + c.node.to);
   }

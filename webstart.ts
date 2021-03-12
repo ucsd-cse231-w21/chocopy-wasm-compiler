@@ -1,4 +1,4 @@
-import { BasicREPL } from "./repl";
+import { BasicREPL, Config } from "./repl";
 import { Type, Value } from "./ast";
 import { NUM, BOOL, NONE, unhandledTag } from "./utils";
 
@@ -7,6 +7,8 @@ import "codemirror/addon/edit/closebrackets";
 import "codemirror/mode/python/python";
 
 import "./style.scss";
+import { initializeBuiltins } from "./builtins/modules";
+import { MainAllocator } from "./heap";
 
 function stringify(typ: Type, arg: any): string {
   switch (typ.tag) {
@@ -33,19 +35,16 @@ function print(typ: Type, arg: number): any {
 
 function webStart() {
   document.addEventListener("DOMContentLoaded", function () {
-    var importObject = {
-      imports: {
-        print_num: (arg: number) => print(NUM, arg),
-        print_bool: (arg: number) => print(BOOL, arg),
-        print_none: (arg: number) => print(NONE, arg),
-        abs: Math.abs,
-        min: Math.min,
-        max: Math.max,
-        pow: Math.pow,
-      },
-    };
 
-    var repl = new BasicREPL(importObject);
+    const allocator = new MainAllocator();
+    const builtins = initializeBuiltins(allocator);
+    allocator.initGlobalVars(builtins.modules.size);
+
+    const config: Config = {builtIns: builtins.modules, 
+                            builtInPresenters: builtins.presenters, 
+                            allocator: allocator};
+
+    var repl = new BasicREPL(config);
 
     function renderResult(result: Value): void {
       if (result === undefined) {
@@ -63,7 +62,7 @@ function webStart() {
           elt.innerHTML = result.value ? "True" : "False";
           break;
         case "object":
-          elt.innerHTML = `<${result.name} object at ${result.address}`;
+          elt.innerHTML = `<object at ${result.address}`;
           break;
         default:
           throw new Error(`Could not render value: ${result}`);
@@ -115,7 +114,7 @@ function webStart() {
     }
 
     document.getElementById("run").addEventListener("click", function (e) {
-      repl = new BasicREPL(importObject);
+      repl = new BasicREPL(config);
       const source = document.getElementById("user-code") as HTMLTextAreaElement;
       resetRepl();
       repl

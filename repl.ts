@@ -1,22 +1,21 @@
 import { run } from "./runner";
 import { GlobalTable, tc } from "./type-check";
-import { Value, Type, typeToString, Program, Literal, litToStr } from "./ast";
+import { Value, Type, typeToString, Program, Literal, litToStr, valToStr } from "./ast";
 import { parse } from "./parser";
 import { builtinModules } from "module";
-import { attachPresenter, BuiltInModule, gatherPresenters, NativeTypes, OtherModule } from "./builtins/builtins";
-import { type } from "cypress/types/jquery";
+import { attachPresenter, BuiltInModule, gatherPresenters } from "./builtins/builtins";
 import { ModulePresenter, ClassPresenter, FuncIdentity, idenToStr, literalToType } from "./types";
-import { last, thru, values } from "cypress/types/lodash";
 import { NONE } from "./utils";
 import fs from 'fs';
 import { MainAllocator, RuntimeModule } from "./heap";
 import { compile, LabeledClass, LabeledModule } from "./compiler";
-import { config } from "chai";
-import { runtime } from "webpack";
+import { initializeBuiltins, SYSTEM_MODULE_NAME } from "./builtins/modules";
 
+/**
+ * Assigns unique WASM idenitifiers and variable indices
+ * to modules - both builtins and source.
+ */
 class Labeler {
-
-  labeledBuiltIns: Map<string, LabeledModule>;
 
   curGVarIndex: number;
   curTypeCode: number;
@@ -24,25 +23,19 @@ class Labeler {
   takenLabels: Map<string, number>;
 
   constructor(){
-    this.labeledBuiltIns = new Map();
     this.curGVarIndex = 0;
     this.curTypeCode = 0;
     this.takenLabels = new Map();
   }
 
   /**
-   * Labels all buillin modules avaiable to this REPL
+   * Labels a class
+   * @param typeCode - the unique type code to assign to this class 
+   * @param presenter - the ClassPresenter of this class
+   * @param hostModule - the name of the host module of this class
+   * 
+   * @returns the LabeledClas representing this class
    */
-  init(bmods: Map<string, BuiltInModule>){
-    let modCode = 1; //we reserve 0 for the source module
-
-    for(let mod of bmods.values()){
-      console.log(`=============LABELING BUILTIN ${mod.name}`);
-      this.labeledBuiltIns.set(mod.name, this.label(modCode, mod.presenter, false));
-      modCode++;
-    }
-  }
-
   labelClass(typeCode: number, presenter: ClassPresenter, hostModule: string): LabeledClass{
     const vars = new Map<string, number>();
     const methods = new Map<string, {identity: FuncIdentity, label: string}>();
@@ -63,6 +56,12 @@ class Labeler {
     return {typeCode: typeCode, varIndices: vars, methods: methods};
   }
 
+  /**
+   * Labels this module
+   * @param modCode - the unique type code to assign to this class
+   * @param module - the ModulePresenter of this module
+   * @param isSource - whether this Module is the source module or not
+   */
   label(modCode: number, module: ModulePresenter, isSource: boolean): LabeledModule{
     let vIndex = isSource ? this.curGVarIndex : 0;
 
@@ -97,6 +96,12 @@ class Labeler {
     return {moduleCode: modCode, classes: classes, funcs: funcs, globalVars: vars};
   }
 
+  /**
+   * Generates a unique label, namely for functions
+   * @param label - the proposed label name
+   * 
+   * @returns a unqiue version of such label
+   */
   genLabel(label: string): string{
     if(this.takenLabels.has(label)){
       const currAddOn = this.takenLabels.get(label);
@@ -108,64 +113,189 @@ class Labeler {
   }
 }
 
+/**
+ * Holds configuration assets for a REPL
+ * 
+ * This includes: type information of builtins - and callable code to builtin functions, 
+ *                as well as the memory allocator to use for the REPL.
+ */
 export type Config = {
   builtIns: Map<string, BuiltInModule>,
   builtInPresenters: Map<string, ModulePresenter>,
   allocator: MainAllocator;
-  funcs: any
 }
 
+/**
+ * The front-end interface of our ChocoPy Dialect compiler.
+ */
 export class BasicREPL {
   
   private config: Config;
   private labeler: Labeler;
+  private labeledBuiltIns: Map<string, LabeledModule>;
 
+  private currentLabels: LabeledModule;
+  private currentSource: Program<Type>;
+  private currentRuntime: RuntimeModule;
   private currentTable: GlobalTable;
+
+  /**
+   * Passed to WASM execution at runtime.
+   * Collection of all callable functions in Type/Javscript
+   * that can be called from WASM
+   */
+  private externalFuncs: any; 
 
   constructor(config: Config) {
     this.config = config;
-
     this.labeler = new Labeler();
-    this.labeler.init(config.builtIns);
+    //this.labeler.init(config.builtIns);
+
+    const runtime = this.createRuntime(this.config.allocator, this.labeler, config.builtIns);
+    this.externalFuncs = runtime.funcs;
+    this.labeledBuiltIns = runtime.labeledBuiltIns;
+  }
+
+  createRuntime(allocator: MainAllocator, labeler: Labeler, builtins: Map<string, BuiltInModule>) : 
+                                              {funcs: any, labeledBuiltIns: Map<string, LabeledModule>}{
+    const funcs: any = {};
+    const labeledBuiltIns = new Map<string, LabeledModule>();                                    
+
+    let modCode = 1; //we start at 1 as the module code 0 is reserved for the source module
+    for(let [name, mod] of builtins.entries()){
+      const labeledMod = labeler.label(modCode, mod.presenter, false);
+
+      const modFuncs: any = {};
+
+      for(let [_, func] of mod.functions.entries()){
+        const sig = idenToStr(func.identity);
+        const label = labeledMod.funcs.get(sig).label;
+        modFuncs[label] = (...args: number[]) => {return func.func(...args)};
+      }
+
+      funcs[name] = modFuncs;
+      labeledBuiltIns.set(name, labeledMod);
+      modCode++;
+    }
+
+    //System functions related to memory manipulation
+    funcs[SYSTEM_MODULE_NAME] = {
+      instanciate: (code: number) => allocator.allocObj(0, code),
+      objderef: (addr: number, index: number) => allocator.objRetr(addr, index),
+      objmute: (addr: number, index: number, val: number) => allocator.objMutate(addr, index, val),
+      modRef: (modCode: number, varIndex: number) => allocator.modVarRetr(modCode, varIndex),
+      modMute: (modCode: number, index: number, val: number) => allocator.modVarMute(modCode, index, val),
+
+      getInt: (addr: number) => allocator.getInt(addr),
+      getBool: (addr: number) => allocator.getBool(addr),
+      allocInt: (val: number) => allocator.allocInt(val),
+      allocBool: (val: number) => allocator.allocBool(val)
+    }
+
+    return {funcs: funcs, labeledBuiltIns: labeledBuiltIns};
   }
   
   async run(source: string): Promise<Value> {
-    source += "from natives import print, abs, min, max, pow \n"
+    source = "from natives import print, abs, min, max, pow \n" + source;
 
     const parsed = parse(source);
-    const typed = tc(this.currentTable === undefined ? 
-                          undefined :  
-                          this.currentTable, this.config.builtInPresenters, parsed);
-    this.currentTable = typed.table;
+    const typed = tc(this.currentTable === undefined ? undefined : this.currentTable, 
+                     this.config.builtInPresenters, 
+                     parsed);
 
+    this.currentSource = this.addOnComponents(this.currentSource, typed.typed);
+    this.currentTable = typed.table;
     
     const labeled = this.labeler.label(0, typed.typed.presenter, true);
-    const compiled = compile(typed.typed, labeled, this.labeler.labeledBuiltIns, this.config.allocator);
-    console.log("---------INSTRS--------\n"+compiled.join("\n"));
+    
+    //resolve labels
+    this.currentLabels = this.resolveLabels(this.currentLabels, labeled);
 
-    const runtimeVers = this.createRuntimeRep(typed.typed, labeled);
-    this.config.allocator.setModule(0, runtimeVers);
-    this.initGVars(typed.typed, labeled);
+    const compiled = compile(this.currentSource, this.currentLabels, this.labeledBuiltIns, this.config.allocator);
+    //console.log("---------INSTRS--------\n"+compiled.join("\n"));
 
-    console.log("-----executing!!!!");
+    this.currentRuntime = this.createRuntimeRep(this.currentRuntime, this.currentSource, labeled);
+    this.config.allocator.setModule(0, this.currentRuntime);
+    this.initGVars(this.currentSource, labeled);
+
+    //console.log("-----executing!!!!");
 
     try {
-      const v = await run(compiled.join("\n"), this.config.funcs);
+      const v = await run(compiled.join("\n"), this.externalFuncs);
+      if(v === 0){
+        return {tag: "none"};
+      }
+      const inst = this.config.allocator.getInstance(v);
+      switch(inst.tag){
+        case "bool": return {tag: "bool", value: inst.value};
+        case "string": return {tag: "string", value: inst.value};
+        case "int": return {tag: "num", value: BigInt(inst.value)};
+        case "instance": return {tag: "object", address: v}
+      }
     } catch (error) {
-      console.log("error caught! ");
+      console.log("----EXECUTION ERROR CAUGHT-----");
       console.log(error.stack);
+      throw error;
     }
-    
-
-    return undefined;
   }
 
-  createRuntimeRep(program: Program<Type>, labeled: LabeledModule): RuntimeModule{
+  addOnComponents(cur: Program<Type>, newProg: Program<Type>): Program<Type>{
+    if(cur === undefined){
+      return newProg;
+    }
+
+    const newPresenter: ModulePresenter = {
+      name: cur.presenter.name,
+      moduleVars: new Map([...cur.presenter.moduleVars, ...newProg.presenter.moduleVars]),
+      functions: new Map([...cur.presenter.functions,...newProg.presenter.functions]),
+      classes: new Map([...cur.presenter.classes,...newProg.presenter.classes])
+    }
+
+    const ret: Program<Type> = {
+      funcs: new Map(cur.funcs),
+      inits: new Map(newProg.inits),
+      classes: new Map(cur.classes),
+      imports: [...cur.imports, ...newProg.imports],
+      stmts: newProg.stmts,
+      presenter : newPresenter
+    }
+
+    return ret;
+  }
+
+  resolveLabels(curLabels: LabeledModule, newLabels: LabeledModule): LabeledModule{
+    if(curLabels === undefined){
+      return newLabels;
+    }
+
+    const result: LabeledModule = {
+      moduleCode: curLabels.moduleCode,
+      classes : new Map(curLabels.classes),
+      funcs: new Map(curLabels.funcs), //maps function signatures to function labels
+      globalVars: new Map(curLabels.globalVars) // maps global variables to their indices
+    };
+
+    Array.from(newLabels.classes.entries()).forEach(
+      x => result.classes.set(x[0], x[1])
+    );
+
+    Array.from(newLabels.funcs.entries()).forEach(
+      x => result.funcs.set(x[0], x[1])
+    );
+
+    Array.from(newLabels.globalVars.entries()).forEach(
+      x => result.globalVars.set(x[0], x[1])
+    );
+
+    return result;
+  }
+
+  createRuntimeRep(curRuntime: RuntimeModule, program: Program<Type>, labeled: LabeledModule): RuntimeModule{
     const runtimeVers = {
       presenter: program.presenter,
       isBuiltin: false,
-      classes: new Map<number, {vars: Array<Literal>}>(),
-      varNames: new Map<number, string>()
+      classes: curRuntime === undefined ? new Map() : new Map(this.currentRuntime.classes),
+      varNames: curRuntime === undefined ? new Map() : new Map(this.currentRuntime.varNames)
     };
 
     //add global vars
@@ -175,13 +305,13 @@ export class BasicREPL {
 
     //add classes
     for(let [name, labClass] of labeled.classes.entries()){
-      console.log(`  ---- SETTING RUNTIME, class: ${name} ${labClass.typeCode}`);
+      //console.log(`  ---- SETTING RUNTIME, class: ${name} ${labClass.typeCode}`);
 
       const classDef = program.classes.get(name);
       const literals = new Array<Literal>();
 
       for(let [vName, _] of labClass.varIndices.entries()){
-        console.log(`     -> for ${vName}, literal is ${litToStr(classDef.fields.get(vName).value)}`);
+        //console.log(`     -> for ${vName}, literal is ${litToStr(classDef.fields.get(vName).value)}`);
         literals.push(classDef.fields.get(vName).value);
       } 
 
@@ -219,7 +349,7 @@ export class BasicREPL {
   }
 
   async tc(source: string): Promise<Type> {
-    source += "from natives import print, abs, min, max, pow \n"
+    source = "from natives import print, abs, min, max, pow \n" + source;
 
     const parsed = parse(source);
     const typed = tc(this.currentTable === undefined ? 
@@ -237,59 +367,26 @@ export class BasicREPL {
 
 }
 
+/*
 async function main(){
   const allocator = new MainAllocator();
-  allocator.initGlobalVars(3); //natives, otherModule, and source
+  const builtIns = initializeBuiltins(allocator);
+  allocator.initGlobalVars(builtIns.modules.size); //natives, otherModule, and source
+  
 
-  const builtins = new Map<string, BuiltInModule>();
+  const config: Config = {builtIns: builtIns.modules, 
+                          builtInPresenters: builtIns.presenters, 
+                          allocator: allocator};
+  const repl = new BasicREPL(config);
 
-  const otherModule: OtherModule = new OtherModule(allocator);
-  const natives: NativeTypes = new NativeTypes(allocator);
-  attachPresenter(otherModule);
-  attachPresenter(natives);
-
-  builtins.set(otherModule.name, otherModule);
-  builtins.set(natives.name, natives);
-
-  const testFuncs = {
-    natives: {
-      natives_print: (...args: number[]) => natives.print(...args),
-      natives_abs: (...args: number[]) => natives.abs(...args),
-      natives_min: (...args: number[]) => natives.min(...args),
-      natives_max: (...args: number[]) => natives.max(...args),
-      natives_pow: (...args: number[]) => natives.pow(...args)
-    },
-    otherModule: {
-      otherModule_someFunc: (...args: number[]) => otherModule.someFunc(),
-      otherModule_otherFunc: (...args: number[]) => otherModule.otherFunc()
-    },
-    system: {
-      instanciate: (code: number) => allocator.allocObj(0, code),
-      objderef: (addr: number, index: number) => allocator.objRetr(addr, index),
-      objmute: (addr: number, index: number, val: number) => allocator.objMutate(addr, index, val),
-      modRef: (modCode: number, varIndex: number) => allocator.modVarRetr(modCode, varIndex),
-      modMute: (modCode: number, index: number, val: number) => allocator.modVarMute(modCode, index, val),
-
-      getInt: (addr: number) => allocator.getInt(addr),
-      getBool: (addr: number) => allocator.getBool(addr),
-      allocInt: (val: number) => allocator.allocInt(val),
-      allocBool: (val: number) => allocator.allocBool(val)
-    }
-  };
-
-  const repl = new BasicREPL({builtIns: builtins, 
-                              builtInPresenters: gatherPresenters(builtins), 
-                              allocator: allocator,
-                              funcs: testFuncs});
-
-  const input = fs.readFileSync("./sampleprogs/sample7.txt","ascii");
+  const input = fs.readFileSync("./sampleprogs/sample8.txt","ascii");
 
   let v = await repl.run(input);
- 
+  console.log("done============="+valToStr(v));
   
   //console.log("last type: "+typeToString(v));
 
-  /*
+  
   var stdin = process.openStdin();
   stdin.addListener("data", async function(d) {
       // note:  d is an object, and when converted to a string it will
@@ -297,11 +394,22 @@ async function main(){
       // with toString() and then substring() 
       const code = d.toString().trim();
       console.log("you entered: [" + code + "]");
-      let v = await repl.run(code);
-      console.log("       ===> result "+v.tag);
+      try {
+        let v = await repl.run(code);
+        console.log("       ===> result "+valToStr(v));
+      } catch (error) {
+        console.log("last caught! ");
+        console.log(error.stack);
+      }
   });
-  */
+  
  
 }
 
-main();
+try {
+  main();
+} catch (error) {
+  console.log("last caught! ");
+  console.log(error.stack);
+}
+*/
