@@ -136,7 +136,7 @@ class Env {
    */
   selectRandomFunc(type: Type): FunDef {
     var typeString = convertTypeToStr(type);
-    if (!this.funcs.has(typeString)) {
+    if (!this.funcs.has(typeString) || this.funcs.get(typeString).length == 0) {
       return undefined; //sentinel value for no possible fundef
     }
     const tyFuncs = this.funcs.get(typeString);
@@ -330,8 +330,7 @@ function selectRandomClassName(env: Env, level: number): string {
   var classList = env.getClassNames();
   if (classList.length === 0) {
     toGen = "new";
-  }
-  if (level > 0) {
+  } else if (level > 0) {
     toGen = "existing";
   }
 
@@ -359,6 +358,7 @@ function selectRandomClassName(env: Env, level: number): string {
 function genStmt(env: Env, level: number): Program {
   const currIndent = INDENT.repeat(level);
   const whichStmt: string = selectRandomStmt();
+  console.log("gen stmt", whichStmt);
   switch (whichStmt) {
     case "assignment":
       var assignType: Type = selectRandomType(env, level);
@@ -389,6 +389,8 @@ function genStmt(env: Env, level: number): Program {
  */
 function genExpr(type: Type, env: Env, level: number): string {
   const whichExpr: string = selectRandomExpr();
+  // console.log("gen expr", whichExpr);
+
   switch (whichExpr) {
     case "literal":
       if (type.tag == "class") {
@@ -647,6 +649,7 @@ function genBody(env: Env, level: number, retType?: Type): Program {
   const currIndent = INDENT.repeat(level);
   var lastStmt: string;
   while (true) {
+    console.log("genBody", level);
     var generated = genStmt(env, level);
     stmtList = stmtList.concat(generated.program); // generate a statement
     lastStmt = generated.lastStmt;

@@ -27,8 +27,8 @@ export const INIT_STMT_PROBS = [
 export const INIT_EXPR_PROBS = [
   { key: "literal", prob: 0.3 },
   { key: "id", prob: 0.5 },
-  { key: "binop", prob: 0.7 },
-  { key: "uniop", prob: 0.75 },
+  { key: "binop", prob: 0.85 },
+  { key: "uniop", prob: 0.95 },
   { key: "call", prob: 1 },
   { key: "builtin1", prob: 1 },
   { key: "builtin2", prob: 1 },
