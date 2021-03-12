@@ -12,8 +12,10 @@ export type HeapTag =
   | typeof TAG_BIGINT
   | typeof TAG_REF
   | typeof TAG_DICT_ENTRY
+  | typeof TAG_TUPLE
   | typeof TAG_OPAQUE;
 
+// FIXME: This should really be an enum...
 export const TAG_CLASS = 0x1n;
 export const TAG_LIST = 0x2n;
 export const TAG_STRING = 0x3n;
@@ -22,6 +24,7 @@ export const TAG_BIGINT = 0x5n;
 export const TAG_REF = 0x6n;
 export const TAG_DICT_ENTRY = 0x7n;
 export const TAG_CLOSURE = 0x8n;
+export const TAG_TUPLE = 0x9n;
 export const TAG_OPAQUE = 0x12n; // NOTE(alex:mm) needed to mark zero-sized-types
 
 // NOTE(alex:mm): controls whether any GC is ever run
@@ -390,7 +393,8 @@ export class MnS<A extends MarkableAllocator> {
       // console.warn(`\tValue=${childValue}`);
 
       // NOTE(alex:mm): using a `switch` here breaks occasionally for whatever reason
-      if (childTag === TAG_CLASS) {
+      if (childTag === TAG_CLASS || childTag === TAG_TUPLE) {
+        // classes and tuples use the same memory structure: a value at each memory position
         // NOTE(alex:mm): use field indices for debug info later
         for (let fieldIndex = 0n; fieldIndex < childSize / 4n; fieldIndex++) {
           const fieldValue = this.getField(childPtr + 4n * fieldIndex);
