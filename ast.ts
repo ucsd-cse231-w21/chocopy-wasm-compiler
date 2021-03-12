@@ -110,7 +110,7 @@ export type Expr<A> =
   | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
 
 export type Literal =
-  | { tag: "num"; value: bigint }
+  | { tag: "num"; value: number } // TODO: make numpy support bigint
   | { tag: "bool"; value: boolean }
   | { tag: "string"; value: string }
   | { tag: "none" };
@@ -142,6 +142,6 @@ export enum UniOp {
 export type Value =
   | Literal
   | { tag: "object"; name: string; address: number }
-  | { tag: "callable"; name: string; address: number };
+  | { tag: "list"; address: number, content_type: Type };
 
 export type Location = { line: number; col: number; length: number };
