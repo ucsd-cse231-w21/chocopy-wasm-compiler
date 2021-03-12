@@ -27,7 +27,7 @@ otherFunc()
 otherModule.someFunc()
 otherModule.otherFunc()
 
-x: string = "string in x"
+x: str = "string in x"
 print(x)
 
 y: int = 10
