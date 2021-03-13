@@ -358,7 +358,6 @@ function selectRandomClassName(env: Env, level: number): string {
 function genStmt(env: Env, level: number): Program {
   const currIndent = INDENT.repeat(level);
   const whichStmt: string = selectRandomStmt();
-  console.log("gen stmt", whichStmt);
   switch (whichStmt) {
     case "assignment":
       var assignType: Type = selectRandomType(env, level);
@@ -389,7 +388,6 @@ function genStmt(env: Env, level: number): Program {
  */
 function genExpr(type: Type, env: Env, level: number): string {
   const whichExpr: string = selectRandomExpr();
-  // console.log("gen expr", whichExpr);
 
   switch (whichExpr) {
     case "literal":
@@ -649,7 +647,6 @@ function genBody(env: Env, level: number, retType?: Type): Program {
   const currIndent = INDENT.repeat(level);
   var lastStmt: string;
   while (true) {
-    console.log("genBody", level);
     var generated = genStmt(env, level);
     stmtList = stmtList.concat(generated.program); // generate a statement
     lastStmt = generated.lastStmt;
@@ -878,10 +875,6 @@ function genClassDecl(env: Env, level: number, className: string): Array<string>
   var classStrings = [];
   var classHeader = currIndent + "class " + className + "(object):";
 
-  // have empty class decl
-  classStrings.push(classHeader);
-  classStrings.push(INDENT.repeat(level + 1) + "pass");
-
   classStrings.push(classHeader);
 
   var classEnv = env.copyEnv();
@@ -984,6 +977,7 @@ export function genProgram(): { to_python: string; to_repl: string } {
   program.program = body.program;
 
   //do this after genBody since we need to know about all the functions/variables
+
   program.program = genDecl(env, new Env(), level).concat(program.program);
 
   var toReturn = {
@@ -995,7 +989,15 @@ export function genProgram(): { to_python: string; to_repl: string } {
     program.program[program.program.length - 1] =
       "print(" + program.program[program.program.length - 1] + ")";
   }
-  toReturn.to_python = cleanProgram(program.program);
+
+  var emptyClassDecl: Array<string> = [];
+  // gen empty class decl
+  env.classes.forEach((_: ClassDef, className: string) => {
+    emptyClassDecl.push("class " + className + "(object):");
+    emptyClassDecl.push(INDENT + "pass");
+  });
+
+  toReturn.to_python = cleanProgram(emptyClassDecl.concat(program.program));
   return toReturn;
 }
 /* genProgram */
