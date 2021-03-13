@@ -15,7 +15,17 @@ import {
   Location,
   Assignable,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable, WithTag } from "./utils";
+import {
+  NUM,
+  BOOL,
+  NONE,
+  CLASS,
+  STRING,
+  unhandledTag,
+  unreachable,
+  WithTag,
+  bigintToWords,
+} from "./utils";
 import * as BaseException from "./error";
 import { RunTime } from "./errorManager";
 import {
@@ -118,6 +128,7 @@ export function augmentEnv(
     newGlobals.set(v.name, Number(globalAddr));
     mm.addGlobal(globalAddr);
   });
+
   // for rg
   const rgAddr = mm.staticAlloc(4n);
   newGlobals.set("rg", Number(rgAddr));
@@ -136,14 +147,6 @@ export function augmentEnv(
     funs: newFuns,
   };
 }
-
-// function envLookup(env: GlobalEnv, name: string): number {
-//   if (!env.globals.has(name)) {
-//     console.log("Could not find " + name + " in ", env);
-//     throw new Error("Could not find name " + name);
-//   }
-//   return env.globals.get(name) * 4; // 4-byte values
-// }
 
 type CompileResult = {
   functions: string;
@@ -873,7 +876,6 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
     })
     .join(" ");
 
-  // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach((v) => {
     env.locals.set(v, currLocalIndex);
     currLocalIndex += 1;
@@ -1089,15 +1091,18 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
     case "builtin2":
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
-      // we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
-      return [
-        ...leftStmts,
-        ...decodeLiteral,
-        ...rightStmts,
-        ...decodeLiteral,
-        ...codeGenCall(expr.a[1], `(call $${expr.name})`),
-        ...encodeLiteral,
-      ];
+      return [...leftStmts, ...rightStmts, `(call $${expr.name})`];
+    // =======
+    //       we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
+    //       return [
+    //         ...leftStmts,
+    //         ...decodeLiteral,
+    //         ...rightStmts,
+    //         ...decodeLiteral,
+    //         ...codeGenCall(expr.a[1], `(call $${expr.name})`),
+    //         ...encodeLiteral,
+    //       ];
+    // >>>>>>> main
     case "literal":
       return codeGenLiteral(expr.value);
     case "id":
@@ -1113,12 +1118,19 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(ListCopyMode.Concat)];
       } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
-      } else {
+      } else if (expr.op == BinOp.And || expr.op == BinOp.Or) {
         return [
           ...lhsStmts,
           ...decodeLiteral,
           ...rhsStmts,
           ...decodeLiteral,
+          codeGenBinOp(expr.op),
+          ...encodeLiteral,
+        ];
+      } else {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
           ...(expr.op == BinOp.IDiv
             ? codeGenRuntimeCheck(
                 expr.a[1],
@@ -1127,7 +1139,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               )
             : [""]),
           codeGenBinOp(expr.op),
-          ...encodeLiteral,
         ];
       }
     case "uniop":
@@ -1140,6 +1151,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         default:
           return unreachable(expr);
       }
+      break;
     case "call":
       var prefix = "";
       if (expr.name === "dict") {
@@ -2371,22 +2383,7 @@ function dictUtilFuns(): Array<string> {
 
 function codeGenBigInt(num: bigint): Array<string> {
   const WORD_SIZE = 4;
-  const mask = BigInt(0x7fffffff);
-  var sign = 1;
-  var size = 0;
-  // fields ? [(0, sign), (1, size)]
-  if (num < 0n) {
-    sign = 0;
-    num *= -1n;
-  }
-  var words: bigint[] = [];
-  do {
-    words.push(num & mask);
-    num >>= 31n;
-    size += 1;
-  } while (num > 0n);
-  // size MUST be > 0
-  // NOTE(alex:mm): $$allocPointer is clobbered when codegen'ing inner exprs
+  var [sign, size, words] = bigintToWords(num);
   var alloc = [
     `(i32.const ${TAG_BIGINT})`,
     `(i32.const ${(2 + size) * WORD_SIZE})`, // size in bytes
@@ -2438,27 +2435,27 @@ function codeGenLiteral(literal: Literal): Array<string> {
 function codeGenBinOp(op: BinOp): string {
   switch (op) {
     case BinOp.Plus:
-      return "(i32.add)";
+      return "(call $$add)";
     case BinOp.Minus:
-      return "(i32.sub)";
+      return "(call $$sub)";
     case BinOp.Mul:
-      return "(i32.mul)";
+      return "(call $$mul)";
     case BinOp.IDiv:
-      return "(i32.div_s)";
+      return "(call $$div)";
     case BinOp.Mod:
-      return "(i32.rem_s)";
+      return "(call $$mod)";
     case BinOp.Eq:
-      return "(i32.eq)";
+      return "(call $$eq)";
     case BinOp.Neq:
-      return "(i32.ne)";
+      return "(call $$ne)";
     case BinOp.Lte:
-      return "(i32.le_s)";
+      return "(call $$lte)";
     case BinOp.Gte:
-      return "(i32.ge_s)";
+      return "(call $$gte)";
     case BinOp.Lt:
-      return "(i32.lt_s)";
+      return "(call $$lt)";
     case BinOp.Gt:
-      return "(i32.gt_s)";
+      return "(call $$gt)";
     case BinOp.Is:
       return "(i32.eq)";
     case BinOp.And:

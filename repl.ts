@@ -4,11 +4,25 @@ import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type, Literal } from "./ast";
 import { parse } from "./parser";
 import { importMemoryManager, MemoryManager } from "./alloc";
-import { NUM, STRING, BOOL, NONE, LIST, CLASS, PyValue, stringify, PyString } from "./utils";
 import { bignumfunctions } from "./bignumfunctions";
-import { AttributeError } from "./error";
+import {
+  NUM,
+  STRING,
+  BOOL,
+  NONE,
+  LIST,
+  CLASS,
+  PyValue,
+  stringify,
+  PyString,
+  PyBigInt,
+  PyBool,
+  encodeValue,
+} from "./utils";
+import { InternalException } from "./error";
 import { ErrorManager, importErrorManager } from "./errorManager";
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface REPL {
   run(source: string): Promise<any>;
 }
@@ -26,7 +40,8 @@ export class BasicREPL {
     this.errorManager = new ErrorManager();
     if (!importObject.js) {
       const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
-
+      const view = new Int32Array(memory.buffer);
+      view[0] = 4;
       this.importObject.js = { memory: memory };
     }
 
@@ -52,6 +67,11 @@ export class BasicREPL {
       );
       return arg;
     };
+    this.importObject.imports.__internal_print_none = (arg: number) => {
+      console.log("Logging from WASM: ", arg);
+      this.importObject.imports.print(PyValue(NONE, arg, null));
+      return arg;
+    };
     this.importObject.imports.__internal_print_num = (arg: number) => {
       console.log("Logging from WASM: ", arg);
       this.importObject.imports.print(
@@ -71,7 +91,7 @@ export class BasicREPL {
       let mem = new Uint32Array(this.importObject.js.memory.buffer);
       const view = new Int32Array(mem);
       let list_length = view[arg / 4 + 1];
-      let list_bound = view[arg / 4 + 2];
+      //let list_bound = view[arg / 4 + 2];
       var base_str = "";
       var index = 0;
       let p_list = [];
@@ -130,11 +150,78 @@ export class BasicREPL {
       this.importObject.imports.print(PyValue(BOOL, arg, null));
       return arg;
     };
-    this.importObject.imports.__internal_print_none = (arg: number) => {
-      console.log("Logging from WASM: ", arg);
-      this.importObject.imports.print(PyValue(NONE, arg, null));
-      return arg;
-    };
+    this.importObject.imports.abs = (arg: number) =>
+      this.uniOpInterface(arg, (val: bigint) => {
+        return val < 0 ? -val : val;
+      });
+    this.importObject.imports.pow = (base: number, exp: number) =>
+      this.binOpInterface(base, exp, (baseVal: bigint, expVal: bigint) => {
+        // Javascript does not allow a negative BigInt exponent.
+        if (expVal < 1) {
+          return 0n;
+        } else {
+          return baseVal ** expVal;
+        }
+      });
+    this.importObject.imports.max = (x: number, y: number) =>
+      this.binOpInterface(x, y, (xval: bigint, yval: bigint) => {
+        var res = xval > yval ? xval : yval;
+        return res;
+      });
+    this.importObject.imports.min = (x: number, y: number) =>
+      this.binOpInterface(x, y, (xval: bigint, yval: bigint) => {
+        var res = xval < yval ? xval : yval;
+        return res;
+      });
+    this.importObject.imports.__big_num_add = (x: number, y: number) =>
+      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+        return x + y;
+      });
+    this.importObject.imports.__big_num_sub = (x: number, y: number) =>
+      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+        return x - y;
+      });
+    this.importObject.imports.__big_num_mul = (x: number, y: number) =>
+      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+        return x * y;
+      });
+    this.importObject.imports.__big_num_div = (x: number, y: number) =>
+      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+        if (y === 0n) {
+          // TODO change this back to ZeroDivisionError
+          throw new Error("Cannot divide by zero");
+          //           throw new ZeroDivisionError();
+        }
+        return (x - (((x % y) + y) % y)) / y;
+      });
+    this.importObject.imports.__big_num_mod = (x: number, y: number) =>
+      this.binOpInterface(x, y, (x: bigint, y: bigint) => {
+        return ((x % y) + y) % y;
+      });
+    this.importObject.imports.__big_num_eq = (x: number, y: number) =>
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
+        return x === y;
+      });
+    this.importObject.imports.__big_num_ne = (x: number, y: number) =>
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
+        return x !== y;
+      });
+    this.importObject.imports.__big_num_lt = (x: number, y: number) =>
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
+        return x < y;
+      });
+    this.importObject.imports.__big_num_lte = (x: number, y: number) =>
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
+        return x <= y;
+      });
+    this.importObject.imports.__big_num_gt = (x: number, y: number) =>
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
+        return x > y;
+      });
+    this.importObject.imports.__big_num_gte = (x: number, y: number) =>
+      this.binOpInterfaceBool(x, y, (x: bigint, y: bigint) => {
+        return x >= y;
+      });
 
     importErrorManager(this.importObject, this.errorManager);
 
@@ -144,9 +231,38 @@ export class BasicREPL {
     classFields.set("stop", [1, { tag: "num", value: BigInt(0) }]);
     classFields.set("step", [2, { tag: "num", value: BigInt(1) }]);
     this.currentEnv.classes.set("Range", classFields);
-
     this.currentTypeEnv = defaultTypeEnv;
     this.functions = libraryFuns() + "\n\n" + bignumfunctions;
+  }
+  binOpInterface(x: number, y: number, f: (x: bigint, y: bigint) => bigint): number {
+    var mem = new Uint32Array(this.importObject.js.memory.buffer);
+    var xval = PyValue(NUM, x, mem);
+    var yval = PyValue(NUM, y, mem);
+    if (xval.tag == "num" && yval.tag == "num") {
+      return encodeValue(
+        PyBigInt(f(xval.value, yval.value)),
+        this.importObject.imports.gcalloc,
+        mem
+      );
+    }
+    throw new InternalException("binary operation failed at runtime");
+  }
+  binOpInterfaceBool(x: number, y: number, f: (x: bigint, y: bigint) => boolean): number {
+    var mem = new Uint32Array(this.importObject.js.memory.buffer);
+    var xval = PyValue(NUM, x, mem);
+    var yval = PyValue(NUM, y, mem);
+    if (xval.tag == "num" && yval.tag == "num") {
+      return encodeValue(PyBool(f(xval.value, yval.value)), this.importObject.imports.gcalloc, mem);
+    }
+    throw new InternalException("binary operation failed at runtime");
+  }
+  uniOpInterface(x: number, f: (x: bigint) => bigint): number {
+    var mem = new Uint32Array(this.importObject.js.memory.buffer);
+    var xval = PyValue(NUM, x, mem);
+    if (xval.tag == "num") {
+      return encodeValue(PyBigInt(f(xval.value)), this.importObject.imports.gcalloc, mem);
+    }
+    throw new InternalException("binary operation failed at runtime");
   }
   async run(source: string): Promise<Value> {
     const config: Config = {
