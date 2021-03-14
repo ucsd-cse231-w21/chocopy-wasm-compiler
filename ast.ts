@@ -87,7 +87,12 @@ export class FuncType {
   }
 
   public getName(): string {
-    let components = this.globalName.split("$");
+    let components = this.globalName.split('$');
+    return components[components.length - 1];
+  }
+
+  public getPureName(): string {
+    let components = this.getName().split('#');
     return components[components.length - 1];
   }
 

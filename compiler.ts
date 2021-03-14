@@ -201,18 +201,43 @@ function literalToVal(l: Literal): number {
   }
 }
 
-function codeGenClassTypeCast(lct:ClassType, rct:ClassType): Array<string> {
-  let wasms: Array<string> = new Array();
+function findTypeCastOffset(lct:ClassType, rct:ClassType): number {
   let t: ClassType = rct;
-  while (t.getName()!=lct.getName()) {
-    console.log(`class raised 1 level`)
-    wasms = wasms.concat(
-      [`;; typecast`],
-      numberPtrToExprPtr(t.headerSize),
-      [`(i32.add)`]
-    )
-    t = t.parent
+  if (lct.hasDescendant(rct)) {
+    let offset = 0;
+    while (t.getName()!=lct.getName()) {
+      offset = offset + t.headerSize
+      t = t.parent
+    }
+    return offset
   }
+  else {
+    return -findTypeCastOffset(rct, lct)
+  }
+}
+
+function codeGenClassTypeCastByAddingOffset(lct:ClassType, rct:ClassType): Array<string> {
+  let wasms: Array<string> = new Array();
+  wasms = wasms.concat(
+    [`;; typecast by adding offset`],
+    numberPtrToExprPtr(findTypeCastOffset(lct, rct)),
+    [`(i32.add)`]
+  )
+  return wasms
+}
+
+function codeGenClassTypeCastByLoadingOffset(offsetToHead: number): Array<string> {
+  let wasms: Array<string> = new Array();
+  wasms = wasms.concat(
+    [`;; typecast by loading offset`],
+    [`(local.set $$duplicator)`,
+    `(local.get $$duplicator)`,
+    `(local.get $$duplicator)`],
+    numberPtrToExprPtr(offsetToHead),
+    [`(i32.add)`,
+    `(i32.load)`,
+    `(i32.add)`]
+  )
   return wasms
 }
 
@@ -224,7 +249,6 @@ function codeGenAllocBase(ct: ClassType, dct:ClassType, epOffset: number): Array
     storeValWithNumberPtrThenOffset(constant.PTR_EP, 0+epOffset, -1),  // tag
     storeValWithNumberPtrThenOffset(constant.PTR_EP, 1+epOffset, ct.size),  // size
     storeExprWithNumberPtrThenOffset(constant.PTR_EP, 2+epOffset, numberPtrToExprPtr(ct.dispatchTablePtr + constant.PTR_DTABLE)),
-    storeExprWithNumberPtrThenOffset(constant.PTR_EP, 3+epOffset, numberPtrToExprPtr(epOffset))
   )
   if (ct.parent.getName()!='object') {
     wasms = wasms.concat(
@@ -235,7 +259,7 @@ function codeGenAllocBase(ct: ClassType, dct:ClassType, epOffset: number): Array
   // alloc attr_ptrs
   wasms = wasms.concat([`;; AllocBase class ${ct.getName()} attr_ptrs`])
   ct.attributes.forEach(attr => {
-    console.log(`ct name: ${ct.globalName}, dct name: ${dct.globalName}, finding attr ${attr.name}`)
+    console.log(`ct name: ${ct.globalName}, dct name: ${dct.globalName}, finding attr ${attr.name}, offset= ${ct.attributePtrSectionHead} + ${attr.offset} + ${epOffset}`)
     const attrPtrDestExpr = resolveNumberPtrThenOffset(constant.PTR_EP, dct.attributeSectionHead + dct.attributes.get(attr.name).offset)
     wasms = wasms.concat(
       storeExprWithNumberPtrThenOffset(constant.PTR_EP, ct.attributePtrSectionHead + attr.offset + epOffset, attrPtrDestExpr)
@@ -250,7 +274,16 @@ function codeGenAllocBase(ct: ClassType, dct:ClassType, epOffset: number): Array
       storeExprWithNumberPtrThenOffset(constant.PTR_EP, ct.methodPtrSectionHead + offset + epOffset, methodPtrDestExpr)
     )
   })
-  // alloc func_offsets
+  // alloc func_ptr_offsets
+  ///*
+  wasms = wasms.concat([`;; AllocBase class ${ct.getName()} method_ptr_offsets`])
+  ct.methodPtrs.forEach((offset, name) => {
+    const methodPtrOffsetExpr = numberPtrToExprPtr(findTypeCastOffset(dct.methods.get(name).paramsType[0], ct))
+    wasms = wasms.concat(
+      storeExprWithNumberPtrThenOffset(constant.PTR_EP, ct.methodPtrOffsetSectionHead + offset + epOffset, methodPtrOffsetExpr)
+    )
+  })
+  //*/
   wasms = wasms.concat([`;; AllocBase class ${ct.getName()} done`])
   return wasms
 }
@@ -404,8 +437,14 @@ function codeGenExpr(expr: Expr): Array<string> {
           })
           const funcType = ct.methods.get("__init__")
           let funcEnv = envManager.envMap.get(funcType.globalName);
-          const initClassType = funcType.paramsType[0]
-          pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true, ct);
+          let funcOffset = ct.methodPtrs.get(funcType.getPureName())
+          console.log(`ClassInit funcType name: ${funcType.getName()}`)
+          console.log(`ClassInit ct methods:`)
+          ct.methodPtrs.forEach((offset, name) => {
+            console.log(`method: ${name}, offset: ${offset}`)
+          })
+          console.log(`ClassInit codeGenPushParam called: funcOffset: ${funcOffset}`)
+          pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true, ct, funcOffset);
           fillArgsExpr = codeGenFillParam(expr.args.length+1);
           wasms = wasms.concat(
             [`;; class init: Alloc`],
@@ -420,8 +459,10 @@ function codeGenExpr(expr: Expr): Array<string> {
             getMethodWithName(ct, "__init__"),
 
             [`;; class init: call __init__`],
+            [`;; class init: push args`],
             pushArgsExpr,
             codeGenCallerInit(),
+            [`;; class init: fill args`],
             fillArgsExpr,
             
             [`(call_indirect (type ${constant.WASM_FUNC_TYPE}))`],
@@ -445,12 +486,14 @@ function codeGenExpr(expr: Expr): Array<string> {
         if (expr.caller.tag != 'member') {
           throw new Error(`This should not happen: calling a member function while isMemberFunc is false`)
         }
-        console.log(`second pushparam`)
-        pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true, expr.caller.owner.type)
+        const ownerType = expr.caller.owner.type
+        let funcOffset = ownerType.methodPtrs.get(ft.getPureName())
+        console.log(`MemberFunc call pushparam, offset: ${funcOffset}`)
+        pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true, ownerType, funcOffset)
       }
       else {
-        console.log(`third pushparam`)
-        pushArgsExpr = codeGenPushParam(funcEnv, expr.args, false, null);
+        console.log(`NonMemberFunc call pushparam, offset: 0`)
+        pushArgsExpr = codeGenPushParam(funcEnv, expr.args, false, null, 0);
       }
       fillArgsExpr = codeGenFillParam(expr.args.length + (ft.isMemberFunc ? 1 : 0));
 
@@ -470,7 +513,7 @@ function codeGenExpr(expr: Expr): Array<string> {
   return wasms;
 }
 
-function codeGenPushParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean, selfType: ClassType): Array<string> {
+function codeGenPushParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean, selfType: ClassType, funcOffset: number): Array<string> {
   let pushArgsExpr: Array<string> = new Array();
   let paramSize = args.length;
   let offset = isMemberFunc ? 1 : 0;
@@ -478,11 +521,13 @@ function codeGenPushParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean
   funcEnv.nameToVar.forEach((variable, name) => {
     if (variable.offset < paramSize + offset) {
       if (isMemberFunc && variable.offset === 0) {
-        console.log(`self typeCast check: ${variable.type.getName()}, ${selfType.getName()}`)
+        console.log(`self typeCast check: ${variable.type.getName()}, ${selfType.getName()}, offset: ${funcOffset}`)
         pushArgsExpr = pushArgsExpr.concat(
           resolveNumberPtrThenOffset(constant.PTR_SP, -3),
-          [`;; self typeCast check: ${variable.type.getName()}, ${selfType.getName()}`],
-          appendImplicitCastCode(variable.type, selfType, resolveTempNumberPtr(constant.PTR_T1)),
+          [`;; self typeCast: ${variable.type.getName()}, ${selfType.getName()}`,],
+          resolveTempNumberPtr(constant.PTR_T1),
+          codeGenClassTypeCastByLoadingOffset(selfType.methodPtrOffsetSectionHead + funcOffset),
+          [`;; self typeCast done`,],
         )
         return;
       }
@@ -527,7 +572,7 @@ function appendImplicitCastCode(lValueType: ClassType, rValueType: ClassType, rV
     return rValueCode
   if (lValueType.getName()!=rValueType.getName() && !isBasicType(lValueType)) {
     console.log(`classTypeCast triggered: ${rValueType.getName()} to ${lValueType.getName()}`)
-    rValueCode = rValueCode.concat(codeGenClassTypeCast(lValueType, rValueType))
+    rValueCode = rValueCode.concat(codeGenClassTypeCastByAddingOffset(lValueType, rValueType))
   }
   return rValueCode
 }
@@ -658,6 +703,7 @@ function codeGenFuncDef(fd: FuncDef): Array<string> {
     [
       `(func ${ft.globalName} (result i32)`,
       `(local $$last i32)`,
+      `(local $$duplicator i32)`,
       `(block $$func_block`
     ],
   )
@@ -698,6 +744,7 @@ function codeGenMethodDef(fd: FuncDef, ft: FuncType): Array<string> {
     [
       `(func ${ft.globalName} (result i32)`,
       `(local $$last i32)`,
+      `(local $$duplicator i32)`,
       `(block $$func_block`
     ],
   )
@@ -851,7 +898,7 @@ export function compile(source: string, importObject: any, gm: MemoryManager, em
   const wasms = codeGenProgram(ast);
   let returnType = "";
   let returnExpr = "";
-  let scratchVar = "(local $$last i32)";
+  let scratchVar = ["(local $$last i32)", `(local $$duplicator i32)`];
 
   if(resultValue.tag !== "none") {
     returnType = "(result i32)";
@@ -886,7 +933,7 @@ export function compile(source: string, importObject: any, gm: MemoryManager, em
     (elem (i32.const 0) ${memoryManager.functionIdToName.join(" ")})
 
     (func (export "exported_func") ${returnType}
-      ${scratchVar}
+      ${scratchVar.join("\n")}
       ${initWASM.join("\n")}
       ;; class def
       ${wasms[1].join("\n")}

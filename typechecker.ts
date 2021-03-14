@@ -551,7 +551,7 @@ export function tcClassDef(cd: ClassDef) {
   classType.parentOffset = classType.headerSize
   classType.attributePtrSectionHead = classType.headerSize + classType.parent.size
   classType.methodPtrSectionHead = classType.attributePtrSectionHead + classType.attributes.size
-  classType.methodPtrOffsetSectionHead = classType.methodPtrSectionHead + classType.attributes.size
+  classType.methodPtrOffsetSectionHead = classType.methodPtrSectionHead + classType.methods.size
   classType.attributeSectionHead = classType.methodPtrOffsetSectionHead + classType.methods.size
   memoryManager.dispatchTablesSize += classType.methods.size;
 
