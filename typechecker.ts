@@ -29,6 +29,11 @@ const unaryOpToMethod: Map<string,string> = new Map([
   ["not", "__not__"],
 ])
 
+export function isBasicType(t: ClassType): boolean {
+  const cname = t.getName()
+  return cname == 'int' || cname == 'bool' || cname == '<None>'
+}
+
 export function typeMatching(t: Array<ClassType>, target: Array<ClassType>): boolean {
   if (t.length != target.length) {
     return false;
@@ -150,6 +155,8 @@ export function tcExpr(e: Expr): Expr {
     }
     case "call": {
       let caller = tcExpr(e.caller);
+
+      e.caller.type = caller.type
       
       if (!(caller.tag === "id" || caller.tag === "member")) {
         throw new Error(`Unknown call`);
@@ -219,6 +226,7 @@ export function tcStmt(s: Stmt) {
     case "return": {
       let te = tcExpr(s.expr);
       let expectedType = envManager.funcMap.get(curEnv.name).returnType;
+      s.targetType = expectedType
       if (!expectedType.hasDescendant(te.type)) {
         throw new Error("Expect type " + expectedType.getName() + ", get type " + te.type.getName());
       }
@@ -328,6 +336,7 @@ export function loadFuncDef(fd: FuncDef) {
       type: ct,
       value: {tag: "None"},
       offset: newEnv.nameToVar.size,
+      from: null
     };
     newEnv.nameToVar.set(param.name, v);
     paramsType.push(ct);
@@ -379,6 +388,7 @@ export function tcAttributesDef(ct: ClassType, vd: VarDef) {
     type: tVar,
     value: vd.value,
     offset: ct.attributes.size,
+    from: ct
   }
   
   ct.attributes.set(variable.name, variable);
@@ -401,6 +411,7 @@ export function loadMethodDef(ct: ClassType, fd: FuncDef) {
       type: ct,
       value: {tag: "None"},
       offset: i,
+      from: ct
     };
     newEnv.nameToVar.set(param.name, v);
     paramsType.push(ct);
@@ -525,6 +536,7 @@ function loadVarDef(vd: VarDef) {
     type: tVar,
     value: vd.value,
     offset: curEnv.nameToVar.size,
+    from: null
   })
 }
 
@@ -535,10 +547,15 @@ export function tcClassDef(cd: ClassDef) {
     tcMethodDef(classType, funcDef); 
   }
 
-  classType.methodPtrsHead = memoryManager.dispatchTablesSize;
+  classType.dispatchTablePtr = memoryManager.dispatchTablesSize;
+  classType.parentOffset = classType.headerSize
+  classType.attributePtrSectionHead = classType.headerSize + classType.parent.size
+  classType.methodPtrSectionHead = classType.attributePtrSectionHead + classType.attributes.size
+  classType.methodPtrOffsetSectionHead = classType.methodPtrSectionHead + classType.attributes.size
+  classType.attributeSectionHead = classType.methodPtrOffsetSectionHead + classType.methods.size
   memoryManager.dispatchTablesSize += classType.methods.size;
 
-  classType.size = classType.headerSize + classType.attributes.size;
+  classType.size = classType.attributeSectionHead + classType.attributes.size;
 
   console.log(classType);
 }

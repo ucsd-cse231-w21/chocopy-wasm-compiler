@@ -2,78 +2,110 @@ import { ClassDef, ClassType, Expr, FuncDef, FuncType, Literal, Program, Stmt, V
 import { Env, EnvManager } from "./env";
 import { MemoryManager } from "./memory";
 import { parse } from "./parser";
-import { tcProgram } from "./typechecker";
+import { isBasicType, tcProgram } from "./typechecker";
 import * as constant from "./constant"
+import { off } from "node:process";
 
 let memoryManager: MemoryManager;
 let envManager: EnvManager;
 let curEnv: Env;
 
-function getValFromPtr(p: number): Array<string> {
-  return [
-    `(i32.const ${p * constant.WORD_SIZE})`,
-    `(i32.load)`,
-  ];
+function numberPtrToExprPtr(p: number): Array<string> {
+  return [`(i32.const ${p * constant.WORD_SIZE})`]
 }
 
-function getPtrFromPtrPtr(pp: number): Array<string> {
-  return getValFromPtr(pp);
+function valueToExpr(v: number): Array<string> {
+  return [`(i32.const ${v})`]
 }
 
-function getPtrFromPtrPtrOffset(pp: number, offset: number): Array<string> {
-  return [
-    `(i32.const ${pp * constant.WORD_SIZE})`,
-    `(i32.load)`,
-    `(i32.const ${offset * constant.WORD_SIZE})`,
-    `(i32.add)`,
-  ];
+function resolveExprPtr(expr: Array<string>): Array<string> {
+  // returns *p
+  let wasms: Array<string> = new Array()
+  wasms = wasms.concat(
+    expr,
+    [`(i32.load)`]
+  )
+  return wasms
 }
 
-function setValWithPtrExpr(p: number, expr: Array<string>): Array<string> {
+function resolveNumberPtr(p: number): Array<string> {
+  // returns *p
+  return resolveExprPtr(numberPtrToExprPtr(p))
+}
+
+function resolveExprPtrThenOffset(expr: Array<string>, offset: number): Array<string> {
+  // returns *pp + offset
+  let wasms: Array<string> = new Array()
+  wasms = wasms.concat(
+    expr,
+    [`(i32.load)`],
+    numberPtrToExprPtr(offset),
+    [`(i32.add)`],
+  )
+  return wasms
+}
+
+function resolveNumberPtrThenOffset(p: number, offset: number): Array<string> {
+  // returns *p + offset
+  return resolveExprPtrThenOffset(numberPtrToExprPtr(p), offset)
+}
+
+function storeExprWithExprPtr(p: Array<string>, expr: Array<string>): Array<string> {
+  // *pp = expr
   let wasms: Array<string> = new Array();
   wasms = wasms.concat(
-    [`(i32.const ${p * constant.WORD_SIZE})`],
+    p,
     expr,
     [`(i32.store)`]
   )
   return wasms;
 }
 
-function setValWithPtr(p: number, value: number): Array<string> {
-  return setValWithPtrExpr(p, [`(i32.const ${value})`]);
+function storeExprWithNumberPtr(p: number, expr: Array<string>): Array<string> {
+  // *p = expr
+  return storeExprWithExprPtr(numberPtrToExprPtr(p), expr)
 }
 
-function setValWithPtrPtrOffsetExpr(pp: number, offset: number, expr: Array<string>): Array<string> {
-  let wasms: Array<string> = new Array();
-  wasms = wasms.concat(
-    getPtrFromPtrPtrOffset(pp, offset),
-    expr,
-    [`(i32.store)`]
-  )
-  return wasms;
+function storeValWithExprPtr(p: number, value: number): Array<string> {
+  // *p = value
+  return storeExprWithExprPtr(numberPtrToExprPtr(p), valueToExpr(value));
 }
 
-function setValWithPtrPtrOffset(pp: number, offset: number, value: number): Array<string> {
-  return setValWithPtrPtrOffsetExpr(pp, offset, [`i32.const ${value}`]);
+function storeValWithNumberPtr(p: number, value: number): Array<string> {
+  // *p = value
+  return storeExprWithNumberPtr(p, valueToExpr(value));
 }
 
-function setPtrWithPtrPtrOffset(pp: number, offset: number): Array<string> {
-  return setValWithPtrExpr(pp, getPtrFromPtrPtrOffset(pp, offset));
+function storeExprWithNumberPtrThenOffset(pp: number, offset: number, expr: Array<string>): Array<string> {
+  // *(*pp + offset) = expr
+  return storeExprWithExprPtr(resolveNumberPtrThenOffset(pp, offset), expr)
 }
 
-function storeTempValueWithExpr(p: number, expr: Array<string>): Array<string> {
-  return setValWithPtrExpr(p, expr);
+function storeValWithNumberPtrThenOffset(pp: number, offset: number, value: number): Array<string> {
+  // *(*pp + offset) = value
+  return storeExprWithNumberPtrThenOffset(pp, offset, valueToExpr(value));
 }
 
-function loadTempValue(p: number): Array<string> {
-  return getValFromPtr(p);
+function updatePtrContentByOffset(pp: number, offset: number): Array<string> {
+  // *pp = *pp + offset
+  return storeExprWithNumberPtr(pp, resolveNumberPtrThenOffset(pp, offset));
+}
+
+function storeTempExprWithNumberPtr(p: number, expr: Array<string>): Array<string> {
+  // *p = expr
+  return storeExprWithNumberPtr(p, expr);
+}
+
+function resolveTempNumberPtr(p: number): Array<string> {
+  // *p
+  return resolveNumberPtr(p);
 }
 
 function findVarPosition(name: string): Array<string> {
   let iterEnv = curEnv;
   let wasms: Array<string> = new Array();
   wasms = wasms.concat(
-    getPtrFromPtrPtrOffset(constant.PTR_DL, -1),
+    resolveNumberPtrThenOffset(constant.PTR_DL, -1),
   )
   while (!iterEnv.nameToVar.has(name)) {
     iterEnv = iterEnv.parent;
@@ -87,17 +119,15 @@ function findVarPosition(name: string): Array<string> {
   return wasms;
 }
 
-function getMethodFromPtr(ct: ClassType, methodName: string): Array<string> {
-  return [
-    `(i32.const ${(ct.getDispatchTablePtrOffset()) * constant.WORD_SIZE})`,
-    `(i32.add)`,
-    `(i32.load)`,  // dispatch table ptr
-    `(i32.const ${(ct.methodPtrs.get(methodName)) * constant.WORD_SIZE})`,
-    `(i32.add)`,
-    `(i32.load)`,
-  ]
+function getMethodWithName(ct: ClassType, methodName: string): Array<string> {
+  return [].concat(
+    numberPtrToExprPtr(ct.methodPtrSectionHead + ct.methodPtrs.get(methodName)),
+    [`(i32.add)`,
+    `(i32.load)`],
+  )
 }
 
+/*
 function getAttributeFromPtr(ct: ClassType, attrName: string): Array<string> {
   return [
     `(i32.const ${(
@@ -106,6 +136,7 @@ function getAttributeFromPtr(ct: ClassType, attrName: string): Array<string> {
     `(i32.load)`
   ];
 }
+*/
 
 const binaryOpToWASM: Map<string, Array<string>> = new Map([
   ["+", ["(i32.add)"]],
@@ -126,30 +157,32 @@ const binaryOpToWASM: Map<string, Array<string>> = new Map([
 
 function codeGenCallerInit(): Array<string> {
   let wasms: Array<string> = new Array();
-
   wasms = wasms.concat(
-    setValWithPtrPtrOffsetExpr(constant.PTR_SP, -1, getPtrFromPtrPtr(constant.PTR_DL)),
-    setValWithPtrPtrOffsetExpr(constant.PTR_SP, -2, getPtrFromPtrPtrOffset(constant.PTR_DL, -1)),
-    storeTempValueWithExpr(constant.PTR_T2, getPtrFromPtrPtrOffset(constant.PTR_SP, -1)),  // store new DL
-    setPtrWithPtrPtrOffset(constant.PTR_SP, -2),
-    setValWithPtrExpr(constant.PTR_DL, loadTempValue(constant.PTR_T2)),
+    [`;; callerInit`],
+    storeExprWithNumberPtrThenOffset(constant.PTR_SP, -1, resolveNumberPtr(constant.PTR_DL)),
+    storeExprWithNumberPtrThenOffset(constant.PTR_SP, -2, resolveNumberPtrThenOffset(constant.PTR_DL, -1)),
+    storeTempExprWithNumberPtr(constant.PTR_T2, resolveNumberPtrThenOffset(constant.PTR_SP, -1)),  // store new DL
+    updatePtrContentByOffset(constant.PTR_SP, -2),
+    storeExprWithNumberPtr(constant.PTR_DL, resolveTempNumberPtr(constant.PTR_T2)),
+    [`;; callerInit done`],
   )
   return wasms;
 }
 
 function codeGenCallerDestroy(): Array<string> {
   let wasms: Array<string> = new Array();
-
   let loadDL: Array<string> = new Array();
+  wasms.push(`;; callerDestroy`)
   loadDL = loadDL.concat(
-    getPtrFromPtrPtr(constant.PTR_DL),
+    resolveNumberPtr(constant.PTR_DL),
     [`(i32.load)`]
   )
 
   wasms = wasms.concat(
-    setValWithPtrExpr(constant.PTR_SP, getPtrFromPtrPtrOffset(constant.PTR_DL, 1)),
-    setValWithPtrExpr(constant.PTR_DL, loadDL),
+    storeExprWithNumberPtr(constant.PTR_SP, resolveNumberPtrThenOffset(constant.PTR_DL, 1)),
+    storeExprWithNumberPtr(constant.PTR_DL, loadDL),
   )
+  wasms.push(`;; callerDestroy done`)
   return wasms;
 }
 
@@ -168,32 +201,80 @@ function literalToVal(l: Literal): number {
   }
 }
 
-function codeGenAlloc(ct: ClassType): Array<string> {
+function codeGenClassTypeCast(lct:ClassType, rct:ClassType): Array<string> {
   let wasms: Array<string> = new Array();
-  wasms = wasms.concat(
-    [`;; Allocating class ${ct.getName()}`],
-    setValWithPtrPtrOffset(constant.PTR_EP, 0, -1),  // tag
-    setValWithPtrPtrOffset(constant.PTR_EP, 1, ct.size),  // size
-    setValWithPtrPtrOffset(
-      constant.PTR_EP, 2, 
-      (ct.methodPtrsHead + constant.PTR_DTABLE) * constant.WORD_SIZE
-    ),  // dtable
-  )
-
-  ct.attributes.forEach(attr => {
+  let t: ClassType = rct;
+  while (t.getName()!=lct.getName()) {
+    console.log(`class raised 1 level`)
     wasms = wasms.concat(
-      setValWithPtrPtrOffset(constant.PTR_EP, ct.headerSize + attr.offset, literalToVal(attr.value))
-    );
-  });
-
-  wasms = wasms.concat(
-    getPtrFromPtrPtr(constant.PTR_EP),  // leave a ptr as result
-    setPtrWithPtrPtrOffset(constant.PTR_EP, ct.size),  // update EP
-  )
-
-  return wasms;
+      [`;; typecast`],
+      numberPtrToExprPtr(t.headerSize),
+      [`(i32.add)`]
+    )
+    t = t.parent
+  }
+  return wasms
 }
 
+function codeGenAllocBase(ct: ClassType, dct:ClassType, epOffset: number): Array<string> {
+  let wasms: Array<string> = new Array();
+  wasms = wasms.concat(
+    [`;; AllocBase for class ${ct.getName()}`],
+    // *(*pp + offset) = value
+    storeValWithNumberPtrThenOffset(constant.PTR_EP, 0+epOffset, -1),  // tag
+    storeValWithNumberPtrThenOffset(constant.PTR_EP, 1+epOffset, ct.size),  // size
+    storeExprWithNumberPtrThenOffset(constant.PTR_EP, 2+epOffset, numberPtrToExprPtr(ct.dispatchTablePtr + constant.PTR_DTABLE)),
+    storeExprWithNumberPtrThenOffset(constant.PTR_EP, 3+epOffset, numberPtrToExprPtr(epOffset))
+  )
+  if (ct.parent.getName()!='object') {
+    wasms = wasms.concat(
+      [`;; Call AllocBase for parent class:${ct.parent.globalName}`],
+      codeGenAllocBase(ct.parent, dct, epOffset + ct.headerSize)
+    )
+  }
+  // alloc attr_ptrs
+  wasms = wasms.concat([`;; AllocBase class ${ct.getName()} attr_ptrs`])
+  ct.attributes.forEach(attr => {
+    console.log(`ct name: ${ct.globalName}, dct name: ${dct.globalName}, finding attr ${attr.name}`)
+    const attrPtrDestExpr = resolveNumberPtrThenOffset(constant.PTR_EP, dct.attributeSectionHead + dct.attributes.get(attr.name).offset)
+    wasms = wasms.concat(
+      storeExprWithNumberPtrThenOffset(constant.PTR_EP, ct.attributePtrSectionHead + attr.offset + epOffset, attrPtrDestExpr)
+    );
+  });
+  // alloc func_ptrs
+  wasms = wasms.concat([`;; AllocBase class ${ct.getName()} method_ptrs`])
+  ct.methodPtrs.forEach((offset, name) => {
+    const dispatchTablePtrExpr = resolveNumberPtrThenOffset(constant.PTR_EP, dct.getDispatchTablePtrOffset())
+    const methodPtrDestExpr = resolveExprPtr(resolveExprPtrThenOffset(dispatchTablePtrExpr, dct.methodPtrs.get(name)))
+    wasms = wasms.concat(
+      storeExprWithNumberPtrThenOffset(constant.PTR_EP, ct.methodPtrSectionHead + offset + epOffset, methodPtrDestExpr)
+    )
+  })
+  // alloc func_offsets
+  wasms = wasms.concat([`;; AllocBase class ${ct.getName()} done`])
+  return wasms
+}
+
+function codeGenAlloc(ct: ClassType): Array<string> {
+  let wasms: Array<string> = new Array();
+  wasms.push(`;; Alloc class ${ct.getName()}`)
+  wasms = wasms.concat(
+    [`;; Allocating parent class:${ct.parent.globalName}`],
+    codeGenAllocBase(ct, ct, 0)
+  )
+  wasms.push(`;; Alloc class ${ct.getName()} data section`)
+  ct.attributes.forEach(attr => {
+    wasms.push(`;; head=${ct.attributeSectionHead}, offset=${attr.offset}`)
+    wasms = wasms.concat(storeValWithNumberPtrThenOffset(constant.PTR_EP, ct.attributeSectionHead+attr.offset, literalToVal(attr.value)))
+  })
+  wasms.push(`;; Alloc class update ep`)
+  wasms = wasms.concat(
+    resolveNumberPtr(constant.PTR_EP),  // leave a ptr as result
+    updatePtrContentByOffset(constant.PTR_EP, ct.size),  // update EP
+  )
+  wasms.push(`;; Alloc class ${ct.getName()} done`)
+  return wasms;
+}
 
 function codeGenExpr(expr: Expr): Array<string> {
   let wasms: Array<string> = new Array();
@@ -206,7 +287,7 @@ function codeGenExpr(expr: Expr): Array<string> {
       let asVar = curEnv.findVar(expr.name);
       if (asVar) {
         wasms = wasms.concat(
-          getPtrFromPtrPtrOffset(constant.PTR_DL, -1)
+          resolveNumberPtrThenOffset(constant.PTR_DL, -1)
         );  // pointer to current SL 
         let iterEnv = curEnv;
         let counter = 0;
@@ -271,29 +352,30 @@ function codeGenExpr(expr: Expr): Array<string> {
       let ownerType = expr.owner.type;
       if (ownerType.attributes.has(expr.property)) {
         wasms = wasms.concat(
-          storeTempValueWithExpr(constant.PTR_T1, ownerWASM),  // load owner ptr
+          storeTempExprWithNumberPtr(constant.PTR_T1, ownerWASM),  // load owner ptr
 
-          loadTempValue(constant.PTR_T1),
+          resolveTempNumberPtr(constant.PTR_T1),
           codeGenNoneAbort(),
 
-          loadTempValue(constant.PTR_T1),
+          resolveTempNumberPtr(constant.PTR_T1),
           [
             `(i32.const ${(
-            ownerType.headerSize + 
+            ownerType.attributePtrSectionHead + 
             ownerType.attributes.get(expr.property).offset) * constant.WORD_SIZE})`,
             `(i32.add)`,
+            `(i32.load)`,
             `(i32.load)`
           ],
         );
       } else if (ownerType.methods.has(expr.property)) {
         wasms = wasms.concat(
-          storeTempValueWithExpr(constant.PTR_T1, ownerWASM),  // load owner ptr
+          storeTempExprWithNumberPtr(constant.PTR_T1, ownerWASM),  // load owner ptr
 
-          loadTempValue(constant.PTR_T1),
+          resolveTempNumberPtr(constant.PTR_T1),
           codeGenNoneAbort(),
 
-          loadTempValue(constant.PTR_T1),
-          getMethodFromPtr(ownerType, expr.property),
+          resolveTempNumberPtr(constant.PTR_T1),
+          getMethodWithName(ownerType, expr.property),
         );
       }
       break;
@@ -312,17 +394,32 @@ function codeGenExpr(expr: Expr): Array<string> {
           // ptr on stack, no acti
           return codeGenAlloc(ct);
         } else {
-          let funcEnv = envManager.envMap.get(ct.methods.get("__init__").globalName);
-          pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true);
+          console.log(`has custom init`)
+          console.log(`has ${expr.args.length} args`)
+          const initfunc = ct.methods.get("__init__")
+          console.log(`initfunc globalname: ${initfunc.globalName}`)
+          console.log(`${initfunc.paramsType[0].globalName}`)
+          initfunc.paramsType.forEach(pt => {
+            console.log(`arg type: ${pt.getName()}`)
+          })
+          const funcType = ct.methods.get("__init__")
+          let funcEnv = envManager.envMap.get(funcType.globalName);
+          const initClassType = funcType.paramsType[0]
+          pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true, ct);
           fillArgsExpr = codeGenFillParam(expr.args.length+1);
           wasms = wasms.concat(
-            storeTempValueWithExpr(constant.PTR_T1, codeGenAlloc(ct)),
+            [`;; class init: Alloc`],
+            storeTempExprWithNumberPtr(constant.PTR_T1, codeGenAlloc(ct)),
 
-            loadTempValue(constant.PTR_T1),  // need an extra ptr as result
+            [`;; class init: push addr for return`],
+            resolveTempNumberPtr(constant.PTR_T1),  // need an extra ptr as result
 
-            loadTempValue(constant.PTR_T1),
-            getMethodFromPtr(ct, "__init__"),
+            [`;; class init: push addr for __init__`],
+            resolveTempNumberPtr(constant.PTR_T1),
+            [`;; class init: getMethodWithName`],
+            getMethodWithName(ct, "__init__"),
 
+            [`;; class init: call __init__`],
             pushArgsExpr,
             codeGenCallerInit(),
             fillArgsExpr,
@@ -336,15 +433,27 @@ function codeGenExpr(expr: Expr): Array<string> {
         }
       }
 
-      let ft = expr.caller.funcType;
-      let funcEnv = envManager.envMap.get(ft.globalName);
-
-      pushArgsExpr = codeGenPushParam(funcEnv, expr.args, ft.isMemberFunc);
-      fillArgsExpr = codeGenFillParam(expr.args.length + (ft.isMemberFunc ? 1 : 0));
-
       wasms = wasms.concat(
         codeGenExpr(expr.caller),
       );
+
+      let ft = expr.caller.funcType;
+      let funcEnv = envManager.envMap.get(ft.globalName);
+
+      console.log(`caller type`, expr.caller.tag)
+      if (ft.isMemberFunc) {
+        if (expr.caller.tag != 'member') {
+          throw new Error(`This should not happen: calling a member function while isMemberFunc is false`)
+        }
+        console.log(`second pushparam`)
+        pushArgsExpr = codeGenPushParam(funcEnv, expr.args, true, expr.caller.owner.type)
+      }
+      else {
+        console.log(`third pushparam`)
+        pushArgsExpr = codeGenPushParam(funcEnv, expr.args, false, null);
+      }
+      fillArgsExpr = codeGenFillParam(expr.args.length + (ft.isMemberFunc ? 1 : 0));
+
 
       wasms = wasms.concat(
         pushArgsExpr,
@@ -361,26 +470,25 @@ function codeGenExpr(expr: Expr): Array<string> {
   return wasms;
 }
 
-function codeGenPushParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean): Array<string> {
+function codeGenPushParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean, selfType: ClassType): Array<string> {
   let pushArgsExpr: Array<string> = new Array();
   let paramSize = args.length;
   let offset = isMemberFunc ? 1 : 0;
 
-  if (isMemberFunc) {
-    pushArgsExpr = pushArgsExpr.concat(
-      getPtrFromPtrPtrOffset(constant.PTR_SP, -3),
-      loadTempValue(constant.PTR_T1),
-    )
-  }
-
   funcEnv.nameToVar.forEach((variable, name) => {
     if (variable.offset < paramSize + offset) {
       if (isMemberFunc && variable.offset === 0) {
+        console.log(`self typeCast check: ${variable.type.getName()}, ${selfType.getName()}`)
+        pushArgsExpr = pushArgsExpr.concat(
+          resolveNumberPtrThenOffset(constant.PTR_SP, -3),
+          [`;; self typeCast check: ${variable.type.getName()}, ${selfType.getName()}`],
+          appendImplicitCastCode(variable.type, selfType, resolveTempNumberPtr(constant.PTR_T1)),
+        )
         return;
       }
       pushArgsExpr = pushArgsExpr.concat(
-        getPtrFromPtrPtrOffset(constant.PTR_SP, -3-variable.offset),
-        codeGenExpr(args[variable.offset - offset]),
+        resolveNumberPtrThenOffset(constant.PTR_SP, -3-variable.offset),
+        appendImplicitCastCode(variable.type, args[variable.offset - offset].type, codeGenExpr(args[variable.offset - offset])),
       )
     }
   });
@@ -390,10 +498,10 @@ function codeGenPushParam(funcEnv: Env, args: Array<Expr>, isMemberFunc: boolean
 function codeGenFillParam(numArgs: number): Array<string> {
   let pushArgsExpr: Array<string> = new Array();
   for (let i = 0; i < numArgs; i++) {
-    pushArgsExpr = pushArgsExpr.concat([(`i32.store`)]);
+    pushArgsExpr = pushArgsExpr.concat([(`(i32.store)`)]);
   }
   pushArgsExpr = pushArgsExpr.concat(
-    setPtrWithPtrPtrOffset(constant.PTR_SP, -numArgs),
+    updatePtrContentByOffset(constant.PTR_SP, -numArgs),
   );
   return pushArgsExpr;
 }
@@ -413,14 +521,30 @@ function codeGenNoneAbort(): Array<string> {
   return wasms;
 }
 
+function appendImplicitCastCode(lValueType: ClassType, rValueType: ClassType, rValueCode: Array<string>): Array<string> {
+  console.log(`checking implicit cast: lt:${lValueType.getName()},  ${rValueType.getName()}`)
+  if (rValueType.getName()=='<None>')
+    return rValueCode
+  if (lValueType.getName()!=rValueType.getName() && !isBasicType(lValueType)) {
+    console.log(`classTypeCast triggered: ${rValueType.getName()} to ${lValueType.getName()}`)
+    rValueCode = rValueCode.concat(codeGenClassTypeCast(lValueType, rValueType))
+  }
+  return rValueCode
+}
+
 function codeGenStmt(s: Stmt): Array<string> {
   let wasms: Array<string> = new Array();
+  wasms.push(`;; code for ${s.tag} stmt`)
   switch (s.tag) {
     case "assign": {
       wasms = wasms.concat(
+        [`;; assignStmt lvalue begin`],
         codeGenExpr(s.name).slice(0, -1),
-        codeGenExpr(s.value),
+        [`;; assignStmt lvalue end, rvalue begin`],
+        appendImplicitCastCode(s.name.type, s.value.type, codeGenExpr(s.value)),
+        [`;; assignStmt rvalue end, store only`],
         [`(i32.store)`],
+        [`;; assignStmt end`],
       );
       break;
     }
@@ -473,7 +597,7 @@ function codeGenStmt(s: Stmt): Array<string> {
         break;
       }
       wasms = wasms.concat(
-        codeGenExpr(s.expr),
+        appendImplicitCastCode(s.targetType, s.expr.type, codeGenExpr(s.expr)),
         [`(local.set $$last)`, `(br $$func_block)`],
       );
       break;
@@ -517,8 +641,8 @@ function codeGenVarDef(vd: VarDef): Array<string> {
   let varVal = curEnv.nameToVar.get(vd.tvar.name);
   
   wasms = wasms.concat(
-    setValWithPtrPtrOffset(constant.PTR_DL, -2-varVal.offset, literalToVal(vd.value)),
-    setPtrWithPtrPtrOffset(constant.PTR_SP, -1),
+    storeValWithNumberPtrThenOffset(constant.PTR_DL, -2-varVal.offset, literalToVal(vd.value)),
+    updatePtrContentByOffset(constant.PTR_SP, -1),
   )
 
   return wasms;
@@ -605,16 +729,17 @@ function codeGenMethodDef(fd: FuncDef, ft: FuncType): Array<string> {
 
 function codeGenClassDef(cd: ClassDef): [Array<string>, Array<string>] {
   let wasms: Array<string> = new Array();
-
+  wasms.push(`;; codeGenClassDef ${cd.name}`)
   let classType = curEnv.nameToClass.get(cd.name);
 
   console.log(memoryManager);
   // allocate dispatch table
   classType.methodPtrs.forEach((offset, name) => {
     let ft = classType.methods.get(name);
+    console.log(`class ${cd.name} dispatchTable: method: ${ft.getName()}, idx: ${memoryManager.functionNameToId.get(ft.globalName)}`)
     wasms = wasms.concat(
-      setValWithPtr(
-        constant.PTR_DTABLE + classType.methodPtrsHead + classType.methodPtrs.get(name),
+      storeValWithNumberPtr(
+        constant.PTR_DTABLE + classType.dispatchTablePtr + classType.methodPtrs.get(name),
         memoryManager.functionNameToId.get(ft.globalName)
       )
     )
@@ -736,10 +861,10 @@ export function compile(source: string, importObject: any, gm: MemoryManager, em
   let initWASM: Array<string> = new Array();
   if (!memoryManager.initialized) {
     initWASM = initWASM.concat(
-      setPtrWithPtrPtrOffset(constant.PTR_EP, constant.PTR_HEAP),
-      setPtrWithPtrPtrOffset(constant.PTR_SP, memorySizeByte / 4 - 2),
-      setPtrWithPtrPtrOffset(constant.PTR_DL, memorySizeByte / 4 - 1),
-      setValWithPtrPtrOffsetExpr(constant.PTR_SP, 0, getPtrFromPtrPtr(constant.PTR_SP)),
+      updatePtrContentByOffset(constant.PTR_EP, constant.PTR_HEAP),
+      updatePtrContentByOffset(constant.PTR_SP, memorySizeByte / 4 - 2),
+      updatePtrContentByOffset(constant.PTR_DL, memorySizeByte / 4 - 1),
+      storeExprWithNumberPtrThenOffset(constant.PTR_SP, 0, resolveNumberPtr(constant.PTR_SP)),
     );
     memoryManager.initialized = true;
   }

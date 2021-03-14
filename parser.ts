@@ -248,6 +248,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt {
         expr,
         cursor: c.node,
         type: null,
+        targetType: null
       };
     }
     case "ExpressionStatement": {

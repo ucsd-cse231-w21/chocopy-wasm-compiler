@@ -40,7 +40,7 @@ export type Stmt =
     | { tag: "if", exprs: Array<Expr>, blocks: Array<Array<Stmt>> }
     | { tag: "while", expr: Expr, stmts: Array<Stmt> }
     | { tag: "pass" }
-    | { tag: "return", expr: Expr }
+    | { tag: "return", expr: Expr, targetType: ClassType }
     | { tag: "expr", expr: Expr }
     | { tag: "print", expr: Expr }
   )
@@ -70,6 +70,7 @@ export class Variable {
   type: ClassType;
   value: Literal;
   offset: number;
+  from: ClassType;
 }
 
 export class FuncType {
@@ -116,9 +117,14 @@ export class ClassType {
   globalName: string;
   methods: Map<string, FuncType>;
   methodPtrs: Map<string, number>;
-  methodPtrsHead: number;
+  methodPtrSectionHead: number;
+  methodPtrOffsetSectionHead: number;
+  dispatchTablePtr: number;
   attributes: Map<string, Variable>;
+  attributePtrSectionHead: number;
+  attributeSectionHead: number;
   parent: ClassType;
+  parentOffset: number;
   size: number;
   tag: number;
   headerSize: number;
@@ -175,4 +181,3 @@ export type ImportObject = {
   js: { mem: WebAssembly.Memory },
   imports: any,
 }
-
