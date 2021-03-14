@@ -4,7 +4,6 @@ import { MemoryManager } from "./memory";
 import { parse } from "./parser";
 import { isBasicType, tcProgram } from "./typechecker";
 import * as constant from "./constant"
-import { off } from "node:process";
 
 let memoryManager: MemoryManager;
 let envManager: EnvManager;
