@@ -1,111 +1,109 @@
-import {BasicREPL} from './repl';
-import { Type, Value } from './ast';
-import { defaultTypeEnv } from './type-check';
-import { NUM, BOOL, NONE } from './utils';
+import { BasicREPL } from './repl';
 
-function stringify(typ: Type, arg: any) : string {
-  switch(typ.tag) {
-    case "number":
-      return (arg as number).toString();
-    case "bool":
-      return (arg as boolean)? "True" : "False";
-    case "none":
-      return "None";
-    case "class":
-      return typ.name;
-  }
-}
+document.addEventListener("DOMContentLoaded", function () {
 
-function print(typ: Type, arg : number) : any {
-  console.log("Logging from WASM: ", arg);
-  const elt = document.createElement("pre");
-  document.getElementById("output").appendChild(elt);
-  elt.innerText = stringify(typ, arg);
-  return arg;
-}
-
-function webStart() {
-  document.addEventListener("DOMContentLoaded", function() {
-    var importObject = {
-      imports: {
-        print_num: (arg: number) => print(NUM, arg),
-        print_bool: (arg: number) => print(BOOL, arg),
-        print_none: (arg: number) => print(NONE, arg),
-        abs: Math.abs,
-        min: Math.min,
-        max: Math.max,
-        pow: Math.pow
-      },
-    };
-
-    var repl = new BasicREPL(importObject);
-
-    function renderResult(result : Value) : void {
-      if(result === undefined) { console.log("skip"); return; }
-      if (result.tag === "none") return;
-      const elt = document.createElement("pre");
-      document.getElementById("output").appendChild(elt);
-      switch (result.tag) {
-        case "num":
-          elt.innerText = String(result.value);
-          break;
-        case "bool":
-          elt.innerHTML = (result.value) ? "True" : "False";
-          break;
-        case "object":
-          elt.innerHTML = `<${result.name} object at ${result.address}`
-          break
-        default: throw new Error(`Could not render value: ${result}`);
+  function print(type: number, value: any) {
+    console.log("Logging from WASM: ", type, ", ", value);
+    const elt = document.createElement("pre");
+    document.getElementById("output").appendChild(elt);
+    let text = "";
+    if (type === 1) {
+      if (value === 0) {
+        text = "False";
+      } else {
+        text = "True";
+      }
+    } else if (type === 2) {
+      text = value.toString();
+    } else if (type === 3) {
+      text = value;
+    } else {
+      if (value === 0) {
+        text = "None";
+      } else {
+        text = value.toString();
       }
     }
+    elt.innerText = text;
+    return value;
+  }
 
-    function renderError(result : any) : void {
-      const elt = document.createElement("pre");
-      document.getElementById("output").appendChild(elt);
-      elt.setAttribute("style", "color: red");
-      elt.innerText = String(result);
+  let importObject = {
+    imports: {
+      print_num: (arg: number) => print(2, arg),
+      print_bool: (arg: number) => print(1, arg),
+      print_none: (arg: number) => print(-1, arg),
+      print_obj: (arg: number) => print(-1, arg),
     }
+  }
+  
+  var repl = new BasicREPL(importObject);
 
-    function setupRepl() {
-      document.getElementById("output").innerHTML = "";
-      const replCodeElement = document.getElementById("next-code") as HTMLTextAreaElement;
-      replCodeElement.addEventListener("keypress", (e) => {
+  function renderResult(result: any): void {
+    if (result === undefined) { console.log("skip"); return; }
+    const elt = document.createElement("pre");
+    document.getElementById("output").appendChild(elt);
+    elt.innerText = String(result);
+  }
 
-        if(e.shiftKey && e.key === "Enter") {
-        } else if (e.key === "Enter") {
-          e.preventDefault();
-          const output = document.createElement("div");
-          const prompt = document.createElement("span");
-          prompt.innerText = "»";
-          output.appendChild(prompt);
-          const elt = document.createElement("textarea");
-          // elt.type = "text";
-          elt.disabled = true;
-          elt.className = "repl-code";
-          output.appendChild(elt);
-          document.getElementById("output").appendChild(output);
-          const source = replCodeElement.value;
-          elt.value = source;
-          replCodeElement.value = "";
-          repl.run(source).then((r) => { renderResult(r); console.log ("run finished") })
-              .catch((e) => { renderError(e); console.log("run failed", e) });;
-        }
-      });
-    }
+  function renderError(result: any): void {
+    const elt = document.createElement("pre");
+    document.getElementById("output").appendChild(elt);
+    elt.setAttribute("style", "color: red");
+    elt.innerText = String(result);
+  }
 
-    function resetRepl() {
-      document.getElementById("output").innerHTML = "";
-    }
+  function setupRepl() {
+    const replCodeElement = document.getElementById("next-code") as HTMLInputElement;
+    replCodeElement.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        // capture the old entry
+        const output = document.createElement("div");
 
-    document.getElementById("run").addEventListener("click", function(e) {
-      repl = new BasicREPL(importObject);
-      const source = document.getElementById("user-code") as HTMLTextAreaElement;
-      resetRepl();
-      repl.run(source.value).then((r) => { renderResult(r); console.log ("run finished") })
-          .catch((e) => { renderError(e); console.log("run failed", e) });;
+        const prompt = document.createElement("span");
+        prompt.innerText = "»";
+
+        const elt = document.createElement("input");
+        elt.type = "text";
+        elt.disabled = true;
+        elt.className = "repl-code";
+
+        output.appendChild(prompt);
+        output.appendChild(elt);
+        document.getElementById("output").appendChild(output);
+
+        const source = replCodeElement.value;
+        elt.value = source;
+
+        // clear the entry
+        replCodeElement.value = "";
+
+        // print output
+        repl.run(source).then((r) => {
+          renderResult(r);
+          console.log("run finished")
+        }).catch((e) => {
+          renderError(e);
+          console.log("run failed", e);
+        });
+      }
     });
-    setupRepl();
-  });
-}
+  }
 
-webStart();
+  document.getElementById("run").addEventListener("click", function (e) {
+    // clear last results
+    document.getElementById("output").innerHTML = "";
+
+    repl = new BasicREPL(importObject);
+    const source = (document.getElementById("user-code") as HTMLTextAreaElement).value;
+    setupRepl();
+    repl.run(source).then((r) => {
+      renderResult(r);
+      console.log("run finished");
+    }).catch((e) => {
+      renderError(e);
+      console.log("run failed", e)
+    });
+  });
+});
+
