@@ -442,26 +442,39 @@ export class MnS<A extends MarkableAllocator> {
         // Just mark the pointer?
         this.setMarked(childPtr);
       } else if (childTag === TAG_DICT) {
-        for (let listIndex = childPtr; listIndex < childSize; listIndex += 4n) {
-          // Trace each linked-list
+        // console.warn(`Tracing a dictionary at ${childPtr}`);
+        // NOTE(alex:mm): dictionaries are a contiguous array of pointers to TAG_DICT_ENTRY items
+        //   Currently hard-coded to 10 buckets
+        //   If bucket count is run-time adjustable, need to update this traversal
+        const dataStart = childPtr;
+        const dataEnd = dataStart + childSize;
+        for (let listIndex = dataStart; listIndex < dataEnd; listIndex += 4n) {
           // NOTE(sagar): always assumed to be an address. Unnecessary to check
           let currListAddr = this.getField(listIndex);
-          while (currListAddr !== 0n) {
-            // Not none
-
-            const key = this.getField(currListAddr);
-            const value = this.getField(currListAddr + 4n);
-            // NOTE(sagar): keys probably can't be None
-            if (key !== 0n && isPointer(key)) {
-              worklist.push(key);
-            }
-
-            // Check for none
-            if (value !== 0n && isPointer(value)) {
-              worklist.push(value);
-            }
-            currListAddr = this.getField(currListAddr + 8n);
+          // console.warn(`listIndex=${listIndex}, currListAddr=${currListAddr}`);
+          if (currListAddr !== 0n) {
+            worklist.push(currListAddr);
           }
+        }
+      } else if (childTag === TAG_DICT_ENTRY) {
+        // console.warn(`Tracing dict entry at ${childPtr}`);
+        // NOTE(alex:mm): Assuming layout
+        //   childPtr => [k, v, next] <= childPtr + 12
+        const key = this.getField(childPtr + 0n);
+        const value = this.getField(childPtr + 4n);
+        const next = this.getField(childPtr + 8n);
+        // NOTE(sagar): keys probably can't be None
+        if (key !== 0n && isPointer(key)) {
+          worklist.push(key);
+        }
+
+        // Check for none
+        if (value !== 0n && isPointer(value)) {
+          worklist.push(value);
+        }
+
+        if (next !== 0n && isPointer(next)) {
+          worklist.push(next);
         }
       } else if (childTag === TAG_REF) {
         // NOTE(alex:mm): assume a single value
@@ -489,9 +502,10 @@ export class MnS<A extends MarkableAllocator> {
         }
       } else if (childTag === TAG_OPAQUE) {
         // NOP
+      //
       } else {
         throw new Error(
-          `Trying to trace unknown heap object: { addr=${childPtr}, tag=${childTag.toString()}, size=${childSize} }`
+          `Trying to trace unknown heap object: { addr=${childPtr}, tag=${(childTag as any).toString()}, size=${childSize} }`
         );
       }
     }
