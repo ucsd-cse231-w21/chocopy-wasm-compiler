@@ -181,11 +181,14 @@ describe("GC-MnS", () => {
       mns.roots.addLocal(0n, ptr0);
       mns.collect();
 
-      // ptr1 gets written at 1988
       const ptr1 = mns.gcalloc(TAG_DICT_ENTRY, 12n);
       expect(Number(ptr1)).to.equal(1940);
-      writeI32(memory, 1988, ptr1);
       const header1 = heap.mappedHeader(ptr1);
+
+      // Simulates inserting into the dictionary
+      // ptr1 gets written at 1988
+      writeI32(memory, 1988, ptr1);
+
       expectAllocatedHeader(header0, TAG_DICT, 40n);
       expectAllocatedHeader(header1, TAG_DICT_ENTRY, 12n);
       mns.markFromRoots();
@@ -196,8 +199,12 @@ describe("GC-MnS", () => {
       const ptr2 = mns.gcalloc(TAG_DICT_ENTRY, 12n);
       expect(Number(ptr2)).to.equal(1920);
       const header2 = heap.mappedHeader(ptr2);
-      mns.collect();
 
+      // Simulates inserting into the dictionary
+      // ptr2 gets written at 1996
+      writeI32(memory, 1996, ptr2);
+
+      mns.collect();
       expectAllocatedHeader(header0, TAG_DICT, 40n);
       expectAllocatedHeader(header1, TAG_DICT_ENTRY, 12n);
       expectAllocatedHeader(header2, TAG_DICT_ENTRY, 12n);
