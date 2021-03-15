@@ -502,7 +502,6 @@ export class MnS<A extends MarkableAllocator> {
         }
       } else if (childTag === TAG_OPAQUE) {
         // NOP
-      //
       } else {
         throw new Error(
           `Trying to trace unknown heap object: { addr=${childPtr}, tag=${(childTag as any).toString()}, size=${childSize} }`
