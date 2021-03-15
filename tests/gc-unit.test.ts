@@ -132,6 +132,13 @@ function expectAllocatedHeader(header: Header, tag: HeapTag, size: bigint) {
   expect(Number(header.getTag())).to.equal(Number(tag));
 }
 
+function expectMarkedHeader(header: Header, tag: HeapTag, size: bigint) {
+  expect(header.isAlloced()).to.equal(true);
+  expect(header.isMarked()).to.equal(true);
+  expect(Number(header.getSize())).to.equal(Number(size));
+  expect(Number(header.getTag())).to.equal(Number(tag));
+}
+
 function expectFreeHeader(header: Header, tag: HeapTag, size: bigint) {
   expect(header.isAlloced()).to.equal(false);
   expect(header.isMarked()).to.equal(false);
@@ -148,6 +155,57 @@ type Cfg = {
 
 // GC mark-and-sweep unit tests under controlled conditions
 describe("GC-MnS", () => {
+  describe("Problematic alloc pattern", () => {
+    // Simulates:
+    //   REPL1:
+    //     d: [int, int] = None
+    //     d = {3:4}
+    //
+    //   REPL2:
+    //     d[3]
+    //
+    //   REPL3:
+    //     d[9] = 19
+    //
+    it("dictionary-repl", () => {
+      const memory = new Uint8Array(2000);
+      const fl = new FreeListAllocator(memory, 772n, 2000n);
+      const heap = new PhantomAllocator(fl);
+      const mns = new MnS(memory, heap);
+
+      mns.roots.pushFrame();
+      const ptr0 = mns.gcalloc(TAG_DICT, 40n);
+      expect(Number(ptr0)).to.equal(1960);
+      const header0 = heap.mappedHeader(ptr0);
+      expectAllocatedHeader(header0, TAG_DICT, 40n);
+      mns.roots.addLocal(0n, ptr0);
+      mns.collect();
+
+      // ptr1 gets written at 1988
+      const ptr1 = mns.gcalloc(TAG_DICT_ENTRY, 12n);
+      expect(Number(ptr1)).to.equal(1940);
+      writeI32(memory, 1988, ptr1);
+      const header1 = heap.mappedHeader(ptr1);
+      expectAllocatedHeader(header0, TAG_DICT, 40n);
+      expectAllocatedHeader(header1, TAG_DICT_ENTRY, 12n);
+      mns.markFromRoots();
+      expectMarkedHeader(header0, TAG_DICT, 40n);
+      expectMarkedHeader(header1, TAG_DICT_ENTRY, 12n);
+      mns.sweep();
+
+      const ptr2 = mns.gcalloc(TAG_DICT_ENTRY, 12n);
+      expect(Number(ptr2)).to.equal(1920);
+      const header2 = heap.mappedHeader(ptr2);
+      mns.collect();
+
+      expectAllocatedHeader(header0, TAG_DICT, 40n);
+      expectAllocatedHeader(header1, TAG_DICT_ENTRY, 12n);
+      expectAllocatedHeader(header2, TAG_DICT_ENTRY, 12n);
+
+      mns.roots.releaseLocals();
+    });
+  });
+
   describe("GC-MnS-BitMappedBlocks-1", () => {
     function makeCfg(): Cfg {
       const memory = new Uint8Array(1000);
