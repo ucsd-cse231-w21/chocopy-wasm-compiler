@@ -1957,7 +1957,7 @@ function dictUtilFuns(): Array<string> {
       "(local.get $baseAddr)",
       "(local.get $key)",
       "(i32.const 10)", //hard-coding hash table size
-      "(i32.rem_s)", //Compute hash
+      "(i32.rem_u)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
       "(i32.load)",
@@ -2091,7 +2091,7 @@ function dictUtilFuns(): Array<string> {
       "(local.get $baseAddr)",
       "(local.get $key)",
       "(i32.const 10)", // Hard-coding hashtable size
-      "(i32.rem_s)", //Compute hash
+      "(i32.rem_u)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
       "(local.set $prevPtr)", // prevPtr equal to bucketAddress
@@ -2194,7 +2194,7 @@ function dictUtilFuns(): Array<string> {
       "(local.get $baseAddr)",
       "(local.get $key)",
       "(local.get $hashtablesize)",
-      "(i32.rem_s)", //Compute hash
+      "(i32.rem_u)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
       "(i32.load)",
@@ -2259,7 +2259,7 @@ function dictUtilFuns(): Array<string> {
       "(local.get $baseAddr)",
       "(local.get $key)",
       "(local.get $hashtablesize)",
-      "(i32.rem_s)", //Compute hash
+      "(i32.rem_u)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
       "(i32.load)",
@@ -2274,7 +2274,7 @@ function dictUtilFuns(): Array<string> {
       "(local.get $baseAddr)", // Recomputing the bucketAddress to update it.
       "(local.get $key)",
       "(local.get $hashtablesize)",
-      "(i32.rem_s)", //Compute hash
+      "(i32.rem_u)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Recomputed bucketAddress
       "(local.get $$allocPointer)",
@@ -2284,7 +2284,7 @@ function dictUtilFuns(): Array<string> {
       "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
       "(local.get $key)",
       "(local.get $hashtablesize)",
-      "(i32.rem_s)", //Compute hash
+      "(i32.rem_u)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Recomputed bucketAddress
       "(i32.load)", //Loading head of linkedList
@@ -2296,7 +2296,7 @@ function dictUtilFuns(): Array<string> {
       "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
       "(local.get $key)",
       "(local.get $hashtablesize)",
-      "(i32.rem_s)", //Compute hash
+      "(i32.rem_u)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Recomputed bucketAddress
       "(i32.load)", //Loading head of linkedList
@@ -2311,7 +2311,7 @@ function dictUtilFuns(): Array<string> {
       "(local.get $baseAddr)", // Recomputing the bucketAddress to follow the linkedList.
       "(local.get $key)",
       "(local.get $hashtablesize)",
-      "(i32.rem_s)", //Compute hash
+      "(i32.rem_u)", //Compute hash
       "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
       "(i32.add)", //Recomputed bucketAddress
       "(i32.load)", //Loading head of linkedList
