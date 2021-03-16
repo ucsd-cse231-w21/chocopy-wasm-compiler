@@ -154,7 +154,7 @@ print((b**a).flatten().tolist())
 
 ## 3 more examples requiring more extensions (*3/11 submission*)
 
-- Example below will demonstrate the interaction between ndarray objects and other types such as number. This extension requires updated type checking to allow numbers assigned to ndarrays, upcasting numbers as ndarrays, and [broadcasting](https://numpy.org/doc/stable/user/theory.broadcasting.html#array-broadcasting-in-numpy) numbers to full-dimension ndarrays. **See latest commits [here](https://github.com/bensonlyu/chocopy-wasm-compiler/commit/fdeb785bdc71f5db87a563a490fff037ca2e5411)**. 
+- Example below will demonstrate the interaction between ndarray objects and other types such as number. This extension requires updated type checking to allow numbers assigned to ndarrays, upcasting numbers as ndarrays, and [broadcasting](https://numpy.org/doc/stable/user/theory.broadcasting.html#array-broadcasting-in-numpy) numbers to full-dimension ndarrays. **See latest commits [here](https://github.com/bensonlyu/chocopy-wasm-compiler/commit/fdeb785bdc71f5db87a563a490fff037ca2e5411) and a small fix [here](https://github.com/bensonlyu/chocopy-wasm-compiler/commit/d1e02b6d0e3886f32e1b0c755ad84bfdb9c7f39e)**. 
 
 ```
 import numpy as np
