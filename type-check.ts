@@ -1,7 +1,7 @@
 import { Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE, CLASS, LIST, unhandledTag, unreachable, jsonStringify } from "./utils";
 import * as BaseException from "./error";
-import { ndarrayName } from "./numpy";
+import { ndarrayName, arrayLikeTags } from "./numpy";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
 export class TypeCheckError extends Error {
@@ -73,6 +73,15 @@ export function isSubtype(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
 }
 
 export function isAssignable(env: GlobalTypeEnv, t1: Type, t2: Type): boolean {
+  if (t2.tag==="class" && t2.name===ndarrayName){
+    if (isSubtype(env, t1, t2)){
+      return true;
+    }else if (arrayLikeTags.includes(t1.tag)){
+      return true;
+    }else{
+      return false;
+    }
+  }
   return isSubtype(env, t1, t2);
 }
 
@@ -258,7 +267,7 @@ export function tcExpr(env: GlobalTypeEnv, locals: LocalTypeEnv, expr: Expr<null
         case BinOp.Pow:
           if (equalType(tLeft.a, NUM) && equalType(tRight.a, NUM)) {
             return { a: NUM, ...tBin };
-          } else if (equalType(tLeft.a, CLASS(ndarrayName)) && equalType(tRight.a, CLASS(ndarrayName))) {
+          } else if (isAssignable(env, tLeft.a, CLASS(ndarrayName)) && isAssignable(env, tRight.a, CLASS(ndarrayName))) {
             return { a: CLASS(ndarrayName), ...tBin };
           } else {
             throw new TypeCheckError("Type mismatch for numeric op" + expr.op);

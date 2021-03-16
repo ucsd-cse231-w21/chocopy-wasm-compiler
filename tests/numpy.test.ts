@@ -171,4 +171,18 @@ describe("numpy tests", () => {
          b = np.array([[-1,2,-3], [-4,5,-6]])
          print((b**a).flatten().tolist())`, 
          ["-1", "4", "-27", "256", "3125", "46656"]); 
+  assertPrint("14.1 numpy-2darray-number-add-content",          
+         `
+         import numpy as np
+         a : np.ndarray = None
+         a = np.array([[1,2,3], [4,5,6]])
+         print((a+10).flatten().tolist())`, 
+         ["11", "12", "13", "14", "15", "16"]); 
+  assertPrint("14.2 numpy-number-2darray-add-content",          
+         `
+         import numpy as np
+         a : np.ndarray = None
+         a = np.array([[1,2,3], [4,5,6]])
+         print((10+a).flatten().tolist())`, 
+         ["11", "12", "13", "14", "15", "16"]); 
 });

@@ -20,6 +20,7 @@ import { NUM, BOOL, NONE, CLASS, LIST, importDel, importMethodDel } from "./util
 import * as compiler from "./compiler";
 
 export const ndarrayName = "numpy"+importDel+"ndarray";
+export const arrayLikeTags = ["number", "bool", "list"];
 
 export const ndarrayFields : Array<VarInit<null>> = [
 	// TODO: add dtype field once string is implemented
@@ -42,22 +43,22 @@ export const ndarrayMethods : Array<FunDef<any>> = [
 				{name: "x2", type: CLASS(ndarrayName)}], 
 	ret: CLASS(ndarrayName),
 	decls: [], inits: [], funs: [], body: []},
-	{a: CLASS(ndarrayName), name: "multiply", // self.__add__(x2), element-wise add
+	{a: CLASS(ndarrayName), name: "multiply", // np.multiply(self, x2), element-wise multiply
 	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
 				{name: "x2", type: CLASS(ndarrayName)}], 
 	ret: CLASS(ndarrayName),
 	decls: [], inits: [], funs: [], body: []},
-	{a: CLASS(ndarrayName), name: "divide", // self.__add__(x2), element-wise add
+	{a: CLASS(ndarrayName), name: "divide", // np.divide(self, x2), element-wise divide
 	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
 				{name: "x2", type: CLASS(ndarrayName)}], 
 	ret: CLASS(ndarrayName),
 	decls: [], inits: [], funs: [], body: []},
-	{a: CLASS(ndarrayName), name: "subtract", // self.__add__(x2), element-wise add
+	{a: CLASS(ndarrayName), name: "subtract", // np.subtract(self, x2), element-wise subtract
 	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
 				{name: "x2", type: CLASS(ndarrayName)}], 
 	ret: CLASS(ndarrayName),
 	decls: [], inits: [], funs: [], body: []},
-	{a: CLASS(ndarrayName), name: "pow", // self.__add__(x2), element-wise add
+	{a: CLASS(ndarrayName), name: "pow", // self.__pow__(x2), element-wise power
 	parameters: [{name: "self", type: CLASS(ndarrayName)}, 
 				{name: "x2", type: CLASS(ndarrayName)}], 
 	ret: CLASS(ndarrayName),
@@ -167,11 +168,38 @@ export function codeGenNdarrayUniOp(expr: Expr<Type>, env: compiler.GlobalEnv): 
 } 
 
 export function codeGenNdarrayBinOp(expr: Expr<Type>, env: compiler.GlobalEnv): Array<string> {
-  	if ( (expr.tag!=="binop") || (expr.left.a.tag!=="class") || ((expr.right.a.tag!=="class"))){
-	    throw new Error("Only ndarray binops are supported.");
+  	if ( (expr.tag!=="binop") || ((expr.left.a.tag!=="class") && (expr.right.a.tag!=="class")) ){
+	    throw new Error("At least one operand must be ndarray.");
   	}
-    var stmts = compiler.codeGenExpr(expr.left, env);
-    stmts = stmts.concat(compiler.codeGenExpr(expr.right, env));
+
+  	var expr_ndarray : Expr<Type> = expr.left;
+  	var expr_broadcast : Expr<Type> = expr.right;
+  	if (arrayLikeTags.includes(expr.left.a.tag)){
+  		expr_ndarray = expr.right;
+  		expr_broadcast = expr.left;
+  	}
+
+  	switch (expr_broadcast.a.tag) {
+  		case "number":
+  			if (expr_broadcast.tag==="literal"){
+  				let lit = expr_broadcast.value;
+  				if (lit.tag==="num"){ // overwrite numbers as ndarrays; will broadcast in run-time
+	  				expr_broadcast = {a: expr.left.a, tag: "literal", 
+	  							value: {tag: "num", value: createNdarray(1, -1, [lit.value])}};
+  				}
+  			}
+  			break;
+		case "class":
+  			if (expr_broadcast.a.name===ndarrayName){
+  				break;
+  			}
+  		default:
+  			throw new TypeError(`broadcasting type ${expr_broadcast.tag} not supported`);
+  			break;
+  	}
+
+    var stmts = compiler.codeGenExpr(expr_ndarray, env);
+    stmts = stmts.concat(compiler.codeGenExpr(expr_broadcast, env));
     let methodName;
     switch (expr.op) {
     	case BinOp.Mul:
@@ -196,7 +224,7 @@ export function codeGenNdarrayBinOp(expr: Expr<Type>, env: compiler.GlobalEnv): 
     		throw new Error(`binop enum ${expr.op} not supported`);
     		break;
     }
-    var callName = expr.left.a.name+importMethodDel+methodName;
+    var callName = ndarrayName+importMethodDel+methodName;
     return [...stmts, `(call $${callName})`];
 } 
 
@@ -295,19 +323,31 @@ export function ndarrayMethod(selfs: Array<number>, method: string) : [Array<num
 		case "multiply":
 		case "divide":
 		case "pow":
-			// all dimensions should match
+			// all dimensions on trailing axes should match or one ndarray's shape should be 1
+			// reference: https://numpy.org/doc/stable/user/theory.broadcasting.html#array-broadcasting-in-numpy
+			shapes = ndarrays[0].shape.slice();
+			let shapesTrail = shapes.slice();
 			for (let a of ndarrays){
-				if (shapes.length===0){
-					shapes = a.shape;
-					continue;
-				}
 				shapes.forEach((s, i) => {
-					if (s!==a.shape[i]){
+					shapes[i] = Math.max(shapes[i], a.shape[i]);
+					if (a.shape[i]===-1) {
+						shapesTrail[i] = -1;
+					}else{
+						shapesTrail[i] = shapes[i];
+					}
+				});
+			}
+			// TODO: check single 1s
+			ndarrays.forEach( (a, j) => {
+				shapesTrail.forEach((s, i) => {
+					if (s!==-1 && a.shape[i]===1){
+						listsAll[j] = compiler.tsHeap[broadcastNdarray(selfs[j], shapes)];
+					} else if (s!==-1 && s!==a.shape[i]){
 						throw new TypeError(`operands could not be broadcast together with shapes
 		                    ${s}, ${a.shape[i]} on dimension ${i}`);
 					}
 				})
-			}
+			});
 			break;
 		case "dot":
 			// last dimension should match second-last dimension
@@ -344,6 +384,20 @@ export function createNdarray(shape0: number, shape1: number, lists: Array<any>)
 	// console.log("create", offsetObj, offset, compiler.wasmHeap[0], "fields", shape0, shape1, listIdx, lists);
 	return offset*4; // return wasm heap value (not byte offset!l; ie offset of first field) for this ndarray object
 }
+
+export function broadcastNdarray(self: number, shapes: Array<number>): number {
+	// self: ndarray's first field's offset in wasm heap
+	// target: broadcast-target shapes
+	// return: lists offset of broadcast self in ts heap
+
+	// TODO:  generalize broadcasting for non-numbers and non-2d ndarrays
+	const num = compiler.tsHeap[getField(ndarrayFieldNames, self, "data")][0];
+	// console.log(self, shapes, num);
+	const lists = Array.from(Array(shapes[0]), _ => Array(shapes[1]).fill(num));
+	const listIdx = compiler.tsHeap.length;
+	compiler.tsHeap.push(lists);
+	return listIdx;
+} 
 
 export function getField(fields: Array<string>, offset: number, field: string) : number {
 	if (!fields.includes(field)){
