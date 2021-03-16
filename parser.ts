@@ -291,16 +291,8 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
       c.nextSibling(); // Focus on . or [
       var symbol = s.substring(c.from, c.to);
       if (symbol == "[") {
-        var start_index: Expr<Location> = {
-          a: location,
-          tag: "literal",
-          value: { tag: "num", value: BigInt(0) },
-        };
-        var end_index: Expr<Location> = {
-          a: location,
-          tag: "literal",
-          value: { tag: "num", value: BigInt(-1) },
-        };
+        var start_index: Expr<Location> = null;
+        var end_index: Expr<Location> = null;
         var stride_value: Expr<Location> = {
           a: location,
           tag: "literal",
@@ -333,7 +325,6 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
           start_index = traverseExpr(c, s);
           console.log("First case " + s.substring(c.from, c.to));
           if (sliced_list.length == 1) {
-            //end_index = start_index;
             console.log("Bracket lookup");
             c.parent();
             return { a: location, tag: "bracket-lookup", obj: objExpr, key: start_index };

@@ -144,7 +144,7 @@ export type Expr<A> =
   | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
   | { a?: A; tag: "call_expr"; name: Expr<A>; arguments: Array<Expr<A>> }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
-  | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
+  | { a?: A; tag: "slicing"; name: Expr<A>; start?: Expr<A>; end?: Expr<A>; stride: Expr<A> }
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
   | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> }
   | { a?: A; tag: "tuple-expr"; contents: Array<Expr<A>> };

@@ -759,11 +759,21 @@ export function tcExpr(
         case BinOp.Mod:
           if (
             expr.op == BinOp.Plus &&
+            tLeft.a[0].tag === "string" &&
+            equalType(tLeft.a[0], tRight.a[0])
+          ) {
+            return { ...tBin, a: [tLeft.a[0], expr.a] };
+          }
+          if (
+            expr.op == BinOp.Plus &&
             tLeft.a[0].tag === "list" &&
             (equalType(tLeft.a[0], tRight.a[0]) ||
               isEmptyList(tLeft.a[0]) ||
               isEmptyList(tRight.a[0]))
           ) {
+            return { ...tBin, a: [tLeft.a[0], expr.a] };
+          }
+          if (expr.op == BinOp.Mul && tLeft.a[0].tag === "string" && equalType(tRight.a[0], NUM)) {
             return { ...tBin, a: [tLeft.a[0], expr.a] };
           }
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
@@ -789,6 +799,8 @@ export function tcExpr(
         case BinOp.Lt:
         case BinOp.Gt:
           if (equalType(tLeft.a[0], NUM) && equalType(tRight.a[0], NUM)) {
+            return { ...tBin, a: [BOOL, expr.a] };
+          } else if (equalType(tLeft.a[0], STRING) && equalType(tRight.a[0], STRING)) {
             return { ...tBin, a: [BOOL, expr.a] };
           } else {
             throw new BaseException.UnsupportedOperandTypeError([expr.a], expr.op, [
@@ -986,7 +998,14 @@ export function tcExpr(
         const tArg = expr.arguments.map((arg) => tcExpr(env, locals, arg));
 
         if (tArg.length == 1) {
-          if (tArg[0].a[0].tag === "list" || tArg[0].a[0].tag === "dict") {
+          if (equalType(tArg[0].a[0], STRING)) {
+            // We are returning a different tag here due to some escape analysis conflicts
+            return { a: [NUM, expr.a], tag: "builtin1", name: expr.name, arg: tArg[0] };
+          } else if (
+            tArg[0].a[0].tag === "list" ||
+            tArg[0].a[0].tag === "dict" ||
+            equalType(tArg[0].a[0], STRING)
+          ) {
             return { ...expr, a: [NUM, expr.a], arguments: tArg };
           } else {
             throw new BaseException.TypeMismatchError([expr.a], LIST(null), tArg[0].a[0]);
@@ -1333,6 +1352,34 @@ export function tcExpr(
           "Bracket lookup on " + obj_t.a[0].tag + " type not possible"
         );
       }
+    case "slicing":
+      var obj_name = tcExpr(env, locals, expr.name);
+      // var start = tcExpr(env, locals, expr.start);
+      // var end = tcExpr(env, locals, expr.end);
+      var start = null;
+      var end = null;
+      if (expr.end !== null) {
+        end = tcExpr(env, locals, expr.end);
+      }
+      if (expr.start !== null) {
+        start = tcExpr(env, locals, expr.start);
+      }
+      var stride = tcExpr(env, locals, expr.stride);
+      //Lists group just need to add an || condition below to check if the "obj_name" type is also a list
+      if (!equalType(obj_name.a[0], STRING)) {
+        throw new BaseException.CompileError(
+          [expr.a],
+          "Slicing operation cannot be done on " + obj_name.a + " type"
+        );
+      }
+      if (
+        (start !== null && !equalType(start.a[0], NUM)) ||
+        (end !== null && !equalType(end.a[0], NUM)) ||
+        !equalType(stride.a[0], NUM)
+      ) {
+        throw new BaseException.CompileError([expr.a], "Slicing parameters must be of num type");
+      }
+      return { ...expr, name: obj_name, a: obj_name.a, start: start, end: end, stride: stride };
     case "tuple-expr": {
       let contents = expr.contents.map((expr) => tcExpr(env, locals, expr));
       let contentTypes = contents.map((expr) => expr.a[0]);

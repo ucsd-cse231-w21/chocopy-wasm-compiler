@@ -81,6 +81,7 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "string":
       if (result == -1) throw new BaseException.InternalException("String index out of bounds");
+      if (result == -2) throw new BaseException.InternalException("Slice step cannot be zero");
       const view = new Int32Array(mem);
       let string_length = view[result / 4] + 1;
       let data = result + 4;
@@ -94,7 +95,9 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
       }
       return PyString(full_string, result);
     case "number":
+      // console.log("Actual length "+result);
       if (result & 1) {
+        // console.log("Printed length "+BigInt(result >> nTagBits));
         return PyInt(result >> nTagBits);
       } else {
         var idx: number = Number(result) / 4;
