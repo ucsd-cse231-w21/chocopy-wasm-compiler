@@ -2,7 +2,9 @@
 This project highlights three key compiler designs:
 
 - Extending Numpy support for the Chocopy compiler. This may greatly attract the data science community, as well as enable large-scale in-browser matrix operations. See more in `numpy.ts`.
+
 - Standardizing TypeSciept (TS) package import design. Though WebAssembly (WASM) runs fast, its functionality development is still at the early stage, which can be easily complemented by existing JS/TS packages. See more in `ast.ts` and `parser.ts`.
+
 - Managing memory and its coordination between WASM and TS heaps. Compared to WASM heaps, TS heaps still have great advantages in supporting complex data structures and reducing IO overhead for TS builtins. This project will demonstrate how ndarray's field and lists data structure can be managed efficiently in WASM and TS heaps, respectively. See more in `compiler.ts`. 
 
 ## Final examples (*3/11 submission*)
@@ -152,7 +154,7 @@ print((b**a).flatten().tolist())
 
 ## 3 more examples requiring more extensions (*3/11 submission*)
 
-- Example below will demonstrate the interaction between ndarray objects and other types such as number. This extension requires updating imported method signatures and some type checking.  
+- Example below will demonstrate the interaction between ndarray objects and other types such as number. This extension requires updated type checking to allow numbers assigned to ndarrays, upcasting numbers as ndarrays, and [broadcasting](https://numpy.org/doc/stable/user/theory.broadcasting.html#array-broadcasting-in-numpy) numbers to full-dimension ndarrays. **See latest commits [here](https://github.com/bensonlyu/chocopy-wasm-compiler/commit/fdeb785bdc71f5db87a563a490fff037ca2e5411)**. 
 
 ```
 import numpy as np
