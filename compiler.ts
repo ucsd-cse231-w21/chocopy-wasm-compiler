@@ -11,23 +11,38 @@ import {
   VarInit,
   Class,
   Destructure,
+  AssignTarget,
   Location,
   Assignable,
 } from "./ast";
-import { NUM, BOOL, NONE, CLASS, STRING, unhandledTag, unreachable } from "./utils";
+import {
+  NUM,
+  BOOL,
+  NONE,
+  CLASS,
+  STRING,
+  unhandledTag,
+  unreachable,
+  WithTag,
+  bigintToWords,
+} from "./utils";
 import * as BaseException from "./error";
 import { RunTime } from "./errorManager";
 import {
   MemoryManager,
   TAG_BIGINT,
   TAG_CLASS,
+  TAG_CLOSURE,
   TAG_DICT,
   TAG_DICT_ENTRY,
   TAG_LIST,
+  TAG_OPAQUE,
   TAG_REF,
   TAG_STRING,
+  TAG_TUPLE,
 } from "./alloc";
 import { augmentFnGc } from "./compiler-gc";
+import { defaultMaxListeners } from "stream";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -53,6 +68,24 @@ const HOLD_TEMPS = 0;
 export const nTagBits = 1;
 const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
 const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
+
+export enum ListContentTag {
+  Num = 0,
+  Bool,
+  None,
+  Str,
+  Class,
+  List,
+  Dict,
+  Callable,
+}
+
+enum ListCopyMode {
+  Copy = 0,
+  Slice,
+  Double,
+  Concat,
+}
 
 export const encodeLiteral: Array<string> = [
   `(i32.const ${nTagBits})`,
@@ -84,7 +117,6 @@ export function augmentEnv(
     if (clo.isGlobal) {
       const globalAddr = mm.staticAlloc(4n);
       newGlobals.set(clo.name, Number(globalAddr));
-      mm.addGlobal(globalAddr);
     }
   });
 
@@ -96,6 +128,7 @@ export function augmentEnv(
     newGlobals.set(v.name, Number(globalAddr));
     mm.addGlobal(globalAddr);
   });
+
   // for rg
   const rgAddr = mm.staticAlloc(4n);
   newGlobals.set("rg", Number(rgAddr));
@@ -115,14 +148,6 @@ export function augmentEnv(
   };
 }
 
-// function envLookup(env: GlobalEnv, name: string): number {
-//   if (!env.globals.has(name)) {
-//     console.log("Could not find " + name + " in ", env);
-//     throw new Error("Could not find name " + name);
-//   }
-//   return env.globals.get(name) * 4; // 4-byte values
-// }
-
 type CompileResult = {
   functions: string;
   mainSource: string;
@@ -139,7 +164,9 @@ export function makeLocals(locals: Set<string>): Array<string> {
 
 //Any built-in WASM functions go here
 export function libraryFuns(): string {
-  return dictUtilFuns().join("\n");
+  var libfunc = dictUtilFuns().join("\n");
+  libfunc += "\n" + listBuiltInFuns().join("\n");
+  return libfunc;
 }
 
 export function makeId<A>(a: A, x: string): Destructure<A> {
@@ -188,11 +215,14 @@ export function compile(
   definedVars.add("$addr"); // address of the allocated memory
   definedVars.add("$list_base");
   definedVars.add("$list_index");
+  definedVars.add("$list_index2");
   definedVars.add("$list_temp");
+  definedVars.add("$list_size");
   definedVars.add("$list_bound");
   definedVars.add("$list_cmp");
   definedVars.add("$list_cmp2");
   definedVars.add("$destruct");
+  definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
@@ -227,7 +257,12 @@ export function compile(
   const inits = ast.inits.map((init) => codeGenInit(init, withDefines)).flat();
   const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
   const commands = localDefines.concat(initFuns.concat(inits.concat(...commandGroups)));
-  const augmentedCommands = augmentFnGc(commands, withDefines.locals, true);
+  const augmentedCommands = augmentFnGc(commands, withDefines.locals, {
+    main: true,
+    debug: {
+      name: "entry",
+    },
+  });
   withDefines.locals.clear();
 
   return {
@@ -244,7 +279,7 @@ function initGlobalFuns(funs: Array<string>, env: GlobalEnv): Array<string> {
     let idx = fun_info[0];
     let length = fun_info[1].length;
     let loc = envLookup(env, fun);
-    inits.push(myMemAlloc(`$$addr`, length + 1).join("\n"));
+    inits.push(...myMemAlloc(`$$addr`, length + 1, true));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     inits.push(`(i32.store (i32.const ${loc}) (local.get $$addr)) ;; global function reference`);
   });
@@ -261,7 +296,8 @@ function envLookup(env: GlobalEnv, name: string): number {
       "Report this as a bug to the compiler developer, this shouldn't happen "
     );
   }
-  return env.globals.get(name) * 4; // 4-byte values
+  // NOTE(alex:mm): ADDRESS of the global variable is store in the environment
+  return env.globals.get(name);
 }
 
 function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string> {
@@ -473,30 +509,127 @@ function codeGenDestructure(
 
   if (destruct.isDestructured) {
     const objTyp = destruct.valueType[0];
-    if (objTyp.tag === "class") {
-      const className = objTyp.name;
-      const classFields = env.classes.get(className).values();
-      // Collect every assignStmt
+    switch (objTyp.tag) {
+      // TODO: Remove class-based destructuring in the long term, leave for now until it can be safely removed
+      case "class": {
+        const className = objTyp.name;
+        const classFields = env.classes.get(className).values();
 
-      assignStmts = destruct.targets.flatMap(({ target }) => {
-        const [offset, _] = classFields.next().value;
-        // The WASM code value that we extracted from the object at this current offset
-        const addressOffset = offset * 4;
-        const fieldValue = [`(i32.add ${value} (i32.const ${addressOffset}))`, `(i32.load)`];
+        // Collect every assignStmt
+        assignStmts = destruct.targets.flatMap((target) => {
+          const assignable = target.target;
+          if (target.starred) {
+            throw new Error("Do not currently support starred assignment targets for objects");
+          } else {
+            const [offset, _] = classFields.next().value;
+            // The WASM code value that we extracted from the object at this current offset
+            const addressOffset = offset * 4;
+            const fieldValue = [value, `(i32.load offset=${addressOffset})`];
+            return codeGenAssignable(assignable, fieldValue, env);
+          }
+        });
+        break;
+      }
+      case "tuple": {
+        let offset = 0;
 
-        return codeGenAssignable(target, fieldValue, env);
-      });
-    } else {
-      // Currently assumes that the valueType of our destructure is an object
-      throw new BaseException.InternalException(
-        "Destructuring not supported yet for types other than 'class'"
-      );
+        assignStmts = destruct.targets.flatMap((target) => {
+          const assignable = target.target;
+          if (target.starred) {
+            throw new Error("Do not currently support starred assignment targets for tuples");
+          } else {
+            const fieldValue = [value, `(i32.load offset=${offset})`];
+            offset += 4;
+            return codeGenAssignable(assignable, fieldValue, env);
+          }
+        });
+        break;
+      }
+      case "list": {
+        // Determines if we have a single target with starred == true
+        // used to run a different runtime length check
+        const isStarred = destruct.targets.some((target) => target.starred);
+
+        let targetListLength: number;
+        let compareLengthOperator: string;
+        if (isStarred) {
+          // Targets list length - 1 is the lower bound for number of required elements in our array
+          // The array can be larger/equal to this (because of star operator) but not smaller
+          targetListLength = destruct.targets.length - 1;
+          compareLengthOperator = `(i32.ge_u)`;
+        } else {
+          // No star operator simply means the target lists and the runtime list must be same length
+          targetListLength = destruct.targets.length;
+          compareLengthOperator = `(i32.eq)`;
+        }
+        // TODO: Add nice runtime error instead of "RuntimeError: unreachable"
+        const lengthCheck = [
+          value,
+          `(i32.load offset=4)`, // list length, stored at byte offset 4
+          `(i32.const ${targetListLength})`, // number of destruct targets
+          compareLengthOperator,
+          `(if (then (nop)) (else (unreachable)))`,
+          //`(if (then (nop)) (else (call $SomeExitingErrorFunction)))`
+        ];
+
+        // Skip past the three header values of lists and to the actual values
+        let initalizeOffset = [`(i32.const 12)`, `(local.set $$destructListOffset)`];
+        let offset = [`(local.get $$destructListOffset)`];
+        const targetStmts = destruct.targets.flatMap((target) => {
+          const assignable = target.target;
+          if (target.starred) {
+            //throw new Error("Star operator not implemented yet.");
+
+            // The starting index of the star operator
+            // subtracting the 12 for the header values, dividing by 4 to convert from byte offset to index in list
+            const startStarIndex = [`(i32.div_s (i32.sub ${offset} (i32.const 12)) (i32.const 4))`];
+
+            let nonStarredElements = destruct.targets.length - 1;
+            // The WASM number of elements we need in our starred element list
+            const numStarElements = [
+              value,
+              `(i32.load offset=4)`, // list length, stored at byte offset 4
+              `(i32.const ${nonStarredElements})`,
+              `(i32.sub)`, // results in the number of elements needed in the starred list
+            ];
+            // The ending index of the star operator (exclusive)
+            const endStarIndex = [
+              `(i32.add ${startStarIndex.join("\n")} ${numStarElements.join("\n")})`,
+            ];
+
+            const sourceList = [value];
+            const incrementOffset = [
+              ...offset,
+              `(i32.mul ${numStarElements.join("\n")} (i32.const 4))`,
+              `(i32.add)`,
+              `(local.set $$destructListOffset)`,
+            ];
+            let copyListSlice: string[] = [
+              ...startStarIndex,
+              ...endStarIndex,
+              ...sourceList,
+              ...codeGenListCopy(ListCopyMode.Slice),
+            ];
+
+            return codeGenAssignable(assignable, copyListSlice, env).concat(incrementOffset);
+          } else {
+            const fieldValue = [`(i32.load (i32.add ${value} ${offset}))`];
+            const incrementOffset = [
+              ...offset,
+              `(i32.const 4)`,
+              `(i32.add)`,
+              `(local.set $$destructListOffset)`,
+            ];
+            return codeGenAssignable(assignable, fieldValue, env).concat(incrementOffset);
+          }
+        });
+        assignStmts = [...lengthCheck, ...initalizeOffset, ...targetStmts];
+        break;
+      }
     }
   } else {
     const target = destruct.targets[0];
-    if (!target.ignore) {
-      assignStmts = codeGenAssignable(target.target, [value], env);
-    }
+    assignStmts = codeGenAssignable(target.target, [value], env);
   }
 
   return assignStmts;
@@ -545,6 +678,19 @@ function codeGenAssignable(
           objStmts = objStmts.concat(checkNone);
           return objStmts.concat(codeGenDictKeyVal(target.key, value, 10, env));
         case "list":
+          const listObjStmts = codeGenExpr(target.obj, env);
+          const listKeyStmts = codeGenExpr(target.key, env);
+          //Add base + (3*4) + (key*4)
+          //TODO key is bigNum handling
+          const listLocationToStore = [
+            ...listObjStmts,
+            `(i32.add (i32.const 12)) ;; move past type, size, bound`,
+            ...listKeyStmts,
+            ...decodeLiteral,
+            `(i32.mul (i32.const 4)) `,
+            `(i32.add)`,
+          ];
+          return [...listLocationToStore, ...value, "(i32.store)"];
         default:
           throw new BaseException.InternalException(
             "Bracket-assign for types other than dict not implemented"
@@ -553,7 +699,7 @@ function codeGenAssignable(
     default:
       // Force type error if assignable is added without implementation
       // At the very least, there should be a stub
-      const err: never = <never>target;
+      const err: never = target;
       throw new BaseException.InternalException(`Unknown target ${JSON.stringify(err)} (compiler)`);
   }
 }
@@ -572,10 +718,15 @@ function codeGenInit(init: VarInit<[Type, Location]>, env: GlobalEnv): Array<str
 
 // NOTE(alex:mm): Assuming this is only called for closure allocation
 //   which uses a class-based layout
-function myMemAlloc(name: string, sizeInValueCount: number): Array<string> {
+function myMemAlloc(name: string, sizeInValueCount: number, closure?: boolean): Array<string> {
   const allocs: Array<string> = [];
   const sizeInBytes = sizeInValueCount * 4;
-  allocs.push(`(i32.const ${Number(TAG_REF)}) ;; heap-tag: ref`);
+  let tag = closure ? TAG_CLOSURE : TAG_REF;
+  allocs.push(
+    `(i32.const ${Number(closure ? TAG_CLOSURE : TAG_REF)}) ;; heap-tag: ${
+      closure ? "closure" : "ref"
+    }`
+  );
   allocs.push(`(i32.const ${sizeInBytes})`);
   allocs.push(`(call $$gcalloc)`);
   allocs.push(`(local.set ${name}) ;; allocate memory for ${name}`);
@@ -588,12 +739,13 @@ function initNested(nested: Array<string>, env: GlobalEnv): Array<string> {
   const inits: Array<string> = [];
 
   nested.forEach((fun) => {
-    inits.push(myMemAlloc(`$${fun}_$ref`, 1).join("\n"));
+    inits.push(...myMemAlloc(`$${fun}_$ref`, 1));
   });
 
   nested.forEach((fun) => {
     let [idx, nonlocals] = env.funs.get(fun);
-    inits.push(myMemAlloc(`$$addr`, nonlocals.length + 1).join("\n"));
+    // NOTE(alex:mm): Pass `true` to allocate with TAG_CLOSURE
+    inits.push(...myMemAlloc(`$$addr`, nonlocals.length + 1, true));
     inits.push(`(i32.store (local.get $$addr) (i32.const ${idx})) ;; function idx`);
     nonlocals.forEach((v, i) => {
       // the dependent variable 'v' exists in the parent scope
@@ -624,7 +776,7 @@ function initRef(refs: Set<string>): Array<string> {
   // for parameters and local variables, extra references are created and initialized
   const inits: Array<string> = [];
   refs.forEach((name) => {
-    inits.push(myMemAlloc(`$${name}_$ref`, 1).join("\n"));
+    inits.push(...myMemAlloc(`$${name}_$ref`, 1));
     inits.push(`(i32.store (local.get $${name}_$ref) (local.get $${name}))`);
   });
 
@@ -638,6 +790,7 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
   definedVars.add("$last");
   definedVars.add("$addr");
   definedVars.add("$destruct");
+  definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
@@ -681,7 +834,12 @@ function codeGenClosureDef(def: ClosureDef<[Type, Location]>, env: GlobalEnv): A
     .concat(["(i32.const 0)", "(return)"]);
 
   const localMap = env.locals;
-  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBody = augmentFnGc(body, localMap, {
+    main: false,
+    debug: {
+      name: def.name,
+    },
+  });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
 
@@ -702,6 +860,7 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
   //   for inner expressions
   definedVars.add("$allocPointer"); // Used to cache the result of `gcalloc`
   definedVars.add("$destruct");
+  definedVars.add("$destructListOffset");
   definedVars.add("$string_val"); //needed for string operations
   definedVars.add("$string_class"); //needed for strings in class
   definedVars.add("$string_index"); //needed for string index check out of bounds
@@ -717,7 +876,6 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
     })
     .join(" ");
 
-  // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach((v) => {
     env.locals.set(v, currLocalIndex);
     currLocalIndex += 1;
@@ -729,7 +887,12 @@ function codeGenFunDef(def: FunDef<[Type, Location]>, env: GlobalEnv): Array<str
 
   const body = locals.concat(inits).concat(stmts).concat(["(i32.const 0)", "(return)"]);
   const localMap = env.locals;
-  const augmentedBody = augmentFnGc(body, localMap, false);
+  const augmentedBody = augmentFnGc(body, localMap, {
+    main: false,
+    debug: {
+      name: def.name,
+    },
+  });
   const augmentedBodyStr = augmentedBody.join("\n");
   env.locals.clear();
 
@@ -747,40 +910,89 @@ function codeGenClass(cls: Class<[Type, Location]>, env: GlobalEnv): Array<strin
   return result.flat();
 }
 
-// If concat is 0, then the function generate code for list.copy()
-// If concat is 2, then the function generate code for concat.
-// If concat is 3, then the function generate code for append.
-function codeGenListCopy(concat: number): Array<string> {
+function codeGenListCopy(mode: ListCopyMode): Array<string> {
   var stmts: Array<string> = [];
   var loopstmts: Array<string> = [];
   var condstmts: Array<string> = [];
+  var concatstmts: Array<string> = [];
+  var doublestmts: Array<string> = [];
   var tempstmts: Array<string> = [];
   var listType = 10; //temporary list type number
   var header = [4, 8]; //size, bound relative position
   var cmp = [""];
-  stmts.push(...[`(local.set $$list_cmp)`]); //store first address to local var
-  if (concat == 2) {
-    stmts.push(...[`(local.set $$list_cmp2)`]);
-    tempstmts = [`(local.get $$list_cmp2)`, `(i32.add (i32.const 8))`, `(i32.load)`, `(i32.add)`];
-    cmp = ["", "2"];
+
+  stmts.push(
+    ...[
+      `(local.tee $$list_cmp)`, //store first address to local var
+      `(i32.add (i32.const 8))`,
+      `(i32.load)`,
+      `(local.set $$list_temp)`, //capacity
+      `(i32.const 0)`,
+      `(local.set $$list_index2)`, //second index
+    ]
+  );
+
+  if (mode === ListCopyMode.Slice) {
+    stmts.push(
+      ...[
+        `(local.set $$list_bound)`, // max index(not include)
+        `(local.set $$list_index)`, // current index
+        `(local.get $$list_bound)`,
+        `(local.get $$list_index)`,
+        `(i32.sub)`,
+        `(local.set $$list_size)`,
+      ] //size of list
+    );
+  } else {
+    stmts.push(
+      ...[
+        `(local.get $$list_cmp)`,
+        `(i32.add (i32.const 4))`,
+        `(i32.load)`,
+        `(local.tee $$list_size)`, //capacity
+        `(local.set $$list_bound)`,
+        `(i32.const 0)`,
+        `(local.set $$list_index)`,
+      ]
+    );
   }
-  if (concat == 3) {
-    tempstmts = tempstmts.concat("(i32.mul (i32.const 2))");
+
+  if (mode === ListCopyMode.Concat) {
+    cmp = ["", "2"];
+    stmts.push(
+      ...[
+        `(local.tee $$list_cmp2)`,
+        `(i32.add (i32.const 8))`,
+        `(i32.load)`,
+        `(local.get $$list_temp)`,
+        `(i32.add)`,
+        `(local.set $$list_temp)`, //capacity
+        `(local.get $$list_cmp2)`,
+        `(i32.add (i32.const 4))`,
+        `(i32.load)`,
+        `(local.get $$list_size)`,
+        `(i32.add)`,
+        `(local.set $$list_size)`, //size
+      ]
+    );
+  }
+
+  if (mode === ListCopyMode.Double) {
+    stmts.push(
+      ...[
+        `(local.get $$list_temp)`,
+        `(i32.mul (i32.const 2))`,
+        `(local.set $$list_temp)`, //capacity
+      ]
+    );
   }
 
   stmts.push(
     ...[
       `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
-      `(local.get $$list_cmp)`, // load capacty
-      `(i32.add (i32.const 8))`,
-      `(i32.load)`,
-    ]
-  );
-  stmts.push(...tempstmts);
-  stmts.push(
-    ...[
-      `(i32.mul (i32.const 4))`, // new_cap = cap * 4 + 12
-      `(i32.add (i32.const 12))`,
+      `(local.get $$list_temp)`, // load capacty
+      `(i32.add (i32.const 3))`,
+      `(i32.mul (i32.const 4))`,
       `(call $$gcalloc)`,
       `(local.set $$list_base)`,
     ]
@@ -788,20 +1000,12 @@ function codeGenListCopy(concat: number): Array<string> {
 
   //add/modify header info of the list
   header.forEach((addr) => {
-    var double_size = addr == 8 && concat == 3 ? [`(i32.mul (i32.const 2))`] : [];
-    var tempstmts =
-      concat == 2
-        ? [`(local.get $$list_cmp2)`, `(i32.add (i32.const ${addr}))`, `(i32.load)`, `(i32.add)`]
-        : [];
+    var varname = `list_${addr === 4 ? "size" : "temp"}`;
     stmts.push(
       ...[
         `(local.get $$list_base)`,
         `(i32.add (i32.const ${addr}))`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const ${addr}))`,
-        `(i32.load)`,
-        ...tempstmts,
-        ...double_size,
+        `(local.get $$${varname})`,
         `(i32.store)`,
       ]
     );
@@ -817,7 +1021,7 @@ function codeGenListCopy(concat: number): Array<string> {
     ...[
       `(local.get $$list_base)`,
       `(i32.add (i32.const 12))`,
-      `(local.get $$list_temp)`,
+      `(local.get $$list_index2)`,
       `(i32.mul (i32.const 4))`,
       `(i32.add)`,
       `(local.get $$list_cmp)`,
@@ -830,49 +1034,32 @@ function codeGenListCopy(concat: number): Array<string> {
       `(local.get $$list_index)`,
       `(i32.add (i32.const 1))`,
       `(local.set $$list_index)`,
-      `(local.get $$list_temp)`,
+      `(local.get $$list_index2)`,
       `(i32.add (i32.const 1))`,
-      `(local.set $$list_temp)`,
+      `(local.set $$list_index2)`,
     ]
   );
 
   cmp.forEach((s) => {
-    if (s === ``) {
+    if (s !== ``) {
       stmts.push(
         ...[
+          `(local.get $$list_cmp2)`,
+          `(local.set $$list_cmp)`,
           `(i32.const 0)`,
+          `(local.set $$list_index)`,
+          `(local.get $$list_cmp)`,
+          `(i32.add (i32.const 4))`,
+          `(i32.load)`,
+          `(i32.add (local.get $$list_bound))`,
           `(local.set $$list_bound)`,
-          `(i32.const 0)`,
-          `(local.set $$list_temp)`, //second index
         ]
       );
-    } else {
-      stmts.push(...[`(local.get $$list_cmp2)`, `(local.set $$list_cmp)`]);
     }
-
-    stmts.push(
-      ...[
-        `(i32.const 0)`,
-        `(local.set $$list_index)`,
-        `(local.get $$list_cmp)`,
-        `(i32.add (i32.const 4))`,
-        `(i32.load)`,
-        `(i32.add (local.get $$list_bound))`,
-        `(local.set $$list_bound)`,
-      ]
-    );
 
     //while loop structure
     stmts.push(
-      ...[
-        `(block`,
-        `(loop`,
-        `(br_if 1 ${condstmts.join("\n")})`,
-        `${loopstmts.join("\n")}`,
-        `(br 0)`,
-        `)`,
-        `)`,
-      ]
+      ...[`(block`, `(loop`, `(br_if 1`, ...condstmts, `)`, ...loopstmts, `(br 0)`, `)`, `)`]
     );
   });
 
@@ -891,6 +1078,10 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         callName = "print_num";
       } else if (expr.name === "print" && argTyp === STRING) {
         callName = "print_str";
+        //print_list takes an additional arg: type of elements in list
+        //print_list(base_addr, elem_type)
+      } else if (expr.name === "print" && argTyp.tag === "list") {
+        return argStmts.concat([codeGenListElemType(argTyp.content_type), `(call $print_list)`]);
       } else if (expr.name === "print" && argTyp === BOOL) {
         return argStmts.concat([`(call $print_bool)`]);
       } else if (expr.name === "print" && argTyp === NONE) {
@@ -900,15 +1091,18 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
     case "builtin2":
       const leftStmts = codeGenExpr(expr.left, env);
       const rightStmts = codeGenExpr(expr.right, env);
-      // we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
-      return [
-        ...leftStmts,
-        ...decodeLiteral,
-        ...rightStmts,
-        ...decodeLiteral,
-        ...codeGenCall(expr.a[1], `(call $${expr.name})`),
-        ...encodeLiteral,
-      ];
+      return [...leftStmts, ...rightStmts, `(call $${expr.name})`];
+    // =======
+    //       we will need to check with the built-in functions team to determine how BigNumbers will interface with the built-in functions
+    //       return [
+    //         ...leftStmts,
+    //         ...decodeLiteral,
+    //         ...rightStmts,
+    //         ...decodeLiteral,
+    //         ...codeGenCall(expr.a[1], `(call $${expr.name})`),
+    //         ...encodeLiteral,
+    //       ];
+    // >>>>>>> main
     case "literal":
       return codeGenLiteral(expr.value);
     case "id":
@@ -921,10 +1115,10 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       const lhsStmts = codeGenExpr(expr.left, env);
       const rhsStmts = codeGenExpr(expr.right, env);
       if (typeof expr.left.a !== "undefined" && expr.left.a[0].tag === "list") {
-        return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(2)];
+        return [...rhsStmts, ...lhsStmts, ...codeGenListCopy(ListCopyMode.Concat)];
       } else if (expr.op == BinOp.Is) {
         return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op), ...encodeLiteral];
-      } else {
+      } else if (expr.op == BinOp.And || expr.op == BinOp.Or) {
         return [
           ...lhsStmts,
           ...decodeLiteral,
@@ -932,6 +1126,19 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           ...decodeLiteral,
           codeGenBinOp(expr.op),
           ...encodeLiteral,
+        ];
+      } else {
+        return [
+          ...lhsStmts,
+          ...rhsStmts,
+          ...(expr.op == BinOp.IDiv
+            ? codeGenRuntimeCheck(
+                expr.a[1],
+                [...rhsStmts, ...decodeLiteral],
+                RunTime.CHECK_ZERO_DIVISION
+              )
+            : [""]),
+          codeGenBinOp(expr.op),
         ];
       }
     case "uniop":
@@ -944,7 +1151,13 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         default:
           return unreachable(expr);
       }
+      break;
     case "call":
+      var prefix = "";
+      if (expr.name === "dict") {
+        //dict constructor call
+        return codeGenExpr(expr.arguments[0], env); //call code gen for the dict argument
+      }
       if (expr.name === "range") {
         // TODO - error-reporting: stacktrace for range
         switch (expr.arguments.length) {
@@ -964,11 +1177,17 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             valStmts.push(`(call $${expr.name})`);
             return valStmts;
           default:
-            throw new Error("Unsupported range() call!");
+            throw new BaseException.InternalException("Unsupported range() call!");
+        }
+      } else if (expr.name === "len") {
+        if (expr.arguments[0].a[0].tag === "list") {
+          prefix = "$$list";
+        } else {
+          throw new Error("Unimplemented len() for " + expr.arguments[0].a[0].tag);
         }
       }
       var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-      valStmts = valStmts.concat(codeGenCall(expr.a[1], `(call $${expr.name})`));
+      valStmts = valStmts.concat(codeGenCall(expr.a[1], `(call ${prefix}$${expr.name})`));
       return valStmts;
     case "call_expr":
       const callExpr: Array<string> = [];
@@ -982,7 +1201,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(...codeGenExpr(arg, env));
         });
-        callExpr.push(...codeGenPushStack(expr.a[1]));
 
         // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
@@ -999,7 +1217,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(...codeGenExpr(arg, env));
         });
-        callExpr.push(...codeGenPushStack(expr.a[1]));
         // NOTE(alex:mm): necessary in order to root the return value
         callExpr.push(
           ...codeGenCall(
@@ -1016,7 +1233,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         expr.arguments.forEach((arg) => {
           callExpr.push(...codeGenExpr(arg, env));
         });
-        callExpr.push(...codeGenPushStack(expr.a[1]));
         callExpr.push(
           ...codeGenCall(
             expr.a[1],
@@ -1026,16 +1242,22 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           )
         );
       } else {
-        throw new BaseException.InternalException(
-          `Compile Error. Invalid name of tag ${nameExpr.tag}`
-        );
+        throw new BaseException.InternalException(`Invalid name of tag ${nameExpr.tag}`);
       }
-      callExpr.push(...codeGenPopStack());
       return callExpr;
     case "construct":
+      let allocSize = env.classes.get(expr.name).size * 4;
+      let heapTag = TAG_CLASS;
+      // TODO(alex:mm): figure out what do with ZSTs
+      // NOTE(alex:mm): calling `gcalloc` with size 0 is an error
+      // Either somehow do something with ZSTs or just allocate a placeholder
+      if (allocSize === 0) {
+        allocSize = 4;
+        heapTag = TAG_OPAQUE;
+      }
       var stmts: Array<string> = [
-        `(i32.const ${Number(TAG_CLASS)})   ;; heap-tag: class`,
-        `(i32.const ${env.classes.get(expr.name).size * 4})   ;; size in bytes`,
+        `(i32.const ${Number(heapTag)})   ;; heap-tag: class`,
+        `(i32.const ${allocSize})   ;; size in bytes`,
         `(call $$gcalloc)`,
         `(local.set $$allocPointer)`,
         `(local.get $$allocPointer)`, // return to parent expr
@@ -1067,38 +1289,85 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         // Pointer to return should be on the top of the stack already
       ]);
     case "method-call":
-      let clsName = (expr.obj.a[0] as any).name;
-      if (env.classes.get(clsName).has(expr.method)) {
-        let callExpr: Array<string> = [];
+      var objType = expr.obj.a[0];
+      //Object method calls
+      if (objType.tag === "class") {
+        let clsName = objType.name;
         let argsExprs = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
-        callExpr.push(...codeGenExpr(expr.obj, env));
-        callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
-        callExpr.push(`(i32.load) ;; load the function pointer for the extra argument`);
-        callExpr.push(...argsExprs);
-        callExpr.push(...codeGenExpr(expr.obj, env));
-        callExpr.push(`(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`);
-        callExpr.push(`(i32.load) ;; load the function pointer`);
-        callExpr.push(`(i32.load) ;; load the function index`);
-        callExpr.push(
-          ...codeGenCall(expr.a[1], `(call_indirect (type $callType${expr.arguments.length + 1}))`)
-        );
-        return callExpr;
-      } else {
-        var objStmts = codeGenExpr(expr.obj, env);
-        var objTyp = expr.obj.a[0];
-        if (objTyp.tag !== "class") {
-          // I don't think this error can happen
-          throw new BaseException.InternalException(
-            "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
+        //Handle object indrect function calls
+        if (env.classes.get(clsName).has(expr.method)) {
+          let callExpr: Array<string> = [];
+          callExpr.push(...codeGenExpr(expr.obj, env));
+          callExpr.push(
+            `(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`
           );
+          callExpr.push(`(i32.load) ;; load the function pointer for the extra argument`);
+          callExpr.push(...argsExprs);
+          callExpr.push(...codeGenExpr(expr.obj, env));
+          callExpr.push(
+            `(i32.add (i32.const ${env.classes.get(clsName).get(expr.method)[0] * 4}))`
+          );
+          callExpr.push(`(i32.load) ;; load the function pointer`);
+          callExpr.push(`(i32.load) ;; load the function index`);
+          callExpr.push(
+            ...codeGenCall(
+              expr.a[1],
+              `(call_indirect (type $callType${expr.arguments.length + 1}))`
+            )
+          );
+          return callExpr;
+        } else {
+          //Regular class object calls
+          return [...codeGenExpr(expr.obj, env), ...argsExprs, `(call $${clsName}$${expr.method})`];
         }
-        var className = objTyp.name;
-        var argsStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+        //Dict method calls
+      } else if (objType.tag === "dict") {
+        return codeGenDictMethods(expr.obj, expr.method, expr.arguments, env);
+      } else if (objType.tag === "list") {
+        var objStmts = codeGenExpr(expr.obj, env);
+        className = "$list";
+        var extStmts: Array<string> = [];
+        var objExpr = expr.obj;
+        if (expr.method === "append") {
+          switch (objExpr.tag) {
+            case "id":
+              if (env.locals.has(objExpr.name)) {
+                extStmts = [
+                  `(local.tee $$list_temp)`,
+                  `(local.set $${objExpr.name})`,
+                  `(local.get $$list_temp)`,
+                ];
+              } else {
+                const locationToStore = [
+                  `(i32.const ${envLookup(env, objExpr.name)}) ;; ${objExpr.name}`,
+                ];
+                extStmts = [
+                  `(local.set $$list_temp)`,
+                  ...locationToStore,
+                  `(local.get $$list_temp)`,
+                  "(i32.store)",
+                  `(local.get $$list_temp)`,
+                ];
+              }
+              break;
+          }
+        }
+        var argsStmts = expr.arguments
+          .map((arg) => codeGenExpr(arg, env))
+          .flat()
+          .concat();
+
         return [
           ...objStmts,
           ...argsStmts,
           ...codeGenCall(expr.a[1], `(call $${className}$${expr.method})`),
+          ...extStmts,
         ];
+      } else {
+        // I don't think this error can happen
+        throw new BaseException.InternalException(
+          "Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag
+        );
       }
     case "lookup":
       var objStmts = codeGenExpr(expr.obj, env);
@@ -1141,20 +1410,23 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         .forEach((lexpr) => {
           stmts.push(...[...codeGenExpr(lexpr, env)]);
         });
+
+
+      // NOTE(alex:mm) $$allocPointer clobbered by recurse codegen
+      //   Should be fine in this context
       stmts.push(
         ...[
-          `(i32.const ${TAG_LIST})    ;; heap-tag: list`,
-          `(i32.const ${(listBound + 3) * 4})`, // load capacty
-          `(i32.mul (i32.const 4))`, // new_cap = cap * 4 + 12
-          `(i32.add (i32.const 12))`,
+          `(i32.const ${TAG_LIST}) ;; heap-tag: list`,
+          `(i32.const ${(listBound + 3) * 4})`,
           `(call $$gcalloc)`,
-          `(local.set $$list_base)`,
+          `(local.set $$allocPointer)`,
         ]
       );
+
       listHeader.forEach((val) => {
         stmts.push(
           ...[
-            `(local.get $$list_base)`,
+            `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             "(i32.const " + val + ")",
             "(i32.store)",
@@ -1166,7 +1438,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         stmts.push(
           ...[
             `(local.set $$list_temp)`,
-            `(local.get $$list_base)`,
+
+            `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             `(local.get $$list_temp)`,
             "(i32.store)",
@@ -1175,7 +1448,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         listindex += 1;
       });
       //Move heap head to the end of the list and return list address
-      return stmts.concat([`(local.get $$list_base)`]);
+
+      return stmts.concat([`(local.get $$allocPointer)`]);
+    case "tuple-expr":
+      return codeGenTupleAlloc(expr, env);
+
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
         case "dict":
@@ -1186,9 +1463,9 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           var brStmts = [];
           brStmts.push(
             ...[
-              `${brObjStmts.join("\n")}`, //Load the string object to be indexed
+              ...brObjStmts, //Load the string object to be indexed
               `(local.set $$string_address)`,
-              `${brKeyStmts.join("\n")}`, //Gets the index
+              ...brKeyStmts, //Gets the index
               ...decodeLiteral,
               `(local.set $$string_index)`,
               `(local.get $$string_index)`,
@@ -1256,6 +1533,21 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
               `(i32.load) ;; load list element`,
             ]
           );
+        case "tuple": {
+          return [
+            // Get tuple address
+            ...codeGenExpr(expr.obj, env),
+            // Get word offset from tuple address
+            ...codeGenExpr(expr.key, env),
+            ...decodeLiteral,
+            // Get byte offset
+            "(i32.mul (i32.const 4))",
+            // Calculate target address
+            "(i32.add)",
+            // Load target value
+            "(i32.load)",
+          ];
+        }
         default:
           throw new BaseException.InternalException(
             "Code gen for bracket-lookup for types other than dict not implemented"
@@ -1263,6 +1555,62 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
       }
     default:
       unhandledTag(expr);
+  }
+}
+
+function codeGenTupleAlloc(
+  expr: WithTag<Expr<[Type, Location]>, "tuple-expr">,
+  env: GlobalEnv
+): string[] {
+  let stmts = [
+    `(i32.const ${Number(TAG_TUPLE)})   ;; heap-tag: tuple`,
+    `(i32.const ${expr.contents.length * 4})   ;; size in bytes`,
+    `(call $$gcalloc)`,
+    `(local.set $$allocPointer)`,
+  ];
+  // Adopting the object hack of pushing one copy of $$allocPointer onto the stack for every item in the tuple.
+  // The best solution would be to reset allocPointer to its original value after creating the new stack
+  // object, but it's probably too late to institute a change like that.
+  stmts.push("(local.get $$allocPointer)\n".repeat(expr.contents.length + 1));
+  expr.contents.forEach((content, offset) => {
+    stmts.push(...codeGenExpr(content, env), `(i32.store offset=${offset * 4})`);
+  });
+  return stmts;
+}
+
+function codeGenDictMethods(
+  obj: Expr<[Type, Location]>,
+  method: string,
+  args: Array<Expr<[Type, Location]>>,
+  env: GlobalEnv
+): Array<string> {
+  let dictMethodStmts: Array<string> = [];
+  var objStmts = codeGenExpr(obj, env);
+  switch (method) {
+    case "get":
+      var argsStmts = args.map((arg) => codeGenExpr(arg, env)).flat();
+      return [...objStmts, ...argsStmts, `(call $dict$get)`];
+    case "update":
+      if (args[0].tag === "dict") {
+        let dictStmts: Array<string> = [];
+        let dictAddress: Array<string> = [];
+        args[0].entries.forEach((keyval) => {
+          dictAddress = dictAddress.concat(...objStmts); //pushing the dict base address for each key-value pair update call
+          const value = codeGenExpr(keyval[1], env);
+          dictStmts = dictStmts.concat(codeGenDictKeyVal(keyval[0], value, 10, env));
+        });
+        return [...dictAddress, ...dictStmts, "(i32.const 0)"]; //last parameter to indicate none is being returned by this function
+      } else {
+        throw new BaseException.InternalException(
+          "Update doesn't support any other type of arguments other than a dict"
+        );
+      }
+    case "pop":
+    case "clear":
+      var argsStmts = args.map((arg) => codeGenExpr(arg, env)).flat();
+      return [...objStmts, ...argsStmts, `(call $dict$${method})`];
+    default:
+      throw new BaseException.InternalException("Unsupported dict method call");
   }
 }
 
@@ -1342,8 +1690,19 @@ function codeGenDictBracketLookup(
   let dictKeyValStmts: Array<string> = [];
   var objStmts = codeGenExpr(obj, env);
   var checkNone = codeGenRuntimeCheck(obj.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP);
+  var checkKey = codeGenRuntimeCheck(
+    obj.a[1],
+    [
+      ...objStmts,
+      ...codeGenExpr(key, env),
+      `(i32.const ${hashtableSize})`,
+      "(call $ha$htable$Lookup)",
+    ],
+    RunTime.CHECK_KEY_ERROR
+  );
   dictKeyValStmts = dictKeyValStmts.concat(objStmts);
   dictKeyValStmts = dictKeyValStmts.concat(checkNone);
+  dictKeyValStmts = dictKeyValStmts.concat(checkKey);
   dictKeyValStmts = dictKeyValStmts.concat(codeGenExpr(key, env));
   dictKeyValStmts = dictKeyValStmts.concat([
     `(i32.const ${hashtableSize})`,
@@ -1369,14 +1728,442 @@ function codeGenDictKeyVal(
   return dictKeyValStmts;
 }
 
+function listBuiltInFuns(): Array<string> {
+  let listFunStmts: Array<string> = [];
+  //len function
+  listFunStmts.push(
+    ...[
+      "(func $$list$len (param $$list_cmp i32) (result i32)",
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      ...encodeLiteral,
+      "(return))",
+      "",
+    ]
+  );
+  //append function
+  listFunStmts.push(
+    ...[
+      "(func $$list$append (param $$list_cmp i32) (param $$val i32) (result i32)",
+      `(local $$list_base i32)`,
+      `(local $$list_index i32)`,
+      `(local $$list_index2 i32)`,
+      `(local $$list_size i32)`,
+      `(local $$list_bound i32)`,
+      `(local $$list_temp i32)`,
+      `(if `, // check if list bounds need to expand
+      `(i32.eq`,
+      `(local.get $$list_cmp)`, // get address of current list
+      `(i32.add (i32.const 8))`,
+      `(i32.load)`, // load the bound of the list
+      `(local.get $$list_cmp)`, // get address of current list
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`, // load the size of the list
+      `)`,
+      `(then`,
+      `(local.get $$list_cmp)`, // generate code for append element
+      ...codeGenListCopy(ListCopyMode.Double),
+      `(local.set $$list_cmp)`,
+      `)`, // end then
+      `)`, // end if
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`, //load index to store
+      `(i32.mul (i32.const 4))`,
+      `(i32.add (i32.const 12))`, // add base position
+      `(i32.add (local.get $$list_cmp))`,
+      `(local.get $$val)`,
+      `(i32.store)`,
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(local.get $$list_cmp)`,
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(i32.add (i32.const 1))`, // add 1 to the size
+      `(i32.store)`,
+      `(local.get $$list_cmp)`,
+      "(return))",
+      "",
+    ]
+  );
+
+  //index function //count could be very similar to this function
+  listFunStmts.push(
+    ...[
+      "(func $$list$index (param $$list_cmp i32) (param $$val i32) (result i32)",
+      `(local $$list_index i32)`, // to iterate through list
+      `(local $$list_size i32)`, // size of list
+      `(i32.const 0)`, // list_index = 0
+      `(local.set $$list_index)`,
+      `(local.get $$list_cmp)`, // load list_size from list metadata
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.set $$list_size)`,
+      `(local.get $$list_cmp)`, // beginning of list
+      `(i32.add (i32.const 12))`,
+      `(local.set $$list_cmp)`,
+      `(block`,
+      `(loop`, // while loop for searching the value
+      `(br_if 1`, // condition start
+      `(local.get $$list_size)`,
+      `(local.get $$list_index)`,
+      `(i32.eq)`,
+      `)`, // condition end
+      // loop body start
+
+      `(if `, // check if element of index match to the value
+      `(i32.eq`,
+      `(local.get $$list_cmp)`,
+      `(local.get $$list_index)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(i32.load)`,
+      `(local.get $$val)`,
+      `)`,
+
+      `(then`, // return index
+      `(local.get $$list_index)`,
+      ...encodeLiteral,
+      `(return)`,
+      `)`, // end then
+      `)`, // end if
+      `(local.get $$list_index)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_index)`,
+
+      `(br 0)`,
+      `)`,
+      `)`,
+      `(i32.const -1)`, // find nothing
+      ...encodeLiteral,
+      "(return))",
+      "",
+    ]
+  );
+
+  //count function, similar to index
+  listFunStmts.push(
+    ...[
+      "(func $$list$count (param $$list_cmp i32) (param $$val i32) (result i32)",
+      `(local $$list_counter i32)`, // counter of how many times we see list_cmp
+      `(local $$list_index i32)`, // to iterate through list
+      `(local $$list_size i32)`, // size of list
+      `(i32.const 0)`, // list_counter = 0
+      `(local.set $$list_counter)`,
+      `(i32.const 0)`, // list_index = 0
+      `(local.set $$list_index)`,
+      `(local.get $$list_cmp)`, // load list_size from list metadata
+      `(i32.add (i32.const 4))`,
+      `(i32.load)`,
+      `(local.set $$list_size)`,
+      `(local.get $$list_cmp)`, // beginning of list
+      `(i32.add (i32.const 12))`,
+      `(local.set $$list_cmp)`,
+      `(block`,
+      `(loop`, // while loop for searching the value
+      `(br_if 1`, // condition start
+      `(local.get $$list_size)`,
+      `(local.get $$list_index)`,
+      `(i32.eq)`,
+      `)`, // condition end
+      // loop body start
+
+      `(if `, // check if element of index match to the value
+      `(i32.eq`,
+      `(local.get $$list_cmp)`,
+      `(local.get $$list_index)`,
+      `(i32.mul (i32.const 4))`,
+      `(i32.add)`,
+      `(i32.load)`,
+      `(local.get $$val)`,
+      `)`,
+
+      `(then`, // add to count variable
+      `(local.get $$list_counter)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_counter)`,
+      `)`, // end then
+      `)`, // end if
+      `(local.get $$list_index)`,
+      `(i32.add (i32.const 1))`,
+      `(local.set $$list_index)`,
+
+      `(br 0)`,
+      `)`,
+      `)`,
+      `(local.get $$list_counter)`, // return count
+      ...encodeLiteral,
+      "(return))",
+      "",
+    ]
+  );
+
+  //clear function
+  //simply sets internal metadata size to 0
+  listFunStmts.push(
+    ...[
+      "(func $$list$clear (param $$list_baseaddr i32) (result i32)",
+      `(local.get $$list_baseaddr)`, // get address of list size
+      `(i32.add (i32.const 4))`,
+      `(i32.const 0)`, // store 0 into list size
+      `(i32.store)`,
+      `(local.get $$list_baseaddr)`, // return address of the list
+      "(return))",
+      "",
+    ]
+  );
+
+  //copy function
+  //creates new copy of that list and returns new copy's base addr
+  listFunStmts.push(
+    ...[
+      "(func $$list$copy (param $$list_baseaddr i32) (result i32)",
+      `(local $$list_base i32)`,
+      `(local $$list_index i32)`,
+      `(local $$list_bound i32)`,
+      `(local $$list_temp i32)`,
+      `(local $$list_cmp i32)`,
+      `(local $$list_index2 i32)`,
+      `(local $$list_size i32)`,
+      `(local.get $$list_baseaddr)`,
+      ...codeGenListCopy(ListCopyMode.Copy),
+      "(return))",
+      "",
+    ]
+  );
+
+  //          ["append",[[tObj.a.content_type], tObj.a]],
+  //           ["clear", [[], tObj.a]],
+  //           ["copy",  [[], tObj.a]],
+  //           ["count", [[tObj.a.content_type], NUM]],
+  //           ["index", [[tObj.a.content_type], NUM]],
+
+  //This function returns a memory address for the value of a key. It returns -1 if not found.
+  return listFunStmts;
+}
+
 function dictUtilFuns(): Array<string> {
   let dictFunStmts: Array<string> = [];
+
+  //This function returns a memory address for the value of a key.
+  //If key is not found, throw a key not found error
+  dictFunStmts.push(
+    ...[
+      "(func $dict$get (param $baseAddr i32) (param $key i32) (param $defaultValue i32) (result i32)",
+      "(local $nodePtr i32)", // Local variable to store the address of nodes in linkedList
+      "(local $tagHitFlag i32)", // Local bool variable to indicate whether tag is hit
+      "(local $returnVal i32)",
+      "(local.get $defaultValue)",
+      "(local.set $returnVal)", // Initialize returnVal to defaultValue argument
+      "(i32.const 0)",
+      "(local.set $tagHitFlag)", // Initialize tagHitFlag to False
+      "(local.get $baseAddr)",
+      "(local.get $key)",
+      "(i32.const 10)", //hard-coding hash table size
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
+      "(i32.load)",
+      "(local.set $nodePtr)",
+      "(local.get $nodePtr)",
+      "(i32.const 0)", //None
+      "(i32.eq)",
+      "(if",
+      "(then", // if the literal in bucketAddress is None
+      "(local.get $defaultValue)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      ")", //close then
+      "(else",
+      "(block",
+      "(loop", // While loop till we find a node whose next is None
+      "(local.get $nodePtr)",
+      "(i32.load)", //Loading head of linkedList
+      "(local.get $key)",
+      "(i32.eq)", // if tag is same as the provided one
+      "(if",
+      "(then",
+      "(local.get $nodePtr)",
+      "(i32.const 4)",
+      "(i32.add)", // Value
+      "(i32.load)", //HT
+      "(local.set $returnVal)",
+      "(i32.const 1)",
+      "(local.set $tagHitFlag)", // Set tagHitFlag to True
+      ")", // closing then
+      ")", // closing if
+      "(local.get $nodePtr)",
+      "(i32.const 8)",
+      "(i32.add)", // Next pointer
+      "(i32.load)",
+      "(local.set $nodePtr)",
+      "(br_if 0", // Opening br_if
+      "(local.get $nodePtr)",
+      "(i32.const 0)", //None
+      "(i32.ne)", // If nodePtr not None
+      "(local.get $tagHitFlag)",
+      "(i32.eqz)",
+      "(i32.and)",
+      ")", // Closing br_if
+      "(br 1)",
+      ")", // Closing loop
+      ")", // Closing Block
+      ")", //close else
+      ")", // close if
+      "(local.get $returnVal)",
+      "(return))",
+      "",
+    ]
+  );
+  //This function clears dictionary.
+  dictFunStmts.push(
+    ...[
+      "(func $dict$clear (param $baseAddr i32) (result i32)",
+      "(local.get $baseAddr)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-1
+
+      "(local.get $baseAddr)",
+      "(i32.const 4)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-2
+
+      "(local.get $baseAddr)",
+      "(i32.const 8)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-3
+
+      "(local.get $baseAddr)",
+      "(i32.const 12)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-4
+
+      "(local.get $baseAddr)",
+      "(i32.const 16)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-5
+
+      "(local.get $baseAddr)",
+      "(i32.const 20)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-6
+
+      "(local.get $baseAddr)",
+      "(i32.const 24)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-7
+
+      "(local.get $baseAddr)",
+      "(i32.const 28)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-8
+
+      "(local.get $baseAddr)",
+      "(i32.const 32)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-9
+
+      "(local.get $baseAddr)",
+      "(i32.const 36)",
+      "(i32.add)",
+      "(i32.const 0)", //None
+      "(i32.store)", // Clearing Bucket-10
+
+      "(i32.const 0)",
+      "(return))",
+      "",
+    ]
+  );
+
+  //This function pops a key.
+  dictFunStmts.push(
+    ...[
+      "(func $dict$pop (param $baseAddr i32) (param $key i32) (result i32)",
+      "(local $prevPtr i32)", // Local variable to store the address of previous "next" nodes in linkedList
+      "(local $currPtr i32)", // Local variable to store the address of current "head" nodes in linkedList
+      "(local $returnVal i32)",
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      "(local.get $baseAddr)",
+      "(local.get $key)",
+      "(i32.const 10)", // Hard-coding hashtable size
+      "(i32.rem_s)", //Compute hash
+      "(i32.mul (i32.const 4))", //Multiply by 4 for memory offset
+      "(i32.add)", //Reaching the proper bucket. Call this bucketAddress
+      "(local.set $prevPtr)", // prevPtr equal to bucketAddress
+      "(local.get $prevPtr)",
+      "(i32.load)",
+      "(i32.const 0)", //None
+      "(i32.eq)",
+      "(if",
+      "(then", // if the literal in bucketAddress is None i.e. checking if the bucket is empty
+      "(i32.const -1)",
+      "(local.set $returnVal)", // Initialize returnVal to -1
+      ")", //close then
+      "(else",
+      "(local.get $prevPtr)",
+      "(i32.load)", // Address of the head of linkedList.
+      "(local.set $currPtr)", // currPtr stores the address of the head of the first node.
+      "(block",
+      "(loop",
+      "(local.get $currPtr)",
+      "(i32.load)",
+      "(local.get $key)",
+      "(i32.eq)", // if tag is same as the provided one
+      "(if",
+      "(then",
+      "(local.get $currPtr)",
+      "(i32.const 4)",
+      "(i32.add)",
+      "(local.set $returnVal)", // setting the returnValue to the address of value in the node.
+      "(local.get $prevPtr)",
+      "(local.get $currPtr)",
+      "(i32.const 8)",
+      "(i32.add)",
+      "(i32.load)",
+      "(i32.store)", // Updating the address of next in previous node to the next of the current node.
+      "(local.get $currPtr)",
+      "(i32.const 8)",
+      "(i32.add)",
+      "(local.set $prevPtr)", // Updating the prevPtr to the next of the current node.
+      "(local.get $currPtr)",
+      "(i32.const 8)",
+      "(i32.add)",
+      "(i32.load)",
+      "(local.set $currPtr)", // Updating the currPtr
+      ")", // closing then
+      ")", // closing if
+      "(br_if 0", // Opening br_if
+      "(local.get $currPtr)",
+      "(i32.const 0)", //None
+      "(i32.ne)", // If currPtr not None
+      ")", // Closing br_if
+      "(br 1)",
+      ")", // Closing loop
+      ")", // Closing Block
+      ")", //close else
+      ")", // close if
+      "(local.get $returnVal)",
+      "(i32.load)",
+      "(return))",
+      "",
+    ]
+  );
+
   dictFunStmts.push(
     ...[
       "(func $ha$htable$CreateEntry (param $key i32) (param $val i32) (result i32)",
       "(local $$allocPointer i32)",
       `(i32.const ${TAG_DICT_ENTRY})    ;; heap-tag: opaque`,
-      "(i32.const 96)   ;; size in bytes",
+      "(i32.const 12)   ;; size in bytes",
       "(call $$gcalloc)",
       "(local.tee $$allocPointer)",
       "(local.get $key)",
@@ -1428,12 +2215,6 @@ function dictUtilFuns(): Array<string> {
       "(block",
       "(loop", // While loop till we find a node whose next is None
       "(local.get $nodePtr)",
-      "(i32.load)", // Traversing to head of next node
-      "(i32.const 0)", //None
-      "(i32.ne)", // If nodePtr not None
-      "(if",
-      "(then",
-      "(local.get $nodePtr)",
       "(i32.load)", //Loading head of linkedList
       "(local.get $key)",
       "(i32.eq)", // if tag is same as the provided one
@@ -1452,8 +2233,6 @@ function dictUtilFuns(): Array<string> {
       "(i32.add)", // Next pointer
       "(i32.load)",
       "(local.set $nodePtr)",
-      ")", // Closing then
-      ")", // Closing if
       "(br_if 0", // Opening br_if
       "(local.get $nodePtr)",
       "(i32.const 0)", //None
@@ -1608,22 +2387,7 @@ function dictUtilFuns(): Array<string> {
 
 function codeGenBigInt(num: bigint): Array<string> {
   const WORD_SIZE = 4;
-  const mask = BigInt(0x7fffffff);
-  var sign = 1;
-  var size = 0;
-  // fields ? [(0, sign), (1, size)]
-  if (num < 0n) {
-    sign = 0;
-    num *= -1n;
-  }
-  var words: bigint[] = [];
-  do {
-    words.push(num & mask);
-    num >>= 31n;
-    size += 1;
-  } while (num > 0n);
-  // size MUST be > 0
-  // NOTE(alex:mm): $$allocPointer is clobbered when codegen'ing inner exprs
+  var [sign, size, words] = bigintToWords(num);
   var alloc = [
     `(i32.const ${TAG_BIGINT})`,
     `(i32.const ${(2 + size) * WORD_SIZE})`, // size in bytes
@@ -1675,27 +2439,27 @@ function codeGenLiteral(literal: Literal): Array<string> {
 function codeGenBinOp(op: BinOp): string {
   switch (op) {
     case BinOp.Plus:
-      return "(i32.add)";
+      return "(call $$add)";
     case BinOp.Minus:
-      return "(i32.sub)";
+      return "(call $$sub)";
     case BinOp.Mul:
-      return "(i32.mul)";
+      return "(call $$mul)";
     case BinOp.IDiv:
-      return "(i32.div_s)";
+      return "(call $$div)";
     case BinOp.Mod:
-      return "(i32.rem_s)";
+      return "(call $$mod)";
     case BinOp.Eq:
-      return "(i32.eq)";
+      return "(call $$eq)";
     case BinOp.Neq:
-      return "(i32.ne)";
+      return "(call $$ne)";
     case BinOp.Lte:
-      return "(i32.le_s)";
+      return "(call $$lte)";
     case BinOp.Gte:
-      return "(i32.ge_s)";
+      return "(call $$gte)";
     case BinOp.Lt:
-      return "(i32.lt_s)";
+      return "(call $$lt)";
     case BinOp.Gt:
-      return "(i32.gt_s)";
+      return "(call $$gt)";
     case BinOp.Is:
       return "(i32.eq)";
     case BinOp.And:
@@ -1709,12 +2473,7 @@ function codeGenBinOp(op: BinOp): string {
 //          code: codes for the parameters to pass in the check function
 //          func: ENUM to identify the checkFunction.
 function codeGenRuntimeCheck(loc: Location, code: Array<string>, func: RunTime): Array<string> {
-  if (
-    func == RunTime.CHECK_ZERO_DIVISION ||
-    func == RunTime.CHECK_KEY_ERROR ||
-    func == RunTime.CHECK_VALUE_ERROR
-  )
-    return [];
+  if (func == RunTime.CHECK_VALUE_ERROR) return [];
   return [...codeGenPushStack(loc), ...code, `(call $$${func.toString()})`, ...codeGenPopStack()];
 }
 
@@ -1736,6 +2495,26 @@ function codeGenCall(loc: Location, code: string): Array<string> {
   return [...codeGenPushStack(loc), code, ...codeGenPopStack()];
 }
 
+function codeGenListElemType(elemTyp: Type): string {
+  switch (elemTyp.tag) {
+    case "number":
+      return `(i32.const ${ListContentTag.Num})`;
+    case "bool":
+      return `(i32.const ${ListContentTag.Bool})`;
+    case "none":
+      return `(i32.const ${ListContentTag.None})`;
+    case "string":
+      return `(i32.const ${ListContentTag.Str})`;
+    case "class":
+      return `(i32.const ${ListContentTag.Class})`;
+    case "list":
+      return `(i32.const ${ListContentTag.List})`;
+    case "dict":
+      return `(i32.const ${ListContentTag.Dict})`;
+    case "callable":
+      return `(i32.const ${ListContentTag.Callable})`;
+  }
+}
 function isInternal(s: string): boolean {
   return s.substring(1).indexOf("$") !== -1;
 }

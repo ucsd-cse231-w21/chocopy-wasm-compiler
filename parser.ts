@@ -18,10 +18,11 @@ import {
   ASSIGNABLE_TAGS,
   Location,
 } from "./ast";
+import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST, TUPLE } from "./utils";
 
-import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST } from "./utils";
 import * as BaseException from "./error";
 import { Config } from "./runner";
+import { get } from "http";
 
 var id: number;
 
@@ -35,7 +36,7 @@ export function getSourcePos(c: TreeCursor, s: string): Location {
   const col = c.node.from - prevContent.length;
   return {
     line: line,
-    col: col,
+    col: line == 1 ? col + 1 : col,
     length: c.node.to - c.node.from,
     fileId: id,
   };
@@ -128,8 +129,16 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
             left: args[0],
             right: args[1],
           };
-        } else if (callName === "range") {
+        } else if (callName === "range" || callName === "len") {
           expr = {
+            a: location,
+            tag: "call",
+            name: callName,
+            arguments: args,
+          };
+        } else if (callName === "dict") {
+          expr = {
+            a: location,
             tag: "call",
             name: callName,
             arguments: args,
@@ -385,6 +394,21 @@ export function traverseExpr(c: TreeCursor, s: string): Expr<Location> {
         a: location,
         tag: "list-expr",
         contents: listExpr,
+      };
+    case "TupleExpression":
+      let tupleExpr: Expr<Location>[] = [];
+      c.firstChild(); // Open parenthesis "("
+      c.nextSibling();
+      while (c.name !== ")") {
+        tupleExpr.push(traverseExpr(c, s));
+        c.nextSibling(); // comma ","
+        c.nextSibling(); // next expression or closing parenthesis ")"
+      }
+      c.parent();
+      return {
+        a: location,
+        tag: "tuple-expr",
+        contents: tupleExpr,
       };
     case "DictionaryExpression":
       // entries: Array<[Expr<A>, Expr<A>]>
@@ -764,19 +788,44 @@ export function traverseBracketType(c: TreeCursor, s: string): Type {
 export function traverseType(c: TreeCursor, s: string): Type {
   let name = s.substring(c.from, c.to);
   if (c.node.type.name === "ArrayExpression") return traverseBracketType(c, s);
-  switch (name) {
-    case "int":
-      return NUM;
-    case "str":
-      return STRING;
-    case "bool":
-      return BOOL;
-    default:
-      if (c.type.name === "MemberExpression") {
-        return traverseCallable(c, s);
-      } else {
-        return CLASS(name);
+  if (c.name === "ParenthesizedExpression") {
+    if (name === "()") return TUPLE();
+    c.firstChild(); // Open parenthesis
+    c.nextSibling(); // Inner type
+    let type = TUPLE(traverseType(c, s));
+    c.parent();
+    return type;
+  } else if (c.name === "TupleExpression") {
+    let contentTypes: Array<Type> = [];
+    c.firstChild(); // Open parenthesis
+    c.nextSibling(); // First argument
+    while ((c.name as string) !== ")") {
+      contentTypes.push(traverseType(c, s));
+      c.nextSibling(); // "," or ")"
+      c.nextSibling(); // Next type or ")"
+    }
+    c.parent();
+    return TUPLE(...contentTypes);
+  }
+  switch (c.type.name) {
+    case "VariableName":
+      let name = s.substring(c.from, c.to);
+      switch (name) {
+        case "int":
+          return NUM;
+        case "str":
+          return STRING;
+        case "bool":
+          return BOOL;
+        default:
+          return CLASS(name);
       }
+    case "ArrayExpression":
+      return traverseBracketType(c, s);
+    case "MemberExpression":
+      return traverseCallable(c, s);
+    default:
+      throw new BaseException.InternalException("Unable to parse type");
   }
 }
 
@@ -832,7 +881,7 @@ export function traverseCallable(c: TreeCursor, s: string): Type {
 }
 
 export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
-  var location: Location;
+  var location: Location = getSourcePos(c, s);
   c.firstChild(); // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName

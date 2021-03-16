@@ -35,7 +35,7 @@ describe("traverseExpr(c, s) function", () => {
     expect(parsedExpr).to.deep.equal({
       a: {
         fileId: 1,
-        col: 0,
+        col: 1,
         length: 3,
         line: 1,
       },
@@ -46,7 +46,6 @@ describe("traverseExpr(c, s) function", () => {
       },
     });
   });
-
   // TODO: add additional tests here to ensure traverseExpr works as expected
   it("parses None in the beginning", () => {
     const source = "None";
@@ -58,7 +57,7 @@ describe("traverseExpr(c, s) function", () => {
     expect(parsedExpr).to.deep.equal({
       a: {
         fileId: 1,
-        col: 0,
+        col: 1,
         length: 4,
         line: 1,
       },
@@ -77,7 +76,7 @@ describe("traverseExpr(c, s) function", () => {
     expect(parsedExpr).to.deep.equal({
       a: {
         fileId: 1,
-        col: 0,
+        col: 1,
         length: 8,
         line: 1,
       },
@@ -86,7 +85,7 @@ describe("traverseExpr(c, s) function", () => {
       expr: {
         a: {
           fileId: 1,
-          col: 4,
+          col: 5,
           length: 4,
           line: 1,
         },
@@ -106,7 +105,7 @@ describe("traverseExpr(c, s) function", () => {
     expect(parsedExpr).to.deep.equal({
       a: {
         fileId: 1,
-        col: 0,
+        col: 1,
         length: 5,
         line: 1,
       },
@@ -115,7 +114,7 @@ describe("traverseExpr(c, s) function", () => {
       left: {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 1,
           line: 1,
         },
@@ -125,7 +124,7 @@ describe("traverseExpr(c, s) function", () => {
       right: {
         a: {
           fileId: 1,
-          col: 4,
+          col: 5,
           length: 1,
           line: 1,
         },
@@ -146,7 +145,7 @@ describe("traverseExpr(c, s) function", () => {
       tag: "list-expr",
       a: {
         fileId: 1,
-        col: 0,
+        col: 1,
         length: 9,
         line: 1,
       },
@@ -154,7 +153,7 @@ describe("traverseExpr(c, s) function", () => {
         {
           a: {
             fileId: 1,
-            col: 1,
+            col: 2,
             length: 1,
             line: 1,
           },
@@ -164,7 +163,7 @@ describe("traverseExpr(c, s) function", () => {
         {
           a: {
             fileId: 1,
-            col: 4,
+            col: 5,
             length: 1,
             line: 1,
           },
@@ -174,7 +173,7 @@ describe("traverseExpr(c, s) function", () => {
         {
           a: {
             fileId: 1,
-            col: 7,
+            col: 8,
             length: 1,
             line: 1,
           },
@@ -185,7 +184,6 @@ describe("traverseExpr(c, s) function", () => {
     });
   });
 
-  //| { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> };
   it("parses a list lookup", () => {
     const source = "items[6]";
     const cursor = parser.parse(source).cursor();
@@ -196,7 +194,7 @@ describe("traverseExpr(c, s) function", () => {
     expect(parsedExpr).to.deep.equal({
       a: {
         fileId: 1,
-        col: 0,
+        col: 1,
         length: 8,
         line: 1,
       },
@@ -204,7 +202,7 @@ describe("traverseExpr(c, s) function", () => {
       obj: {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 5,
           line: 1,
         },
@@ -214,7 +212,7 @@ describe("traverseExpr(c, s) function", () => {
       key: {
         a: {
           fileId: 1,
-          col: 6,
+          col: 7,
           length: 1,
           line: 1,
         },
@@ -225,46 +223,35 @@ describe("traverseExpr(c, s) function", () => {
   });
 });
 
-// describe("traverseStmt(c, s) function", () => {
-//   // TODO: add tests here to ensure traverseStmt works as expected
-//   it("parses a list-assignment", () => {
-//     const source = "items[2] = True";
-//     const cursor = parser.parse(source).cursor();
-//     cursor.firstChild(); //go to statement
-//     const parsedStmt = traverseStmt(cursor, source);
-
-//     expect(parsedStmt).to.deep.equal({
-//       tag: "bracket-assign",
-//       obj: { tag: "id", name: "items" },
-//       key: { tag: "literal", value: { tag: "num", value: BigInt(2) } },
-//       value: { tag: "literal", value: { tag: "bool", value: true } },
-//     });
-//   });
-// });
-
-/*
-describe('traverse(c, s) function', () => {
-  // TODO: add tests here to ensure traverse works as expected
-});
-*/
-
-/*
-export type Program<A> = {
-  a?: A;
-  funs: Array<FunDef<A>>;
-  inits: Array<VarInit<A>>;
-  classes: Array<Class<A>>;
-  stmts: Array<Stmt<A>>;
-};
-*/
 describe("parse(source) function", () => {
+  it("parse a typed dict variable initialization", () => {
+    const parsed = parse("d:[int, bool] = None");
+    expect(parsed.inits).to.deep.equal([
+      {
+        a: {
+          col: 1,
+          length: 20,
+          line: 1,
+          fileId: 1,
+        },
+        name: "d",
+        type: {
+          tag: "dict",
+          key: { tag: "number" },
+          value: { tag: "bool" },
+        }, //end of type
+        value: { tag: "none" },
+      },
+    ]);
+  });
+
   it("parse a number", () => {
     const parsed = parse("987");
     expect(parsed.stmts).to.deep.equal([
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 3,
           line: 1,
         },
@@ -272,7 +259,7 @@ describe("parse(source) function", () => {
         expr: {
           a: {
             fileId: 1,
-            col: 0,
+            col: 1,
             length: 3,
             line: 1,
           },
@@ -291,7 +278,7 @@ describe("parse(source) function", () => {
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 27,
           line: 1,
         },
@@ -313,7 +300,7 @@ describe("parse(source) function", () => {
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 30,
           line: 1,
         },
@@ -336,7 +323,7 @@ describe("parse(source) function", () => {
         {
           a: {
             fileId: 1,
-            col: 4,
+            col: 5,
             length: 2,
             line: 1,
           },
@@ -345,19 +332,19 @@ describe("parse(source) function", () => {
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 1,
           line: 1,
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 1,
           line: 1,
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 6,
           line: 1,
         }
@@ -373,7 +360,7 @@ describe("parse(source) function", () => {
         {
           a: {
             fileId: 1,
-            col: 4,
+            col: 5,
             length: 8,
             line: 1,
           },
@@ -383,7 +370,7 @@ describe("parse(source) function", () => {
               {
                 a: {
                   fileId: 1,
-                  col: 5,
+                  col: 6,
                   length: 1,
                   line: 1,
                 },
@@ -393,7 +380,7 @@ describe("parse(source) function", () => {
               {
                 a: {
                   fileId: 1,
-                  col: 7,
+                  col: 8,
                   length: 4,
                   line: 1,
                 },
@@ -405,19 +392,19 @@ describe("parse(source) function", () => {
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 1,
           line: 1,
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 1,
           line: 1,
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 12,
           line: 1,
         }
@@ -433,7 +420,7 @@ describe("parse(source) function", () => {
         {
           a: {
             fileId: 1,
-            col: 4,
+            col: 5,
             length: 12,
             line: 1,
           },
@@ -443,7 +430,7 @@ describe("parse(source) function", () => {
               {
                 a: {
                   fileId: 1,
-                  col: 5,
+                  col: 6,
                   length: 1,
                   line: 1,
                 },
@@ -454,7 +441,7 @@ describe("parse(source) function", () => {
                 tag: "dict",
                 a: {
                   fileId: 1,
-                  col: 7,
+                  col: 8,
                   length: 8,
                   line: 1,
                 },
@@ -463,7 +450,7 @@ describe("parse(source) function", () => {
                     {
                       a: {
                         fileId: 1,
-                        col: 8,
+                        col: 9,
                         length: 1,
                         line: 1,
                       },
@@ -473,7 +460,7 @@ describe("parse(source) function", () => {
                     {
                       a: {
                         fileId: 1,
-                        col: 10,
+                        col: 11,
                         length: 4,
                         line: 1,
                       },
@@ -488,19 +475,19 @@ describe("parse(source) function", () => {
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 1,
           line: 1,
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 1,
           line: 1,
         },
         {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 16,
           line: 1,
         }
@@ -514,7 +501,7 @@ describe("parse(source) function", () => {
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 52,
           line: 1,
         },
@@ -545,7 +532,7 @@ describe("parse(source) function", () => {
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 35,
           line: 1,
         },
@@ -782,7 +769,7 @@ describe("parse(source) function", () => {
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 10,
           line: 1,
         },
@@ -790,7 +777,7 @@ describe("parse(source) function", () => {
         expr: {
           a: {
             fileId: 1,
-            col: 0,
+            col: 1,
             length: 10,
             line: 1,
           },
@@ -798,7 +785,7 @@ describe("parse(source) function", () => {
           name: {
             a: {
               fileId: 1,
-              col: 0,
+              col: 1,
               length: 7,
               line: 1,
             },
@@ -806,7 +793,7 @@ describe("parse(source) function", () => {
             name: {
               a: {
                 fileId: 1,
-                col: 0,
+                col: 1,
                 length: 7,
                 line: 1,
               },
@@ -817,7 +804,7 @@ describe("parse(source) function", () => {
               {
                 a: {
                   fileId: 1,
-                  col: 3,
+                  col: 4,
                   length: 3,
                   line: 1,
                 },
@@ -825,7 +812,7 @@ describe("parse(source) function", () => {
                 name: {
                   a: {
                     fileId: 1,
-                    col: 3,
+                    col: 4,
                     length: 3,
                     line: 1,
                   },
@@ -840,7 +827,7 @@ describe("parse(source) function", () => {
             {
               a: {
                 fileId: 1,
-                col: 8,
+                col: 9,
                 length: 1,
                 line: 1,
               },
@@ -859,7 +846,7 @@ describe("parse(source) function", () => {
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 9,
           line: 1,
         },
@@ -869,7 +856,7 @@ describe("parse(source) function", () => {
           name: {
             a: {
               fileId: 1,
-              col: 0,
+              col: 1,
               length: 6,
               line: 1,
             },
@@ -877,7 +864,7 @@ describe("parse(source) function", () => {
             obj: {
               a: {
                 fileId: 1,
-                col: 0,
+                col: 1,
                 length: 1,
                 line: 1,
               },
@@ -889,7 +876,7 @@ describe("parse(source) function", () => {
           },
           a: {
             fileId: 1,
-            col: 0,
+            col: 1,
             length: 9,
             line: 1,
           },
@@ -897,7 +884,7 @@ describe("parse(source) function", () => {
             {
               a: {
                 fileId: 1,
-                col: 7,
+                col: 8,
                 length: 1,
                 line: 1,
               },
@@ -916,7 +903,7 @@ describe("parse(source) function", () => {
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 17,
           line: 1,
         },
@@ -924,7 +911,7 @@ describe("parse(source) function", () => {
         expr: {
           a: {
             fileId: 1,
-            col: 0,
+            col: 1,
             length: 17,
             line: 1,
           },
@@ -933,7 +920,7 @@ describe("parse(source) function", () => {
           ret: {
             a: {
               fileId: 1,
-              col: 11,
+              col: 12,
               length: 6,
               line: 1,
             },
@@ -942,7 +929,7 @@ describe("parse(source) function", () => {
             left: {
               a: {
                 fileId: 1,
-                col: 11,
+                col: 12,
                 length: 1,
                 line: 1,
               },
@@ -952,7 +939,7 @@ describe("parse(source) function", () => {
             right: {
               a: {
                 fileId: 1,
-                col: 15,
+                col: 16,
                 length: 2,
                 line: 1,
               },
@@ -971,7 +958,7 @@ describe("parse(source) function", () => {
       {
         a: {
           fileId: 1,
-          col: 0,
+          col: 1,
           length: 19,
           line: 1,
         },
@@ -979,7 +966,7 @@ describe("parse(source) function", () => {
         expr: {
           a: {
             fileId: 1,
-            col: 0,
+            col: 1,
             length: 19,
             line: 1,
           },
@@ -987,7 +974,7 @@ describe("parse(source) function", () => {
           args: ["a", "b", "c"],
           ret: {
             a: {
-              col: 17,
+              col: 18,
               fileId: 1,
               length: 2,
               line: 1,

@@ -5,9 +5,11 @@ import { addAccordionEvent, prettyPrintObjects } from "./prettyprint";
 import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
 import { defaultTypeEnv } from "./type-check";
 
+
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
 import "codemirror/mode/python/python";
+
 import "codemirror/addon/hint/show-hint";
 import "codemirror/addon/lint/lint";
 import "codemirror/addon/scroll/simplescrollbars";
@@ -17,6 +19,7 @@ import { replace } from "cypress/types/lodash";
 import { ErrorManager } from "./errorManager";
 import { autocompleteHint, populateAutoCompleteSrc } from "./autocomplete";
 import { default_keywords, default_functions } from "./pydefaultwordlist";
+
 
 function print(val: Value) {
   const elt = document.createElement("pre");
@@ -31,13 +34,10 @@ function webStart() {
     var importObject = {
       imports: {
         print: print,
-        abs: Math.abs,
-        min: Math.min,
-        max: Math.max,
-        pow: Math.pow,
       },
     };
 
+    var filecontent: string | ArrayBuffer;
     (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
@@ -332,6 +332,7 @@ function webStart() {
 }
 // Simple helper to highlight line given line number
 function highlightLine(actualLineNumber: number, msg: string): void {
+
   var ele = document.querySelector(".CodeMirror") as any;
   var editor = ele.CodeMirror;
   //Set line CSS class to the line number & affecting the background of the line with the css class of line-error
