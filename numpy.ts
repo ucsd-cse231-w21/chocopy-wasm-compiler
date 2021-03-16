@@ -184,10 +184,14 @@ export function codeGenNdarrayBinOp(expr: Expr<Type>, env: compiler.GlobalEnv): 
   			if (expr_broadcast.tag==="literal"){
   				let lit = expr_broadcast.value;
   				if (lit.tag==="num"){ // overwrite numbers as ndarrays; will broadcast in run-time
-	  				expr_broadcast = {a: expr.left.a, tag: "literal", 
-	  							value: {tag: "num", value: createNdarray(1, -1, [lit.value])}};
-  				}
-  			}
+	  				expr_broadcast = {a: CLASS(ndarrayName),
+							  		  tag: "method-call", 
+							  		  obj: { a: CLASS("numpy"), tag: "id", name: "np"}, // TODO: generalize when alias is not np
+						 		      method: "array", 
+						 			  arguments: [{ a: LIST, tag: "list-expr", 
+						 			  				contents: [{tag: "literal", 
+						 			  							value: { tag: "num", value: lit.value}}]}]};
+			}}
   			break;
 		case "class":
   			if (expr_broadcast.a.name===ndarrayName){
@@ -253,6 +257,7 @@ export function ndarray_add(self: number, x2: number): number {
 	// x2: offset (byte) of another ndarray object in wasm heap
 	// return: offset (byte) of new ndarray object in wasm heap (stores offset to first field)
 	const [shapes, listsAll] = ndarrayMethod([self, x2], "add");
+	// console.log(shapes, listsAll, compiler.tsHeap);
   	return createNdarray(shapes[0], shapes[1], 
   	                     nj.array(listsAll[0]).add(nj.array(listsAll[1])).tolist());
 }
