@@ -1368,7 +1368,7 @@ export function tcExpr(
       //Lists group just need to add an || condition below to check if the "obj_name" type is also a list
       if (!equalType(obj_name.a[0], STRING)) {
         throw new BaseException.CompileError(
-          expr.a,
+          [expr.a],
           "Slicing operation cannot be done on " + obj_name.a + " type"
         );
       }
@@ -1377,7 +1377,7 @@ export function tcExpr(
         (end !== null && !equalType(end.a[0], NUM)) ||
         !equalType(stride.a[0], NUM)
       ) {
-        throw new BaseException.CompileError(expr.a, "Slicing parameters must be of num type");
+        throw new BaseException.CompileError([expr.a], "Slicing parameters must be of num type");
       }
       return { ...expr, name: obj_name, a: obj_name.a, start: start, end: end, stride: stride };
     case "tuple-expr": {

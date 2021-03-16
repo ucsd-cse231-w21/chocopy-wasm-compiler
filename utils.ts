@@ -22,10 +22,8 @@ export function stringify(result: Value): string {
 export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "string":
-
       if (result == -1) throw new BaseException.InternalException("String index out of bounds");
       if (result == -2) throw new BaseException.InternalException("Slice step cannot be zero");
-
       const view = new Int32Array(mem);
       let string_length = view[result / 4] + 1;
       let data = result + 4;
