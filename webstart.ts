@@ -1,16 +1,16 @@
 import { BasicREPL } from "./repl";
-import { Type, Value } from "./ast";
-import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
-import { defaultTypeEnv } from "./type-check";
+import { Value } from "./ast";
+import { stringify } from "./utils";
 import { themeList_export } from "./themelist";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
 import "codemirror/mode/python/python";
+
 import "codemirror/addon/hint/show-hint";
 import "codemirror/addon/lint/lint";
+
 import "./style.scss";
-import { toEditorSettings } from "typescript";
 
 function print(val: Value) {
   const elt = document.createElement("pre");
@@ -20,18 +20,14 @@ function print(val: Value) {
 
 function webStart() {
   document.addEventListener("DOMContentLoaded", function () {
-    var filecontent: string | ArrayBuffer;
-
     var importObject = {
       imports: {
         print: print,
-        abs: Math.abs,
-        min: Math.min,
-        max: Math.max,
-        pow: Math.pow,
       },
     };
 
+    var filecontent: string | ArrayBuffer;
+    (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -51,11 +47,11 @@ function webStart() {
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
       var text = "";
-      if (result.loc != undefined)
-        text = `line ${result.loc.line}: ${source
-          .split(/\r?\n/)
-          [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
-      elt.innerText = text.concat("\n").concat(String(result));
+      if (result.callStack != undefined) {
+        console.log(result.callStack);
+        text = repl.errorManager.stackToString(result.callStack);
+      }
+      elt.innerText = String(result).concat("\n").concat(text);
     }
 
     function setupRepl() {
@@ -77,6 +73,7 @@ function webStart() {
           const source = replCodeElement.value;
           elt.value = source;
           replCodeElement.value = "";
+          repl.errorManager.clearStack();
           repl
             .run(source)
             .then((r) => {
@@ -214,6 +211,7 @@ function webStart() {
   });
 }
 // Simple helper to highlight line given line number
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function highlightLine(actualLineNumber: number): void {
   var ele = document.querySelector(".CodeMirror") as any;
   var editor = ele.CodeMirror;

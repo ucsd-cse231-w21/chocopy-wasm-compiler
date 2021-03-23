@@ -1,5 +1,30 @@
 import { Value, Type } from "./ast";
-import { nTagBits } from "./compiler";
+import { TAG_BIGINT } from "./alloc";
+import * as BaseException from "./error";
+
+export const nTagBits = 1;
+export const INT_LITERAL_MAX = BigInt(2 ** (31 - nTagBits) - 1);
+export const INT_LITERAL_MIN = BigInt(-(2 ** (31 - nTagBits)));
+
+export function bigintToWords(num: bigint): [number, number, Array<bigint>] {
+  const mask = BigInt(0x7fffffff);
+  var sign = 1;
+  var size = 0;
+  // fields ? [(0, sign), (1, size)]
+  if (num < 0n) {
+    sign = 0;
+    num *= -1n;
+  }
+  var words: bigint[] = [];
+  do {
+    words.push(num & mask);
+    console.log("j");
+    num >>= 31n;
+    size += 1;
+  } while (num > 0n);
+  // size MUST be > 0
+  return [sign, size, words];
+}
 
 export function stringify(result: Value): string {
   switch (result.tag) {
@@ -14,14 +39,49 @@ export function stringify(result: Value): string {
     case "object":
       return `<${result.name} object at ${result.address}>`;
     default:
-      throw new Error(`Could not render value: ${result}`);
+      throw new BaseException.InternalException(`Could not render value: ${result}`);
+  }
+}
+
+export function encodeValue(
+  val: Value,
+  allocFun: (tag: number, size: number) => number,
+  mem: any
+): number {
+  switch (val.tag) {
+    case "num":
+      console.log(val.value);
+      if (val.value <= INT_LITERAL_MAX && val.value >= INT_LITERAL_MIN) {
+        return ((Number(val.value) << nTagBits) & 0xffffffff) | 1;
+      }
+      var [sign, size, words] = bigintToWords(val.value);
+      var allocPointer = allocFun(Number(TAG_BIGINT), 4 * (2 + size));
+      var idx = allocPointer / 4;
+      mem[idx] = sign & 0xffffffff;
+      mem[idx + 1] = size & 0xffffffff;
+      var i = 0;
+      while (i < size) {
+        mem[idx + 2 + i] = ((Number(words[i]) << nTagBits) & 0xffffffff) | 1;
+        i += 1;
+      }
+      console.log(idx, mem.slice(idx, idx + 64));
+
+      return allocPointer;
+
+    case "bool":
+      if (val.value == true) return 0x3;
+      else return 0x1;
+
+    default:
+      throw new Error(`Could not encode value`);
   }
 }
 
 export function PyValue(typ: Type, result: number, mem: any): Value {
   switch (typ.tag) {
     case "string":
-      if (result == -1) throw new Error("String index out of bounds");
+      if (result == -1) throw new BaseException.InternalException("String index out of bounds");
+      if (result == -2) throw new BaseException.InternalException("Slice step cannot be zero");
       const view = new Int32Array(mem);
       let string_length = view[result / 4] + 1;
       let data = result + 4;
@@ -35,7 +95,9 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
       }
       return PyString(full_string, result);
     case "number":
+      // console.log("Actual length "+result);
       if (result & 1) {
+        // console.log("Printed length "+BigInt(result >> nTagBits));
         return PyInt(result >> nTagBits);
       } else {
         var idx: number = Number(result) / 4;
@@ -49,6 +111,7 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
           i += 1;
         }
         if (!sign) num = -num;
+        console.log("pybigint", num, idx);
         return PyBigInt(num);
       }
     case "bool":
@@ -89,6 +152,8 @@ export function PyNone(): Value {
   return { tag: "none" };
 }
 
+export type WithTag<O, T> = O extends { tag: T } ? O : never;
+
 export function isTagged<
   A extends string[],
   V extends { tag: string },
@@ -98,7 +163,9 @@ export function isTagged<
 }
 
 export function unreachable(arg: never): never {
-  throw new Error(`Hit unreachable state. Got value ${JSON.stringify(arg)}`);
+  throw new BaseException.InternalException(
+    `Hit unreachable state. Got value ${JSON.stringify(arg)}`
+  );
 }
 
 /**
@@ -106,7 +173,9 @@ export function unreachable(arg: never): never {
  * @param arg Tagged object which is not handled
  */
 export function unhandledTag(arg: { tag: string }): never {
-  throw new Error(`Node tagged with ${arg.tag} is not handled.\n\n${JSON.stringify(arg)}`);
+  throw new BaseException.InternalException(
+    `Node tagged with ${arg.tag} is not handled.\n\n${JSON.stringify(arg)}`
+  );
 }
 
 export const NUM: Type = { tag: "number" };
@@ -118,6 +187,9 @@ export function LIST(type: Type): Type {
 }
 export function CLASS(name: string): Type {
   return { tag: "class", name };
+}
+export function TUPLE(...types: Array<Type>): Type {
+  return { tag: "tuple", contentTypes: types };
 }
 
 export function CALLABLE(args: Array<Type>, ret: Type): Type {

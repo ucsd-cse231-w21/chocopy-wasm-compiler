@@ -26,7 +26,8 @@ describe("ea(tAst) function", () => {
       a: [
         { tag: "number" },
         {
-          col: 0,
+          fileId: 1,
+          col: 1,
           length: 104,
           line: 1,
         },
@@ -39,6 +40,7 @@ describe("ea(tAst) function", () => {
           a: [
             { tag: "number" },
             {
+              fileId: 1,
               col: 5,
               length: 4,
               line: 6,
@@ -49,6 +51,7 @@ describe("ea(tAst) function", () => {
             a: [
               { tag: "number" },
               {
+                fileId: 1,
                 col: 5,
                 length: 4,
                 line: 6,
@@ -64,6 +67,7 @@ describe("ea(tAst) function", () => {
                   isVar: false,
                 },
                 {
+                  fileId: 1,
                   col: 5,
                   length: 4,
                   line: 6,
@@ -74,7 +78,7 @@ describe("ea(tAst) function", () => {
             },
             arguments: [
               {
-                a: [{ tag: "number" }, { col: 7, length: 1, line: 6 }],
+                a: [{ tag: "number" }, { fileId: 1, col: 7, length: 1, line: 6 }],
                 tag: "literal",
                 value: { tag: "num", value: BigInt(5) },
               },
@@ -88,6 +92,7 @@ describe("ea(tAst) function", () => {
           a: [
             { tag: "none" },
             {
+              fileId: 1,
               col: 5,
               length: 86,
               line: 2,
@@ -102,12 +107,13 @@ describe("ea(tAst) function", () => {
           isGlobal: true,
           body: [
             {
-              a: [{ tag: "number" }, { col: 14, length: 5, line: 5 }],
+              a: [{ tag: "number" }, { fileId: 1, col: 14, length: 5, line: 5 }],
               tag: "return",
               value: {
                 a: [
                   { tag: "number" },
                   {
+                    fileId: 1,
                     col: 14,
                     length: 5,
                     line: 5,
@@ -118,6 +124,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "callable", args: [], ret: { tag: "number" }, isVar: false },
                     {
+                      fileId: 1,
                       col: 14,
                       length: 5,
                       line: 5,
@@ -128,6 +135,7 @@ describe("ea(tAst) function", () => {
                     a: [
                       { tag: "class", name: "$ref" },
                       {
+                        fileId: 1,
                         col: 14,
                         length: 5,
                         line: 5,
@@ -148,6 +156,7 @@ describe("ea(tAst) function", () => {
           a: [
             { tag: "none" },
             {
+              fileId: 1,
               col: 7,
               length: 39,
               line: 3,
@@ -165,6 +174,7 @@ describe("ea(tAst) function", () => {
               a: [
                 { tag: "number" },
                 {
+                  fileId: 1,
                   col: 16,
                   length: 5,
                   line: 4,
@@ -175,6 +185,7 @@ describe("ea(tAst) function", () => {
                 a: [
                   { tag: "number" },
                   {
+                    fileId: 1,
                     col: 16,
                     length: 5,
                     line: 4,
@@ -186,6 +197,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "number" },
                     {
+                      fileId: 1,
                       col: 16,
                       length: 1,
                       line: 4,
@@ -195,7 +207,7 @@ describe("ea(tAst) function", () => {
                   obj: {
                     a: [
                       { tag: "class", name: "$ref" },
-                      { line: 4, col: 16, length: 1 },
+                      { line: 4, fileId: 1, col: 16, length: 1 },
                     ],
                     tag: "id",
                     name: "x_$ref",
@@ -206,6 +218,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "number" },
                     {
+                      fileId: 1,
                       col: 20,
                       length: 1,
                       line: 4,
@@ -242,7 +255,8 @@ describe("ea(tAst) function", () => {
       a: [
         { tag: "number" },
         {
-          col: 0,
+          fileId: 1,
+          col: 1,
           length: 203,
           line: 1,
         },
@@ -255,6 +269,7 @@ describe("ea(tAst) function", () => {
           a: [
             { tag: "number" },
             {
+              fileId: 1,
               col: 5,
               length: 4,
               line: 10,
@@ -265,6 +280,7 @@ describe("ea(tAst) function", () => {
             a: [
               { tag: "number" },
               {
+                fileId: 1,
                 col: 5,
                 length: 4,
                 line: 10,
@@ -280,6 +296,7 @@ describe("ea(tAst) function", () => {
                   isVar: false,
                 },
                 {
+                  fileId: 1,
                   col: 5,
                   length: 4,
                   line: 10,
@@ -293,6 +310,7 @@ describe("ea(tAst) function", () => {
                 a: [
                   { tag: "number" },
                   {
+                    fileId: 1,
                     col: 7,
                     length: 1,
                     line: 10,
@@ -311,6 +329,7 @@ describe("ea(tAst) function", () => {
           a: [
             { tag: "none" },
             {
+              fileId: 1,
               col: 5,
               length: 185,
               line: 2,
@@ -328,6 +347,7 @@ describe("ea(tAst) function", () => {
               a: [
                 { tag: "number" },
                 {
+                  fileId: 1,
                   col: 14,
                   length: 12,
                   line: 9,
@@ -338,6 +358,7 @@ describe("ea(tAst) function", () => {
                 a: [
                   { tag: "number" },
                   {
+                    fileId: 1,
                     col: 14,
                     length: 12,
                     line: 9,
@@ -349,6 +370,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "number" },
                     {
+                      fileId: 1,
                       col: 14,
                       length: 5,
                       line: 9,
@@ -364,6 +386,7 @@ describe("ea(tAst) function", () => {
                         isVar: false,
                       },
                       {
+                        fileId: 1,
                         col: 14,
                         length: 5,
                         line: 9,
@@ -374,6 +397,7 @@ describe("ea(tAst) function", () => {
                       a: [
                         { tag: "class", name: "$ref" },
                         {
+                          fileId: 1,
                           col: 14,
                           length: 5,
                           line: 9,
@@ -389,6 +413,7 @@ describe("ea(tAst) function", () => {
                       a: [
                         { tag: "number" },
                         {
+                          fileId: 1,
                           col: 16,
                           length: 2,
                           line: 9,
@@ -404,6 +429,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "number" },
                     {
+                      fileId: 1,
                       col: 22,
                       length: 4,
                       line: 9,
@@ -419,6 +445,7 @@ describe("ea(tAst) function", () => {
                         isVar: false,
                       },
                       {
+                        fileId: 1,
                         col: 22,
                         length: 4,
                         line: 9,
@@ -429,6 +456,7 @@ describe("ea(tAst) function", () => {
                       a: [
                         { tag: "class", name: "$ref" },
                         {
+                          fileId: 1,
                           col: 22,
                           length: 4,
                           line: 9,
@@ -444,6 +472,7 @@ describe("ea(tAst) function", () => {
                       a: [
                         { tag: "number" },
                         {
+                          fileId: 1,
                           col: 24,
                           length: 1,
                           line: 9,
@@ -463,6 +492,7 @@ describe("ea(tAst) function", () => {
           a: [
             { tag: "none" },
             {
+              fileId: 1,
               col: 7,
               length: 47,
               line: 3,
@@ -480,6 +510,7 @@ describe("ea(tAst) function", () => {
               a: [
                 { tag: "number" },
                 {
+                  fileId: 1,
                   col: 16,
                   length: 8,
                   line: 4,
@@ -490,6 +521,7 @@ describe("ea(tAst) function", () => {
                 a: [
                   { tag: "number" },
                   {
+                    fileId: 1,
                     col: 16,
                     length: 8,
                     line: 4,
@@ -501,6 +533,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "number" },
                     {
+                      fileId: 1,
                       col: 16,
                       length: 1,
                       line: 4,
@@ -511,6 +544,7 @@ describe("ea(tAst) function", () => {
                     a: [
                       { tag: "class", name: "$ref" },
                       {
+                        fileId: 1,
                         col: 16,
                         length: 1,
                         line: 4,
@@ -525,6 +559,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "number" },
                     {
+                      fileId: 1,
                       col: 20,
                       length: 4,
                       line: 4,
@@ -540,6 +575,7 @@ describe("ea(tAst) function", () => {
                         isVar: false,
                       },
                       {
+                        fileId: 1,
                         col: 20,
                         length: 4,
                         line: 4,
@@ -550,6 +586,7 @@ describe("ea(tAst) function", () => {
                       a: [
                         { tag: "class", name: "$ref" },
                         {
+                          fileId: 1,
                           col: 20,
                           length: 4,
                           line: 4,
@@ -565,6 +602,7 @@ describe("ea(tAst) function", () => {
                       a: [
                         { tag: "number" },
                         {
+                          fileId: 1,
                           col: 22,
                           length: 1,
                           line: 4,
@@ -575,6 +613,7 @@ describe("ea(tAst) function", () => {
                         a: [
                           { tag: "class", name: "$ref" },
                           {
+                            fileId: 1,
                             col: 22,
                             length: 1,
                             line: 4,
@@ -596,6 +635,7 @@ describe("ea(tAst) function", () => {
           a: [
             { tag: "none" },
             {
+              fileId: 1,
               col: 7,
               length: 77,
               line: 5,
@@ -613,6 +653,7 @@ describe("ea(tAst) function", () => {
               a: [
                 { tag: "none" },
                 {
+                  fileId: 1,
                   col: 9,
                   length: 5,
                   line: 7,
@@ -623,6 +664,7 @@ describe("ea(tAst) function", () => {
                 a: [
                   { tag: "number" },
                   {
+                    fileId: 1,
                     col: 13,
                     length: 1,
                     line: 7,
@@ -633,6 +675,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "class", name: "$ref" },
                     {
+                      fileId: 1,
                       col: 13,
                       length: 1,
                       line: 7,
@@ -647,6 +690,7 @@ describe("ea(tAst) function", () => {
                 valueType: [
                   { tag: "number" },
                   {
+                    fileId: 1,
                     col: 9,
                     length: 1,
                     line: 7,
@@ -661,6 +705,7 @@ describe("ea(tAst) function", () => {
                       a: [
                         { tag: "number" },
                         {
+                          fileId: 1,
                           col: 9,
                           length: 1,
                           line: 7,
@@ -671,6 +716,7 @@ describe("ea(tAst) function", () => {
                         a: [
                           { tag: "class", name: "$ref" },
                           {
+                            fileId: 1,
                             col: 9,
                             length: 1,
                             line: 7,
@@ -689,6 +735,7 @@ describe("ea(tAst) function", () => {
               a: [
                 { tag: "number" },
                 {
+                  fileId: 1,
                   col: 16,
                   length: 5,
                   line: 8,
@@ -699,6 +746,7 @@ describe("ea(tAst) function", () => {
                 a: [
                   { tag: "number" },
                   {
+                    fileId: 1,
                     col: 16,
                     length: 5,
                     line: 8,
@@ -710,6 +758,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "number" },
                     {
+                      fileId: 1,
                       col: 16,
                       length: 1,
                       line: 8,
@@ -720,6 +769,7 @@ describe("ea(tAst) function", () => {
                     a: [
                       { tag: "class", name: "$ref" },
                       {
+                        fileId: 1,
                         col: 16,
                         length: 1,
                         line: 8,
@@ -734,6 +784,7 @@ describe("ea(tAst) function", () => {
                   a: [
                     { tag: "number" },
                     {
+                      fileId: 1,
                       col: 20,
                       length: 1,
                       line: 8,
