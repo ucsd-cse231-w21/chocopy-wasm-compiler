@@ -175,4 +175,99 @@ describe("tc", () => {
   a = {}
   a[8] = True`
   );
+
+  assertTCFail(
+    "dict-bad-constructor-init",
+    `
+  a:[int,int]=None
+  a = dict(1)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-pop",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.pop(6)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-pop",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.pop(True)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-pop",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.pop(7,8,9)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-get",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.get(7,8,9)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-get",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.get(7)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-get",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.get(False)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-clear",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.clear(5)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-update",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.update(4)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-update",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.update(9,4)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-update",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.update(True)`
+  );
+
+  assertTCFail(
+    "dict-bad-method-call-update",
+    `
+  dict_a:[int, int] = None
+  dict_a = {5:4, 4:7}
+  dict_a.update([9,4])`
+  );
 });

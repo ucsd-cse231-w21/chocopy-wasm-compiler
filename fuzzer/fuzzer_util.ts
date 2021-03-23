@@ -1,5 +1,6 @@
 import { PythonShell } from "python-shell";
 import { Value } from "../ast";
+import { appendFileSync } from "fs";
 
 export type Error = { tag: "error" };
 
@@ -21,17 +22,29 @@ function stringToAstValue(input: string): Value {
   }
 }
 
-function runPython(program: string): Value | Error {
+export function runPython(program: string): Value | Error {
   var outString;
   var isError = false;
   let pyshell = PythonShell.runString(program, null, function (err, msgs) {
-    console.log(">Program:\n" + program + "\n>End Program\n");
-    if (err) isError = true;
-    outString = msgs[msgs.length - 1];
+    if (err) return { tag: "error" };
+    if (msgs && msgs.length > 0) {
+      outString = msgs[msgs.length - 1];
+    } else {
+      return { tag: "none" };
+    }
     console.log("finished");
+
+    return stringToAstValue(outString);
   });
-  if (isError) {
-    return { tag: "error" };
-  }
-  return stringToAstValue(outString);
+  while (outString !== undefined); //busywait
+  return { tag: "error" };
+}
+
+export function logFailure(
+  program: string,
+  compilerValue: Value | Error,
+  correctValue: Value | Error
+) {
+  let logMsg = `\n--------------------\nFuzzer program failed\n Program source:${program}\nCompiler value: ${compilerValue}\nPython value: ${correctValue}`;
+  appendFileSync("fuzzer/fuzzer_log.txt", logMsg);
 }

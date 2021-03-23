@@ -1,7 +1,7 @@
-import { assert, asserts } from "./utils.test";
-import { PyInt, PyBool, PyNone } from "../utils";
+import { assert, assertPrint, asserts, assertFail } from "./utils.test";
+import { PyInt, PyBool, PyNone, PyString } from "../utils";
 
-describe("Closures group's test cases on the proposal", () => {
+describe("Test cases from closures group", () => {
   let src;
   src = `
   def f(x: int) -> int:
@@ -46,7 +46,7 @@ describe("Closures group's test cases on the proposal", () => {
   g_where_x_is_6 = f(6)
   g_where_x_is_6(5)
   `;
-  assert("5. Function escapes when it is returned", src, PyInt(11));
+  assert("5. A function escapes when it is returned", src, PyInt(11));
 
   src = `
   class A(object):
@@ -66,7 +66,7 @@ describe("Closures group's test cases on the proposal", () => {
   a.x = 10
   g(2) + a.x
   `;
-  assert("6. Closure with variable of object type", src, PyInt(24));
+  assert("6. A closure with a variable of object type", src, PyInt(24));
 
   src = `
   class Triplet(object):
@@ -162,4 +162,155 @@ describe("Closures group's test cases on the proposal", () => {
   f(10)()
   `;
   assert("10. An escaping function calls its non-escaping sibling", src, PyInt(11));
+
+  src = `
+  def concat(items: [bool], stuff: [bool]) -> [bool]:
+    concatted : [bool] = None
+    concatted = items + stuff
+    return concatted
+
+  items : [bool] = None
+  stuff : [bool] = None
+  concatted : [bool] = None
+  items = [True, True, False]
+  stuff = [False, True]
+  concatted = concat(items, stuff)
+`;
+  asserts("11. A function with list created", [
+    [src, PyNone()],
+    ["concatted[0]", PyBool(true)],
+    ["concatted[1]", PyBool(true)],
+    ["concatted[2]", PyBool(false)],
+    ["concatted[3]", PyBool(false)],
+    ["concatted[4]", PyBool(true)],
+  ]);
+
+  src = `
+  def f(x: [int]) -> [int]:
+    def inc() -> [int]:
+      return x + [1]
+    return inc()
+  x : [int] = None
+  x = f([1])
+  x = f(x)
+  x = f(x)
+  `;
+  asserts("12. A nested function with list created", [
+    [src, PyNone()],
+    ["x[0]", PyInt(1)],
+    ["x[1]", PyInt(1)],
+    ["x[2]", PyInt(1)],
+  ]);
+
+  describe.skip("nested func - list", function () {
+    src = `
+  def f(x : [int]) -> [int]:
+    def g(y : [int]) -> [int]:
+      return x + h(y)
+    def h(z : [int]) -> [int]:
+      nonlocal x
+      x = z
+      return x + [1]
+    return g([10]) + g([7])
+
+  x: [int] = None
+  x = f([6])
+  `;
+    asserts("13. A nested function with `nonlocal` and list created", [
+      // [6, 10, 1, 10, 7, 1]
+      [src, PyNone()],
+      ["x[0]", PyInt(6)],
+      ["x[1]", PyInt(10)],
+      ["x[2]", PyInt(1)],
+      ["x[3]", PyInt(10)],
+      ["x[4]", PyInt(7)],
+      ["x[5]", PyInt(1)],
+    ]);
+  });
+
+  src = `
+  def f(x : str) -> str:
+    def g(y : str) -> str:
+      l:str = ""
+      l = h(y)
+      print(x)
+      return l
+    def h(z : str) -> str:
+      nonlocal x
+      print(x)
+      x = z
+      return x
+    return g("10")
+
+  x: str = ""
+  x = f("6")
+  print(x)
+`;
+  assertPrint("14. A nested function with `nonlocal` and string ", src, ["6", "10", "10"]);
+
+  src = `
+  def f(x: [int,int]) -> [int,int]:
+    def inc() -> [int, int]:
+      x.update({1:2})
+      return x
+    return inc()
+  x : [int, int] = None
+  x = {11:22, 21:44, (30+1):56, 4:55}
+  x = f(x)
+  `;
+  asserts("15. A nested function with dict", [
+    [src, PyNone()],
+    ["x[1]", PyInt(2)],
+    ["x[11]", PyInt(22)],
+    ["x[31]", PyInt(56)],
+  ]);
+
+  describe.skip("nested func - loop", function () {
+    src = `
+  def f(x: [int,int]) -> [int,int]:
+    def inc() -> [int, int]:
+      for i in range(5):
+        x.update({i: i*2})
+      return x
+    return inc()
+  x : [int, int] = None
+  x = {}
+  x = f(x)
+  `;
+    asserts("16. A nested function with for loop and dict", [
+      [src, PyNone()],
+      ["x[1]", PyInt(2)],
+      ["x[2]", PyInt(4)],
+      ["x[3]", PyInt(6)],
+    ]);
+  });
+
+  src = `
+  def f(x:int):
+    print(x)
+  g:Callable[[int], ] = None
+  g = f
+  g()
+  `;
+  assertFail("17. Invalid number of arguments to call a function value", src);
+
+  src = `
+  def f(x:bool):
+    print(x)
+  g:Callable[[int], ] = None
+  g = f
+  g(0)
+  `;
+  assertFail("18. Invalid type of argument to call a function value", src);
+
+  src = `
+  def f(x:int, y:int):
+    print(x)
+    print(y)
+  g:Callable[[int, int], ] = None
+  g = f
+  g(0, 1)
+  `;
+  assert("19-1. Multiple arguments", src, PyNone());
+  assertPrint("19-2. Multiple arguments", src, ["0", "1"]);
 });
