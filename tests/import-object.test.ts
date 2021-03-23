@@ -1,24 +1,15 @@
-import { Type } from "../ast";
-import { NUM, BOOL, NONE } from "../utils";
+import { Type, Value } from "../ast";
+import { NUM, STRING, BOOL, NONE, unhandledTag, stringify } from "../utils";
+import { MemoryManager } from "../alloc";
+import { nTagBits } from "../compiler";
 
-function stringify(typ: Type, arg: any): string {
-  switch (typ.tag) {
-    case "number":
-      return (arg as number).toString();
-    case "bool":
-      return (arg as boolean) ? "True" : "False";
-    case "none":
-      return "None";
-    case "class":
-      return typ.name;
-  }
-}
-
-function print(typ: Type, arg: any): any {
-  importObject.output += stringify(typ, arg);
+function print(val: Value) {
+  importObject.output += stringify(val);
   importObject.output += "\n";
-  return arg;
 }
+
+const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+var memory_js = { memory: memory };
 
 export const importObject = {
   imports: {
@@ -26,15 +17,9 @@ export const importObject = {
     // the compiler easier, we define print so it logs to a string object.
     //  We can then examine output to see what would have been printed in the
     //  console.
-    print: (arg: any) => print(NUM, arg),
-    print_num: (arg: number) => print(NUM, arg),
-    print_bool: (arg: number) => print(BOOL, arg),
-    print_none: (arg: number) => print(NONE, arg),
-    abs: Math.abs,
-    min: Math.min,
-    max: Math.max,
-    pow: Math.pow,
+    print: print,
   },
-
+  js: memory_js,
   output: "",
+  memoryManager: undefined as undefined | MemoryManager,
 };

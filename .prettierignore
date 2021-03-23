@@ -1,0 +1,9 @@
+node_modules
+build
+cli
+*.sw*
+mochawesome-report
+
+.github/
+*.md
+package-lock.json
