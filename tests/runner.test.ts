@@ -754,6 +754,8 @@ while False:
   c1 = C()
   print(c1.func())`,
     ["Q"]
+  );
+
   assert(
     "function-with-default-arg",
     `

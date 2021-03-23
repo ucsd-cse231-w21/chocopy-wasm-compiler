@@ -508,7 +508,7 @@ export function traverseArguments(
     if (arg[0] === null) {
       if (traversedKeywordArg === true) {
         throw new BaseException.CompileError(
-          getSourcePos(c, s),
+          [getSourcePos(c, s)],
           "positional argument follows keyword argument",
           "SyntaxError"
         );
@@ -519,7 +519,7 @@ export function traverseArguments(
       if (seenKws.indexOf(arg[0]) > -1) {
         // Check if keyword has already been previously defined
         throw new BaseException.CompileError(
-          getSourcePos(c, s),
+          [getSourcePos(c, s)],
           "keyword argument repeated",
           "SyntaxError"
         );
@@ -943,7 +943,7 @@ export function traverseTypeDef(c: TreeCursor, s: string): Type {
       return typ;
     default:
       throw new BaseException.CompileError(
-        getSourcePos(c, s),
+        [getSourcePos(c, s)],
         "Missed type annotation for parameter " + name,
         "ParsingError"
       );
@@ -983,7 +983,7 @@ export function traverseDefault(c: TreeCursor, s: string): Default {
         classname,
       };
     default:
-      throw new BaseException.CompileError(location, "not default", "ParsingError");
+      throw new BaseException.CompileError([location], "not default", "ParsingError");
   }
 }
 
@@ -1000,7 +1000,6 @@ export function traverseDefaultValue(c: TreeCursor, s: string): Default {
 }
 
 export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
-  var location: Location = getSourcePos(c, s);
   c.firstChild(); // Focuses on open paren
   const parameters = [];
   c.nextSibling(); // Focuses on a VariableName
@@ -1017,7 +1016,7 @@ export function traverseParameters(c: TreeCursor, s: string): Array<Parameter> {
     } else {
       if (traversedDefaultValue === true) {
         throw new BaseException.CompileError(
-          getSourcePos(c, s),
+          [getSourcePos(c, s)],
           "Expected a default value for " + name
         );
       }

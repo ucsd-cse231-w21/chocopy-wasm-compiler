@@ -970,7 +970,7 @@ export function tcExpr(
             ...expr,
             a: [retType, expr.a],
             name: innercall,
-            arguments: populateDefaultParams(env, tArgs, tArgs, params, kwargsMap),
+            arguments: populateDefaultParams(env, tArgs, tArgs, params, kwargsMap, expr.a),
             kwargs: tcKwargs,
           };
         } else {
@@ -1077,16 +1077,39 @@ export function tcExpr(
                 methodArgs = methodParams.map((p) => p.type);
               }
 
+              var tcKwargs: Array<[string, Expr<[Type, Location]>]> = [];
+              var kwargsMap: Map<string, Expr<[Type, Location]>> = new Map();
+              // typecheck each keyword and make a map
+              for (var kw of expr.kwargs) {
+                const argExpr = tcExpr(env, locals, kw[1]);
+                tcKwargs = tcKwargs.concat([kw[0], argExpr]);
+                kwargsMap.set(kw[0], argExpr);
+              }
 
               var realArgs: Expr<[Type, Location]>[] = tArgs;
               if (methods.has(expr.method)) {
                 realArgs = [tObj].concat(tArgs);
               }
               if (
-                methodArgs.length === realArgs.length &&
-                methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
+                realArgs.length + expr.kwargs.length <= methodArgs.length &&
+                realArgs.every((arg, i) => isAssignable(env, arg.a[0], methodArgs[i]))
+                //methodArgs.length === realArgs.length &&
+                //methodArgs.every((argTyp, i) => isAssignable(env, realArgs[i].a[0], argTyp))
               ) {
-                return { ...expr, a: [methodRet, expr.a], obj: tObj, arguments: tArgs };
+                return {
+                  ...expr,
+                  a: [methodRet, expr.a],
+                  obj: tObj,
+                  arguments: populateDefaultParams(
+                    env,
+                    tArgs,
+                    realArgs,
+                    methodParams,
+                    kwargsMap,
+                    expr.a
+                  ),
+                  kwargs: tcKwargs,
+                };
               } else if (methodArgs.length != realArgs.length) {
                 throw new BaseException.TypeError(
                   [expr.a],
@@ -1104,16 +1127,6 @@ export function tcExpr(
             } else {
               throw new BaseException.AttributeError([expr.a], tObj.a[0], expr.method);
             }
-
-            var tcKwargs: Array<[string, Expr<[Type, Location]>]> = [];
-            var kwargsMap: Map<string, Expr<[Type, Location]>> = new Map();
-            // typecheck each keyword and make a map
-            for (var kw of expr.kwargs) {
-              const argExpr = tcExpr(env, locals, kw[1]);
-              tcKwargs = tcKwargs.concat([kw[0], argExpr]);
-              kwargsMap.set(kw[0], argExpr);
-            }
-
           } else {
             throw new BaseException.NameError([expr.a], tObj.a[0].name);
           }
@@ -1140,7 +1153,13 @@ export function tcExpr(
                     "`"
                 );
               }
-              return { ...expr, a: [tObj.a[0].value, expr.a], obj: tObj, arguments: [tKeyPop] };
+              return {
+                ...expr,
+                a: [tObj.a[0].value, expr.a],
+                obj: tObj,
+                arguments: [tKeyPop],
+                kwargs: tcKwargs,
+              };
             case "get":
               console.log("TC: get function in dict");
               let numArgsGet = expr.arguments.length;
@@ -1179,6 +1198,7 @@ export function tcExpr(
                 a: [tObj.a[0].value, expr.a],
                 obj: tObj,
                 arguments: [tKeyGet, tValueGet],
+                kwargs: tcKwargs,
               };
 
             case "update":
@@ -1203,6 +1223,7 @@ export function tcExpr(
                 a: [NONE, expr.a],
                 obj: tObj,
                 arguments: [tUpdate],
+                kwargs: tcKwargs,
               };
             case "clear":
               // throw error if there are any arguments in clear()
@@ -1218,6 +1239,7 @@ export function tcExpr(
                 a: [NONE, expr.a],
                 obj: tObj,
                 arguments: [],
+                kwargs: [],
               };
             default:
               throw new BaseException.CompileError(
@@ -1260,13 +1282,20 @@ export function tcExpr(
                 ...expr,
                 a: [methodRet, expr.a],
                 obj: tObj,
-                arguments: populateDefaultParams(env, tArgs, realArgs, methodParams, kwargsMap),
+                arguments: populateDefaultParams(
+                  env,
+                  tArgs,
+                  realArgs,
+                  methodParams,
+                  kwargsMap,
+                  expr.a
+                ),
                 kwargs: tcKwargs,
               };
             } else if (methodArgs.length != realArgs.length) {
               throw new BaseException.TypeError(
                 [expr.a],
-                `${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given`
+                `${expr.method} takes ${methodArgs.length} positional arguments but ${realArgs.length} were given (along with ${expr.kwargs.length} keyword args)`
               );
             } else {
               throw new BaseException.TypeMismatchError(
@@ -1454,7 +1483,8 @@ export function populateDefaultParams(
   tArgs: Expr<[Type, Location]>[],
   actualArgs: Expr<[Type, Location]>[],
   params: Parameter[],
-  kwargsMap: Map<string, Expr<[Type, Location]>>
+  kwargsMap: Map<string, Expr<[Type, Location]>>,
+  loc: Location
 ) {
   var augArgs = tArgs;
   var argNums = actualArgs.length;
@@ -1474,6 +1504,7 @@ export function populateDefaultParams(
           const className = default_value.classname;
           if (env.classes.has(className)) {
             augArgs = augArgs.concat({
+              a: [{tag: "class", name: className}, loc],
               tag: "construct",
               name: className,
             });

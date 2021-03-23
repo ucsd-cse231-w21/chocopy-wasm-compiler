@@ -1315,6 +1315,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           ]
         )
       );
+      console.log(expr);
       return stmts.concat([
         // Pointer to deref should be on the top of the stack already
         ...codeGenCall(expr.a[1], `(call $${expr.name}$__init__)`), // call __init__
