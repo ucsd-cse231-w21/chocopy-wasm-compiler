@@ -18,12 +18,6 @@ export const importObject = {
     //  We can then examine output to see what would have been printed in the
     //  console.
     print: print,
-    abs: function (n: number) {
-      return (Math.abs(n >> 1) << 1) + 1;
-    },
-    min: Math.min,
-    max: Math.max,
-    pow: Math.pow,
   },
   js: memory_js,
   output: "",

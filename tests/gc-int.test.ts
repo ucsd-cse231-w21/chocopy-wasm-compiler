@@ -246,4 +246,20 @@ describe("GC-MnS Integration Tests", () => {
     PyInt(99),
     4n
   );
+
+  assertsUsage("Dictionary", [
+    [
+      `
+      d: [int, int] = None
+      d = {3:4}
+      `,
+      PyNone(),
+      52n,
+    ],
+    ["d[3]", PyInt(4), 52n],
+    ["d[9] = 19", PyNone(), 64n],
+    ["d[9]", PyInt(19), 64n],
+    ["d[13] = 1337", PyNone(), 76n],
+    ["d[13]", PyInt(1337), 76n],
+  ]);
 });

@@ -1,16 +1,19 @@
 import { BasicREPL } from "./repl";
-import { Type, Value } from "./ast";
-import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
-import { defaultTypeEnv } from "./type-check";
+import { Value } from "./ast";
 import { themeList_export } from "./themelist";
+import { addAccordionEvent, prettyPrintObjects } from "./prettyprint";
+import { stringify } from "./utils";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
 import "codemirror/mode/python/python";
+
 import "codemirror/addon/hint/show-hint";
 import "codemirror/addon/lint/lint";
+import "codemirror/addon/scroll/simplescrollbars";
 import "./style.scss";
-import { toEditorSettings } from "typescript";
+import { autocompleteHint, populateAutoCompleteSrc } from "./autocomplete";
+import { default_keywords, default_functions } from "./pydefaultwordlist";
 
 function print(val: Value) {
   const elt = document.createElement("pre");
@@ -19,19 +22,17 @@ function print(val: Value) {
 }
 
 function webStart() {
+  var hiderepl = false;
   document.addEventListener("DOMContentLoaded", function () {
     var filecontent: string | ArrayBuffer;
-
     var importObject = {
       imports: {
         print: print,
-        abs: Math.abs,
-        min: Math.min,
-        max: Math.max,
-        pow: Math.pow,
       },
     };
 
+    var filecontent: string | ArrayBuffer;
+    (window as any)["importObject"] = importObject;
     var repl = new BasicREPL(importObject);
 
     function renderResult(result: Value): void {
@@ -44,6 +45,8 @@ function webStart() {
       elt.setAttribute("title", result.tag);
       document.getElementById("output").appendChild(elt);
       elt.innerText = stringify(result);
+      prettyPrintObjects(result, repl, document.getElementById("output"));
+      addAccordionEvent();
     }
 
     function renderError(result: any, source: string): void {
@@ -51,11 +54,11 @@ function webStart() {
       document.getElementById("output").appendChild(elt);
       elt.setAttribute("style", "color: red");
       var text = "";
-      if (result.loc != undefined)
-        text = `line ${result.loc.line}: ${source
-          .split(/\r?\n/)
-          [result.loc.line - 1].substring(result.loc.col - 1, result.loc.col + result.loc.length)}`;
-      elt.innerText = text.concat("\n").concat(String(result));
+      if (result.callStack != undefined) {
+        console.log(result.callStack);
+        text = repl.errorManager.stackToString(result.callStack);
+      }
+      elt.innerText = String(result).concat("\n").concat(text);
     }
 
     function setupRepl() {
@@ -67,6 +70,7 @@ function webStart() {
           const output = document.createElement("div");
           const prompt = document.createElement("span");
           prompt.innerText = "»";
+          prompt.setAttribute("class", "prompt");
           output.appendChild(prompt);
           const elt = document.createElement("textarea");
           // elt.type = "text";
@@ -77,6 +81,7 @@ function webStart() {
           const source = replCodeElement.value;
           elt.value = source;
           replCodeElement.value = "";
+          repl.errorManager.clearStack();
           repl
             .run(source)
             .then((r) => {
@@ -96,6 +101,7 @@ function webStart() {
     }
 
     document.getElementById("run").addEventListener("click", function (e) {
+      repl.importObject.memoryManager = undefined;
       repl = new BasicREPL(importObject);
       const source = document.getElementById("user-code") as HTMLTextAreaElement;
       resetRepl();
@@ -107,6 +113,8 @@ function webStart() {
         })
         .catch((e) => {
           renderError(e, source.value);
+          if (e.callStack != undefined)
+            highlightLine(e.callStack[e.callStack.length - 1].line - 1, e.message);
           console.log("run failed", e.stack);
         });
     });
@@ -158,16 +166,66 @@ function webStart() {
       var blob = new Blob([code], { type: "text/plain;charset=utf-8" });
       FileSaver.saveAs(blob, title);
     });
-
+    document.getElementById("hiderepls").addEventListener("click", function (e) {
+      var button = document.getElementById("hiderepls");
+      var editor = document.getElementById("editor");
+      var interactions = document.getElementById("interactions");
+      if (button.innerText == "Hide REPLs") {
+        if (window.innerWidth >= 840) editor.style.width = "96%";
+        interactions.style.display = "none";
+        button.innerText = "Display REPLs";
+        hiderepl = true;
+      } else {
+        if (window.innerWidth >= 840) editor.style.width = "46%";
+        interactions.style.display = "inline";
+        button.innerText = "Hide REPLs";
+        hiderepl = false;
+      }
+    });
+    document.addEventListener("keypress", (e) => {
+      if (e.ctrlKey && e.key === "r") {
+        repl = new BasicREPL(importObject);
+        const source = document.getElementById("user-code") as HTMLTextAreaElement;
+        resetRepl();
+        repl
+          .run(source.value)
+          .then((r) => {
+            renderResult(r);
+            console.log("run finished");
+          })
+          .catch((e) => {
+            renderError(e, source.value);
+            if (e.loc != undefined) highlightLine(e.loc.line - 1, e.message);
+            console.log("run failed", e.stack);
+          });
+      }
+    });
     setupRepl();
   });
+  window.addEventListener("resize", (event) => {
+    var editor = document.getElementById("editor");
+    var interactions = document.getElementById("interactions");
 
+    if (window.innerWidth < 840) {
+      editor.style.width = "100%";
+      interactions.style.width = "100%";
+    } else {
+      if (hiderepl == false) {
+        editor.style.width = "50%";
+      } else {
+        editor.style.width = "100%";
+      }
+      interactions.style.width = "50%";
+    }
+  });
   window.addEventListener("load", (event) => {
-    const themeList = themeList_export;
-    const dropdown = document.createElement("select");
-    dropdown.setAttribute("class", "theme-dropdown");
-    dropdown.setAttribute("id", "theme-dropdown");
+    var interactions = document.getElementById("interactions");
+    if (window.innerHeight > 900) {
+      interactions.style.height = "800px";
+    }
 
+    const themeList = themeList_export;
+    const dropdown = document.getElementById("themes");
     for (const theme of themeList) {
       var option = document.createElement("option");
       option.value = theme;
@@ -175,7 +233,10 @@ function webStart() {
       dropdown.appendChild(option);
     }
 
-    document.getElementById("editor").appendChild(dropdown);
+    //necessary variables for autocomplete logic
+    var isClassMethod = false;
+    var classMethodList: string[] = [];
+    var defList: string[] = [];
     const textarea = document.getElementById("user-code") as HTMLTextAreaElement;
     const editor = CodeMirror.fromTextArea(textarea, {
       mode: "python",
@@ -191,6 +252,7 @@ function webStart() {
         alignWithWord: false,
         completeSingle: false,
       },
+      scrollbarStyle: "simple",
     });
 
     editor.on("change", (cm, change) => {
@@ -198,14 +260,63 @@ function webStart() {
     });
     editor.on("inputRead", function onChange(editor, input) {
       if (input.text[0] === ";" || input.text[0] === " " || input.text[0] === ":") {
+        isClassMethod = false;
         return;
+      } else if (input.text[0] === "." || isClassMethod) {
+        //autocomplete class methods
+        isClassMethod = true;
+        editor.showHint({
+          hint: () =>
+            autocompleteHint(editor, classMethodList, function (e: any, cur: any) {
+              return e.getTokenAt(cur);
+            }),
+        });
+      } else {
+        //autocomplete variables, names, top-level functions
+        editor.showHint({
+          hint: () =>
+            autocompleteHint(
+              editor,
+              default_keywords.concat(default_functions).concat(defList),
+              function (e: any, cur: any) {
+                return e.getTokenAt(cur);
+              }
+            ),
+        });
       }
-      editor.showHint({
-        // hint:
-      });
     });
 
-    var themeDropDown = document.getElementById("theme-dropdown") as HTMLSelectElement;
+    editor.on("keydown", (cm, event) => {
+      switch (event.code) {
+        //reset isClassMethod variable based on enter or space or backspace
+        case "Enter":
+          isClassMethod = false;
+          //compile code in background to get populate environment for autocomplete
+          var importObject = {
+            imports: {
+              print: print,
+              abs: Math.abs,
+              min: Math.min,
+              max: Math.max,
+              pow: Math.pow,
+            },
+          };
+          const repl = new BasicREPL(importObject);
+          const source = document.getElementById("user-code") as HTMLTextAreaElement;
+          repl.run(source.value).then((r) => {
+            [defList, classMethodList] = populateAutoCompleteSrc(repl);
+          });
+          return;
+        case "Space":
+          isClassMethod = false;
+          return;
+        case "Backspace":
+          isClassMethod = false;
+          return;
+      }
+    });
+
+    var themeDropDown = document.getElementById("themes") as HTMLSelectElement;
     themeDropDown.addEventListener("change", (event) => {
       var ele = document.querySelector(".CodeMirror") as any;
       var editor = ele.CodeMirror;
@@ -214,11 +325,11 @@ function webStart() {
   });
 }
 // Simple helper to highlight line given line number
-function highlightLine(actualLineNumber: number): void {
+function highlightLine(actualLineNumber: number, msg: string): void {
   var ele = document.querySelector(".CodeMirror") as any;
   var editor = ele.CodeMirror;
   //Set line CSS class to the line number & affecting the background of the line with the css class of line-error
-  editor.setGutterMarker(actualLineNumber, "error", makeMarker("test error message"));
+  editor.setGutterMarker(actualLineNumber, "error", makeMarker(msg));
   editor.addLineClass(actualLineNumber, "background", "line-error");
 }
 function makeMarker(msg: any): any {

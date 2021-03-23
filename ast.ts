@@ -23,7 +23,9 @@ export type Scope<A> =
   | { a?: A; tag: "global"; name: string } // not support
   | { a?: A; tag: "nonlocal"; name: string };
 
-export type Parameter = { name: string; type: Type; value?: Literal };
+export type Parameter = { name: string; type: Type; value?: Default };
+
+export type Default = Literal | { tag: "uninit_param"; classname: string };
 
 export type Program<A> = {
   a?: A;
@@ -130,6 +132,7 @@ export type Expr<A> =
       obj: Expr<A>;
       method: string;
       arguments: Array<Expr<A>>;
+      kwargs: Array<[string, Expr<A>]>;
     }
   | { a?: A; tag: "construct"; name: string }
   | { a?: A; tag: "lambda"; args: Array<string>; ret: Expr<A> }
@@ -142,9 +145,15 @@ export type Expr<A> =
       cond?: Expr<A>;
     }
   | { a?: A; tag: "block"; block: Array<Stmt<A>>; expr: Expr<A> }
-  | { a?: A; tag: "call_expr"; name: Expr<A>; arguments: Array<Expr<A>> }
+  | {
+      a?: A;
+      tag: "call_expr";
+      name: Expr<A>;
+      arguments: Array<Expr<A>>;
+      kwargs: Array<[string, Expr<A>]>;
+    }
   | { a?: A; tag: "list-expr"; contents: Array<Expr<A>> }
-  | { a?: A; tag: "slicing"; name: Expr<A>; start: Expr<A>; end: Expr<A>; stride: Expr<A> }
+  | { a?: A; tag: "slicing"; name: Expr<A>; start?: Expr<A>; end?: Expr<A>; stride: Expr<A> }
   | { a?: A; tag: "dict"; entries: Array<[Expr<A>, Expr<A>]> }
   | { a?: A; tag: "bracket-lookup"; obj: Expr<A>; key: Expr<A> }
   | { a?: A; tag: "tuple-expr"; contents: Array<Expr<A>> };
@@ -182,7 +191,8 @@ export type Value =
   | Literal
   | { tag: "string"; value: string; address: number }
   | { tag: "object"; name: string; address: number }
+  | { tag: "callable"; name: string; address: number }
   | { tag: "list"; name: string; address: number; content_type: Type }
-  | { tag: "callable"; name: string; address: number };
+  | { tag: "dict"; key_type: Type; value_type: Type; address: number };
 
-export type Location = { line: number; col: number; length: number };
+export type Location = { line: number; col: number; length: number; fileId: number };

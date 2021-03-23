@@ -3,22 +3,25 @@
 // - https://github.com/AssemblyScript/wabt.js/
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
-import { checkServerIdentity } from "tls";
 import wabt from "wabt";
-import { wasm } from "webpack";
 import * as compiler from "./compiler";
 import { parse } from "./parser";
+// import { emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt } from "./type-check";
+// import { Type, Value } from "./ast";
+// import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
 import { GlobalTypeEnv, tc } from "./type-check";
-import { Value, Type, Location } from "./ast";
+import { Value } from "./ast";
 import { PyValue, NONE } from "./utils";
 import { importMemoryManager, MemoryManager, TAG_CLASS } from "./alloc";
 import { ea } from "./ea";
+import { ErrorManager } from "./errorManager";
 
 export type Config = {
   importObject: any;
   env: compiler.GlobalEnv;
   typeEnv: GlobalTypeEnv;
   functions: string; // prelude functions
+  errorManager: ErrorManager;
   memoryManager: MemoryManager;
 };
 
@@ -51,8 +54,9 @@ export async function runWat(source: string, importObject: any): Promise<any> {
 export async function run(
   source: string,
   config: Config
-): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
-  const parsed = parse(source);
+): Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string, ErrorManager]> {
+  config.errorManager.sources.push(source);
+  const parsed = parse(source, config);
   console.log(parsed);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   console.log(tprogram);
@@ -66,10 +70,10 @@ export async function run(
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)";
   }
-  let globalsBefore = (config.env.globals as Map<string, number>).size;
+  // let globalsBefore = (config.env.globals as Map<string, number>).size;
   const eaProgram = ea(tprogram);
   const compiled = compiler.compile(eaProgram, config.env, config.memoryManager);
-  let globalsAfter = compiled.newEnv.globals.size;
+  // let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;
   if (!importObject.js) {
@@ -132,6 +136,24 @@ export async function run(
     (func $min (import "imports" "min") (param i32) (param i32) (result i32))
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
+    (func $$big_add (import "imports" "__big_num_add") (param i32) (param i32) (result i32))
+    (func $$big_sub (import "imports" "__big_num_sub") (param i32) (param i32) (result i32))
+    (func $$big_mul (import "imports" "__big_num_mul") (param i32) (param i32) (result i32))
+    (func $$big_div (import "imports" "__big_num_div") (param i32) (param i32) (result i32))
+    (func $$big_mod (import "imports" "__big_num_mod") (param i32) (param i32) (result i32))
+    (func $$big_eq (import "imports" "__big_num_eq") (param i32) (param i32) (result i32))
+    (func $$big_ne (import "imports" "__big_num_ne") (param i32) (param i32) (result i32))
+    (func $$big_lt (import "imports" "__big_num_lt") (param i32) (param i32) (result i32))
+    (func $$big_lte (import "imports" "__big_num_lte") (param i32) (param i32) (result i32))
+    (func $$big_gt (import "imports" "__big_num_gt") (param i32) (param i32) (result i32))
+    (func $$big_gte (import "imports" "__big_num_gte") (param i32) (param i32) (result i32))
+    (func $$pushStack (import "imports" "__pushStack") (param i32) (param i32) (param i32) (param i32))
+    (func $$popStack (import "imports" "__popStack"))
+    (func $$check_none_class (import "imports" "__checkNoneClass") (param i32))
+    (func $$check_index (import "imports" "__checkIndex") (param i32) (param i32))
+    (func $$check_key (import "imports" "__checkKey") (param i32))
+    (func $$check_none_lookup (import "imports" "__checkNoneLookup") (param i32))
+    (func $$check_division (import "imports" "__checkZeroDivision") (param i32))
 
     (func $$gcalloc (import "imports" "gcalloc") (param i32) (param i32) (result i32))
     (func $$pushCaller (import "imports" "pushCaller"))
@@ -208,5 +230,11 @@ export async function run(
   const newView = new Int32Array(importObject.js.memory.buffer);
 
   console.log("About to return", progTyp, result);
-  return [PyValue(progTyp, result, newView), compiled.newEnv, tenv, compiled.functions];
+  return [
+    PyValue(progTyp, result, newView),
+    compiled.newEnv,
+    tenv,
+    compiled.functions,
+    config.errorManager,
+  ];
 }

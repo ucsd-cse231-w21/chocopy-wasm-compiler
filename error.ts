@@ -29,8 +29,6 @@ Use instanceof to get additional properties of each Error type, if necessary.
 		|		+-- ConditionTypeError -> This error class is for condition type check in while and if, which does not exist in real python.
 */
 
-import { type } from "cypress/types/jquery";
-import { stringInput } from "lezer-tree";
 import { BinOp, UniOp, Location, Type } from "./ast";
 
 // I ❤️ TypeScript: https://github.com/microsoft/TypeScript/issues/13965
@@ -49,12 +47,13 @@ export class InternalException extends Error {
 
 export class RuntimeError extends Error {
   __proto__: Error;
-  // TODO - error-reporting
-  // stacktrace for runtimeError
-  constructor(message?: string, name = "RuntimeError") {
+  callStack: Array<Location>;
+
+  constructor(callStack: Array<Location>, message?: string, name = "RuntimeError") {
     const trueProto = new.target.prototype;
     super(message);
     this.name = name;
+    this.callStack = callStack;
 
     // Alternatively use Object.setPrototypeOf if you have an ES6 environment.
     this.__proto__ = trueProto;
@@ -63,13 +62,13 @@ export class RuntimeError extends Error {
 
 export class CompileError extends Error {
   __proto__: Error;
-  loc: Location;
+  callStack: Array<Location>;
 
-  constructor(loc: Location, message?: string, name = "CompileError") {
+  constructor(callStack: Array<Location>, message?: string, name = "CompileError") {
     const trueProto = new.target.prototype;
     super(message);
     this.name = name;
-    this.loc = loc;
+    this.callStack = callStack;
 
     // Alternatively use Object.setPrototypeOf if you have an ES6 environment.
     this.__proto__ = trueProto;
@@ -77,105 +76,97 @@ export class CompileError extends Error {
 }
 
 export class StopIteration extends RuntimeError {
-  constructor(message?: string) {
-    super(message, "StopIteration");
+  constructor(callStack: Array<Location>, message?: string) {
+    super(callStack, message, "StopIteration");
   }
 }
 
 export class ArithmeticError extends RuntimeError {
-  constructor(message?: string, name = "ArithmeticError") {
-    super(message, name);
+  constructor(callStack: Array<Location>, message?: string, name = "ArithmeticError") {
+    super(callStack, message, name);
   }
 }
 
 // e.g. math.exp(1000)
 export class OverflowError extends ArithmeticError {
-  constructor(message?: string) {
-    super(message, "OverflowError");
+  constructor(callStack: Array<Location>, message?: string) {
+    super(callStack, message, "OverflowError");
   }
 }
 
 // e.g. 7/0
 export class ZeroDivisionError extends ArithmeticError {
-  constructor(message = "division by zero") {
-    super(message, "ZeroDivisionError");
-  }
-}
-
-// If an object does not support attribute references or attribute assignment at all, TypeError is raised.
-export class AttributeError extends CompileError {
-  obj: Type;
-  attr: string;
-  constructor(loc: Location, obj: Type, attr: string) {
-    var message = `'${obj.tag == "class" ? obj.name : obj.tag}' object has no attribute '${attr}'`;
-    super(loc, message, "AttributeError");
-    this.obj = obj;
-    this.attr = attr;
+  constructor(callStack: Array<Location>, message = "division by zero") {
+    super(callStack, message, "ZeroDivisionError");
   }
 }
 
 export class LookupError extends RuntimeError {
-  constructor(message?: string, name = "LookupError") {
-    super(message, name);
+  constructor(callStack: Array<Location>, message?: string, name = "LookupError") {
+    super(callStack, message, name);
   }
 }
 
 // If an index is not an integer, TypeError is raised.
 export class IndexError extends LookupError {
-  constructor(message = "list index out of range") {
-    super(message, "IndexError");
+  constructor(callStack: Array<Location>, message = "list index out of range") {
+    super(callStack, message, "IndexError");
   }
 }
 
 export class KeyError extends LookupError {
-  constructor(keyName: string) {
-    super(`'${keyName}'`, "KeyError");
+  constructor(callStack: Array<Location>) {
+    super(callStack, ``, "KeyError");
   }
 }
 
 export class MemoryError extends RuntimeError {
-  constructor(message?: string) {
-    super(message, "MemoryError");
+  constructor(callStack: Array<Location>, message?: string) {
+    super(callStack, message, "MemoryError");
   }
 }
 
 export class NameError extends CompileError {
   varName: string;
-  constructor(loc: Location, varName: string, name = "NameError") {
-    super(loc, `name '${varName}' is not defined`, name);
+  constructor(callStack: Array<Location>, varName: string, name = "NameError") {
+    super(callStack, `name '${varName}' is not defined`, name);
     this.varName = varName;
   }
 }
 
 export class UnboundLocalError extends NameError {
   varName: string;
-  constructor(loc: Location, varName: string) {
-    super(loc, `local variable '${varName}' referenced before assignment`, "UnboundLocalError");
+  constructor(callStack: Array<Location>, varName: string) {
+    super(
+      callStack,
+      `local variable '${varName}' referenced before assignment`,
+      "UnboundLocalError"
+    );
     this.varName = varName;
   }
 }
 
 export class RecursionError extends RuntimeError {
-  constructor() {
-    super("maximum recursion depth exceeded", "RecursionError");
+  constructor(callStack: Array<Location>) {
+    super(callStack, "maximum recursion depth exceeded", "RecursionError");
   }
 }
 
 export class SyntaxError extends CompileError {
-  constructor(loc: Location, message?: string, name = "SyntaxError") {
-    super(loc, message == undefined ? `invalid syntax` : message, name);
+  constructor(callStack: Array<Location>, message?: string, name = "SyntaxError") {
+    super(callStack, message == undefined ? `invalid syntax` : message, name);
   }
 }
 
 export class IndentationError extends SyntaxError {
-  constructor(loc: Location, message = `unexpected indent`) {
-    super(loc, message, "IndentationError");
+  constructor(callStack: Array<Location>, message = `unexpected indent`) {
+    super(callStack, message, "IndentationError");
   }
 }
 
 export class TypeError extends CompileError {
-  constructor(loc: Location, message?: string, name = "TypeError") {
-    super(loc, message, name);
+  constructor(callStack: Array<Location>, message?: string, name = "TypeError") {
+    super(callStack, message, name);
   }
 }
 
@@ -183,14 +174,14 @@ export class TypeMismatchError extends TypeError {
   expect: Type[];
   got: Type[];
   constructor(
-    loc: Location,
+    callStack: Array<Location>,
     expect: Type | Type[],
     got: Type | Type[],
     name = "TypeMismatchError"
   ) {
     if (Array.isArray(expect)) {
       super(
-        loc,
+        callStack,
         `Expected type '${expect
           .map((s) => typeToString(s))
           .join(", ")}';  got type '${(got as Type[]).map((s) => typeToString(s)).join(", ")}'`,
@@ -200,7 +191,7 @@ export class TypeMismatchError extends TypeError {
       this.got = got as Type[];
     } else {
       super(
-        loc,
+        callStack,
         `Expected type '${typeToString(expect)}'; got type '${typeToString(got as Type)}'`,
         name
       );
@@ -213,16 +204,16 @@ export class TypeMismatchError extends TypeError {
 export class UnsupportedOperandTypeError extends TypeError {
   op: BinOp | UniOp;
   oprand: Type[];
-  constructor(loc: Location, op: BinOp | UniOp, operand: Type[], name = "TypeError") {
+  constructor(callStack: Array<Location>, op: BinOp | UniOp, operand: Type[], name = "TypeError") {
     if (operand.length == 1)
       super(
-        loc,
+        callStack,
         `unsupported operand type(s) for ${UniOp[op]}: '${typeToString(operand[0])}'`,
         name
       );
     else
       super(
-        loc,
+        callStack,
         `unsupported operand type(s) for ${BinOp[op]}: '${typeToString(
           operand[0]
         )}' and '${typeToString(operand[1])}'`,
@@ -233,9 +224,9 @@ export class UnsupportedOperandTypeError extends TypeError {
 
 export class ConditionTypeError extends TypeError {
   type: Type;
-  constructor(loc: Location, got: Type) {
+  constructor(callStack: Array<Location>, got: Type) {
     super(
-      loc,
+      callStack,
       `Condition Expression Cannot be of type '${typeToString(got)}'`,
       "ConditionTypeError"
     );
@@ -243,15 +234,28 @@ export class ConditionTypeError extends TypeError {
   }
 }
 
+// If an object does not support attribute references or attribute assignment at all, TypeError is raised.
+export class AttributeError extends RuntimeError {
+  obj: Type;
+  attr: string;
+  constructor(callStack: Array<Location>, obj: Type, attr: string) {
+    var message = `'${obj.tag == "class" ? obj.name : obj.tag}' object has no attribute '${attr}'`;
+    super(callStack, message, "AttributeError");
+    this.obj = obj;
+    this.attr = attr;
+  }
+}
+
 export class ValueError extends RuntimeError {
-  constructor(message?: string, name = "ValueError") {
-    super(message, name);
+  constructor(callStack: Array<Location>, message?: string, name = "ValueError") {
+    super(callStack, message, name);
   }
 }
 
 export class UnicodeError extends ValueError {
-  constructor(codec: string, character: string, pos: number) {
+  constructor(callStack: Array<Location>, codec: string, character: string, pos: number) {
     super(
+      callStack,
       `'${codec}' codec can't encode character '${character}' in position ${pos}`,
       "UnicodeError"
     );

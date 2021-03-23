@@ -1,5 +1,7 @@
 import * as H from "./heap";
 import * as GC from "./gc";
+import * as BaseException from "./error";
+
 export {
   HeapTag,
   TAG_CLASS,
@@ -34,7 +36,7 @@ export function toHeapTag(tag: bigint): GC.HeapTag {
     return tag;
   }
 
-  throw new Error(`${tag.toString()} is not a valid heap tag`);
+  throw new BaseException.MemoryError(undefined, `${tag.toString()} is not a valid heap tag`);
 }
 
 export function importMemoryManager(importObject: any, mm: MemoryManager) {
@@ -105,7 +107,6 @@ export class MemoryManager {
     this.staticAllocator = new H.BumpAllocator(memory, staticStart, staticEnd);
 
     const gcStart = BigInt(staticEnd);
-    const gcEnd = BigInt(cfg.total);
 
     const wordBucketCount = 64n;
     const bucketWordStart = gcStart;
@@ -237,7 +238,7 @@ export class MemoryManager {
     }
     const result = this.gc.gcalloc(tag, size);
     if (result == 0x0n) {
-      throw new Error(`Out of memory`);
+      throw new BaseException.MemoryError(undefined, `Out of memory`);
     }
     return result;
   }
@@ -259,7 +260,7 @@ export class MemoryManager {
       console.error(`end: ${this.staticAllocator.absEnd}`);
       console.error(`counter: ${this.staticAllocator.counter}`);
       console.error(`request: ${size.toString()}`);
-      throw new Error(`Out of static storage`);
+      throw new BaseException.MemoryError(undefined, `Out of static storage`);
     }
     return block.ptr;
   }
