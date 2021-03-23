@@ -1,10 +1,8 @@
 import { BasicREPL } from "./repl";
-import { Type, Value } from "./ast";
+import { Value } from "./ast";
 import { themeList_export } from "./themelist";
 import { addAccordionEvent, prettyPrintObjects } from "./prettyprint";
-import { NUM, STRING, BOOL, NONE, PyValue, unhandledTag, stringify } from "./utils";
-import { defaultTypeEnv } from "./type-check";
-
+import { stringify } from "./utils";
 
 import CodeMirror from "codemirror";
 import "codemirror/addon/edit/closebrackets";
@@ -14,12 +12,8 @@ import "codemirror/addon/hint/show-hint";
 import "codemirror/addon/lint/lint";
 import "codemirror/addon/scroll/simplescrollbars";
 import "./style.scss";
-import { toEditorSettings } from "typescript";
-import { replace } from "cypress/types/lodash";
-import { ErrorManager } from "./errorManager";
 import { autocompleteHint, populateAutoCompleteSrc } from "./autocomplete";
 import { default_keywords, default_functions } from "./pydefaultwordlist";
-
 
 function print(val: Value) {
   const elt = document.createElement("pre");
@@ -332,7 +326,6 @@ function webStart() {
 }
 // Simple helper to highlight line given line number
 function highlightLine(actualLineNumber: number, msg: string): void {
-
   var ele = document.querySelector(".CodeMirror") as any;
   var editor = ele.CodeMirror;
   //Set line CSS class to the line number & affecting the background of the line with the css class of line-error

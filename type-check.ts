@@ -18,8 +18,6 @@ import {
 } from "./ast";
 import { NUM, STRING, BOOL, NONE, CLASS, unhandledTag, unreachable, isTagged, LIST } from "./utils";
 import * as BaseException from "./error";
-import { at } from "cypress/types/lodash";
-import { map } from "cypress/types/bluebird";
 
 export type GlobalTypeEnv = {
   globals: Map<string, Type>;
@@ -1504,7 +1502,7 @@ export function populateDefaultParams(
           const className = default_value.classname;
           if (env.classes.has(className)) {
             augArgs = augArgs.concat({
-              a: [{tag: "class", name: className}, loc],
+              a: [{ tag: "class", name: className }, loc],
               tag: "construct",
               name: className,
             });
