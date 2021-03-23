@@ -456,17 +456,46 @@ export function tcStmt(
     case "pass":
       return { a: [NONE, stmt.a], tag: stmt.tag };
     case "for":
+      // check the index existance with enumerate
+      if (stmt.iterable.tag == "call" && stmt.iterable.name == "enumerate") {
+        if (!stmt.index) {
+          throw new BaseException.SyntaxError(stmt.a, "Require index for enumerate!");
+        }
+        const enum_arg = tcExpr(env, locals, stmt.iterable.arguments[0]);
+        if (enum_arg.a[0] === NUM) {
+          stmt.iterable.name = "range";
+        } else {
+          stmt.iterable = stmt.iterable.arguments[0];
+        }
+      } else if (stmt.iterable.tag == "call" && stmt.iterable.name == "range") {
+        if (stmt.index) {
+          throw new BaseException.SyntaxError(stmt.a, "Range should not have index!");
+        }
+      }
       // check the type of iterator items, then add the item name into local variables with its type
-      const fIter = tcExpr(env, locals, stmt.iterable);
-      switch (fIter.a[0].tag) {
+      var fIter = tcExpr(env, locals, stmt.iterable);
+      var iter_type = NUM;
+      const iterable_type = fIter.a[0];
+
+      // type check destructure in names and index
+      switch (iterable_type.tag) {
         case "class":
-          if (fIter.a[0].name === "Range") {
-            locals.vars.set(stmt.name, NUM);
+          if (iterable_type.name === "Range") {
+            stmt.name.targets.forEach((target) => {
+              if (target.target.tag === "id") {
+                locals.vars.set(target.target.name, iter_type);
+              } else {
+                throw new BaseException.CompileError(
+                  stmt.a,
+                  "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
+                );
+              }
+            });
             break;
           } else {
-            throw new BaseException.CompileError(
+            throw new BaseException.SyntaxError(
               [stmt.a],
-              "for-loop cannot take " + fIter.a[0].name + " class as iterator."
+              "for-loop cannot take " + iterable_type.name + " class as iterator."
             );
           }
         case "string":
@@ -474,7 +503,17 @@ export function tcStmt(
           // locals.vars.set(stmt.name, {tag: 'char'});
           throw new BaseException.InternalException("for-loop with strings are not implmented.");
         case "list":
-          locals.vars.set(stmt.name, fIter.a[0].content_type);
+          iter_type = iterable_type.content_type;
+          stmt.name.targets.forEach((target) => {
+            if (target.target.tag === "id") {
+              locals.vars.set(target.target.name, iter_type);
+            } else {
+              throw new BaseException.CompileError(
+                stmt.a,
+                "Destructure tc error. This should not happen, please contact for-loop developer Tianyang Zhang"
+              );
+            }
+          });
           break;
         default:
           throw new BaseException.CompileError([stmt.a], "Illegal iterating item in for-loop.");
@@ -488,16 +527,27 @@ export function tcStmt(
       // delete the temp var information after finished the body, and restore last depth
       // locals.vars.delete(stmt.name);
       locals.loop_depth = last_depth;
-
       // return type checked stmt
-      return {
-        a: [NONE, stmt.a],
-        tag: "for",
-        name: stmt.name,
-        index: stmt.index,
-        iterable: fIter,
-        body: fBody,
-      };
+      if (stmt.index) {
+        return {
+          a: [NONE, stmt.a],
+          id: stmt.id,
+          tag: "for",
+          name: tcDestructure(env, locals, stmt.name, iter_type, stmt.iterable),
+          index: tcDestructure(env, locals, stmt.index, iter_type, stmt.iterable),
+          iterable: fIter,
+          body: fBody,
+        };
+      } else {
+        return {
+          a: [NONE, stmt.a],
+          id: stmt.id,
+          tag: "for",
+          name: tcDestructure(env, locals, stmt.name, iter_type, stmt.iterable),
+          iterable: fIter,
+          body: fBody,
+        };
+      }
     case "break":
       if (locals.loop_depth < 1) {
         throw new BaseException.SyntaxError([stmt.a], "'Break' outside a loop.");
@@ -570,6 +620,7 @@ function tcDestructure(
       tcLambda(locals, expr, targetType[0]);
       valueType = tcExpr(env, locals, expr).a[0];
     }
+    console.log(targetType[0] === valueType);
     if (!isAssignable(env, valueType, targetType[0]))
       throw new BaseException.TypeMismatchError([aTarget.target.a], targetType[0], valueType);
     return {
@@ -592,7 +643,7 @@ function tcDestructure(
       targets: [target],
     };
   }
-
+  console.log("here2");
   let types: Type[] = [];
   // Note:The parser guarantees at most 1 starred assignment target
   switch (value.tag) {
@@ -702,7 +753,6 @@ function tcDestructure(
       } else {
         tTargets = tcTuples(destruct.targets, types);
       }
-
       return {
         isDestructured: destruct.isDestructured,
         targets: tTargets,
@@ -983,7 +1033,7 @@ export function tcExpr(
       }
       throw new BaseException.TypeError([expr.a], "Not callable");
     case "call":
-      if (expr.name == "range") {
+      if (expr.name == "range" || expr.name == "enumerate") {
         const tArgs = expr.arguments.map((arg) => tcExpr(env, locals, arg));
         return {
           a: [

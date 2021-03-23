@@ -16,7 +16,7 @@ describe("FOR LOOP TEST", () => {
   );
 
   assert(
-    "for range(10)",
+    "for range(0, 10)",
     `
     i:int = 0
     for i in range(10):
@@ -26,29 +26,29 @@ describe("FOR LOOP TEST", () => {
     PyInt(9)
   );
 
-  // assert(
-  //   "for range(1, 10, 1)",
-  //   `
-  //   i:int = 0
-  //   x:int = 0
-  //   for i in range(1, 10, 1):
-  //     x = x + 1
-  //   x
-  //   `,
-  //   PyInt(9)
-  // );
-  //
-  // assert(
-  //   "for range(1, 10, 2)",
-  //   `
-  //   i:int = 0
-  //   x:int = 0
-  //   for i in range(1, 10, 2):
-  //     x = x + 1
-  //   x
-  //   `,
-  //   PyInt(5)
-  // );
+  assert(
+    "for range(1, 10, 1)",
+    `
+    i:int = 0
+    x:int = 0
+    for i in range(1, 10, 1):
+      x = x + 1
+    x
+    `,
+    PyInt(9)
+  );
+
+  assert(
+    "for range(1, 10, 2)",
+    `
+    i:int = 0
+    x:int = 0
+    for i in range(1, 10, 2):
+      x = x + 1
+    x
+    `,
+    PyInt(5)
+  );
 
   assertTCFail(
     "break outside loop",
@@ -99,5 +99,171 @@ describe("FOR LOOP TEST", () => {
     x
     `,
     PyInt(0)
+  );
+
+  assertPrint(
+    "Multiple for loops with print",
+    `
+    i:int = 3
+    j:int = 5
+    for i in range(5):
+      print(i)
+    for j in range(1, 3, 1):
+      print(j)
+    `,
+    ["0", "1", "2", "3", "4", "1", "2"]
+  );
+
+  assert(
+    "double nested for loop",
+    `
+    i:int = 0
+    x:int = 0
+    z:int = 0
+
+    for i in range(10):
+      for x in range(5):
+        z = z + 1
+    z
+    `,
+    PyInt(50)
+  );
+
+  assertPrint(
+    "triple nested for loop",
+    `
+    i:int = 0
+    j:int = 0
+    k:int = 0
+
+    for i in range(1, 3):
+      for j in range(1, 3):
+        for k in range(1, 3):
+          print(i*j*k)
+    `,
+    ["1", "2", "2", "4", "2", "4", "4", "8"]
+  );
+
+  assertPrint(
+    "break in nested for loop",
+    `
+    i:int = 0
+    j:int = 0
+    k:int = 0
+
+    for i in range(1, 3):
+      for j in range(1, 3):
+        for k in range(1, 3):
+          if k > 1:
+            break
+          else:
+            pass
+          print(i*j*k)
+    `,
+    ["1", "2", "2", "4"]
+  );
+
+  assertPrint(
+    "continue in nested for loop",
+    `
+    i:int = 0
+    j:int = 0
+    k:int = 0
+
+    for i in range(1, 3):
+      for j in range(1, 3):
+        for k in range(1, 3):
+          if k == 1:
+            continue
+          else:
+            pass
+          print(i*j*k)
+    `,
+    ["2", "4", "4", "8"]
+  );
+
+  assertPrint(
+    "loop in function",
+    `
+    k:int = 5
+
+    def count(x:int):
+      i:int = 0
+      for i in range(x):
+        print(i)
+
+    count(k)
+    `,
+    ["0", "1", "2", "3", "4"]
+  );
+
+  assertPrint(
+    "loop in class",
+    `
+    class Counter(object):
+      x:int = 0
+
+      def print_loop(self: Counter, x:int):
+        i:int = 0
+
+        for i in range(x):
+          print(i)
+
+
+    Counter().print_loop(7)
+    `,
+    ["0", "1", "2", "3", "4", "5", "6"]
+  );
+
+  assertPrint(
+    "looping list",
+    `
+    i:int = 0
+
+    for i in [1, 654, 9]:
+      print(i)
+
+    `,
+    ["1", "654", "9"]
+  );
+
+  assertPrint(
+    "enumerate list",
+    `
+    i:int = 0
+    x:int = 5
+
+    for i, x in enumerate([1, 2, 9]):
+      print(i)
+      print(x)
+
+    `,
+    ["0", "1", "1", "2", "2", "9"]
+  );
+
+  assertTCFail(
+    "too many declare",
+    `
+    i:int = 0
+    x:int = 5
+
+    for i, x in range(5):
+      print(i)
+      print(x)
+
+    `
+  );
+
+  assertTCFail(
+    "too many declare 2",
+    `
+    i:int = 0
+    x:int = 5
+
+    for i, x in [1, 7, 3]:
+      print(i)
+      print(x)
+
+    `
   );
 });

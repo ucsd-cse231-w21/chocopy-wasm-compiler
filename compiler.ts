@@ -27,6 +27,7 @@ import {
   bigintToWords,
 } from "./utils";
 import * as BaseException from "./error";
+import { forCount, lastCount } from "./parser";
 import { RunTime } from "./errorManager";
 import {
   MemoryManager,
@@ -128,12 +129,23 @@ export function augmentEnv(
     newGlobals.set(v.name, Number(globalAddr));
     mm.addGlobal(globalAddr);
   });
+  // encoding for var rngi
+  for (let index = lastCount + 1; index <= forCount; index++) {
+    let rgAddr = mm.staticAlloc(4n);
+    newGlobals.set("rng" + index, Number(rgAddr));
+    mm.addGlobal(rgAddr);
+  }
+  // set bars for indexing in for loops
+  for (let index = lastCount + 1; index <= forCount; index++) {
+    let idxAddr = mm.staticAlloc(4n);
+    newGlobals.set("idx" + index, Number(idxAddr));
+  }
+
 
   // for rg
   const rgAddr = mm.staticAlloc(4n);
   newGlobals.set("rg", Number(rgAddr));
   mm.addGlobal(rgAddr);
-
   prog.classes.forEach((cls) => {
     const classFields = new Map();
     cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
@@ -354,145 +366,339 @@ function codeGenStmt(stmt: Stmt<[Type, Location]>, env: GlobalEnv): Array<string
         .concat(["(br 0) ))"]);
     case "for":
       var bodyStmts = stmt.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-      var iter = codeGenExpr(stmt.iterable, env);
+      switch (stmt.iterable.tag) {
+        case "id":
+          // not handled yet
+          return [];
+        case "list-expr":
+          var iass: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeId([NUM, stmt.a[1]], "idx" + stmt.id),
+            value: {
+              a: [NUM, stmt.a[1]],
+              tag: "literal",
+              value: {
+                tag: "num",
+                value: BigInt(-1),
+              },
+            },
+          };
+          var Code_iass = codeGenStmt(iass, env);
 
-      var rgExpr: Expr<[Type, Location]> = {
-        a: [CLASS("Range"), stmt.a[1]],
-        tag: "id",
-        name: "rg",
-      };
-      var Expr_cur: Expr<[Type, Location]> = {
-        a: [NUM, stmt.a[1]],
-        tag: "lookup",
-        obj: rgExpr,
-        field: "cur",
-      };
-      var Code_cur = codeGenExpr(Expr_cur, env);
+          var nid: Expr<[Type, Location]> = {
+            a: [NUM, stmt.a[1]],
+            tag: "binop",
+            op: BinOp.Plus,
+            left: {
+              a: [NUM, stmt.a[1]],
+              tag: "id",
+              name: "idx" + stmt.id,
+            },
+            right: {
+              a: [NUM, stmt.a[1]],
+              tag: "literal",
+              value: {
+                tag: "num",
+                value: BigInt(1),
+              },
+            },
+          };
+          var niass: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeId([NUM, stmt.a[1]], "idx" + stmt.id),
+            value: nid,
+          };
+          var Code_idstep = codeGenStmt(niass, env);
 
-      var Expr_stop: Expr<[Type, Location]> = {
-        a: [NUM, stmt.a[1]],
-        tag: "lookup",
-        obj: rgExpr,
-        field: "stop",
-      };
-      var Code_stop = codeGenExpr(Expr_stop, env);
+          var list_lookup: Expr<[Type, Location]> = {
+            a: [NUM, stmt.a[1]],
+            tag: "bracket-lookup",
+            obj: stmt.iterable,
+            key: {
+              a: [NUM, stmt.a[1]],
+              tag: "id",
+              name: "idx" + stmt.id,
+            },
+          };
 
-      var Expr_step: Expr<[Type, Location]> = {
-        a: [NUM, stmt.a[1]],
-        tag: "lookup",
-        obj: rgExpr,
-        field: "step",
-      };
-      var Code_step_expr = codeGenExpr(Expr_step, env);
+          var tarname = "";
+          if (stmt.name.targets[0].target.tag === "id") {
+            tarname = stmt.name.targets[0].target.name;
+          }
+          // name = cur
+          var ass: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeId([NUM, stmt.a[1]], tarname),
+            value: list_lookup,
+          };
+          var Code_ass = codeGenStmt(ass, env);
 
-      // name = cur
-      var ass: Stmt<[Type, Location]> = {
-        a: [NONE, stmt.a[1]],
-        tag: "assignment",
-        destruct: makeId([NUM, stmt.a[1]], stmt.name),
-        value: Expr_cur,
-      };
-      var Code_ass = codeGenStmt(ass, env);
+          // stop condition cur<step
+          var Expr_cond: Expr<[Type, Location]> = {
+            a: [BOOL, stmt.a[1]],
+            tag: "binop",
+            op: BinOp.Gte,
+            left: {
+              a: [NUM, stmt.a[1]],
+              tag: "id",
+              name: "idx" + stmt.id,
+            },
+            right: {
+              a: [NUM, stmt.a[1]],
+              tag: "literal",
+              value: {
+                tag: "num",
+                value: BigInt(stmt.iterable.contents.length),
+              },
+            },
+          };
+          var Code_cond = codeGenExpr(Expr_cond, env);
 
-      // add step to cur
-      var ncur: Expr<[Type, Location]> = {
-        a: [NUM, stmt.a[1]],
-        tag: "binop",
-        op: BinOp.Plus,
-        left: Expr_cur,
-        right: Expr_step,
-      };
-      var step: Stmt<[Type, Location]> = {
-        a: rgExpr.a,
-        tag: "assignment",
-        destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
-        value: ncur,
-      };
-      var Code_step = codeGenStmt(step, env);
+          if (stmt.index) {
+            var idname = "";
+            if (stmt.index.targets[0].target.tag === "id") {
+              idname = stmt.index.targets[0].target.name;
+            }
 
-      // stop condition cur<step
-      var Expr_cond: Expr<[Type, Location]> = {
-        a: [BOOL, stmt.a[1]],
-        tag: "binop",
-        op: BinOp.Gte,
-        left: Expr_cur,
-        right: Expr_stop,
-      };
-      var Code_cond = codeGenExpr(Expr_cond, env);
+            var idass: Stmt<[Type, Location]> = {
+              a: [NONE, stmt.a[1]],
+              tag: "assignment",
+              destruct: makeId([NUM, stmt.a[1]], idname),
+              value: { a: [NUM, stmt.a[1]], tag: "id", name: "idx" + stmt.id },
+            };
+            var Code_idass = codeGenStmt(idass, env);
+            return [
+              `
+              ${Code_iass.join("\n")}
 
-      // if have index
-      if (stmt.index) {
-        var iass: Stmt<[Type, Location]> = {
-          a: [NONE, stmt.a[1]],
-          tag: "assignment",
-          destruct: makeId([NUM, stmt.a[1]], stmt.index),
-          value: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(0) } },
-        };
-        var Code_iass = codeGenStmt(iass, env);
+              (block
+                (loop
+                  ${Code_idstep.join("\n")}
+                  (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
 
-        var nid: Expr<[Type, Location]> = {
-          a: [NUM, stmt.a[1]],
-          tag: "binop",
-          op: BinOp.Plus,
-          left: { a: [NUM, stmt.a[1]], tag: "id", name: stmt.index },
-          right: { a: [NUM, stmt.a[1]], tag: "literal", value: { tag: "num", value: BigInt(1) } },
-        };
-        var niass: Stmt<[Type, Location]> = {
-          a: [NONE, stmt.a[1]],
-          tag: "assignment",
-          destruct: makeId([NUM, stmt.a[1]], stmt.index),
-          value: nid,
-        };
-        var Code_idstep = codeGenStmt(niass, env);
-        // iterable should be a Range object
-        return codeGenTempGuard(
-          [
-            `(i32.const ${envLookup(env, "rg")})`,
-            ...iter,
-            `(i32.store)`,
-            ...Code_iass,
-            "(block",
-            "(loop",
-            ...Code_step,
-            ...Code_idstep,
-            ...["(bf_if 1", ...Code_cond, ...decodeLiteral, "))"],
-            ...Code_ass,
-            ...bodyStmts,
-            "(br 0)",
-            "))",
-          ],
-          FENCE_TEMPS
-        );
+                  ${Code_ass.join("\n")}
+                  ${Code_idass.join("\n")}
+                  ${bodyStmts.join("\n")}
+                  (br 0)
+              ))`,
+            ];
+          }
+
+          return codeGenTempGuard(
+            [
+              ...Code_iass,
+              `(block`,
+              `  (loop`,
+              ...Code_idstep,
+              ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ")"],
+              ...Code_ass,
+              ...bodyStmts,
+              `(br 0)`,
+              `))`,
+            ],
+            FENCE_TEMPS
+          );
+        case "call":
+          // must be range()
+          var iter = codeGenExpr(stmt.iterable, env);
+
+          var rgExpr: Expr<[Type, Location]> = {
+            a: [CLASS("Range"), stmt.a[1]],
+            tag: "id",
+            name: "rng" + stmt.id,
+          };
+          var Expr_cur: Expr<[Type, Location]> = {
+            a: [NUM, stmt.a[1]],
+            tag: "lookup",
+            obj: rgExpr,
+            field: "cur",
+          };
+          var Code_cur = codeGenExpr(Expr_cur, env);
+
+          var Expr_stop: Expr<[Type, Location]> = {
+            a: [NUM, stmt.a[1]],
+            tag: "lookup",
+            obj: rgExpr,
+            field: "stop",
+          };
+          var Code_stop = codeGenExpr(Expr_stop, env);
+
+          var Expr_step: Expr<[Type, Location]> = {
+            a: [NUM, stmt.a[1]],
+            tag: "lookup",
+            obj: rgExpr,
+            field: "step",
+          };
+          var Code_step_expr = codeGenExpr(Expr_step, env);
+
+          // use cur-step to replace cur at the begining considering about continue
+          var Expr_icur: Expr<[Type, Location]> = {
+            a: [NUM, stmt.a[1]],
+            tag: "binop",
+            op: BinOp.Minus,
+            left: Expr_cur,
+            right: Expr_step,
+          };
+
+          var cur_ass: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
+            value: Expr_icur,
+          };
+          var Code_cur_iniass = codeGenStmt(cur_ass, env);
+
+          var tarname = "";
+          if (stmt.name.targets[0].target.tag === "id") {
+            tarname = stmt.name.targets[0].target.name;
+          }
+          // name = cur
+          var ass: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeId([NUM, stmt.a[1]], tarname),
+            value: Expr_cur,
+          };
+          var Code_ass = codeGenStmt(ass, env);
+
+          // add step to cur
+          var ncur: Expr<[Type, Location]> = {
+            a: [NUM, stmt.a[1]],
+            tag: "binop",
+            op: BinOp.Plus,
+            left: Expr_cur,
+            right: Expr_step,
+          };
+          var step: Stmt<[Type, Location]> = {
+            a: [NONE, stmt.a[1]],
+            tag: "assignment",
+            destruct: makeLookup(rgExpr.a, rgExpr, "cur"),
+            value: ncur,
+          };
+          var Code_step = codeGenStmt(step, env);
+
+          // stop condition cur<step
+          var Expr_cond: Expr<[Type, Location]> = {
+            a: [BOOL, stmt.a[1]],
+            tag: "binop",
+            op: BinOp.Gte,
+            left: Expr_cur,
+            right: Expr_stop,
+          };
+          var Code_cond = codeGenExpr(Expr_cond, env);
+
+          //if have index
+          if (stmt.index) {
+            var idname = "";
+            if (stmt.index.targets[0].target.tag === "id") {
+              idname = stmt.index.targets[0].target.name;
+            }
+
+            var iass: Stmt<[Type, Location]> = {
+              a: [NONE, stmt.a[1]],
+              tag: "assignment",
+              destruct: makeId([NUM, stmt.a[1]], idname),
+              value: {
+                a: [NUM, stmt.a[1]],
+                tag: "literal",
+                value: { tag: "num", value: BigInt(-1) },
+              },
+            };
+            var Code_iass = codeGenStmt(iass, env);
+            var nid: Expr<[Type, Location]> = {
+              a: [NUM, stmt.a[1]],
+              tag: "binop",
+              op: BinOp.Plus,
+              left: { a: [NUM, stmt.a[1]], tag: "id", name: idname },
+              right: {
+                a: [NUM, stmt.a[1]],
+                tag: "literal",
+                value: { tag: "num", value: BigInt(1) },
+              },
+            };
+            var niass: Stmt<[Type, Location]> = {
+              a: [NONE, stmt.a[1]],
+              tag: "assignment",
+              destruct: makeId([NUM, stmt.a[1]], idname),
+              value: nid,
+            };
+            var Code_idstep = codeGenStmt(niass, env);
+            // iterable should be a Range object
+            // return [
+            //   `
+            //   (i32.const ${envLookup(env, "rng" + stmt.id)})
+            //   ${iter.join("\n")}
+            //   (i32.store)
+            //   ${Code_iass.join("\n")}
+            //   ${Code_cur_iniass.join("\n")}
+
+            //   (block
+            //     (loop
+            //       ${Code_step.join("\n")}
+            //       ${Code_idstep.join("\n")}
+            //       (br_if 1 ${Code_cond.join("\n")} ${decodeLiteral.join("\n")})
+
+            //       ${Code_ass.join("\n")}
+            //       ${bodyStmts.join("\n")}
+            //       (br 0)
+            //   ))`,
+            // ];
+
+            return codeGenTempGuard(
+              [
+                `(i32.const ${envLookup(env, "rng" + stmt.id)})`,
+                ...iter,
+                `(i32.store)`,
+                ...Code_iass,
+                ...Code_cur_iniass,
+                `(block`,
+                `  (loop`,
+                ...Code_step,
+                ...Code_idstep,
+                ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ")"],
+                ...Code_ass,
+                ...bodyStmts,
+                `(br 0)`,
+                `))`,
+              ],
+              FENCE_TEMPS
+            );
+          }
+          // iterable should be a Range object
+          // test
+          // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
+          // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
+          // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
+          // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
+          return codeGenTempGuard(
+            [
+              `(i32.const ${envLookup(env, "rng" + stmt.id)})`,
+              ...iter,
+              `(i32.store)`,
+              ...Code_cur_iniass,
+              `(block`,
+              `  (loop`,
+              ...Code_step,
+              ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ")"],
+              ...Code_ass,
+              ...bodyStmts,
+              `(br 0)`,
+              `))`,
+            ],
+            FENCE_TEMPS
+          );
+        default:
+          throw new BaseException.InternalException("wrong tag for iterable");
       }
-      // iterable should be a Range object
-      // test
-      // ${Code_cond.join("\n")}(call $print_bool)(local.set $$last)
-      // ${Code_cur.join("\n")}(call $print_num)(local.set $$last)
-      // ${Code_stop.join("\n")}(call $print_num)(local.set $$last)
-      // ${Code_step_expr.join("\n")}(call $print_num)(local.set $$last)
-      return codeGenTempGuard(
-        [
-          `(i32.const ${envLookup(env, "rg")})`,
-          ...iter,
-          `(i32.store)`,
-          `(block`,
-          `  (loop`,
-          ...Code_step,
-          ...[`(br_if 1 `, ...Code_cond, ...decodeLiteral, ")"],
-          ...Code_ass,
-          ...bodyStmts,
-          `(br 0)`,
-          `))`,
-        ],
-        FENCE_TEMPS
-      );
     case "pass":
       return [];
     case "break":
       // break to depth
       return [`(br ${stmt.depth})`];
     case "continue":
-      console.log(stmt);
       return [`(br ${stmt.depth})`];
     default:
       unhandledTag(stmt);
@@ -1217,8 +1423,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
             valStmts.push(`(call $${expr.name})`);
             return valStmts;
           case 2:
-            var valStmts = [`(i32.const 1)`];
-            valStmts = valStmts.concat(expr.arguments.map((arg) => codeGenExpr(arg, env)).flat());
+            var valStmts = expr.arguments.map((arg) => codeGenExpr(arg, env)).flat();
+            valStmts.push(`(i32.const 3)`);
             valStmts.push(`(call $${expr.name})`);
             return valStmts;
           case 3:
