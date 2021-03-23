@@ -1445,6 +1445,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           stmts.push(...[...codeGenExpr(lexpr, env)]);
         });
 
+
       // NOTE(alex:mm) $$allocPointer clobbered by recurse codegen
       //   Should be fine in this context
       stmts.push(
@@ -1471,6 +1472,7 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         stmts.push(
           ...[
             `(local.set $$list_temp)`,
+
             `(local.get $$allocPointer)`,
             `(i32.add (i32.const ${listindex * 4}))`,
             `(local.get $$list_temp)`,
@@ -1480,9 +1482,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
         listindex += 1;
       });
       //Move heap head to the end of the list and return list address
+
       return stmts.concat([`(local.get $$allocPointer)`]);
     case "tuple-expr":
       return codeGenTupleAlloc(expr, env);
+
     case "bracket-lookup":
       switch (expr.obj.a[0].tag) {
         case "dict":
