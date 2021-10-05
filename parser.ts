@@ -1,5 +1,5 @@
 import { parser } from "lezer-python";
-import { TreeCursor } from "lezer-tree";
+import { TreeCursor } from "lezer";
 import {
   Program,
   Expr,
@@ -23,7 +23,6 @@ import { NUM, BOOL, NONE, CLASS, isTagged, STRING, LIST, TUPLE } from "./utils";
 
 import * as BaseException from "./error";
 import { Config } from "./runner";
-import { get } from "http";
 
 var id: number;
 

@@ -1461,7 +1461,6 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           stmts.push(...[...codeGenExpr(lexpr, env)]);
         });
 
-
       // NOTE(alex:mm) $$allocPointer clobbered by recurse codegen
       //   Should be fine in this context
       stmts.push(

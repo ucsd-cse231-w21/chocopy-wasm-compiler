@@ -19,9 +19,6 @@
     "fuzz": "env TS_NODE_COMPILER_OPTIONS='{\"module\": \"commonjs\" }' node --experimental-wasm-bigint node_modules/mocha/bin/mocha -r ts-node/register --reporter mochawesome 'fuzzer/continuous_fuzz.ts'",
     "webhook-server": "node webhook-server.js"
   },
-  "engines": {
-    "npm": "^6.0.0"
-  },
   "author": "",
   "license": "ISC",
   "dependencies": {
