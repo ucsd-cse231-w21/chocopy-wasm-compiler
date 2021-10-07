@@ -81,12 +81,11 @@ export function encodeValue(
   }
 }
 
-export function PyValue(typ: Type, result: number, mem: any): Value {
+export function PyValue(typ: Type, result: number, view: any): Value {
   switch (typ.tag) {
     case "string":
       if (result == -1) throw new BaseException.InternalException("String index out of bounds");
       if (result == -2) throw new BaseException.InternalException("Slice step cannot be zero");
-      const view = new Int32Array(mem);
       let string_length = view[result / 4] + 1;
       let data = result + 4;
       var i = 0;
@@ -105,12 +104,12 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
         return PyInt(result >> nTagBits);
       } else {
         var idx: number = Number(result) / 4;
-        var sign = mem[idx];
-        var size = mem[idx + 1];
+        var sign = view[idx];
+        var size = view[idx + 1];
         var i = 1;
         var num = 0n;
         while (i <= size) {
-          var dig = mem[idx + 1 + i];
+          var dig = view[idx + 1 + i];
           num += BigInt(dig >>> nTagBits) << BigInt((i - 1) * (32 - nTagBits));
           i += 1;
         }
@@ -127,13 +126,13 @@ export function PyValue(typ: Type, result: number, mem: any): Value {
     case "list":
       return PyList(typ.tag, result, typ.content_type);
     case "dict":
-      return PyDict(typ.key, typ.value, result, mem);
+      return PyDict(typ.key, typ.value, result, view);
     default:
       unhandledTag(typ);
   }
 }
 
-export function PyDict(key_type: Type, value_type: Type, address: number, mem: any): Value {
+export function PyDict(key_type: Type, value_type: Type, address: number, view: any): Value {
   if (address === 0) return PyNone();
   return { tag: "dict", key_type, value_type, address };
 }

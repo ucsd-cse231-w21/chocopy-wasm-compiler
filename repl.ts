@@ -39,7 +39,7 @@ export class BasicREPL {
     this.importObject = importObject;
     this.errorManager = new ErrorManager();
     if (!importObject.js) {
-      const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+      const memory = new WebAssembly.Memory({ initial: 20000, maximum: 20000 });
       const view = new Int32Array(memory.buffer);
       view[0] = 4;
       this.importObject.js = { memory: memory };
@@ -49,7 +49,7 @@ export class BasicREPL {
       const memory = this.importObject.js.memory;
       const memoryManager = new MemoryManager(new Uint8Array(memory.buffer), {
         staticStorage: 512n,
-        total: 2000n,
+        total: 20000n,
       });
       this.memoryManager = memoryManager;
       importMemoryManager(this.importObject, memoryManager);
@@ -88,54 +88,56 @@ export class BasicREPL {
     };
     this.importObject.imports.__internal_print_list = (arg: number, typ: ListContentTag) => {
       console.log("Logging from WASM: ", arg);
-      let mem = new Uint32Array(this.importObject.js.memory.buffer);
-      const view = new Int32Array(mem);
-      let list_length = view[arg / 4 + 1];
+      console.log("Before memview: ", window.performance.now());
+      const mem = new Int32Array(this.importObject.js.memory.buffer);
+      console.log("After memview: ", window.performance.now());
+      let list_length = mem[arg / 4 + 1];
       //let list_bound = view[arg / 4 + 2];
       var base_str = "";
       var index = 0;
       let p_list = [];
 
       while (index < list_length) {
+        console.log("Pretty printing a list: ", index, arg);
         switch (typ) {
           case ListContentTag.Num:
             base_str = stringify(PyValue(LIST(NUM), arg, mem));
-            p_list.push(stringify(PyValue(NUM, view[arg / 4 + 3 + index], mem)));
+            p_list.push(stringify(PyValue(NUM, mem[arg / 4 + 3 + index], mem)));
             break;
           case ListContentTag.Bool:
             base_str = stringify(PyValue(LIST(BOOL), arg, mem));
-            p_list.push(stringify(PyValue(BOOL, view[arg / 4 + 3 + index], mem)));
+            p_list.push(stringify(PyValue(BOOL, mem[arg / 4 + 3 + index], mem)));
             break;
           //Realistically can never happen
           case ListContentTag.None:
             base_str = stringify(PyValue(LIST(NONE), arg, mem));
-            p_list.push(stringify(PyValue(NONE, view[arg / 4 + 3 + index], mem)));
+            p_list.push(stringify(PyValue(NONE, mem[arg / 4 + 3 + index], mem)));
             break;
           //We didn't actually store the name of the class anywhere
           //This will display as "<list<class> object at N>"
           case ListContentTag.Str:
             base_str = stringify(PyValue(LIST(STRING), arg, mem));
-            p_list.push(stringify(PyValue(STRING, view[arg / 4 + 3 + index], mem)));
+            p_list.push(stringify(PyValue(STRING, mem[arg / 4 + 3 + index], mem)));
             break;
           case ListContentTag.Class:
             base_str = stringify(PyValue(LIST(CLASS("class")), arg, mem));
-            p_list.push(stringify(PyValue(CLASS("CLASS"), view[arg / 4 + 3 + index], mem)));
+            p_list.push(stringify(PyValue(CLASS("CLASS"), mem[arg / 4 + 3 + index], mem)));
             break;
           //Doesn't display type of inner list
           //This will display as "<list<list> object at N>"
           case ListContentTag.List:
             base_str = stringify(PyValue(LIST(LIST(null)), arg, mem));
-            p_list.push(stringify(PyValue(LIST(LIST(null)), view[arg / 4 + 3 + index], mem)));
+            p_list.push(stringify(PyValue(LIST(LIST(null)), mem[arg / 4 + 3 + index], mem)));
             break;
           //TODO: Placeholder for Dict
           case ListContentTag.Dict:
             base_str = stringify(PyValue(LIST(LIST(null)), arg, mem));
-            p_list.push(stringify(PyValue(CLASS("Dict"), view[arg / 4 + 3 + index], mem)));
+            p_list.push(stringify(PyValue(CLASS("Dict"), mem[arg / 4 + 3 + index], mem)));
             break;
           //TODO: Placeholder for Callable
           case ListContentTag.Callable:
             base_str = stringify(PyValue(LIST(NUM), arg, mem));
-            p_list.push(stringify(PyValue(CLASS("Callable"), view[arg / 4 + 3 + index], mem)));
+            p_list.push(stringify(PyValue(CLASS("Callable"), mem[arg / 4 + 3 + index], mem)));
             break;
         }
         index += 1;

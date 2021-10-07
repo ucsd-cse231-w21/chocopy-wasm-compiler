@@ -77,7 +77,7 @@ export async function run(
 
   const importObject = config.importObject;
   if (!importObject.js) {
-    const memory = new WebAssembly.Memory({ initial: 2000, maximum: 2000 });
+    const memory = new WebAssembly.Memory({ initial: 20000, maximum: 20000 });
     importObject.js = { memory: memory };
   }
   if (!importObject.memoryManager) {

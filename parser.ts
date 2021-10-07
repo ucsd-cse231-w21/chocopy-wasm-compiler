@@ -877,6 +877,7 @@ export function traverseType(c: TreeCursor, s: string): Type {
     case "MemberExpression":
       return traverseCallable(c, s);
     default:
+      console.log("Should be MemberExpression: ", c, s);
       throw new BaseException.InternalException("Unable to parse type");
   }
 }
