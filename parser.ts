@@ -14,6 +14,7 @@ import {
   Literal,
   Scope,
   AssignTarget,
+  Assignable,
   Destructure,
   ASSIGNABLE_TAGS,
   Location,
@@ -25,6 +26,9 @@ import * as BaseException from "./error";
 import { Config } from "./runner";
 
 var id: number;
+
+export var forCount = 0;
+export var lastCount = 0;
 
 export function getSourcePos(c: TreeCursor, s: string): Location {
   const substring = s.substring(0, c.node.from);
@@ -775,17 +779,19 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       return { tag: "break", a: location };
     case "ForStatement":
       c.firstChild(); // Focus on for
+      var targets: AssignTarget<Location>[] = [];
       c.nextSibling(); // Focus on variable name
-      let name = s.substring(c.from, c.to);
-      c.nextSibling(); // Focus on in / ','
-      var index = null;
-      if (s.substring(c.from, c.to) == ",") {
-        index = name;
-        c.nextSibling(); // Focus on var name
-        name = s.substring(c.from, c.to);
-        c.nextSibling(); // Focus on in
+      while (c.type.name == "VariableName") {
+        let name = s.substring(c.from, c.to);
+        let ass: Assignable<Location> = { tag: "id", name: name };
+        targets.push({
+          target: ass,
+          starred: false,
+          ignore: false,
+        });
+        c.nextSibling(); // Focus on ,/in
+        c.nextSibling(); // Focus on next expression
       }
-      c.nextSibling(); // Focus on iterable expression
       var iter = traverseExpr(c, s);
       c.nextSibling(); // Focus on body
       var body = [];
@@ -795,10 +801,68 @@ export function traverseStmt(c: TreeCursor, s: string): Stmt<Location> {
       }
       c.parent();
       c.parent();
-      if (index != null) {
-        return { tag: "for", name: name, index: index, iterable: iter, body: body, a: location };
+      forCount += 1;
+      var isDes = false;
+      if (targets.length == 2) {
+        if (iter.tag == "call" && iter.name == "enumerate") {
+          var dest: Destructure<Location> = {
+            // Info about the value that is being destructured
+            isDestructured: false,
+            targets: [targets[1]],
+          };
+          var index: Destructure<Location> = {
+            // Info about the value that is being destructured
+            isDestructured: false,
+            targets: [targets[0]],
+          };
+          return {
+            tag: "for",
+            id: forCount,
+            index: index,
+            name: dest,
+            iterable: iter,
+            body: body,
+            a: location,
+          };
+        } else {
+          throw new BaseException.CompileError(
+            location,
+            "Could not parse stmt at " +
+              c.node.from +
+              " " +
+              c.node.to +
+              ": " +
+              s.substring(c.from, c.to),
+            "Expected 1 assignable for range, got" + targets.length
+          );
+        }
+      } else {
+        if (iter.tag == "call" && iter.name == "enumerate") {
+          throw new BaseException.CompileError(
+            location,
+            "Could not parse stmt at " +
+              c.node.from +
+              " " +
+              c.node.to +
+              ": " +
+              s.substring(c.from, c.to),
+            "Expected 2 assignables for enumerate, got" + targets.length
+          );
+        }
       }
-      return { tag: "for", name: name, iterable: iter, body: body, a: location };
+      var dest: Destructure<Location> = {
+        // Info about the value that is being destructured
+        isDestructured: isDes,
+        targets: targets,
+      };
+      return {
+        tag: "for",
+        id: forCount,
+        name: dest,
+        iterable: iter,
+        body: body,
+        a: location,
+      };
     default:
       throw new BaseException.CompileError(
         [location],
@@ -1253,6 +1317,7 @@ export function traverse(c: TreeCursor, s: string): Program<Location> {
   }
 }
 export function parse(source: string, config?: Config): Program<Location> {
+  lastCount = forCount;
   const t = parser.parse(source);
   id = config == undefined ? 1 : config.errorManager.sources.length;
   return traverse(t.cursor(), source);

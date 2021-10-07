@@ -200,3 +200,43 @@ parameter to determine which block to break through. Therefore, we have to add a
 the current depth and give the value to all break statements.
 
 Another challenge is incorporating the for loop into class methods. Since we are implementing the range() function as an object, we need to handle the class variables, and the heap index correctly
+
+## Final Submission
+
+There are three example programs or scenarios that would require extensions to our design that we can imagine making, but didn't have the time for. 
+
+#### Program1
+
+``` python
+i:int = 1
+j:int = 2
+list : [int] = None
+list = [5,8,10]
+for i in list:
+  print(i)
+```
+
+We didn't handle the case where iterable is an id variable, and actually it needs more information than a range object or list-expr, because we may need to find some metadata such as length of a list. Which might need us to check it using wasm rather than typescript. This may consume a lot more time. so we haven't realized this feature yet. 
+
+#### Program2
+
+``` python
+i : str = ""
+for i in "Compiler":
+  print(i)
+```
+String are actually structured very similar to lists. They are lists of chars. Since our program supports
+iterating through lists. So, iterating through a string should be easily achievable.
+#### Program 3
+
+``` python
+a:int = 0
+b:int = 0
+c:int = 0
+for a, b, c in [[1,2,3], [4,5,6]]:
+  print(a)
+  print(b)
+  print(c)
+```
+Currently the `Destructure` requires value to be type `class` if we have multiple `target`. 
+For this class, it must have as many member variables as the number of target in the destruvture. To assign destructure we have to create some specific classes for different numbers of target, we may not have enought time to do this feature.
