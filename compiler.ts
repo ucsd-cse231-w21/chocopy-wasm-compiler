@@ -1512,28 +1512,8 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           return [...brObjStmts, ...brKeyStmts, ...decodeLiteral, `(call $str$index)`];
         case "list":
           var objStmts = codeGenExpr(expr.obj, env);
-          //This should eval to a number
-          //Multiply it by 4 to use as offset in memory
           var keyStmts = codeGenExpr(expr.key, env);
-          //Add 3 to keyStmts to jump over type + size + bound
-          //Add that to objStmts base address
-          //Load from there
           return objStmts.concat(
-            //TODO check for IndexOutOfBounds
-            //Coordinate with error group
-            /*
-            [
-              `(i32.add (i32.4)) ;; retrieve list size`,
-              `(i32.load)`,
-            // size > index
-            ],
-              keyStmts,
-            [
-              `(i32.gt_s) ;; compare list size > index`
-              `(if (then (call $error)) (else (nop))) ;; call IndexOutOfBounds`
-            ],
-              objStmts, //reload list base addr & key stmts?
-            */
             codeGenRuntimeCheck(expr.a[1], objStmts, RunTime.CHECK_NONE_LOOKUP),
             codeGenRuntimeCheck(
               expr.a[1],
@@ -1551,16 +1531,11 @@ function codeGenExpr(expr: Expr<[Type, Location]>, env: GlobalEnv): Array<string
           );
         case "tuple": {
           return [
-            // Get tuple address
             ...codeGenExpr(expr.obj, env),
-            // Get word offset from tuple address
             ...codeGenExpr(expr.key, env),
             ...decodeLiteral,
-            // Get byte offset
             "(i32.mul (i32.const 4))",
-            // Calculate target address
             "(i32.add)",
-            // Load target value
             "(i32.load)",
           ];
         }
