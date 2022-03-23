@@ -9,16 +9,18 @@ export type VarInit<A> = { a?: A, name: string, type: Type, value: Value<A> }
 export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
 
 export type Stmt<A> =
-  | {  a?: A, tag: "label", name: string }
-  | {  a?: A, tag: "ifjmp", cond: Expr<A>, thn: string, els: string }
-  | {  a?: A, tag: "jmp", lbl: string }
   | {  a?: A, tag: "assign", name: string, value: Expr<A> }
   | {  a?: A, tag: "return", value: Value<A> }
-  | {  a?: A, tag: "field-assign", obj: Value<A>, field: string, value: Value<A> }
-  | {  a?: A, tag: "pass" }
   | {  a?: A, tag: "expr", expr: Expr<A> }
+  | {  a?: A, tag: "pass" }
+  | {  a?: A, tag: "field-assign", obj: Value<A>, field: string, value: Value<A> }
+  // these are the main differences from the ast stmt
+  | {  a?: A, tag: "ifjmp", cond: Expr<A>, thn: string, els: string }
+  | {  a?: A, tag: "label", name: string }
+  | {  a?: A, tag: "jmp", lbl: string }
 
 export type Expr<A> =
+  | {  a?: A, tag: "value", value: Value<A> }
   | {  a?: A, tag: "binop", op: BinOp, left: Value<A>, right: Value<A>}
   | {  a?: A, tag: "uniop", op: UniOp, expr: Value<A> }
   | {  a?: A, tag: "builtin1", name: string, arg: Value<A> }
@@ -27,7 +29,6 @@ export type Expr<A> =
   | {  a?: A, tag: "lookup", obj: Value<A>, field: string }
   | {  a?: A, tag: "method-call", obj: Value<A>, method: string, arguments: Array<Value<A>> }
   | {  a?: A, tag: "construct", name: string }
-  | {  a?: A, tag: "value", value: Value<A> }
 
 export type Value<A> = 
     { a?: A, tag: "num", value: bigint }
