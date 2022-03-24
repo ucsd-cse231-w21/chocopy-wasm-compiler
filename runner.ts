@@ -7,14 +7,17 @@ import { checkServerIdentity } from 'tls';
 import wabt from 'wabt';
 import { wasm } from 'webpack';
 import * as compiler from './compiler';
+import * as ircompiler from './ir-compiler';
 import {parse} from './parser';
 import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
 import { Type, Value } from './ast';
 import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
+import { lowerProgram } from './lower';
 
 export type Config = {
   importObject: any;
-  env: compiler.GlobalEnv,
+  // env: compiler.GlobalEnv,
+  env: ircompiler.GlobalEnv,
   typeEnv: GlobalTypeEnv,
   functions: string        // prelude functions
 }
@@ -42,9 +45,11 @@ export async function runWat(source : string, importObject : any) : Promise<any>
   return result;
 }
 
-export async function run(source : string, config: Config) : Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
+// export async function run(source : string, config: Config) : Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
+export async function run(source : string, config: Config) : Promise<[Value, ircompiler.GlobalEnv, GlobalTypeEnv, string]> {
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
+  const irprogram = lowerProgram(tprogram);
   const progTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";
@@ -56,7 +61,8 @@ export async function run(source : string, config: Config) : Promise<[Value, com
     returnExpr = "(local.get $$last)"
   } 
   let globalsBefore = (config.env.globals as Map<string, number>).size;
-  const compiled = compiler.compile(tprogram, config.env);
+  // const compiled = compiler.compile(tprogram, config.env);
+  const compiled = ircompiler.compile(irprogram, config.env);
   let globalsAfter = compiled.newEnv.globals.size;
 
   const importObject = config.importObject;

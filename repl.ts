@@ -1,5 +1,6 @@
 import { run, Config } from "./runner";
-import { GlobalEnv } from "./compiler";
+// import { GlobalEnv } from "./compiler";
+import { GlobalEnv } from "./ir-compiler";
 import { tc, defaultTypeEnv, GlobalTypeEnv } from "./type-check";
 import { Value, Type } from "./ast";
 import { parse } from "./parser";
