@@ -1,5 +1,5 @@
 import { Program, Stmt, Expr, Value, Class, VarInit, FunDef } from "./ir"
-import { Type } from "./ast"
+import { BinOp, Type } from "./ast"
 
 export type GlobalEnv = {
   globals: Map<string, number>;
@@ -79,10 +79,18 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
 function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
   switch (stmt.tag) {
     case "assign":
-      return []
+      var valStmts = codeGenExpr(stmt.value, env);
+      if (env.locals.has(stmt.name)) {
+        return valStmts.concat([`(local.set $${stmt.name})`]); 
+      } else {
+        const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
+        return locationToStore.concat(valStmts).concat([`(i32.store)`]);
+      }
 
     case "return":
-      return []
+      var valStmts = codeGenValue(stmt.value, env);
+      valStmts.push("return");
+      return valStmts;
 
     case "expr":
       var exprStmts = codeGenExpr(stmt.expr, env);
@@ -92,7 +100,20 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       return []
 
     case "field-assign":
-      return []
+      var objStmts = codeGenValue(stmt.obj, env);
+      var objTyp = stmt.obj.a;
+      if(objTyp.tag !== "class") { // I don't think this error can happen
+        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
+      }
+      var className = objTyp.name;
+      var [offset, _] = env.classes.get(className).get(stmt.field);
+      var valStmts = codeGenValue(stmt.value, env);
+      return [
+        ...objStmts,
+        `(i32.add (i32.const ${offset * 4}))`,
+        ...valStmts,
+        `(i32.store)`
+      ];
 
     case "ifjmp":
       return []
@@ -112,7 +133,9 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return codeGenValue(expr.value, env)
 
     case "binop":
-      return []
+      const lhsStmts = codeGenValue(expr.left, env);
+      const rhsStmts = codeGenValue(expr.right, env);
+      return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
 
     case "uniop":
       return []
@@ -151,6 +174,39 @@ function codeGenValue(val: Value<Type>, env: GlobalEnv): Array<string> {
       } else {
         return [`(i32.const ${envLookup(env, val.name)})`, `(i32.load)`]
       }
+  }
+}
+
+function codeGenBinOp(op : BinOp) : string {
+  switch(op) {
+    case BinOp.Plus:
+      return "(i32.add)"
+    case BinOp.Minus:
+      return "(i32.sub)"
+    case BinOp.Mul:
+      return "(i32.mul)"
+    case BinOp.IDiv:
+      return "(i32.div_s)"
+    case BinOp.Mod:
+      return "(i32.rem_s)"
+    case BinOp.Eq:
+      return "(i32.eq)"
+    case BinOp.Neq:
+      return "(i32.ne)"
+    case BinOp.Lte:
+      return "(i32.le_s)"
+    case BinOp.Gte:
+      return "(i32.ge_s)"
+    case BinOp.Lt:
+      return "(i32.lt_s)"
+    case BinOp.Gt:
+      return "(i32.gt_s)"
+    case BinOp.Is:
+      return "(i32.eq)";
+    case BinOp.And:
+      return "(i32.and)"
+    case BinOp.Or:
+      return "(i32.or)"
   }
 }
 

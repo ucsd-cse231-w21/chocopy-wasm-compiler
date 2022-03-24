@@ -13,6 +13,7 @@ import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
 import { Type, Value } from './ast';
 import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
 import { lowerProgram } from './lower';
+import { printProgram } from './printer';
 
 export type Config = {
   importObject: any;
@@ -50,6 +51,7 @@ export async function run(source : string, config: Config) : Promise<[Value, irc
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const irprogram = lowerProgram(tprogram);
+  printProgram(irprogram);
   const progTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";
