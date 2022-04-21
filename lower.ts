@@ -7,7 +7,7 @@ function generateName(base : string) : string {
   if(nameCounters.has(base)) {
     var cur = nameCounters.get(base);
     nameCounters.set(base, cur + 1);
-    return base + cur;
+    return base + (cur + 1);
   }
   else {
     nameCounters.set(base, 1);
@@ -75,8 +75,9 @@ function literalToVal(lit: AST.Literal) : IR.Value<Type> {
 }
 
 function flattenStmts(s : Array<AST.Stmt<Type>>) : [Array<IR.VarInit<Type>>, Array<IR.Stmt<Type>>] {
-  var inits = s.map(flattenStmt).map((pair) => pair[0]).flat();
-  var stmts = s.map(flattenStmt).map((pair) => pair[1]).flat();
+  var loweredStmts = s.map(flattenStmt);
+  var inits = loweredStmts.map((pair) => pair[0]).flat();
+  var stmts = loweredStmts.map((pair) => pair[1]).flat();
   return [inits, stmts];
 }
 
@@ -154,6 +155,12 @@ function flattenStmt(s : AST.Stmt<Type>) : [Array<IR.VarInit<Type>>, Array<IR.St
 
 function flattenExprToExpr(e : AST.Expr<Type>) : [Array<IR.VarInit<Type>>, Array<IR.Stmt<Type>>, IR.Expr<Type>] {
   switch(e.tag) {
+    case "uniop":
+      var [inits, stmts, val] = flattenExprToVal(e.expr);
+      return [inits, stmts, {
+        ...e,
+        expr: val
+      }];
     case "binop":
       var [linits, lstmts, lval] = flattenExprToVal(e.left);
       var [rinits, rstmts, rval] = flattenExprToVal(e.right);
@@ -204,6 +211,7 @@ function flattenExprToExpr(e : AST.Expr<Type>) : [Array<IR.VarInit<Type>>, Array
 }
 
 function flattenExprToVal(e : AST.Expr<Type>) : [Array<IR.VarInit<Type>>, Array<IR.Stmt<Type>>, IR.Value<Type>] {
+  console.log(e);
   var [binits, bstmts, bexpr] = flattenExprToExpr(e);
   if(bexpr.tag === "value") {
     return [binits, bstmts, bexpr.value];
@@ -221,7 +229,7 @@ function flattenExprToVal(e : AST.Expr<Type>) : [Array<IR.VarInit<Type>>, Array<
     return [
       [...binits, { a: e.a, name: newName, type: e.a, value: { tag: "none" } }],
       [...bstmts, setNewName],  
-      {tag: "id", name: newName}
+      {tag: "id", name: newName, a: e.a}
     ];
   }
 }

@@ -1,11 +1,11 @@
-import { PyInt, PyBool, PyNone, NUM, CLASS } from "../utils";
-import { assert, asserts, assertPrint, assertTCFail, assertTC, assertFail } from "./utils.test";
+import { NUM, CLASS, NONE } from "../utils";
+import { assertPrint, assertFail, assertTCFail, assertTC } from "./asserts.test";
 
 describe("PA3 visible tests", () => {
   // 1
-  assert("literal-int-ops", `100 + 20 + 3`, PyInt(123));
+  assertPrint("literal-int-ops", `print(100 + 20 + 3)`, [`123`]);
   // 2
-  assert("literal-bool", `True`, PyBool(true));
+  assertPrint("literal-bool", `print(True)`, [`True`]);
   // 3
   assertPrint(
     "print-int-print-bool",
@@ -15,27 +15,20 @@ describe("PA3 visible tests", () => {
     ["0", "False"]
   );
   // 4
-  asserts("basic-global-repl", [
-    [`x : int = 0`, PyNone()],
-    [`x`, PyInt(0)],
-    [`x = -1 * -1`, PyNone()],
-    [`x`, PyInt(1)],
-  ]);
+  assertPrint("basic-global", 
+    `x : int = 0
+     x = -1 * -1
+     print(x)`, [`1`]);
   // 5
-  asserts("basic-if", [
-    [`x : int = 0`, PyNone()],
-    [
-      `
+  assertPrint("basic-if", `
+x : int = 0
 if True:
   x = 5
 else:
-  x = 3`,
-      PyNone(),
-    ],
-    [`x`, PyInt(5)],
-  ]);
+  x = 3
+print(x)` , [`5`]);
   // 6
-  assert(
+  assertPrint(
     "basic-class-lookup",
     `
   class C(object):
@@ -43,11 +36,11 @@ else:
   
   c : C = None
   c = C()
-  c.x `,
-    PyInt(123)
+  print(c.x) `,
+    [`123`]
   );
   // 7
-  assert(
+  assertPrint(
     "basic-class-field-assign",
     `
   class C(object):
@@ -56,65 +49,54 @@ else:
   c : C = None
   c = C()
   c.x = 42
-  c.x`,
-    PyInt(42)
+  print(c.x)`,
+    [`42`]
   );
   // 8
-  asserts("basic-class-method", [
-    [
-      `
+  assertPrint("basic-class-method",
+`
   class C(object):
     x : int = 123
     def getX(self: C) -> int:
       return self.x
     def setX(self: C, x: int):
-      self.x = x`,
-      PyNone(),
-    ],
-    [`c : C = None`, PyNone()],
-    [`c = C()`, PyNone()],
-    [`c.getX()`, PyInt(123)],
-    [`c.setX(42)`, PyNone()],
-    [`c.getX()`, PyInt(42)],
-  ]);
+      self.x = x
+      
+c : C = None
+c = C()
+print(c.getX())
+c.setX(42)
+print(c.getX())`, [`123`, `42`]);
   // 9
-  asserts("new-class-repl", [
-    [
-      `
-    class C(object):
-      x : int = 1
-      y : int = 2`,
-      PyNone(),
-    ],
-    [
-      `
-    class D(object):
-      y : int = 3
-      x : int = 4`,
-      PyNone(),
-    ],
-    [`c : C = None`, PyNone()],
-    [`c = C()`, PyNone()],
-    [`d : D = None`, PyNone()],
-    [`d = D()`, PyNone()],
-    [`c.x`, PyInt(1)],
-    [`d.x`, PyInt(4)],
-  ]);
+  assertPrint("multi-class", 
+`
+class C(object):
+  x : int = 1
+  y : int = 2
+
+class D(object):
+  y : int = 3
+  x : int = 4
+c : C = None
+d : D = None
+c = C()
+d = D()
+print(c.x)
+print(d.x)`, [`1`, `4`]);
   // 10
-  asserts("alias-obj", [
-    [`
-    class C(object):
-      x : int = 1`, PyNone()],
-    [`
-    c1 : C = None
-    c2 : C = None`, PyNone()],
-    [`
-    c1 = C()
-    c2 = c1`, PyNone()],
-    [`
-    c1.x = 123
-    c2.x`, PyInt(123)],
-  ])
+  assertPrint("alias-obj",
+`
+class C(object):
+  x : int = 1
+
+c1 : C = None
+c2 : C = None
+
+c1 = C()
+c2 = c1
+c1.x = 123
+print(c2.x)
+`, [`123`]),
   // 11
   assertPrint("chained-method-calls", `
   class C(object):
@@ -136,10 +118,10 @@ else:
   c : C = None
   c.x`);
   // 13
-  assert("constructor-non-none", `
+  assertPrint("constructor-non-none", `
   class C(object):
     x : int = 0
-  not (C() is None)`, PyBool(true));
+  print(not (C() is None))`, [`True`]);
   // 14
   assertTC("non-literal-condition", `
   x : int = 1
@@ -201,6 +183,5 @@ else:
   class C(object):
     x : int = 0
   c : C = None
-  c = None`, PyNone());
-
+  c = None`, NONE);
 });

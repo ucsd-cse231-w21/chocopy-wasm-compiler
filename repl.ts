@@ -40,10 +40,10 @@ export class BasicREPL {
     this.functions += newFunctions;
     return result;
   }
-  async tc(source: string): Promise<Type> {
+  tc(source: string): Type {
     const config: Config = { importObject: this.importObject, env: this.currentEnv, typeEnv: this.currentTypeEnv, functions: this.functions };
     const parsed = parse(source);
-    const [result, _] = await tc(this.currentTypeEnv, parsed);
+    const [result, _] = tc(this.currentTypeEnv, parsed);
     return result.a;
   }
 }

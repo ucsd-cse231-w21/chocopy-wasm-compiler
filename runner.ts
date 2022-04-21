@@ -51,7 +51,6 @@ export async function run(source : string, config: Config) : Promise<[Value, irc
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const irprogram = lowerProgram(tprogram);
-  printProgram(irprogram);
   const progTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";

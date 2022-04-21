@@ -1,5 +1,6 @@
 import { Program, Stmt, Expr, Value, Class, VarInit, FunDef } from "./ir"
-import { BinOp, Type } from "./ast"
+import { BinOp, Type, UniOp } from "./ast"
+import { BOOL, NONE, NUM } from "./utils";
 
 export type GlobalEnv = {
   globals: Map<string, number>;
@@ -138,25 +139,84 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return [...lhsStmts, ...rhsStmts, codeGenBinOp(expr.op)]
 
     case "uniop":
-      return []
+      const exprStmts = codeGenValue(expr.expr, env);
+      switch(expr.op){
+        case UniOp.Neg:
+          return [`(i32.const 0)`, ...exprStmts, `(i32.sub)`];
+        case UniOp.Not:
+          return [`(i32.const 0)`, ...exprStmts, `(i32.eq)`];
+      }
 
     case "builtin1":
-      return []
+      const argTyp = expr.a;
+      const argStmts = codeGenValue(expr.arg, env);
+      var callName = expr.name;
+      if (expr.name === "print" && argTyp === NUM) {
+        callName = "print_num";
+      } else if (expr.name === "print" && argTyp === BOOL) {
+        callName = "print_bool";
+      } else if (expr.name === "print" && argTyp === NONE) {
+        callName = "print_none";
+      }
+      return argStmts.concat([`(call $${callName})`]);
 
     case "builtin2":
-      return []
+      const leftStmts = codeGenValue(expr.left, env);
+      const rightStmts = codeGenValue(expr.right, env);
+      return [...leftStmts, ...rightStmts, `(call $${expr.name})`]
 
     case "call":
-      return []
+      var valStmts = expr.arguments.map((arg) => codeGenValue(arg, env)).flat();
+      valStmts.push(`(call $${expr.name})`);
+      return valStmts;
 
     case "lookup":
-      return []
+      var objStmts = codeGenValue(expr.obj, env);
+      var objTyp = expr.obj.a;
+      if(objTyp.tag !== "class") { // I don't think this error can happen
+        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
+      }
+      var className = objTyp.name;
+      var [offset, _] = env.classes.get(className).get(expr.field);
+      return [
+        ...objStmts,
+        `(i32.add (i32.const ${offset * 4}))`,
+        `(i32.load)`
+      ];
 
     case "method-call":
-      return []
+      var objStmts = codeGenValue(expr.obj, env);
+      var objTyp = expr.obj.a;
+      if(objTyp.tag !== "class") { // I don't think this error can happen
+        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
+      }
+      var className = objTyp.name;
+      var argsStmts = expr.arguments.map((arg) => codeGenValue(arg, env)).flat();
+      return [
+        ...objStmts,
+        ...argsStmts,
+        `(call $${className}$${expr.method})`
+      ];
 
     case "construct":
-      return []
+      var stmts : Array<string> = [];
+      env.classes.get(expr.name).forEach(([offset, initVal], field) => 
+        stmts.push(...[
+          `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
+          `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
+          ...codeGenValue(initVal, env),              // Initialize field
+          "(i32.store)"                            // Put the default field value on the heap
+        ]));
+      return stmts.concat([
+        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
+        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
+        "(i32.const 0)",                                                  // Address for our upcoming store instruction
+        "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
+        `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`,   // Move heap head beyond the two words we just created for fields
+        "(i32.store)",                                                    // Save the new heap offset
+        `(call $${expr.name}$__init__)`,                                  // call __init__
+        "(drop)"
+      ]);
   }
 }
 

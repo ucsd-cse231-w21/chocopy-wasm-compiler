@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { BasicREPL } from "../repl";
 import { Value } from "../ast";
 import { importObject } from "./import-object.test";
-import { fail } from "assert";
+import {run, typeCheck} from "./helpers.test";
 
 
 
@@ -37,49 +37,33 @@ export function asserts(name: string, pairs: Array<[string, Value]>) {
 }
 
 export function assertFail(name: string, source: string) {
-  it(name, async () => {
-    try {
-      const repl = new BasicREPL(importObject);
-      const result = await repl.run(source);
-      fail("Expected an exception, got a type " + JSON.stringify(result));
-    } catch (err) {
-      expect(err).to.be.an("Error");
-    }
+  it(name, async() => {
+    expect(function() {
+      run(source);
+    }).to.throw('RUNTIME ERROR:');
   });
 }
 
 export function assertPrint(name: string, source: string, expected: Array<string>) {
   it(name, async () => {
-    const repl = new BasicREPL(importObject);
-    const result = await repl.run(source);
+    await run(source);
+    const output = importObject.output;
     expect(importObject.output.trim().split("\n")).to.deep.eq(expected);
   });
 }
 
-// export function runWasm(name: string, source: string, expected: any) {
-//   it(name, async () => {
-//     const result = await runWat(source, {});
-//     expect(result).to.equal(expected);
-//   });
-// }
-
 export function assertTC(name: string, source: string, result: any) {
   it(name, async () => {
-      const repl = new BasicREPL(importObject);
-      const typ = await repl.tc(source);
+      const typ = typeCheck(source);
       expect(typ).to.deep.eq(result);
   });
 }
 
 export function assertTCFail(name: string, source: string) {
   it(name, async () => {
-      const repl = new BasicREPL(importObject);
-      try {
-      const typ = await repl.tc(source);
-      fail("Expected an exception, got a type " + typ);
-      } catch (e) {
-      expect(e).to.instanceof(Error);
-      }
+    expect(function(){
+      typeCheck(source);
+  }).to.throw('TYPE ERROR:');
   });
 }
 

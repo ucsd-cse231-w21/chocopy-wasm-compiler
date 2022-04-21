@@ -1,16 +1,14 @@
-import { Type } from "../ast";
-import { NUM, BOOL, NONE } from "../utils";
+
+enum Type { Num, Bool, None }
 
 function stringify(typ: Type, arg: any): string {
-  switch (typ.tag) {
-    case "number":
+  switch (typ) {
+    case Type.Num:
       return (arg as number).toString();
-    case "bool":
+    case Type.Bool:
       return (arg as boolean) ? "True" : "False";
-    case "none":
+    case Type.Bool:
       return "None";
-    case "class":
-      return typ.name;
   }
 }
 
@@ -26,10 +24,10 @@ export const importObject = {
     // the compiler easier, we define print so it logs to a string object.
     //  We can then examine output to see what would have been printed in the
     //  console.
-    print: (arg: any) => print(NUM, arg),
-    print_num: (arg: number) => print(NUM, arg),
-    print_bool: (arg: number) => print(BOOL, arg),
-    print_none: (arg: number) => print(NONE, arg),
+    print: (arg: any) => print(Type.Num, arg),
+    print_num: (arg: number) => print(Type.Num, arg),
+    print_bool: (arg: number) => print(Type.Bool, arg),
+    print_none: (arg: number) => print(Type.None, arg),
     abs: Math.abs,
     min: Math.min,
     max: Math.max,

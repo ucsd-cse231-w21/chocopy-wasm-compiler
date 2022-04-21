@@ -1,5 +1,5 @@
-import { PyInt, PyBool, PyNone, NUM, BOOL, CLASS, NONE } from "../utils";
-import { assert, asserts, assertPrint, assertTCFail, assertTC, assertFail } from "./utils.test";
+import { assertPrint, assertTCFail, assertTC, assertFail } from "./utils.test";
+import { NUM, BOOL, NONE, CLASS } from "./helpers.test"
 
 describe("PA3 hidden tests", () => {
 
@@ -32,7 +32,7 @@ else:
     def f(self: C) -> int:
       return 0
   c : C = None
-  c = None`, PyNone());
+  c = None`, NONE);
 
   assertTC("none-return", `
   class C(object):
@@ -47,7 +47,7 @@ else:
     
   c : C = None
   c = C()
-  c.box = None`, PyNone());
+  c.box = None`, NONE);
 
   // Type-checking block of method (keep checking after return?)
   assertTCFail("return-after-return", `
@@ -71,11 +71,11 @@ else:
   // What's the type of a block? (function without return should err)
   assertTC("top-level-type-none", `
   x : int = 0
-  x = 5 + 5`, PyNone());
+  x = 5 + 5`, NONE);
 
   assertTC("top-level-class", `
   class C(object):
-    x : int = 0`, PyNone());
+    x : int = 0`, NONE);
   
   assertTCFail("return-id", `
   class C(object):
@@ -94,7 +94,7 @@ else:
 
   assertTCFail("return-none-in-branch", `
   class C(object):
-    def f() -> int:
+    def f(self: C) -> int:
       if True:
         return 0
       else:
@@ -102,28 +102,11 @@ else:
     );
 
   // Check none is none
-  assert("none-is-none", `
-  None is None`, PyBool(true));
+  assertPrint("none-is-none", `
+  print(None is None)`, [`True`]);
 
-  /*assertTC("void-is-none-tc", `    
-  class C(object):
-    def new(self: C, other: C) -> C:
-      return other
-    def f(self: C):
-      return
 
-  C().new(None).f()`, NONE);
-
-  assert("void-is-none", `    
-  class C(object):
-    def new(self: C) -> C:
-      return self
-    def f(self: C):
-      return 
-
-  C().new().f() is None`, PyBool(true)); */
-
-  assert("alias-is-same", `
+  assertPrint("alias-is-same", `
   class C(object):
     x : int = 0
     
@@ -131,7 +114,7 @@ else:
   c2 : C = None
   c1 = C()
   c2 = c1
-  c1 is c2`, PyBool(true));
+  print(c1 is c2)`, ['True']);
 
 
   // NullPointerException (access fields/methods of None dynamically when it's a class)
@@ -225,15 +208,15 @@ else:
   class C(object):
     n : int = 0
     def __init__(self: C):
-      self.n = 1`, PyNone());
+      self.n = 1`, NONE);
 
-  assert("init-gets-called", `
+  assertPrint("init-gets-called", `
   class C(object):
     n : int = 0
     def __init__(self: C):
       self.n = 1
       
-  C().n`, PyInt(1));
+  print(C().n)`, [`1`]);
 
 
   // Recursive method calls
@@ -257,20 +240,19 @@ else:
   
   C().fib(5)`);
 
-  asserts("recursive-call", [
-    [`
-  class C(object):
-    def fib(self: C, n: int) -> int:
-      if n <= 0:
-        return 1
-      else:
-        return n * self.fib(n-1)`, PyNone()],
-    [`C().fib(5)`, PyInt(120)]
-  ])
+  assertPrint("recursive-call", 
+`
+class C(object):
+  def fib(self: C, n: int) -> int:
+    if n <= 0:
+      return 1
+    else:
+      return n * self.fib(n-1)
+print(C().fib(5))`, [`120`])
 
   // Linked list with sum method with None as empty – realistic example
-  asserts("linked-list", [
-    [`
+  assertPrint("linked-list", 
+`
 class LinkedList(object):
   value : int = 0
   next: LinkedList = None
@@ -283,12 +265,11 @@ class LinkedList(object):
     if self.next is None:
       return self.value
     else:
-      return self.value + self.next.sum()`, PyNone()],
-    [`l: LinkedList = None`, PyNone()],
-    [`l = LinkedList().new(1, LinkedList().new(2, LinkedList().new(3, None)))`, PyNone()],
-    [`l.sum()`, PyInt(6)],
-    [`l.next.sum()`, PyInt(5)]
-  ]);
+      return self.value + self.next.sum()
+l: LinkedList = None
+l = LinkedList().new(1, LinkedList().new(2, LinkedList().new(3, None)))
+print(l.sum())
+print(l.next.sum())`, ['6', '5']);
 
   assertTC(
     "linked-list-tc",
@@ -312,11 +293,11 @@ l = LinkedList().new(1, LinkedList().new(2, LinkedList().new(3, None)))
 l.next.sum()`, NUM);
 
   // correct number of things on the stack
-  assert("many-literals", `
-  1
-  2
-  3
-  4`, PyInt(4));
+  assertPrint("many-literals", `
+print(1)
+2
+print(3)
+4`, ['1', '3']);
 
   assertTCFail("expr-not-ret-type", `
   class C(object):
@@ -326,7 +307,7 @@ l.next.sum()`, NUM);
       else:
         1`);
   
-  assert("many-ifs", `
+  assertPrint("many-ifs", `
   class C(object):
     def f(self: C):
       if True:
@@ -339,6 +320,6 @@ l.next.sum()`, NUM);
         1
   c : C = None
   c = C()
-  c.f()`, PyNone());
+  print(c.f())`, ['None']);
 
 });

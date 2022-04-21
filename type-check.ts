@@ -9,7 +9,7 @@ export class TypeCheckError extends Error {
    __proto__: Error
    constructor(message?: string) {
     const trueProto = new.target.prototype;
-    super(message);
+    super("TYPE ERROR: " + message);
 
     // Alternatively use Object.setPrototypeOf if you have an ES6 environment.
     this.__proto__ = trueProto;
