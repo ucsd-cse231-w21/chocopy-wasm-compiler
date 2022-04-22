@@ -25,7 +25,17 @@ function print(typ: Type, arg : number) : any {
 }
 
 function webStart() {
-  document.addEventListener("DOMContentLoaded", function() {
+  document.addEventListener("DOMContentLoaded", async function() {
+
+    // https://github.com/mdn/webassembly-examples/issues/5
+
+    const memory = new WebAssembly.Memory({initial:10, maximum:100});
+    const memoryModule = await fetch('memory.wasm').then(response => 
+      response.arrayBuffer()
+    ).then(bytes => 
+      WebAssembly.instantiate(bytes, { js: { mem: memory } })
+    );
+
     var importObject = {
       imports: {
         print_num: (arg: number) => print(NUM, arg),
@@ -36,8 +46,9 @@ function webStart() {
         max: Math.max,
         pow: Math.pow
       },
+      libmemory: memoryModule.instance.exports,
+      memory_values: memory
     };
-
     var repl = new BasicREPL(importObject);
 
     function renderResult(result : Value) : void {
