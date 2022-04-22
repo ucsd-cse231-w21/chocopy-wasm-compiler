@@ -1,5 +1,8 @@
 node_modules
 build
+dist
+debugger
 cli
 *.sw*
 mochawesome-report
+*lock*

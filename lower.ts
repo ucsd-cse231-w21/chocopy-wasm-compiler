@@ -15,19 +15,22 @@ function generateName(base : string) : string {
   }
 }
 
-function lbl(a: Type, base: string) : [string, IR.Stmt<Type>] {
-  const name = generateName(base);
-  return [name, {tag: "label", a: a, name: name}];
-}
+// function lbl(a: Type, base: string) : [string, IR.Stmt<Type>] {
+//   const name = generateName(base);
+//   return [name, {tag: "label", a: a, name: name}];
+// }
 
 export function lowerProgram(p : AST.Program<Type>) : IR.Program<Type> {
-    var [stmtsinits, stmts] = flattenStmts(p.stmts);
+    var blocks : Array<IR.BasicBlock<Type>> = [];
+    var firstBlock : IR.BasicBlock<Type> = {  a: p.a, label: generateName("$startProg"), stmts: [] }
+    blocks.push(firstBlock);
+    var inits = flattenStmts(p.stmts, blocks);
     return {
         a: p.a,
         funs: lowerFunDefs(p.funs),
-        inits: [...stmtsinits, ...lowerVarInits(p.inits)],
+        inits: [...inits, ...lowerVarInits(p.inits)],
         classes: lowerClasses(p.classes),
-        stmts: stmts
+        body: blocks
     }
 }
 
@@ -36,8 +39,11 @@ function lowerFunDefs(fs : Array<AST.FunDef<Type>>) : Array<IR.FunDef<Type>> {
 }
 
 function lowerFunDef(f : AST.FunDef<Type>) : IR.FunDef<Type> {
-    var [bodyinits, bodystmts] = flattenStmts(f.body);
-    return {...f, inits: [...bodyinits, ...lowerVarInits(f.inits)], body: bodystmts}
+  var blocks : Array<IR.BasicBlock<Type>> = [];
+  var firstBlock : IR.BasicBlock<Type> = {  a: f.a, label: generateName("$startFun"), stmts: [] }
+  blocks.push(firstBlock);
+  var bodyinits = flattenStmts(f.body, blocks);
+    return {...f, inits: [...bodyinits, ...lowerVarInits(f.inits)], body: blocks}
 }
 
 function lowerVarInits(inits: Array<AST.VarInit<Type>>) : Array<IR.VarInit<Type>> {
@@ -74,82 +80,115 @@ function literalToVal(lit: AST.Literal) : IR.Value<Type> {
     }
 }
 
-function flattenStmts(s : Array<AST.Stmt<Type>>) : [Array<IR.VarInit<Type>>, Array<IR.Stmt<Type>>] {
-  var loweredStmts = s.map(flattenStmt);
-  var inits = loweredStmts.map((pair) => pair[0]).flat();
-  var stmts = loweredStmts.map((pair) => pair[1]).flat();
-  return [inits, stmts];
+function flattenStmts(s : Array<AST.Stmt<Type>>, blocks: Array<IR.BasicBlock<Type>>) : Array<IR.VarInit<Type>> {
+  var inits: Array<IR.VarInit<Type>> = [];
+  s.forEach(stmt => {
+    inits.push(...flattenStmt(stmt, blocks));
+  });
+  return inits;
 }
 
-function flattenStmt(s : AST.Stmt<Type>) : [Array<IR.VarInit<Type>>, Array<IR.Stmt<Type>>] {
+function flattenStmt(s : AST.Stmt<Type>, blocks: Array<IR.BasicBlock<Type>>) : Array<IR.VarInit<Type>> {
   switch(s.tag) {
     case "assign":
       var [valinits, valstmts, vale] = flattenExprToExpr(s.value);
-      return [valinits, [
-        ...valstmts,
-        { a: s.a, tag: "assign", name: s.name, value: vale}
-      ]];
+      blocks[blocks.length - 1].stmts.push(...valstmts, { a: s.a, tag: "assign", name: s.name, value: vale});
+      return valinits
+      // return [valinits, [
+      //   ...valstmts,
+      //   { a: s.a, tag: "assign", name: s.name, value: vale}
+      // ]];
 
     case "return":
     var [valinits, valstmts, val] = flattenExprToVal(s.value);
-    return [valinits, [
-        ...valstmts,
-        {tag: "return", a: s.a, value: val}
-    ]];
+    blocks[blocks.length - 1].stmts.push(
+         ...valstmts,
+         {tag: "return", a: s.a, value: val}
+    );
+    return valinits;
+    // return [valinits, [
+    //     ...valstmts,
+    //     {tag: "return", a: s.a, value: val}
+    // ]];
   
     case "expr":
       var [inits, stmts, e] = flattenExprToExpr(s.expr);
-      return [inits, [ ...stmts, {tag: "expr", a: s.a, expr: e } ]];
+      blocks[blocks.length - 1].stmts.push(
+        ...stmts, {tag: "expr", a: s.a, expr: e }
+      );
+      return inits;
+    //  return [inits, [ ...stmts, {tag: "expr", a: s.a, expr: e } ]];
 
     case "pass":
-      return [[],[]];
+      return [];
 
     case "field-assign":
       var [oinits, ostmts, oval] = flattenExprToVal(s.obj);
       var [ninits, nstmts, nval] = flattenExprToVal(s.value);
-      return [[...oinits, ...ninits], [...ostmts, ...nstmts, {
-        tag: "field-assign",
-        a: s.a,
-        obj: oval,
-        field: s.field,
-        value: nval
-      }]];
+      
+      pushStmtsToLastBlock(blocks,
+        ...ostmts, ...nstmts, {
+          tag: "field-assign",
+          a: s.a,
+          obj: oval,
+          field: s.field,
+          value: nval
+        });
+      return [...oinits, ...ninits];
+      // return [[...oinits, ...ninits], [...ostmts, ...nstmts, {
+      //   tag: "field-assign",
+      //   a: s.a,
+      //   obj: oval,
+      //   field: s.field,
+      //   value: nval
+      // }]];
 
     case "if":
+      var thenLbl = generateName("$then")
+      var elseLbl = generateName("$else")
+      var endLbl = generateName("$end")
+      var endjmp : IR.Stmt<Type> = { tag: "jmp", lbl: endLbl };
       var [cinits, cstmts, cexpr] = flattenExprToExpr(s.cond);
-      var [theninits, thenstmts] = flattenStmts(s.thn);
-      var [elseinits, elsestmts] = flattenStmts(s.els);
-      var [start, startlbl] = lbl(s.a, "start");
-      var [end, endlbl] = lbl(s.a, "ifend");
-      var [els, elslbl] = lbl(s.a, "elif");
-      var condjmp : IR.Stmt<Type> = { tag: "ifjmp", cond: cexpr, thn: start, els: els };
-      var endjmp : IR.Stmt<Type> = { tag: "jmp", lbl: end };
-      return [[...cinits, ...theninits, ...elseinits], [
-        ...cstmts, 
-        condjmp,
-        startlbl,
-        ...thenstmts,
-        endjmp,
-        elslbl,
-        ...elsestmts,
-        endjmp,
-        endlbl,
-      ]];
+      var condjmp : IR.Stmt<Type> = { tag: "ifjmp", cond: cexpr, thn: thenLbl, els: elseLbl };
+      pushStmtsToLastBlock(blocks, ...cstmts, condjmp);
+      blocks.push({  a: s.a, label: thenLbl, stmts: [] })
+      var theninits = flattenStmts(s.thn, blocks);
+      pushStmtsToLastBlock(blocks, endjmp);
+      blocks.push({  a: s.a, label: elseLbl, stmts: [] })
+      var elseinits = flattenStmts(s.els, blocks);
+      pushStmtsToLastBlock(blocks, endjmp);
+      blocks.push({  a: s.a, label: endLbl, stmts: [] })
+      return [...cinits, ...theninits, ...elseinits]
+
+      // return [[...cinits, ...theninits, ...elseinits], [
+      //   ...cstmts, 
+      //   condjmp,
+      //   startlbl,
+      //   ...thenstmts,
+      //   endjmp,
+      //   elslbl,
+      //   ...elsestmts,
+      //   endjmp,
+      //   endlbl,
+      // ]];
     
     case "while":
+      var whileStartLbl = generateName("$whilestart");
+      var whilebodyLbl = generateName("$whilebody");
+      var whileEndLbl = generateName("$whileend");
+
+      pushStmtsToLastBlock(blocks, { tag: "jmp", lbl: whileStartLbl })
+      blocks.push({  a: s.a, label: whileStartLbl, stmts: [] })
       var [cinits, cstmts, cexpr] = flattenExprToExpr(s.cond);
-      var [bodyinits, bodystmts] = flattenStmts(s.body);
-      var [start, startlbl] = lbl(s.a, "whilestart");
-      var [end, endlbl] = lbl(s.a, "whileend");
-      var condjmp : IR.Stmt<Type> = { tag: "ifjmp", cond: cexpr, thn: start, els: end };
-      var startjmp : IR.Stmt<Type> = { tag: "jmp", lbl: start };
-      return [[...cinits, ...bodyinits], [
-        startlbl,
-        ...cstmts,
-        condjmp,
-        ...bodystmts,
-        endlbl
-      ]]
+      pushStmtsToLastBlock(blocks, ...cstmts, { tag: "ifjmp", cond: cexpr, thn: whilebodyLbl, els: whileEndLbl });
+
+      blocks.push({  a: s.a, label: whilebodyLbl, stmts: [] })
+      var bodyinits = flattenStmts(s.body, blocks);
+      pushStmtsToLastBlock(blocks, { tag: "jmp", lbl: whileStartLbl });
+
+      blocks.push({  a: s.a, label: whileEndLbl, stmts: [] })
+
+      return [...cinits, ...bodyinits]
   }
 }
 
@@ -232,4 +271,8 @@ function flattenExprToVal(e : AST.Expr<Type>) : [Array<IR.VarInit<Type>>, Array<
       {tag: "id", name: newName, a: e.a}
     ];
   }
+}
+
+function pushStmtsToLastBlock(blocks: Array<IR.BasicBlock<Type>>, ...stmts: Array<IR.Stmt<Type>>) {
+  blocks[blocks.length - 1].stmts.push(...stmts);
 }

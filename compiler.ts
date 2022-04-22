@@ -1,5 +1,6 @@
 import { Stmt, Expr, UniOp, BinOp, Type, Program, Literal, FunDef, VarInit, Class } from "./ast";
 import { NUM, BOOL, NONE } from "./utils";
+import { assert } from "chai";
 
 // https://learnxinyminutes.com/docs/wasm/
 
@@ -11,6 +12,7 @@ export type GlobalEnv = {
   offset: number;
 }
 
+assert(true);
 export const emptyEnv : GlobalEnv = { 
   globals: new Map(), 
   classes: new Map(),

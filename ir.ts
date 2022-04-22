@@ -1,12 +1,20 @@
 import {Type, BinOp, UniOp, Parameter} from './ast';
 
-export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, stmts: Array<Stmt<A>> }
+export type Program<A> = { a?: A, funs: Array<FunDef<A>>, inits: Array<VarInit<A>>, classes: Array<Class<A>>, body: Array<BasicBlock<A>> }
 
 export type Class<A> = { a?: A, name: string, fields: Array<VarInit<A>>, methods: Array<FunDef<A>>}
 
 export type VarInit<A> = { a?: A, name: string, type: Type, value: Value<A> }
 
-export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<Stmt<A>> }
+export type FunDef<A> = { a?: A, name: string, parameters: Array<Parameter<A>>, ret: Type, inits: Array<VarInit<A>>, body: Array<BasicBlock<A>> }
+
+export type BasicBlock<A> = 
+| {  a?: A, label: string, stmts: Array<Stmt<A>> }
+
+// export type Jmp<A> = 
+// | {  a?: A, tag: "jmp", lbl: string }
+// | {  a?: A, tag: "ifjmp", cond: Expr<A>, thn: string, els: string }
+
 
 export type Stmt<A> =
   | {  a?: A, tag: "assign", name: string, value: Expr<A> }
@@ -16,8 +24,8 @@ export type Stmt<A> =
   | {  a?: A, tag: "field-assign", obj: Value<A>, field: string, value: Value<A> }
   // these are the main differences from the ast stmt
   | {  a?: A, tag: "ifjmp", cond: Expr<A>, thn: string, els: string }
-  | {  a?: A, tag: "label", name: string }
   | {  a?: A, tag: "jmp", lbl: string }
+  // | {  a?: A, tag: "label", name: string }
 
 export type Expr<A> =
   | {  a?: A, tag: "value", value: Value<A> }

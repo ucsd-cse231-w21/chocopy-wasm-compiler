@@ -6,6 +6,7 @@ export type GlobalEnv = {
   globals: Map<string, number>;
   classes: Map<string, Map<string, [number, Value<Type>]>>;  
   locals: Set<string>;
+  labels: Array<string>;
   offset: number;
 }
 
@@ -13,6 +14,7 @@ export const emptyEnv : GlobalEnv = {
   globals: new Map(), 
   classes: new Map(),
   locals: new Set(),
+  labels: [],
   offset: 0 
 };
 
@@ -40,6 +42,7 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
     globals: newGlobals,
     classes: newClasses,
     locals: env.locals,
+    labels: prog.body.map(block => block.label),
     offset: newOffset
   }
 }
@@ -57,6 +60,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
 
   const definedVars : Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
+  definedVars.add("$selector");
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
   const funs : Array<string> = [];
@@ -67,12 +71,27 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   const inits = ast.inits.map(init => codeGenInit(init, withDefines)).flat();
-  const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const commands = localDefines.concat(inits.concat([].concat.apply([], commandGroups)));
+  var commands = "(local.set $$selector (i32.const 0))\n"
+  commands += "(loop $loop\n"
+
+  var code = "(local.get $$selector)\n"
+  code += `(br_table ${ast.body.map(block => block.label).join(" ")})`;
+  ast.body.forEach(block => {
+    code = `(block ${block.label}
+              ${code}    
+            ) ;; end ${block.label}
+            ${block.stmts.map(stmt => codeGenStmt(stmt, withDefines).join('\n')).join('\n')}
+            `
+  })
+  commands += code;
+  commands += ") ;; end $loop"
+
+  // const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
+  const cmds = [...localDefines, ...inits, commands];
   withDefines.locals.clear();
   return {
     functions: allFuns,
-    mainSource: commands.join("\n"),
+    mainSource: cmds.join("\n"),
     newEnv: withDefines
   };
 }
@@ -117,13 +136,24 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       ];
 
     case "ifjmp":
-      return []
+      const thnIdx = env.labels.findIndex(e => e === stmt.thn);
+      const elsIdx = env.labels.findIndex(e => e === stmt.els);
 
-    case "label":
-      return []
+      return [...codeGenExpr(stmt.cond, env), 
+        `(if 
+          (then
+            (local.set $$selector (i32.const ${thnIdx}))
+            (br $loop)
+          ) 
+          (else 
+            (local.set $$selector (i32.const ${elsIdx}))
+            (br $loop)
+          )
+         )`]
 
     case "jmp":
-      return []
+      const lblIdx = env.labels.findIndex(e => e === stmt.lbl);
+      return [`(local.set $$selector (i32.const ${lblIdx}))`, `(br $loop)`]
 
   }
 }
@@ -292,7 +322,7 @@ function codeGenDef(def : FunDef<Type>, env : GlobalEnv) : Array<string> {
   const locals = localDefines.join("\n");
   const inits = def.inits.map(init => codeGenInit(init, env)).flat().join("\n");
   var params = def.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-  var stmts = def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
+  var stmts : Array<string> = [] // def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
   var stmtsBody = stmts.join("\n");
   env.locals.clear();
   return [`(func $${def.name} ${params} (result i32)

@@ -4,6 +4,7 @@ import { BasicREPL } from "../repl";
 import { Value } from "../ast";
 import { importObject } from "./import-object.test";
 import {run, typeCheck} from "./helpers.test";
+import { fail } from 'assert'
 
 
 
@@ -36,13 +37,18 @@ export function asserts(name: string, pairs: Array<[string, Value]>) {
   });
 }
 
+// Assert an error gets thrown at runtime
 export function assertFail(name: string, source: string) {
-  it(name, async() => {
-    expect(function() {
-      run(source);
-    }).to.throw('RUNTIME ERROR:');
+  it(name, async () => {
+    try {
+      await run(source);
+      fail("Expected an exception");
+    } catch (err) {
+      expect(err.message).to.contain("RUNTIME ERROR:");
+    }
   });
 }
+
 
 export function assertPrint(name: string, source: string, expected: Array<string>) {
   it(name, async () => {

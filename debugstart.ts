@@ -4,17 +4,13 @@ import { importObject } from "./tests/import-object.test";
 
 // entry point for debugging
 var source = `
-class C(object):
-  x : int = 123
-  def new(self: C, x: int) -> C:
-    print(self.x)
-    self.x = x
-    print(self.x)
-    return self
-  def clear(self: C) -> C:
-    return self.new(123)
+x : int = 5
+sum : int = 0
+while x != 0:
+  sum = sum + x
+  x = x - 1
+print(sum)
 
-C().new(42).clear()
 `
 const repl = new BasicREPL(importObject);
 const result = repl.run(source).then(result => {

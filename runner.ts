@@ -13,7 +13,6 @@ import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
 import { Type, Value } from './ast';
 import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
 import { lowerProgram } from './lower';
-import { printProgram } from './printer';
 
 export type Config = {
   importObject: any;

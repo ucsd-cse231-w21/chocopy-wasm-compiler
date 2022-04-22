@@ -27,6 +27,7 @@ export class BasicREPL {
       globals: new Map(),
       classes: new Map(),
       locals: new Set(),
+      labels: [],
       offset: 1
     };
     this.currentTypeEnv = defaultTypeEnv;

@@ -10,11 +10,11 @@
     "build": "tsc debuggerstart.ts  --downlevelIteration --esModuleInterop --moduleResolution node --outDir debugger/",
     "start": "node debugger/debuggerstart.js",
     "prestart": "npm run build"
-
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chai-as-promised": "^7.1.1",
     "lezer-python": "^0.13.1",
     "lezer-tree": "^0.13.0",
     "mochawesome": "^7.1.2",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@types/chai": "^4.2.14",
+    "@types/chai-as-promised": "^7.1.5",
     "@types/mocha": "^8.2.0",
     "@types/node": "^17.0.23",
     "chai": "^4.2.0",
