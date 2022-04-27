@@ -1,19 +1,26 @@
+import { parse } from "./parser";
 import { BasicREPL } from "./repl";
-import { importObject } from "./tests/import-object.test";
+import { importObject, addLibs  } from "./tests/import-object.test";
 
 
 // entry point for debugging
-var source = `
-x : int = 5
-sum : int = 0
-while x != 0:
-  sum = sum + x
-  x = x - 1
-print(sum)
-
+async function debug() {
+  var source = `
+class C(object):
+def fib(self: C, n: int) -> int:
+  if n <= 0:
+    return 1
+  else:
+    return n * self.fib(n-1)
+print(C().fib(5))
 `
-const repl = new BasicREPL(importObject);
-const result = repl.run(source).then(result => {
-  console.log(result);    
-})
+  const ast = parse(source);
+  
+  const repl = new BasicREPL(await addLibs());
+  const result = repl.run(source).then(result => {
+    console.log(result);    
+  })  
+}
+
+debug();
 

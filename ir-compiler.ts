@@ -42,7 +42,7 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
     globals: newGlobals,
     classes: newClasses,
     locals: env.locals,
-    labels: prog.body.map(block => block.label),
+    labels: env.labels,
     offset: newOffset
   }
 }
@@ -73,28 +73,29 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   const allFuns = funs.concat(classes).join("\n\n");
   // const stmts = ast.filter((stmt) => stmt.tag !== "fun");
   const inits = ast.inits.map(init => codeGenInit(init, withDefines)).flat();
-  var commands = "(local.set $$selector (i32.const 0))\n"
-  commands += "(loop $loop\n"
+  withDefines.labels = ast.body.map(block => block.label);
+  var bodyCommands = "(local.set $$selector (i32.const 0))\n"
+  bodyCommands += "(loop $loop\n"
 
-  var code = "(local.get $$selector)\n"
-  code += `(br_table ${ast.body.map(block => block.label).join(" ")})`;
+  var blockCommands = "(local.get $$selector)\n"
+  blockCommands += `(br_table ${ast.body.map(block => block.label).join(" ")})`;
   ast.body.forEach(block => {
-    code = `(block ${block.label}
-              ${code}    
+    blockCommands = `(block ${block.label}
+              ${blockCommands}    
             ) ;; end ${block.label}
             ${block.stmts.map(stmt => codeGenStmt(stmt, withDefines).join('\n')).join('\n')}
             `
   })
-  commands += code;
-  commands += ") ;; end $loop"
+  bodyCommands += blockCommands;
+  bodyCommands += ") ;; end $loop"
 
   // const commandGroups = ast.stmts.map((stmt) => codeGenStmt(stmt, withDefines));
-  const cmds = [...localDefines, ...inits, commands];
+  const allCommands = [...localDefines, ...inits, bodyCommands];
   withDefines.locals.clear();
   return {
     globals: globalNames,
     functions: allFuns,
-    mainSource: cmds.join("\n"),
+    mainSource: allCommands.join("\n"),
     newEnv: withDefines
   };
 }
@@ -315,21 +316,34 @@ function codeGenDef(def : FunDef<Type>, env : GlobalEnv) : Array<string> {
   var definedVars : Set<string> = new Set();
   def.inits.forEach(v => definedVars.add(v.name));
   definedVars.add("$last");
+  definedVars.add("$selector");
   // def.parameters.forEach(p => definedVars.delete(p.name));
   definedVars.forEach(env.locals.add, env.locals);
   def.parameters.forEach(p => env.locals.add(p.name));
-
+  env.labels = def.body.map(block => block.label);
   const localDefines = makeLocals(definedVars);
   const locals = localDefines.join("\n");
   const inits = def.inits.map(init => codeGenInit(init, env)).flat().join("\n");
   var params = def.parameters.map(p => `(param $${p.name} i32)`).join(" ");
-  var stmts : Array<string> = [] // def.body.map((innerStmt) => codeGenStmt(innerStmt, env)).flat();
-  var stmtsBody = stmts.join("\n");
+  var bodyCommands = "(local.set $$selector (i32.const 0))\n"
+  bodyCommands += "(loop $loop\n"
+
+  var blockCommands = "(local.get $$selector)\n"
+  blockCommands += `(br_table ${def.body.map(block => block.label).join(" ")})`;
+  def.body.forEach(block => {
+    blockCommands = `(block ${block.label}
+              ${blockCommands}    
+            ) ;; end ${block.label}
+            ${block.stmts.map(stmt => codeGenStmt(stmt, env).join('\n')).join('\n')}
+            `
+  })
+  bodyCommands += blockCommands;
+  bodyCommands += ") ;; end $loop"
   env.locals.clear();
   return [`(func $${def.name} ${params} (result i32)
     ${locals}
     ${inits}
-    ${stmtsBody}
+    ${bodyCommands}
     (i32.const 0)
     (return))`];
 }
