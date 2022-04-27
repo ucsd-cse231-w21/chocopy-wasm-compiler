@@ -3,7 +3,7 @@ import { BinOp, Type, UniOp } from "./ast"
 import { BOOL, NONE, NUM } from "./utils";
 
 export type GlobalEnv = {
-  globals: Map<string, number>;
+  globals: Map<string, boolean>;
   classes: Map<string, Map<string, [number, Value<Type>]>>;  
   locals: Set<string>;
   labels: Array<string>;
@@ -19,6 +19,7 @@ export const emptyEnv : GlobalEnv = {
 };
 
 type CompileResult = {
+  globals: string[],
   functions: string,
   mainSource: string,
   newEnv: GlobalEnv
@@ -30,8 +31,7 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
 
   var newOffset = env.offset;
   prog.inits.forEach((v) => {
-    newGlobals.set(v.name, newOffset);
-    newOffset += 1;
+    newGlobals.set(v.name, true);
   });
   prog.classes.forEach(cls => {
     const classFields = new Map();
@@ -63,6 +63,8 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   definedVars.add("$selector");
   definedVars.forEach(env.locals.add, env.locals);
   const localDefines = makeLocals(definedVars);
+  const globalNames = ast.inits.map(init => init.name);
+  console.log(ast.inits, globalNames);
   const funs : Array<string> = [];
   ast.funs.forEach(f => {
     funs.push(codeGenDef(f, withDefines).join("\n"));
@@ -90,6 +92,7 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
   const cmds = [...localDefines, ...inits, commands];
   withDefines.locals.clear();
   return {
+    globals: globalNames,
     functions: allFuns,
     mainSource: cmds.join("\n"),
     newEnv: withDefines
@@ -103,8 +106,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       if (env.locals.has(stmt.name)) {
         return valStmts.concat([`(local.set $${stmt.name})`]); 
       } else {
-        const locationToStore = [`(i32.const ${envLookup(env, stmt.name)}) ;; ${stmt.name}`];
-        return locationToStore.concat(valStmts).concat([`(i32.store)`]);
+        return valStmts.concat([`(global.set $${stmt.name})`]); 
       }
 
     case "return":
@@ -262,7 +264,7 @@ function codeGenValue(val: Value<Type>, env: GlobalEnv): Array<string> {
       if (env.locals.has(val.name)) {
         return [`(local.get $${val.name})`];
       } else {
-        return [`(i32.const ${envLookup(env, val.name)})`, `(i32.load)`]
+        return [`(global.get $${val.name})`];
       }
   }
 }
@@ -305,8 +307,7 @@ function codeGenInit(init : VarInit<Type>, env : GlobalEnv) : Array<string> {
   if (env.locals.has(init.name)) {
     return [...value, `(local.set $${init.name})`]; 
   } else {
-    const locationToStore = [`(i32.const ${envLookup(env, init.name)}) ;; ${init.name}`];
-    return locationToStore.concat(value).concat([`(i32.store)`]);
+    return [...value, `(global.set $${init.name})`]; 
   }
 }
 
@@ -338,9 +339,4 @@ function codeGenClass(cls : Class<Type>, env : GlobalEnv) : Array<string> {
   methods.forEach(method => method.name = `${cls.name}$${method.name}`);
   const result = methods.map(method => codeGenDef(method, env));
   return result.flat();
-}
-
-function envLookup(env : GlobalEnv, name : string) : number {
-  if(!env.globals.has(name)) { console.log("Could not find " + name + " in ", env); throw new Error("Could not find name " + name); }
-  return (env.globals.get(name) * 4); // 4-byte values
-}
+  }

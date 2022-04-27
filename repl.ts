@@ -35,10 +35,20 @@ export class BasicREPL {
   }
   async run(source : string) : Promise<Value> {
     const config : Config = {importObject: this.importObject, env: this.currentEnv, typeEnv: this.currentTypeEnv, functions: this.functions};
-    const [result, newEnv, newTypeEnv, newFunctions] = await run(source, config);
+    const [result, newEnv, newTypeEnv, newFunctions, instance] = await run(source, config);
     this.currentEnv = newEnv;
     this.currentTypeEnv = newTypeEnv;
     this.functions += newFunctions;
+    const currentGlobals = this.importObject.env || {};
+    console.log(instance);
+    Object.keys(instance.instance.exports).forEach(k => {
+      console.log("Consider key ", k);
+      const maybeGlobal = instance.instance.exports[k];
+      if(maybeGlobal instanceof WebAssembly.Global) {
+        currentGlobals[k] = maybeGlobal;
+      }
+    });
+    this.importObject.env = currentGlobals;
     return result;
   }
   tc(source: string): Type {

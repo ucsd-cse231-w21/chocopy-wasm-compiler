@@ -1,7 +1,7 @@
 import { BasicREPL } from "../repl";
 
 import { Type } from "../ast";
-import { importObject } from "./import-object.test";
+import { importObject, addLibs } from "./import-object.test";
 
 export function typeCheck(source: string) : Type {
   const repl = new BasicREPL(importObject);
@@ -9,7 +9,7 @@ export function typeCheck(source: string) : Type {
 }
 
 export async function run(source: string) {
-  const repl = new BasicREPL(importObject);
+  const repl = new BasicREPL(await addLibs());
   const v = await repl.run(source);
 }
 

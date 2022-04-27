@@ -6,7 +6,6 @@
 import { checkServerIdentity } from 'tls';
 import wabt from 'wabt';
 import { wasm } from 'webpack';
-import * as compiler from './compiler';
 import * as ircompiler from './ir-compiler';
 import {parse} from './parser';
 import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
@@ -42,11 +41,11 @@ export async function runWat(source : string, importObject : any) : Promise<any>
   var asBinary = myModule.toBinary({});
   var wasmModule = await WebAssembly.instantiate(asBinary.buffer, importObject);
   const result = (wasmModule.instance.exports.exported_func as any)();
-  return result;
+  return [result, wasmModule];
 }
 
 // export async function run(source : string, config: Config) : Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
-export async function run(source : string, config: Config) : Promise<[Value, ircompiler.GlobalEnv, GlobalTypeEnv, string]> {
+export async function run(source : string, config: Config) : Promise<[Value, ircompiler.GlobalEnv, GlobalTypeEnv, string, WebAssembly.WebAssemblyInstantiatedSource]> {
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const irprogram = lowerProgram(tprogram);
@@ -60,22 +59,22 @@ export async function run(source : string, config: Config) : Promise<[Value, irc
     returnType = "(result i32)";
     returnExpr = "(local.get $$last)"
   } 
-  let globalsBefore = (config.env.globals as Map<string, number>).size;
+  let globalsBefore = config.env.globals;
   // const compiled = compiler.compile(tprogram, config.env);
   const compiled = ircompiler.compile(irprogram, config.env);
-  let globalsAfter = compiled.newEnv.globals.size;
+
+  const globalImports = [...globalsBefore.keys()].map(name =>
+    `(import "env" "${name}" (global $${name} (mut i32)))`
+  ).join("\n");
+  const globalDecls = compiled.globals.map(name =>
+    `(global $${name} (export "${name}") (mut i32) (i32.const 0))`
+  ).join("\n");
 
   const importObject = config.importObject;
   if(!importObject.js) {
     const memory = new WebAssembly.Memory({initial:2000, maximum:2000});
     importObject.js = { memory: memory };
   }
-
-  const view = new Int32Array(importObject.js.memory.buffer);
-  let offsetBefore = view[0];
-  console.log("before updating: ", offsetBefore);
-  view[0] = offsetBefore + ((globalsAfter - globalsBefore) * 4);
-  console.log("after updating: ", view[0])
 
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
@@ -87,6 +86,8 @@ export async function run(source : string, config: Config) : Promise<[Value, irc
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
     (func $alloc (import "libmemory" "alloc") (param i32) (result i32))
+    ${globalImports}
+    ${globalDecls}
     ${config.functions}
     ${compiled.functions}
     (func (export "exported_func") ${returnType}
@@ -95,7 +96,7 @@ export async function run(source : string, config: Config) : Promise<[Value, irc
     )
   )`;
   console.log(wasmSource);
-  const result = await runWat(wasmSource, importObject);
+  const [result, instance] = await runWat(wasmSource, importObject);
 
-  return [PyValue(progTyp, result), compiled.newEnv, tenv, compiled.functions];
+  return [PyValue(progTyp, result), compiled.newEnv, tenv, compiled.functions, instance];
 }

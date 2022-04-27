@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 
 enum Type { Num, Bool, None }
 
@@ -18,7 +19,16 @@ function print(typ: Type, arg: any): any {
   return arg;
 }
 
-export const importObject = {
+export async function addLibs() {
+  const bytes = readFileSync("build/memory.wasm");
+  const memory = new WebAssembly.Memory({initial:10, maximum:100});
+  const memoryModule = await WebAssembly.instantiate(bytes, { js: { mem: memory } })
+  importObject.libmemory = memoryModule.instance.exports,
+  importObject.memory_values = memory;
+  return importObject;
+}
+
+export const importObject : any = {
   imports: {
     // we typically define print to mean logging to the console. To make testing
     // the compiler easier, we define print so it logs to a string object.
