@@ -133,6 +133,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       var valStmts = codeGenValue(stmt.value, env);
       return [
         ...objStmts,
+        `call $assert_not_none`,        
         `(i32.add (i32.const ${offset * 4}))`,
         ...valStmts,
         `(i32.store)`
@@ -213,6 +214,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var [offset, _] = env.classes.get(className).get(expr.field);
       return [
         ...objStmts,
+        `call $assert_not_none`,
         `(i32.add (i32.const ${offset * 4}))`,
         `(i32.load)`
       ];
@@ -227,6 +229,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       var argsStmts = expr.arguments.map((arg) => codeGenValue(arg, env)).flat();
       return [
         ...objStmts,
+        `call $assert_not_none`,
         ...argsStmts,
         `(call $${className}$${expr.method})`
       ];

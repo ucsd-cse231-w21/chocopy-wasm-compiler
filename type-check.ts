@@ -25,6 +25,7 @@ export type GlobalTypeEnv = {
 export type LocalTypeEnv = {
   vars: Map<string, Type>,
   expectedRet: Type,
+  actualRet: Type,
   topLevel: Boolean
 }
 
@@ -53,6 +54,7 @@ export function emptyLocalTypeEnv() : LocalTypeEnv {
   return {
     vars: new Map(),
     expectedRet: NONE,
+    actualRet: NONE,
     topLevel: true
   };
 }
@@ -143,17 +145,26 @@ export function tcDef(env : GlobalTypeEnv, fun : FunDef<null>) : FunDef<Type> {
   fun.inits.forEach(init => locals.vars.set(init.name, tcInit(env, init).type));
   
   const tBody = tcBlock(env, locals, fun.body);
+  if (!isAssignable(env, locals.actualRet, locals.expectedRet))
+    throw new TypeCheckError(`expected return type of block: ${JSON.stringify(locals.expectedRet)} does not match actual return type: ${JSON.stringify(locals.actualRet)}`)
   return {...fun, a: NONE, body: tBody};
 }
 
 export function tcClass(env: GlobalTypeEnv, cls : Class<null>) : Class<Type> {
   const tFields = cls.fields.map(field => tcInit(env, field));
   const tMethods = cls.methods.map(method => tcDef(env, method));
+  const init = cls.methods.find(method => method.name === "__init__") // we'll always find __init__
+  if (init.parameters.length !== 1 || 
+    init.parameters[0].name !== "self" ||
+    !equalType(init.parameters[0].type, CLASS(cls.name)) ||
+    init.ret !== NONE)
+    throw new TypeCheckError("Cannot override __init__ type signature");
   return {a: NONE, name: cls.name, fields: tFields, methods: tMethods};
 }
 
 export function tcBlock(env : GlobalTypeEnv, locals : LocalTypeEnv, stmts : Array<Stmt<null>>) : Array<Stmt<Type>> {
-  return stmts.map(stmt => tcStmt(env, locals, stmt));
+  var tStmts = stmts.map(stmt => tcStmt(env, locals, stmt));
+  return tStmts;
 }
 
 export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<null>) : Stmt<Type> {
@@ -177,13 +188,14 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
     case "if":
       var tCond = tcExpr(env, locals, stmt.cond);
       const tThn = tcBlock(env, locals, stmt.thn);
-      const thnTyp = tThn[tThn.length - 1].a;
+      const thnTyp = locals.actualRet;
+      locals.actualRet = NONE;
       const tEls = tcBlock(env, locals, stmt.els);
-      const elsTyp = tEls[tEls.length - 1].a;
+      const elsTyp = locals.actualRet;
       if (tCond.a !== BOOL) 
         throw new TypeCheckError("Condition Expression Must be a bool");
-      else if (thnTyp !== elsTyp)
-        throw new TypeCheckError("Types of then and else branches must match");
+      if (thnTyp !== elsTyp)
+        locals.actualRet = { tag: "either", left: thnTyp, right: elsTyp }
       return {a: thnTyp, tag: stmt.tag, cond: tCond, thn: tThn, els: tEls};
     case "return":
       if (locals.topLevel)
@@ -191,6 +203,7 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       const tRet = tcExpr(env, locals, stmt.value);
       if (!isAssignable(env, tRet.a, locals.expectedRet)) 
         throw new TypeCheckError("expected return type `" + (locals.expectedRet as any).tag + "`; got type `" + (tRet.a as any).tag + "`");
+      locals.actualRet = tRet.a;
       return {a: tRet.a, tag: stmt.tag, value:tRet};
     case "while":
       var tCond = tcExpr(env, locals, stmt.cond);
@@ -234,6 +247,7 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
           else { throw new TypeCheckError("Type mismatch for numeric op" + expr.op); }
         case BinOp.Eq:
         case BinOp.Neq:
+          if(tLeft.a.tag === "class" || tRight.a.tag === "class") throw new TypeCheckError("cannot apply operator '==' on class types")
           if(equalType(tLeft.a, tRight.a)) { return {a: BOOL, ...tBin} ; }
           else { throw new TypeCheckError("Type mismatch for op" + expr.op)}
         case BinOp.Lte:

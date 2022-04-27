@@ -78,6 +78,7 @@ export async function run(source : string, config: Config) : Promise<[Value, irc
 
   const wasmSource = `(module
     (import "js" "memory" (memory 1))
+    (func $assert_not_none (import "imports" "assert_not_none") (param i32) (result i32))
     (func $print_num (import "imports" "print_num") (param i32) (result i32))
     (func $print_bool (import "imports" "print_bool") (param i32) (result i32))
     (func $print_none (import "imports" "print_none") (param i32) (result i32))
