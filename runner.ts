@@ -6,7 +6,7 @@
 import { checkServerIdentity } from 'tls';
 import wabt from 'wabt';
 import { wasm } from 'webpack';
-import * as ircompiler from './ir-compiler';
+import { compile, GlobalEnv } from './compiler';
 import {parse} from './parser';
 import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
 import { Type, Value } from './ast';
@@ -16,7 +16,7 @@ import { lowerProgram } from './lower';
 export type Config = {
   importObject: any;
   // env: compiler.GlobalEnv,
-  env: ircompiler.GlobalEnv,
+  env: GlobalEnv,
   typeEnv: GlobalTypeEnv,
   functions: string        // prelude functions
 }
@@ -45,7 +45,7 @@ export async function runWat(source : string, importObject : any) : Promise<any>
 }
 
 // export async function run(source : string, config: Config) : Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
-export async function run(source : string, config: Config) : Promise<[Value, ircompiler.GlobalEnv, GlobalTypeEnv, string, WebAssembly.WebAssemblyInstantiatedSource]> {
+export async function run(source : string, config: Config) : Promise<[Value, GlobalEnv, GlobalTypeEnv, string, WebAssembly.WebAssemblyInstantiatedSource]> {
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
   const irprogram = lowerProgram(tprogram);
@@ -61,7 +61,7 @@ export async function run(source : string, config: Config) : Promise<[Value, irc
   } 
   let globalsBefore = config.env.globals;
   // const compiled = compiler.compile(tprogram, config.env);
-  const compiled = ircompiler.compile(irprogram, config.env);
+  const compiled = compile(irprogram, config.env);
 
   const globalImports = [...globalsBefore.keys()].map(name =>
     `(import "env" "${name}" (global $${name} (mut i32)))`
