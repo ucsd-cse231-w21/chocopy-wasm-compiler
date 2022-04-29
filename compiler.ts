@@ -25,28 +25,6 @@ type CompileResult = {
   newEnv: GlobalEnv
 };
 
-export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
-  const newGlobals = new Map(env.globals);
-  const newClasses = new Map(env.classes);
-
-  var newOffset = env.offset;
-  prog.inits.forEach((v) => {
-    newGlobals.set(v.name, true);
-  });
-  prog.classes.forEach(cls => {
-    const classFields = new Map();
-    cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
-    newClasses.set(cls.name, classFields);
-  });
-  return {
-    globals: newGlobals,
-    classes: newClasses,
-    locals: env.locals,
-    labels: env.labels,
-    offset: newOffset
-  }
-}
-
 export function makeLocals(locals: Set<string>) : Array<string> {
   const localDefines : Array<string> = [];
   locals.forEach(v => {
@@ -56,7 +34,7 @@ export function makeLocals(locals: Set<string>) : Array<string> {
 }
 
 export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
-  const withDefines = augmentEnv(env, ast);
+  const withDefines = env;
 
   const definedVars : Set<string> = new Set(); //getLocals(ast);
   definedVars.add("$last");
@@ -102,6 +80,13 @@ export function compile(ast: Program<Type>, env: GlobalEnv) : CompileResult {
 
 function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
   switch (stmt.tag) {
+    case "store":
+      return [
+        ...codeGenValue(stmt.start, env),
+        ...codeGenValue(stmt.offset, env),
+        ...codeGenValue(stmt.value, env),
+        `call $store`
+      ]
     case "assign":
       var valStmts = codeGenExpr(stmt.value, env);
       if (env.locals.has(stmt.name)) {
@@ -235,30 +220,21 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       ];
 
     case "construct":
-      var stmts : Array<string> = [];
-      env.classes.get(expr.name).forEach(([offset, initVal], field) => 
-        stmts.push(...[
-          `(i32.load (i32.const 0))`,              // Load the dynamic heap head offset
-          `(i32.add (i32.const ${offset * 4}))`,   // Calc field offset from heap offset
-          ...codeGenValue(initVal, env),              // Initialize field
-          "(i32.store)"                            // Put the default field value on the heap
-        ]));
-      return stmts.concat([
-        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
-        "(i32.load (i32.const 0))",                                       // Get address for the object (this is the return value)
-        "(i32.const 0)",                                                  // Address for our upcoming store instruction
-        "(i32.load (i32.const 0))",                                       // Load the dynamic heap head offset
-        `(i32.add (i32.const ${env.classes.get(expr.name).size * 4}))`,   // Move heap head beyond the two words we just created for fields
-        "(i32.store)",                                                    // Save the new heap offset
-        `(call $${expr.name}$__init__)`,                                  // call __init__
-        "(drop)"
-      ]);
+      throw new Error("Shouldn't happen - construct should be lowered away");
+
+    case "alloc":
+      return [
+        ...codeGenValue(expr.amount, env),
+        `call $alloc`
+      ]
   }
 }
 
 function codeGenValue(val: Value<Type>, env: GlobalEnv): Array<string> {
   switch (val.tag) {
     case "num":
+      return ["(i32.const " + val.value + ")"];
+    case "wasmint":
       return ["(i32.const " + val.value + ")"];
     case "bool":
       return [`(i32.const ${Number(val.value)})`];

@@ -3,13 +3,11 @@
 // - https://github.com/AssemblyScript/wabt.js/
 // - https://developer.mozilla.org/en-US/docs/WebAssembly/Using_the_JavaScript_API
 
-import { checkServerIdentity } from 'tls';
 import wabt from 'wabt';
-import { wasm } from 'webpack';
 import { compile, GlobalEnv } from './compiler';
 import {parse} from './parser';
 import {emptyLocalTypeEnv, GlobalTypeEnv, tc, tcStmt} from  './type-check';
-import { Type, Value } from './ast';
+import { Program, Type, Value } from './ast';
 import { PyValue, NONE, BOOL, NUM, CLASS } from "./utils";
 import { lowerProgram } from './lower';
 
@@ -44,11 +42,36 @@ export async function runWat(source : string, importObject : any) : Promise<any>
   return [result, wasmModule];
 }
 
+
+export function augmentEnv(env: GlobalEnv, prog: Program<Type>) : GlobalEnv {
+  const newGlobals = new Map(env.globals);
+  const newClasses = new Map(env.classes);
+
+  var newOffset = env.offset;
+  prog.inits.forEach((v) => {
+    newGlobals.set(v.name, true);
+  });
+  prog.classes.forEach(cls => {
+    const classFields = new Map();
+    cls.fields.forEach((field, i) => classFields.set(field.name, [i, field.value]));
+    newClasses.set(cls.name, classFields);
+  });
+  return {
+    globals: newGlobals,
+    classes: newClasses,
+    locals: env.locals,
+    labels: env.labels,
+    offset: newOffset
+  }
+}
+
+
 // export async function run(source : string, config: Config) : Promise<[Value, compiler.GlobalEnv, GlobalTypeEnv, string]> {
 export async function run(source : string, config: Config) : Promise<[Value, GlobalEnv, GlobalTypeEnv, string, WebAssembly.WebAssemblyInstantiatedSource]> {
   const parsed = parse(source);
   const [tprogram, tenv] = tc(config.typeEnv, parsed);
-  const irprogram = lowerProgram(tprogram);
+  const globalEnv = augmentEnv(config.env, tprogram);
+  const irprogram = lowerProgram(tprogram, globalEnv);
   const progTyp = tprogram.a;
   var returnType = "";
   var returnExpr = "";
@@ -61,7 +84,7 @@ export async function run(source : string, config: Config) : Promise<[Value, Glo
   } 
   let globalsBefore = config.env.globals;
   // const compiled = compiler.compile(tprogram, config.env);
-  const compiled = compile(irprogram, config.env);
+  const compiled = compile(irprogram, globalEnv);
 
   const globalImports = [...globalsBefore.keys()].map(name =>
     `(import "env" "${name}" (global $${name} (mut i32)))`
@@ -87,6 +110,8 @@ export async function run(source : string, config: Config) : Promise<[Value, Glo
     (func $max (import "imports" "max") (param i32) (param i32) (result i32))
     (func $pow (import "imports" "pow") (param i32) (param i32) (result i32))
     (func $alloc (import "libmemory" "alloc") (param i32) (result i32))
+    (func $load (import "libmemory" "load") (param i32) (param i32) (result i32))
+    (func $store (import "libmemory" "store") (param i32) (param i32) (param i32))
     ${globalImports}
     ${globalDecls}
     ${config.functions}

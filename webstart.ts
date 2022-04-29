@@ -54,7 +54,8 @@ function webStart() {
         pow: Math.pow
       },
       libmemory: memoryModule.instance.exports,
-      memory_values: memory
+      memory_values: memory,
+      js: {memory: memory}
     };
     var repl = new BasicREPL(importObject);
 

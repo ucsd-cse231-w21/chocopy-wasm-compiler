@@ -1,6 +1,6 @@
 (module
   (memory (import "js" "mem") 1)
-  (global $heap (mut i32) (i32.const 0))
+  (global $heap (mut i32) (i32.const 4))
 
   ;; Take an amount of blocks (4-byte words) to allocate, return an address
   ;; handle suitable for giving to other access methods

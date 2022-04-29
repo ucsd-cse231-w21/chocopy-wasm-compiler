@@ -31,6 +31,7 @@ export async function addLibs() {
   const memoryModule = await WebAssembly.instantiate(bytes, { js: { mem: memory } })
   importObject.libmemory = memoryModule.instance.exports,
   importObject.memory_values = memory;
+  importObject.js = {memory};
   return importObject;
 }
 
