@@ -107,9 +107,6 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
     case "pass":
       return []
 
-    case "field-assign":
-      throw new Error("Shouldn't happen, field-assign should be removed by lower");
-
     case "ifjmp":
       const thnIdx = env.labels.findIndex(e => e === stmt.thn);
       const elsIdx = env.labels.findIndex(e => e === stmt.els);
@@ -175,9 +172,6 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
 
-    case "lookup":
-      throw new Error("Shouldn't happen, lookup should be removed by lower");
-
     case "method-call":
       var objStmts = codeGenValue(expr.obj, env);
       var objTyp = expr.obj.a;
@@ -192,9 +186,6 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
         ...argsStmts,
         `(call $${className}$${expr.method})`
       ];
-
-    case "construct":
-      throw new Error("Shouldn't happen - construct should be lowered away");
 
     case "alloc":
       return [
