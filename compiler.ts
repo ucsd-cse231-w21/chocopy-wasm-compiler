@@ -108,21 +108,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       return []
 
     case "field-assign":
-      var objStmts = codeGenValue(stmt.obj, env);
-      var objTyp = stmt.obj.a;
-      if(objTyp.tag !== "class") { // I don't think this error can happen
-        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
-      }
-      var className = objTyp.name;
-      var [offset, _] = env.classes.get(className).get(stmt.field);
-      var valStmts = codeGenValue(stmt.value, env);
-      return [
-        ...objStmts,
-        `call $assert_not_none`,        
-        `(i32.add (i32.const ${offset * 4}))`,
-        ...valStmts,
-        `(i32.store)`
-      ];
+      throw new Error("Shouldn't happen, field-assign should be removed by lower");
 
     case "ifjmp":
       const thnIdx = env.labels.findIndex(e => e === stmt.thn);
@@ -190,19 +176,7 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return valStmts;
 
     case "lookup":
-      var objStmts = codeGenValue(expr.obj, env);
-      var objTyp = expr.obj.a;
-      if(objTyp.tag !== "class") { // I don't think this error can happen
-        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
-      }
-      var className = objTyp.name;
-      var [offset, _] = env.classes.get(className).get(expr.field);
-      return [
-        ...objStmts,
-        `call $assert_not_none`,
-        `(i32.add (i32.const ${offset * 4}))`,
-        `(i32.load)`
-      ];
+      throw new Error("Shouldn't happen, lookup should be removed by lower");
 
     case "method-call":
       var objStmts = codeGenValue(expr.obj, env);
@@ -226,6 +200,13 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       return [
         ...codeGenValue(expr.amount, env),
         `call $alloc`
+      ];
+    case "load":
+      return [
+        ...codeGenValue(expr.start, env),
+        `call $assert_not_none`,
+        ...codeGenValue(expr.offset, env),
+        `call $load`
       ]
   }
 }

@@ -123,19 +123,22 @@ function flattenStmt(s : AST.Stmt<Type>, blocks: Array<IR.BasicBlock<Type>>, env
     case "pass":
       return [];
 
-    case "field-assign":
+    case "field-assign": {
       var [oinits, ostmts, oval] = flattenExprToVal(s.obj, env);
       var [ninits, nstmts, nval] = flattenExprToVal(s.value, env);
-      
+      if(s.obj.a.tag !== "class") { throw new Error("Compiler's cursed, go home."); }
+      const classdata = env.classes.get(s.obj.a.name);
+      const offset : IR.Value<Type> = { tag: "wasmint", value: classdata.get(s.field)[0] };
       pushStmtsToLastBlock(blocks,
         ...ostmts, ...nstmts, {
-          tag: "field-assign",
+          tag: "store",
           a: s.a,
-          obj: oval,
-          field: s.field,
+          start: oval,
+          offset: offset,
           value: nval
         });
       return [...oinits, ...ninits];
+    }
       // return [[...oinits, ...ninits], [...ostmts, ...nstmts, {
       //   tag: "field-assign",
       //   a: s.a,
@@ -238,9 +241,16 @@ function flattenExprToExpr(e : AST.Expr<Type>, env : GlobalEnv) : [Array<IR.VarI
       const methstmts = methpairs.map(cp => cp[1]).flat();
       const methvals = methpairs.map(cp => cp[2]).flat();
       return [[...objinits, ...methinits], [...objstmts, ...methstmts], { ...e, obj: objval, arguments: methvals } ];
-    case "lookup":
+    case "lookup": {
       const [oinits, ostmts, oval] = flattenExprToVal(e.obj, env);
-      return [oinits, ostmts, { ...e, obj: oval, } ];
+      if(e.obj.a.tag !== "class") { throw new Error("Compiler's cursed, go home"); }
+      const classdata = env.classes.get(e.obj.a.name);
+      const [offset, _] = classdata.get(e.field);
+      return [oinits, ostmts, {
+        tag: "load",
+        start: oval,
+        offset: { tag: "wasmint", value: offset }}];
+    }
     case "construct":
       const classdata = env.classes.get(e.name);
       const fields = [...classdata.entries()];
