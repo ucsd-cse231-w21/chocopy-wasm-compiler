@@ -234,13 +234,25 @@ function flattenExprToExpr(e : AST.Expr<Type>, env : GlobalEnv) : [Array<IR.VarI
           arguments: callvals
         }
       ];
-    case "method-call":
+    case "method-call": {
       const [objinits, objstmts, objval] = flattenExprToVal(e.obj, env);
-      const methpairs = e.arguments.map(a => flattenExprToVal(a, env));
-      const methinits = methpairs.map(cp => cp[0]).flat();
-      const methstmts = methpairs.map(cp => cp[1]).flat();
-      const methvals = methpairs.map(cp => cp[2]).flat();
-      return [[...objinits, ...methinits], [...objstmts, ...methstmts], { ...e, obj: objval, arguments: methvals } ];
+      const argpairs = e.arguments.map(a => flattenExprToVal(a, env));
+      const arginits = argpairs.map(cp => cp[0]).flat();
+      const argstmts = argpairs.map(cp => cp[1]).flat();
+      const argvals = argpairs.map(cp => cp[2]).flat();
+      var objTyp = e.obj.a;
+      if(objTyp.tag !== "class") { // I don't think this error can happen
+        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
+      }
+      const className = objTyp.name;
+      const checkObj : IR.Stmt<Type> = { tag: "expr", expr: { tag: "call", name: `assert_not_none`, arguments: [objval]}}
+      const callMethod : IR.Expr<Type> = { tag: "call", name: `${className}$${e.method}`, arguments: [objval, ...argvals] }
+      return [
+        [...objinits, ...arginits],
+        [...objstmts, checkObj, ...argstmts],
+        callMethod
+      ];
+    }
     case "lookup": {
       const [oinits, ostmts, oval] = flattenExprToVal(e.obj, env);
       if(e.obj.a.tag !== "class") { throw new Error("Compiler's cursed, go home"); }

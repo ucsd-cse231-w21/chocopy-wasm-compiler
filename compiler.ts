@@ -172,21 +172,6 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       valStmts.push(`(call $${expr.name})`);
       return valStmts;
 
-    case "method-call":
-      var objStmts = codeGenValue(expr.obj, env);
-      var objTyp = expr.obj.a;
-      if(objTyp.tag !== "class") { // I don't think this error can happen
-        throw new Error("Report this as a bug to the compiler developer, this shouldn't happen " + objTyp.tag);
-      }
-      var className = objTyp.name;
-      var argsStmts = expr.arguments.map((arg) => codeGenValue(arg, env)).flat();
-      return [
-        ...objStmts,
-        `call $assert_not_none`,
-        ...argsStmts,
-        `(call $${className}$${expr.method})`
-      ];
-
     case "alloc":
       return [
         ...codeGenValue(expr.amount, env),

@@ -29,8 +29,6 @@ export type Expr<A> =
   | {  a?: A, tag: "builtin2", name: string, left: Value<A>, right: Value<A>}
   | {  a?: A, tag: "call", name: string, arguments: Array<Value<A>> } 
 
-  | {  a?: A, tag: "method-call", obj: Value<A>, method: string, arguments: Array<Value<A>> } // to remove, just use call? would need call_indirect that takes a value for fun position
-
   | {  a?: A, tag: "alloc", amount: Value<A> }
   | {  a?: A, tag: "load", start: Value<A>, offset: Value<A> }
 
