@@ -152,7 +152,7 @@ function flattenStmt(s : AST.Stmt<Type>, blocks: Array<IR.BasicBlock<Type>>, env
       var elseLbl = generateName("$else")
       var endLbl = generateName("$end")
       var endjmp : IR.Stmt<Type> = { tag: "jmp", lbl: endLbl };
-      var [cinits, cstmts, cexpr] = flattenExprToExpr(s.cond, env);
+      var [cinits, cstmts, cexpr] = flattenExprToVal(s.cond, env);
       var condjmp : IR.Stmt<Type> = { tag: "ifjmp", cond: cexpr, thn: thenLbl, els: elseLbl };
       pushStmtsToLastBlock(blocks, ...cstmts, condjmp);
       blocks.push({  a: s.a, label: thenLbl, stmts: [] })
@@ -183,7 +183,7 @@ function flattenStmt(s : AST.Stmt<Type>, blocks: Array<IR.BasicBlock<Type>>, env
 
       pushStmtsToLastBlock(blocks, { tag: "jmp", lbl: whileStartLbl })
       blocks.push({  a: s.a, label: whileStartLbl, stmts: [] })
-      var [cinits, cstmts, cexpr] = flattenExprToExpr(s.cond, env);
+      var [cinits, cstmts, cexpr] = flattenExprToVal(s.cond, env);
       pushStmtsToLastBlock(blocks, ...cstmts, { tag: "ifjmp", cond: cexpr, thn: whilebodyLbl, els: whileEndLbl });
 
       blocks.push({  a: s.a, label: whilebodyLbl, stmts: [] })
@@ -266,8 +266,6 @@ function flattenExprToExpr(e : AST.Expr<Type>, env : GlobalEnv) : [Array<IR.VarI
     case "construct":
       const classdata = env.classes.get(e.name);
       const fields = [...classdata.entries()];
-      // NOTE(joe): we don't multiply by 4 below because alloc works in word-size chunks
-      // To support inheritance, we'd likely want to add 1 to refer to a vtable
       const newName = generateName("newObj");
       const alloc : IR.Expr<Type> = { tag: "alloc", amount: { tag: "wasmint", value: fields.length } };
       const assigns : IR.Stmt<Type>[] = fields.map(f => {
@@ -295,7 +293,6 @@ function flattenExprToExpr(e : AST.Expr<Type>, env : GlobalEnv) : [Array<IR.VarI
 }
 
 function flattenExprToVal(e : AST.Expr<Type>, env : GlobalEnv) : [Array<IR.VarInit<Type>>, Array<IR.Stmt<Type>>, IR.Value<Type>] {
-  console.log(e);
   var [binits, bstmts, bexpr] = flattenExprToExpr(e, env);
   if(bexpr.tag === "value") {
     return [binits, bstmts, bexpr.value];

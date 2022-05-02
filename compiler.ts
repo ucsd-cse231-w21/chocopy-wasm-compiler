@@ -111,7 +111,7 @@ function codeGenStmt(stmt: Stmt<Type>, env: GlobalEnv): Array<string> {
       const thnIdx = env.labels.findIndex(e => e === stmt.thn);
       const elsIdx = env.labels.findIndex(e => e === stmt.els);
 
-      return [...codeGenExpr(stmt.cond, env), 
+      return [...codeGenValue(stmt.cond, env), 
         `(if 
           (then
             (local.set $$selector (i32.const ${thnIdx}))
