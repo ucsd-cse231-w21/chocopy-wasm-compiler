@@ -31,7 +31,7 @@
     "lezer-tree": "^0.13.0",
     "mochawesome": "^6.2.1",
     "python-shell": "^2.0.3",
-    "ts-loader": "^8.0.11",
+    "ts-loader": "^8.4.0",
     "ts-node": "^9.1.1",
     "typescript": "^4.1.2",
     "wabt": "1.0.20",
